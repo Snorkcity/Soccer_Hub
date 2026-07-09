@@ -63,7 +63,9 @@ New (to build from scratch):
 - Wellness App (General) — all teams; players log how they're feeling per session/week; coaches see overview
 - Women's Health App — female teams only; tracks cycle, energy, mood, soreness, sleep; shown as separate tile, hidden for male teams
 - Team Management — all teams; schedule, attendance, availability, communication, squad roster
-- AI Coach Assistant — custom GPT with club curriculum, embedded in platform
+- AI Coach Assistant — custom GPT with club curriculum, embedded in platform; can help coaches find relevant session plans from library
+- Session Plans (Team) — coaches upload plans for their own team; visible to their coaching staff only
+- Coaches Library (Club-wide) — any coach can upload/share session plans; all coaches across the club can browse, search, download; plans can be tagged by age group, theme, drill type etc
 - Hub / Home — tiles linking to all enabled modules per team
 
 ## Club structure
