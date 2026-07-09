@@ -34,7 +34,9 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Responsive design is a core requirement: players use phone (team management), coaches use desktop (data input + charts)
+- Data input via app forms → PostgreSQL database (not Google Sheets). Sheets used for historical data import only.
+- User prefers to work from their computer, not phone — file sharing and code uploads will happen from desktop.
 
 ## Gotchas
 
