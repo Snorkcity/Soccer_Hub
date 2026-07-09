@@ -37,6 +37,19 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 - Responsive design is a core requirement: players use phone (team management), coaches use desktop (data input + charts)
 - Data input via app forms → PostgreSQL database (not Google Sheets). Sheets used for historical data import only.
 - User prefers to work from their computer, not phone — file sharing and code uploads will happen from desktop.
+- Build as a PWA (Progressive Web App) — installable from browser, no App Store needed.
+
+## Architecture decisions
+
+- Player is the central entity — persistent across seasons, teams, and modules (Season Stats, GPS, Athletic Testing all share the same player record, no duplication)
+- Many-to-many: players ↔ squads (a player can be in multiple squads across years)
+- Many-to-many: players ↔ modules (same player appears in Season Stats, GPS, Athletic Testing)
+- Squad/Season is its own entity: has a year, a team name, and a roster
+- Season lifecycle: Create Squad → Enrol Players → Active Season → Archive → New Season
+- Archived seasons are read-only but always accessible historically
+- Parents linked to players (not squads) so they follow their child across seasons automatically
+- Role-based access: Player / Parent / Coach / Club Admin
+- Build for 1 team first, architecture must support expansion to 15+ teams and 750 users (500 players, 200 parents, 50 coaches/managers) without rework
 
 ## Gotchas
 
