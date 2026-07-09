@@ -87,7 +87,8 @@ New (to build from scratch):
 
 Female teams: u11, u12, u13, u14, u16, Seniors (Reserves + Firsts operate as one squad)
 Male teams: u11, u12, u13, u14, u15, u16, u18, u23, Firsts
-Analytics-enabled teams: Female Seniors + Male Firsts only
+Analytics-enabled teams: Female Seniors (Reserves + Firsts) + Male Firsts only
+Female Seniors has two squads — Reserves and Firsts — both tracking identical analytics data (same sheet structure, same charts, filtered by team)
 All other teams: Team Management features only (schedule, attendance, communication, roster)
 Analytics flag per team: enabled/disabled — simple toggle so any team can be upgraded later
 Typical non-elite team: ~2 coaches, 1 manager, 15 players, ~30 parents (~48 users)
