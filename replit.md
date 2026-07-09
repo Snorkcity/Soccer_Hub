@@ -74,6 +74,8 @@ New (to build from scratch):
 - Coaches Library (Club-wide) — any coach can upload/share session plans; all coaches across the club can browse, search, download; plans can be tagged by age group, theme, drill type etc
 - AI Video Analysis App (future) — coach submits YouTube/stream URL + game style template; AI analyses match and returns a presentation-style report/review
 - Export engine — all relevant modules support export to PDF, PPTX, and/or XLS (match reports, season summaries, player reports, wellness summaries etc)
+- Mid-season Player Reports — coach completes a structured form per player (ratings + comments); criteria defined by curriculum/learning phase for that age group; outputs individual player report or full team report as PDF/PPTX
+- Adhoc module builds — platform is designed to accept new modules as ideas emerge; each new idea can be scoped and built without disrupting existing features
 
 ## Data sources (Season Stats App)
 - Goal analysis data → feeds Season Stats
