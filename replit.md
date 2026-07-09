@@ -51,6 +51,15 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 - Role-based access: Player / Parent / Coach / Club Admin
 - Build for 1 team first, architecture must support expansion to 15+ teams and 750 users (500 players, 200 parents, 50 coaches/managers) without rework
 
+## Club structure
+
+Female teams: u11, u12, u13, u14, u16, Seniors (Reserves + Firsts operate as one squad)
+Male teams: u11, u12, u13, u14, u15, u16, u18, u23, Firsts
+Analytics-enabled teams: Female Seniors + Male Firsts only
+All other teams: Team Management features only (schedule, attendance, communication, roster)
+Analytics flag per team: enabled/disabled — simple toggle so any team can be upgraded later
+Typical non-elite team: ~2 coaches, 1 manager, 15 players, ~30 parents (~48 users)
+
 ## Gotchas
 
 _Populate as you build — sharp edges, "always run X before Y" rules._
