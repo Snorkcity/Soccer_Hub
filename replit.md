@@ -51,6 +51,21 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 - Role-based access: Player / Parent / Coach / Club Admin
 - Build for 1 team first, architecture must support expansion to 15+ teams and 750 users (500 players, 200 parents, 50 coaches/managers) without rework
 
+## Modules / Apps
+
+Existing (to migrate from Python/Dash):
+- Season Stats App — 1 page, 3 tabs, ~12,000 lines Python, analytics-enabled teams only
+- GPS App — Catapult pod data, analytics-enabled teams only
+- Athletic Testing App — 5 charts, analytics-enabled teams only
+
+New (to build from scratch):
+- RPE App — players input perceived exertion (1–10) per session/match on phone; coaches see dashboard with trends, fatigue flags
+- Wellness App (General) — all teams; players log how they're feeling per session/week; coaches see overview
+- Women's Health App — female teams only; tracks cycle, energy, mood, soreness, sleep; shown as separate tile, hidden for male teams
+- Team Management — all teams; schedule, attendance, availability, communication, squad roster
+- AI Coach Assistant — custom GPT with club curriculum, embedded in platform
+- Hub / Home — tiles linking to all enabled modules per team
+
 ## Club structure
 
 Female teams: u11, u12, u13, u14, u16, Seniors (Reserves + Firsts operate as one squad)
