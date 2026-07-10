@@ -73,6 +73,8 @@ New (to build from scratch):
 - AI Coach Assistant — custom GPT with club curriculum, embedded in platform; can help coaches find relevant session plans from library
 - Session Plans (Team) — coaches upload plans for their own team; visible to their coaching staff only
 - Coaches Library (Club-wide) — any coach can upload/share session plans; all coaches across the club can browse, search, download; plans can be tagged by age group, theme, drill type etc
+- Drill Library — 500 PPTX slides imported as searchable drill cards (diagram image + coaching notes + tags: phase, theme, age group, player numbers, skill focus); foundation for session planning
+- Session Plan Builder — coach selects drills from library into a warmup→intro→main→final template; customises timings/notes; exports to PDF or Word in standard template format; AI can suggest drills based on a natural language request (e.g. "60min possession session for u14, 16 players"); built on top of the 250 existing plans and 500 diagrams as the content library
 - AI Video Analysis App (future) — coach submits YouTube/stream URL + game style template; AI analyses match and returns a presentation-style report/review
 - Export engine — all relevant modules support export to PDF, PPTX, and/or XLS (match reports, season summaries, player reports, wellness summaries etc)
 - Mid-season Player Reports — coach completes a structured form per player (ratings + comments); criteria defined by curriculum/learning phase for that age group; outputs individual player report or full team report as PDF/PPTX
