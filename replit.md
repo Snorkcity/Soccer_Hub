@@ -63,6 +63,7 @@ Existing (to migrate from Python/Dash):
 - Season Stats App — 1 page, 3 tabs, ~12,000 lines Python, analytics-enabled teams only
 - GPS App — Catapult pod data, analytics-enabled teams only
 - Athletic Testing App — 5 charts, analytics-enabled teams only
+- Goal Map Input Tool — visual pitch/goal UI; coach clicks location of a goal on the pitch to generate an x/y coordinate; value entered into database to power the goal map chart in Season Stats
 
 New (to build from scratch):
 - RPE App — players input perceived exertion (1–10) per session/match on phone; coaches see dashboard with trends, fatigue flags
