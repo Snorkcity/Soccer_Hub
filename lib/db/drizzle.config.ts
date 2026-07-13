@@ -1,11 +1,13 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-// Prefer DEV_DATABASE_URL when set (e.g. a Railway-hosted dev database on
-// Replit, where DATABASE_URL is reserved/runtime-managed). Falls back to
-// DATABASE_URL otherwise.
+// Outside production, prefer DEV_DATABASE_URL when set (e.g. a Railway-hosted
+// dev database on Replit, where DATABASE_URL is reserved/runtime-managed). In
+// production, always use DATABASE_URL.
 const connectionString =
-  process.env.DEV_DATABASE_URL || process.env.DATABASE_URL;
+  process.env.NODE_ENV === "production"
+    ? process.env.DATABASE_URL
+    : process.env.DEV_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(

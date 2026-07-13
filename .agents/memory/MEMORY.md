@@ -15,3 +15,4 @@
 - [Opponent Insights player charts](opp-players-by-opponent.md) — /analytics/opponent-players-by-opponent feeds the 3 stacked-by-opponent player charts (goals/assists/contrib); one OppPlayerStackChart component, club-scoped from league tables, __ALL__ + lastN supported.
 - [Recharts Fragment children gotcha](recharts-fragment-children.md) — Recharts ignores Bar/axis elements wrapped in a React Fragment; symptom is axes/labels render but no bars and no value-axis ticks. Keep them direct children.
 - [attached_assets nested git repos](attached-assets-nested-git.md) — imported reference apps arrive as embedded git repos (gitlinks, read-only 555 dirs); chmod u+w → rm .git → git rm --cached → re-add to flatten for pushing.
+- [Replit runtime-managed DATABASE_URL vs Railway](replit-db-url-runtime-managed.md) — Replit reserves DATABASE_URL (can't set/override); app reads DEV_DATABASE_URL (non-prod only) to point Replit dev at external Railway Postgres.
