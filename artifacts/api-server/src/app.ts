@@ -47,11 +47,14 @@ if (process.env.NODE_ENV === "production") {
     logger.info({ clientDir }, "Serving frontend static bundle");
     app.use(express.static(clientDir));
 
-    // SPA fallback: serve index.html for any non-API GET that isn't a static
-    // file, so client-side routes (e.g. /season-stats) resolve correctly.
+    // SPA fallback: serve index.html for client-side navigation routes
+    // (e.g. /season-stats) so deep links resolve. Requests that look like a
+    // file (anything with an extension, e.g. a missing JS/CSS bundle) fall
+    // through to a real 404 instead of being masked by index.html.
     app.use((req, res, next) => {
       if (req.method !== "GET" && req.method !== "HEAD") return next();
       if (req.path.startsWith("/api")) return next();
+      if (path.extname(req.path)) return next();
       res.sendFile(indexHtml);
     });
   } else {
