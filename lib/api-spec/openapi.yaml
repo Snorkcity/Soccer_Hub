@@ -3,20 +3,38 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Belconnen United FC Performance Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: players
+    description: Player management
+  - name: teams
+    description: Team management
+  - name: seasons
+    description: Season management
+  - name: matches
+    description: Match data
+  - name: goals
+    description: Goal event data
+  - name: player-stats
+    description: Player match statistics
+  - name: gps
+    description: GPS / Catapult session data
+  - name: testing
+    description: Athletic testing results
+  - name: analytics
+    description: Aggregated analytics and summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +42,844 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── PLAYERS ────────────────────────────────────────────────────────────────
+
+  /players:
+    get:
+      operationId: listPlayers
+      tags: [players]
+      summary: List all players
+      parameters:
+        - name: teamId
+          in: query
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of players
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Player"
+    post:
+      operationId: createPlayer
+      tags: [players]
+      summary: Create a player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+
+  /players/{id}:
+    get:
+      operationId: getPlayer
+      tags: [players]
+      summary: Get a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "404":
+          description: Not found
+    patch:
+      operationId: updatePlayer
+      tags: [players]
+      summary: Update a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerUpdate"
+      responses:
+        "200":
+          description: Updated player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+
+  # ─── TEAMS ──────────────────────────────────────────────────────────────────
+
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [teams]
+      summary: List all teams
+      responses:
+        "200":
+          description: List of teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+
+  /teams/{id}:
+    get:
+      operationId: getTeam
+      tags: [teams]
+      summary: Get a team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  # ─── SEASONS ────────────────────────────────────────────────────────────────
+
+  /seasons:
+    get:
+      operationId: listSeasons
+      tags: [seasons]
+      summary: List all seasons
+      responses:
+        "200":
+          description: List of seasons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Season"
+    post:
+      operationId: createSeason
+      tags: [seasons]
+      summary: Create a season
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeasonInput"
+      responses:
+        "201":
+          description: Created season
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Season"
+
+  # ─── MATCHES ────────────────────────────────────────────────────────────────
+
+  /matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: List matches
+      parameters:
+        - name: teamId
+          in: query
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Match"
+    post:
+      operationId: createMatch
+      tags: [matches]
+      summary: Create a match record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "201":
+          description: Created match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+
+  /matches/{id}:
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: Get a match
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+    patch:
+      operationId: updateMatch
+      tags: [matches]
+      summary: Update a match
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchUpdate"
+      responses:
+        "200":
+          description: Updated match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+
+  # ─── PLAYER MATCH STATS ─────────────────────────────────────────────────────
+
+  /player-stats:
+    get:
+      operationId: listPlayerStats
+      tags: [player-stats]
+      summary: List player match stats
+      parameters:
+        - name: matchId
+          in: query
+          schema: { type: integer }
+        - name: playerId
+          in: query
+          schema: { type: integer }
+        - name: teamId
+          in: query
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of player stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerStat"
+    post:
+      operationId: createPlayerStat
+      tags: [player-stats]
+      summary: Record player stats for a match
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerStatInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerStat"
+
+  # ─── GOALS ──────────────────────────────────────────────────────────────────
+
+  /goals:
+    get:
+      operationId: listGoals
+      tags: [goals]
+      summary: List goal events
+      parameters:
+        - name: matchId
+          in: query
+          schema: { type: integer }
+        - name: teamId
+          in: query
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          schema: { type: integer }
+        - name: scorerTeam
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of goal events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Goal"
+    post:
+      operationId: createGoal
+      tags: [goals]
+      summary: Record a goal event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+
+  /goals/{id}:
+    patch:
+      operationId: updateGoal
+      tags: [goals]
+      summary: Update a goal event (e.g. set X/Y coordinates)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalUpdate"
+      responses:
+        "200":
+          description: Updated goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+    delete:
+      operationId: deleteGoal
+      tags: [goals]
+      summary: Delete a goal event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── GPS SESSIONS ───────────────────────────────────────────────────────────
+
+  /gps-sessions:
+    get:
+      operationId: listGpsSessions
+      tags: [gps]
+      summary: List GPS sessions
+      parameters:
+        - name: playerId
+          in: query
+          schema: { type: integer }
+        - name: year
+          in: query
+          schema: { type: string }
+        - name: teamId
+          in: query
+          schema: { type: integer }
+        - name: round
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of GPS sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsSession"
+    post:
+      operationId: createGpsSession
+      tags: [gps]
+      summary: Create a GPS session record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GpsSessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GpsSession"
+
+  # ─── ATHLETIC TESTING ───────────────────────────────────────────────────────
+
+  /athletic-tests:
+    get:
+      operationId: listAthleticTests
+      tags: [testing]
+      summary: List athletic test results
+      parameters:
+        - name: playerId
+          in: query
+          schema: { type: integer }
+        - name: year
+          in: query
+          schema: { type: string }
+        - name: teamId
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of athletic test results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AthleticTest"
+    post:
+      operationId: createAthleticTest
+      tags: [testing]
+      summary: Record an athletic test result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AthleticTestInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AthleticTest"
+
+  # ─── ANALYTICS (WOW endpoints) ──────────────────────────────────────────────
+
+  /analytics/season-summary:
+    get:
+      operationId: getSeasonSummary
+      tags: [analytics]
+      summary: Get aggregated season summary stats
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Season summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeasonSummary"
+
+  /analytics/player-leaderboard:
+    get:
+      operationId: getPlayerLeaderboard
+      tags: [analytics]
+      summary: Get player rankings (goals, assists, minutes, appearances)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Player leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerLeaderboardEntry"
+
+  /analytics/league-ladder:
+    get:
+      operationId: getLeagueLadder
+      tags: [analytics]
+      summary: Get current league ladder standings
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: League ladder
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LadderEntry"
+
+  /analytics/team-form:
+    get:
+      operationId: getTeamForm
+      tags: [analytics]
+      summary: Get team recent form
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recent match form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamForm"
+
+  /analytics/goals-by-interval:
+    get:
+      operationId: getGoalsByInterval
+      tags: [analytics]
+      summary: Goals scored and conceded by 15-minute interval
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastNMatches
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Goals by interval
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GoalIntervalBucket"
+
+  /analytics/goal-breakdown:
+    get:
+      operationId: getGoalBreakdown
+      tags: [analytics]
+      summary: Focus team's own goals broken down by goal type and detail dimensions
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Goal breakdowns by type and detail dimension
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalBreakdownResponse"
+
+  /analytics/opponent-clubs:
+    get:
+      operationId: getOpponentClubs
+      tags: [analytics]
+      summary: Get list of opponent clubs for the selected team+season
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Sorted list of opponent club names
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
+
+  /analytics/opponent-leaderboard:
+    get:
+      operationId: getOpponentLeaderboard
+      tags: [analytics]
+      summary: Player stats for a specific opponent club
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Opponent leaderboard with head-to-head record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpponentLeaderboardResponse"
+
+  /analytics/goals-by-opponent:
+    get:
+      operationId: getGoalsByOpponent
+      tags: [analytics]
+      summary: Per-player goals broken down by opponent, with minutes played against each
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Goals by opponent response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalsByOpponentResponse"
+
+  /analytics/assists-by-opponent:
+    get:
+      operationId: getAssistsByOpponent
+      tags: [analytics]
+      summary: Per-player assists broken down by opponent, with minutes played against each
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Assists by opponent response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistsByOpponentResponse"
+
+  /analytics/opponent-goal-breakdown:
+    get:
+      operationId: getOpponentGoalBreakdown
+      tags: [analytics]
+      summary: All goal details (scored & conceded) in matches vs a specific opponent club
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Goal breakdown for matches vs this club
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpponentGoalBreakdownResponse"
+
+  /analytics/opponent-profile:
+    get:
+      operationId: getOpponentProfile
+      tags: [analytics]
+      summary: Full club-centric scouting profile across ALL of a club's league games
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Club scouting profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpponentProfileResponse"
+
+  /analytics/opponent-players-by-opponent:
+    get:
+      operationId: getOpponentPlayersByOpponent
+      tags: [analytics]
+      summary: Per-player goals/assists/minutes for a club, broken down by the opponent they faced
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Club players' goals/assists broken down by opponent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpponentPlayersByOpponentResponse"
+
+  /clubs:
+    get:
+      operationId: getClubs
+      tags: [clubs]
+      summary: List all clubs with their brand colours
+      responses:
+        "200":
+          description: List of clubs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClubInfo"
+
+  /analytics/gps-load-summary:
+    get:
+      operationId: getGpsLoadSummary
+      tags: [analytics]
+      summary: GPS load summary per player for a given period
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: year
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: GPS load summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsLoadSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +887,808 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ── Players ──────────────────────────────────────────────────────────────
+
+    Player:
+      type: object
+      properties:
+        id:        { type: integer }
+        name:      { type: string }
+        position:  { type: ["string", "null"] }
+        club:      { type: ["string", "null"] }
+        dob:       { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, name, createdAt]
+
+    PlayerInput:
+      type: object
+      properties:
+        name:     { type: string }
+        position: { type: ["string", "null"] }
+        club:     { type: ["string", "null"] }
+        dob:      { type: ["string", "null"] }
+      required: [name]
+
+    PlayerUpdate:
+      type: object
+      properties:
+        name:     { type: string }
+        position: { type: ["string", "null"] }
+        club:     { type: ["string", "null"] }
+        dob:      { type: ["string", "null"] }
+
+    # ── Teams ─────────────────────────────────────────────────────────────────
+
+    Team:
+      type: object
+      properties:
+        id:               { type: integer }
+        name:             { type: string }
+        gender:           { type: string }
+        ageGroup:         { type: string }
+        analyticsEnabled: { type: boolean }
+        clubName:         { type: string }
+      required: [id, name, gender, ageGroup, analyticsEnabled, clubName]
+
+    # ── Seasons ───────────────────────────────────────────────────────────────
+
+    Season:
+      type: object
+      properties:
+        id:       { type: integer }
+        year:     { type: string }
+        label:    { type: string }
+        isActive: { type: boolean }
+      required: [id, year, label, isActive]
+
+    SeasonInput:
+      type: object
+      properties:
+        year:     { type: string }
+        label:    { type: string }
+        isActive: { type: boolean }
+      required: [year, label]
+
+    # ── Matches ───────────────────────────────────────────────────────────────
+
+    Match:
+      type: object
+      properties:
+        id:             { type: integer }
+        matchId:        { type: string }
+        matchDate:      { type: ["string", "null"] }
+        venue:          { type: ["string", "null"] }
+        opponent:       { type: string }
+        halfScore:      { type: ["string", "null"] }
+        fullScore:      { type: ["string", "null"] }
+        goalsScored:    { type: ["integer", "null"] }
+        goalsConceded:  { type: ["integer", "null"] }
+        cleanSheet:     { type: ["boolean", "null"] }
+        formation:      { type: ["string", "null"] }
+        oppFormation:   { type: ["string", "null"] }
+        conditions:     { type: ["string", "null"] }
+        possession:     { type: ["number", "null"] }
+        shots:          { type: ["integer", "null"] }
+        passes:         { type: ["integer", "null"] }
+        oppShots:       { type: ["integer", "null"] }
+        oppPasses:      { type: ["integer", "null"] }
+        quadrantPoints: { type: ["string", "null"] }
+        teamId:         { type: integer }
+        seasonId:       { type: integer }
+        result:         { type: ["string", "null"] }
+      required: [id, matchId, opponent, teamId, seasonId]
+
+    MatchInput:
+      type: object
+      properties:
+        matchId:        { type: string }
+        matchDate:      { type: ["string", "null"] }
+        venue:          { type: ["string", "null"] }
+        opponent:       { type: string }
+        halfScore:      { type: ["string", "null"] }
+        fullScore:      { type: ["string", "null"] }
+        goalsScored:    { type: ["integer", "null"] }
+        goalsConceded:  { type: ["integer", "null"] }
+        cleanSheet:     { type: ["boolean", "null"] }
+        formation:      { type: ["string", "null"] }
+        oppFormation:   { type: ["string", "null"] }
+        conditions:     { type: ["string", "null"] }
+        possession:     { type: ["number", "null"] }
+        shots:          { type: ["integer", "null"] }
+        passes:         { type: ["integer", "null"] }
+        oppShots:       { type: ["integer", "null"] }
+        oppPasses:      { type: ["integer", "null"] }
+        quadrantPoints: { type: ["string", "null"] }
+        teamId:         { type: integer }
+        seasonId:       { type: integer }
+      required: [matchId, opponent, teamId, seasonId]
+
+    MatchUpdate:
+      type: object
+      properties:
+        matchDate:      { type: ["string", "null"] }
+        venue:          { type: ["string", "null"] }
+        opponent:       { type: string }
+        halfScore:      { type: ["string", "null"] }
+        fullScore:      { type: ["string", "null"] }
+        goalsScored:    { type: ["integer", "null"] }
+        goalsConceded:  { type: ["integer", "null"] }
+        cleanSheet:     { type: ["boolean", "null"] }
+        formation:      { type: ["string", "null"] }
+        oppFormation:   { type: ["string", "null"] }
+        conditions:     { type: ["string", "null"] }
+        possession:     { type: ["number", "null"] }
+        shots:          { type: ["integer", "null"] }
+        passes:         { type: ["integer", "null"] }
+        oppShots:       { type: ["integer", "null"] }
+        oppPasses:      { type: ["integer", "null"] }
+        quadrantPoints: { type: ["string", "null"] }
+
+    # ── Player Stats ──────────────────────────────────────────────────────────
+
+    PlayerStat:
+      type: object
+      properties:
+        id:          { type: integer }
+        matchId:     { type: integer }
+        playerId:    { type: integer }
+        playerName:  { type: string }
+        minsPlayed:  { type: ["integer", "null"] }
+        position:    { type: ["string", "null"] }
+        discipline:  { type: ["string", "null"] }
+        started:     { type: ["boolean", "null"] }
+        appearance:  { type: ["boolean", "null"] }
+        club:        { type: ["string", "null"] }
+        year:        { type: ["string", "null"] }
+      required: [id, matchId, playerId, playerName]
+
+    PlayerStatInput:
+      type: object
+      properties:
+        matchId:    { type: integer }
+        playerId:   { type: integer }
+        minsPlayed: { type: ["integer", "null"] }
+        position:   { type: ["string", "null"] }
+        discipline: { type: ["string", "null"] }
+        started:    { type: ["boolean", "null"] }
+        appearance: { type: ["boolean", "null"] }
+        club:       { type: ["string", "null"] }
+        year:       { type: ["string", "null"] }
+      required: [matchId, playerId]
+
+    # ── Goals ─────────────────────────────────────────────────────────────────
+
+    Goal:
+      type: object
+      properties:
+        id:               { type: integer }
+        matchId:          { type: integer }
+        recording:        { type: ["string", "null"] }
+        matchDate:        { type: ["string", "null"] }
+        homeTeam:         { type: ["string", "null"] }
+        awayTeam:         { type: ["string", "null"] }
+        scorerTeam:       { type: ["string", "null"] }
+        minuteScored:     { type: ["integer", "null"] }
+        scorer:           { type: ["string", "null"] }
+        assist:           { type: ["string", "null"] }
+        goalType:         { type: ["string", "null"] }
+        assistType:       { type: ["string", "null"] }
+        howPenetrated:    { type: ["string", "null"] }
+        buildupLane:      { type: ["string", "null"] }
+        firstTimeFinish:  { type: ["boolean", "null"] }
+        finishType:       { type: ["string", "null"] }
+        passString:       { type: ["string", "null"] }
+        goalX:            { type: ["number", "null"] }
+        goalY:            { type: ["number", "null"] }
+        teamId:           { type: integer }
+        seasonId:         { type: integer }
+      required: [id, matchId, teamId, seasonId]
+
+    GoalInput:
+      type: object
+      properties:
+        matchId:          { type: integer }
+        recording:        { type: ["string", "null"] }
+        matchDate:        { type: ["string", "null"] }
+        homeTeam:         { type: ["string", "null"] }
+        awayTeam:         { type: ["string", "null"] }
+        scorerTeam:       { type: ["string", "null"] }
+        minuteScored:     { type: ["integer", "null"] }
+        scorer:           { type: ["string", "null"] }
+        assist:           { type: ["string", "null"] }
+        goalType:         { type: ["string", "null"] }
+        assistType:       { type: ["string", "null"] }
+        howPenetrated:    { type: ["string", "null"] }
+        buildupLane:      { type: ["string", "null"] }
+        firstTimeFinish:  { type: ["boolean", "null"] }
+        finishType:       { type: ["string", "null"] }
+        passString:       { type: ["string", "null"] }
+        goalX:            { type: ["number", "null"] }
+        goalY:            { type: ["number", "null"] }
+        teamId:           { type: integer }
+        seasonId:         { type: integer }
+      required: [matchId, teamId, seasonId]
+
+    GoalUpdate:
+      type: object
+      properties:
+        minuteScored:    { type: ["integer", "null"] }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        finishType:      { type: ["string", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["number", "null"] }
+        goalY:           { type: ["number", "null"] }
+
+    # ── GPS Sessions ──────────────────────────────────────────────────────────
+
+    GpsSession:
+      type: object
+      properties:
+        id:                  { type: integer }
+        sessionDate:         { type: ["string", "null"] }
+        sessionTitle:        { type: ["string", "null"] }
+        playerName:          { type: string }
+        playerId:            { type: ["integer", "null"] }
+        teamId:              { type: integer }
+        year:                { type: string }
+        round:               { type: ["string", "null"] }
+        opponent:            { type: ["string", "null"] }
+        splitName:           { type: ["string", "null"] }
+        tags:                { type: ["string", "null"] }
+        minsPlayed:          { type: ["number", "null"] }
+        distanceKm:          { type: ["number", "null"] }
+        sprintDistanceM:     { type: ["number", "null"] }
+        powerPlays:          { type: ["number", "null"] }
+        energyKcal:          { type: ["number", "null"] }
+        impacts:             { type: ["number", "null"] }
+        hrLoad:              { type: ["number", "null"] }
+        timeInRedZoneMin:    { type: ["number", "null"] }
+        playerLoad:          { type: ["number", "null"] }
+        topSpeedMs:          { type: ["number", "null"] }
+        distancePerMinMm:    { type: ["number", "null"] }
+        powerScoreWkg:       { type: ["number", "null"] }
+        workRatio:           { type: ["number", "null"] }
+        hrMaxBpm:            { type: ["number", "null"] }
+        maxDecelerationMss:  { type: ["number", "null"] }
+        maxAccelerationMss:  { type: ["number", "null"] }
+        distanceZone1Km:     { type: ["number", "null"] }
+        distanceZone2Km:     { type: ["number", "null"] }
+        distanceZone3Km:     { type: ["number", "null"] }
+        distanceZone4Km:     { type: ["number", "null"] }
+        distanceZone5Km:     { type: ["number", "null"] }
+      required: [id, playerName, teamId, year]
+
+    GpsSessionInput:
+      type: object
+      properties:
+        sessionDate:         { type: ["string", "null"] }
+        sessionTitle:        { type: ["string", "null"] }
+        playerName:          { type: string }
+        playerId:            { type: ["integer", "null"] }
+        teamId:              { type: integer }
+        year:                { type: string }
+        round:               { type: ["string", "null"] }
+        opponent:            { type: ["string", "null"] }
+        splitName:           { type: ["string", "null"] }
+        tags:                { type: ["string", "null"] }
+        minsPlayed:          { type: ["number", "null"] }
+        distanceKm:          { type: ["number", "null"] }
+        sprintDistanceM:     { type: ["number", "null"] }
+        powerPlays:          { type: ["number", "null"] }
+        energyKcal:          { type: ["number", "null"] }
+        impacts:             { type: ["number", "null"] }
+        hrLoad:              { type: ["number", "null"] }
+        timeInRedZoneMin:    { type: ["number", "null"] }
+        playerLoad:          { type: ["number", "null"] }
+        topSpeedMs:          { type: ["number", "null"] }
+        distancePerMinMm:    { type: ["number", "null"] }
+        powerScoreWkg:       { type: ["number", "null"] }
+        workRatio:           { type: ["number", "null"] }
+        hrMaxBpm:            { type: ["number", "null"] }
+        maxDecelerationMss:  { type: ["number", "null"] }
+        maxAccelerationMss:  { type: ["number", "null"] }
+        distanceZone1Km:     { type: ["number", "null"] }
+        distanceZone2Km:     { type: ["number", "null"] }
+        distanceZone3Km:     { type: ["number", "null"] }
+        distanceZone4Km:     { type: ["number", "null"] }
+        distanceZone5Km:     { type: ["number", "null"] }
+      required: [playerName, teamId, year]
+
+    # ── Athletic Tests ────────────────────────────────────────────────────────
+
+    AthleticTest:
+      type: object
+      properties:
+        id:            { type: integer }
+        playerId:      { type: ["integer", "null"] }
+        playerName:    { type: string }
+        teamId:        { type: integer }
+        year:          { type: string }
+        position:      { type: ["string", "null"] }
+        verticalStart: { type: ["number", "null"] }
+        verticalM:     { type: ["number", "null"] }
+        verticalTotal: { type: ["number", "null"] }
+        horizontalM:   { type: ["number", "null"] }
+        balsomS:       { type: ["number", "null"] }
+        split010:      { type: ["number", "null"] }
+        split1020:     { type: ["number", "null"] }
+        split2030:     { type: ["number", "null"] }
+        total30m:      { type: ["number", "null"] }
+      required: [id, playerName, teamId, year]
+
+    AthleticTestInput:
+      type: object
+      properties:
+        playerId:      { type: ["integer", "null"] }
+        playerName:    { type: string }
+        teamId:        { type: integer }
+        year:          { type: string }
+        position:      { type: ["string", "null"] }
+        verticalStart: { type: ["number", "null"] }
+        verticalM:     { type: ["number", "null"] }
+        verticalTotal: { type: ["number", "null"] }
+        horizontalM:   { type: ["number", "null"] }
+        balsomS:       { type: ["number", "null"] }
+        split010:      { type: ["number", "null"] }
+        split1020:     { type: ["number", "null"] }
+        split2030:     { type: ["number", "null"] }
+        total30m:      { type: ["number", "null"] }
+      required: [playerName, teamId, year]
+
+    # ── Analytics / Summaries ─────────────────────────────────────────────────
+
+    SeasonSummary:
+      type: object
+      properties:
+        matchesPlayed:    { type: integer }
+        wins:             { type: integer }
+        draws:            { type: integer }
+        losses:           { type: integer }
+        goalsScored:      { type: integer }
+        goalsConceded:    { type: integer }
+        goalDifference:   { type: integer }
+        cleanSheets:      { type: integer }
+        winRate:          { type: number }
+        avgGoalsScored:   { type: number }
+        avgGoalsConceded: { type: number }
+        topScorer:        { type: ["string", "null"] }
+        topScorerGoals:   { type: ["integer", "null"] }
+        teamName:         { type: string }
+        seasonLabel:      { type: string }
+      required: [matchesPlayed, wins, draws, losses, goalsScored, goalsConceded, goalDifference, cleanSheets, winRate, avgGoalsScored, avgGoalsConceded, teamName, seasonLabel]
+
+    PlayerLeaderboardEntry:
+      type: object
+      properties:
+        playerId:             { type: integer }
+        playerName:           { type: string }
+        position:             { type: ["string", "null"] }
+        goals:                { type: integer }
+        assists:              { type: integer }
+        appearances:          { type: integer }
+        starts:               { type: integer }
+        minsPlayed:           { type: integer }
+        minsPerGoal:          { type: ["number", "null"] }
+        minsPerAssist:        { type: ["number", "null"] }
+        yellowCards:          { type: integer }
+        redCards:             { type: integer }
+        goalsFor:             { type: integer }
+        goalsConceded:        { type: integer }
+        minsPerGoalConceded:  { type: ["number", "null"] }
+      required: [playerId, playerName, goals, assists, appearances, starts, minsPlayed, yellowCards, redCards, goalsFor, goalsConceded]
+
+    OpponentLeaderboardEntry:
+      type: object
+      properties:
+        playerName:    { type: string }
+        position:      { type: ["string", "null"] }
+        appearances:   { type: integer }
+        starts:        { type: integer }
+        minsPlayed:    { type: integer }
+        yellowCards:   { type: integer }
+        redCards:      { type: integer }
+        goalsFor:      { type: integer }
+        goalsConceded: { type: integer }
+      required: [playerName, appearances, starts, minsPlayed, yellowCards, redCards, goalsFor, goalsConceded]
+
+    HeadToHeadRecord:
+      type: object
+      properties:
+        played:       { type: integer }
+        won:          { type: integer }
+        drawn:        { type: integer }
+        lost:         { type: integer }
+        goalsFor:     { type: integer }
+        goalsAgainst: { type: integer }
+      required: [played, won, drawn, lost, goalsFor, goalsAgainst]
+
+    MatchHistoryEntry:
+      type: object
+      properties:
+        matchId:       { type: integer }
+        matchDate:     { type: ["string", "null"] }
+        goalsScored:   { type: integer }
+        goalsConceded: { type: integer }
+        result:        { type: string }
+      required: [matchId, goalsScored, goalsConceded, result]
+
+    OpponentLeaderboardResponse:
+      type: object
+      properties:
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpponentLeaderboardEntry"
+        headToHead:
+          $ref: "#/components/schemas/HeadToHeadRecord"
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchHistoryEntry"
+      required: [players, headToHead, matches]
+
+    LadderEntry:
+      type: object
+      properties:
+        teamName:      { type: string }
+        played:        { type: integer }
+        won:           { type: integer }
+        drawn:         { type: integer }
+        lost:          { type: integer }
+        goalsFor:      { type: integer }
+        goalsAgainst:  { type: integer }
+        goalDiff:      { type: integer }
+        points:        { type: integer }
+        isFocusTeam:   { type: boolean }
+      required: [teamName, played, won, drawn, lost, goalsFor, goalsAgainst, goalDiff, points, isFocusTeam]
+
+    TeamForm:
+      type: object
+      properties:
+        recentResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormResult"
+        formString:  { type: string }
+        winsLast5:   { type: integer }
+        drawsLast5:  { type: integer }
+        lossesLast5: { type: integer }
+      required: [recentResults, formString, winsLast5, drawsLast5, lossesLast5]
+
+    FormResult:
+      type: object
+      properties:
+        opponent:      { type: string }
+        result:        { type: string }
+        goalsScored:   { type: integer }
+        goalsConceded: { type: integer }
+        matchDate:     { type: ["string", "null"] }
+      required: [opponent, result, goalsScored, goalsConceded]
+
+    GoalIntervalBucket:
+      type: object
+      properties:
+        interval:         { type: string }
+        goalsScored:      { type: integer }
+        goalsConceded:    { type: integer }
+        intervalStart:    { type: integer }
+        intervalEnd:      { type: integer }
+      required: [interval, goalsScored, goalsConceded, intervalStart, intervalEnd]
+
+    ScoredGoalRecord:
+      type: object
+      properties:
+        id:              { type: integer }
+        matchId:         { type: ["integer", "null"] }
+        minuteScored:    { type: ["integer", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        finishType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["number", "null"] }
+        goalY:           { type: ["number", "null"] }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        opponent:        { type: ["string", "null"] }
+        matchDate:       { type: ["string", "null"] }
+        matchCode:       { type: ["string", "null"] }
+        matchResult:     { type: ["string", "null"] }
+      required: [id]
+
+    GoalBreakdownResponse:
+      type: object
+      properties:
+        opponents:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/ScoredGoalRecord" }
+        conceded:
+          type: array
+          items: { $ref: "#/components/schemas/ScoredGoalRecord" }
+      required: [opponents, goals, conceded]
+
+    GpsLoadSummary:
+      type: object
+      properties:
+        playerId:          { type: ["integer", "null"] }
+        playerName:        { type: string }
+        sessions:          { type: integer }
+        avgDistanceKm:     { type: ["number", "null"] }
+        avgSprintDistanceM: { type: ["number", "null"] }
+        avgPlayerLoad:     { type: ["number", "null"] }
+        avgTopSpeedMs:     { type: ["number", "null"] }
+        avgHrLoad:         { type: ["number", "null"] }
+        totalDistanceKm:   { type: ["number", "null"] }
+        maxTopSpeedMs:     { type: ["number", "null"] }
+      required: [playerName, sessions]
+
+    # ── Clubs ─────────────────────────────────────────────────────────────────
+
+    ClubInfo:
+      type: object
+      properties:
+        id:           { type: integer }
+        name:         { type: string }
+        primaryColor: { type: string }
+        logoUrl:      { type: ["string", "null"] }
+      required: [id, name, primaryColor]
+
+    # ── Goals by Opponent ──────────────────────────────────────────────────────
+
+    GoalsByOpponentEntry:
+      type: object
+      properties:
+        goals:      { type: integer }
+        minsPlayed: { type: integer }
+      required: [goals, minsPlayed]
+
+    GoalsByOpponentPlayer:
+      type: object
+      properties:
+        playerName: { type: string }
+        totalMins:  { type: integer }
+        totalGoals: { type: integer }
+        byOpponent:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/GoalsByOpponentEntry"
+      required: [playerName, totalMins, totalGoals, byOpponent]
+
+    GoalsByOpponentResponse:
+      type: object
+      properties:
+        opponents:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalsByOpponentPlayer"
+      required: [opponents, players]
+
+    # ── Assists by Opponent ────────────────────────────────────────────────────
+
+    AssistsByOpponentEntry:
+      type: object
+      properties:
+        assists:    { type: integer }
+        minsPlayed: { type: integer }
+      required: [assists, minsPlayed]
+
+    AssistsByOpponentPlayer:
+      type: object
+      properties:
+        playerName:   { type: string }
+        totalMins:    { type: integer }
+        totalAssists: { type: integer }
+        byOpponent:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/AssistsByOpponentEntry"
+      required: [playerName, totalMins, totalAssists, byOpponent]
+
+    AssistsByOpponentResponse:
+      type: object
+      properties:
+        opponents:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssistsByOpponentPlayer"
+      required: [opponents, players]
+
+    # ── Opponent Players by Opponent (club-scoped goals/assists/mins) ───────────
+
+    OpponentPlayerByOpponentEntry:
+      type: object
+      properties:
+        goals:      { type: integer }
+        assists:    { type: integer }
+        minsPlayed: { type: integer }
+      required: [goals, assists, minsPlayed]
+
+    OpponentPlayerByOpponentPlayer:
+      type: object
+      properties:
+        playerName:   { type: string }
+        totalMins:    { type: integer }
+        totalGoals:   { type: integer }
+        totalAssists: { type: integer }
+        totalStarts:  { type: integer }
+        totalApps:    { type: integer }
+        byOpponent:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/OpponentPlayerByOpponentEntry"
+      required: [playerName, totalMins, totalGoals, totalAssists, totalStarts, totalApps, byOpponent]
+
+    OpponentPlayersByOpponentResponse:
+      type: object
+      properties:
+        opponents:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpponentPlayerByOpponentPlayer"
+      required: [opponents, players]
+
+    # ── Opponent Goal Breakdown ────────────────────────────────────────────────
+
+    OpponentGoalDetail:
+      type: object
+      properties:
+        id:              { type: integer }
+        minuteScored:    { type: ["integer", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        finishType:      { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        matchDate:       { type: ["string", "null"] }
+      required: [id]
+
+    OpponentGoalBreakdownResponse:
+      type: object
+      properties:
+        scored:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentGoalDetail" }
+        conceded:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentGoalDetail" }
+      required: [scored, conceded]
+
+    # ── Opponent Profile (club-centric scouting across all their games) ─────────
+
+    OpponentProfileRecord:
+      type: object
+      properties:
+        played:       { type: integer }
+        won:          { type: integer }
+        drawn:        { type: integer }
+        lost:         { type: integer }
+        goalsFor:     { type: integer }
+        goalsAgainst: { type: integer }
+        goalDiff:     { type: integer }
+        points:       { type: integer }
+        position:     { type: ["integer", "null"] }
+      required: [played, won, drawn, lost, goalsFor, goalsAgainst, goalDiff, points, position]
+
+    OpponentProfileMatch:
+      type: object
+      properties:
+        matchId:   { type: string }
+        matchDate: { type: ["string", "null"] }
+        opponent:  { type: string }
+        homeAway:  { type: string }
+        scored:    { type: integer }
+        conceded:  { type: integer }
+        result:    { type: string }
+      required: [matchId, matchDate, opponent, homeAway, scored, conceded, result]
+
+    OpponentProfileBucket:
+      type: object
+      properties:
+        label: { type: string }
+        total: { type: integer }
+        byOpponent:
+          type: object
+          additionalProperties: { type: integer }
+      required: [label, total, byOpponent]
+
+    OpponentProfileScorer:
+      type: object
+      properties:
+        scorer: { type: string }
+        goals:  { type: integer }
+      required: [scorer, goals]
+
+    # Raw goal record (club-relative) powering detail-by-type, goal-map, 5-min response, first-goal.
+    OpponentProfileGoal:
+      type: object
+      properties:
+        matchId:         { type: string }
+        matchDate:       { type: ["string", "null"] }
+        minuteScored:    { type: ["integer", "null"] }
+        side:            { type: string }                 # "scored" | "conceded" (relative to selected club)
+        opponent:        { type: string }                 # the OTHER team in that fixture
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        finishType:      { type: ["string", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["string", "null"] }
+        goalY:           { type: ["string", "null"] }
+      required: [matchId, matchDate, minuteScored, side, opponent, scorer, assist, goalType, assistType, howPenetrated, buildupLane, firstTimeFinish, finishType, passString, goalX, goalY]
+
+    # Per-player season aggregate for the selected club (or whole league under __ALL__).
+    OpponentProfilePlayer:
+      type: object
+      properties:
+        playerName:  { type: string }
+        club:        { type: ["string", "null"] }
+        minsPlayed:  { type: integer }
+        starts:      { type: integer }
+        appearances: { type: integer }
+        goals:       { type: integer }
+        assists:     { type: integer }
+      required: [playerName, club, minsPlayed, starts, appearances, goals, assists]
+
+    OpponentProfileResponse:
+      type: object
+      properties:
+        club:      { type: string }
+        opponents:
+          type: array
+          items: { type: string }
+        record:
+          $ref: "#/components/schemas/OpponentProfileRecord"
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileMatch" }
+        scoredByInterval:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileBucket" }
+        concededByInterval:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileBucket" }
+        scoredByType:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileBucket" }
+        concededByType:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileBucket" }
+        topScorers:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileScorer" }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfileGoal" }
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfilePlayer" }
+      required: [club, opponents, record, matches, scoredByInterval, concededByInterval, scoredByType, concededByType, topScorers, goals, players]

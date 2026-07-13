@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Belconnen United FC — Performance Hub"
+version = "1.0.0"
+id = "artifacts/bufc-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19679
+
+[services.development]
+run = "pnpm --filter @workspace/bufc-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bufc-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/bufc-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19679"
+BASE_PATH = "/"

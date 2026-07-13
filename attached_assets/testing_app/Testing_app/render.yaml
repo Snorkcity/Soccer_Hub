@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: testing-dashboard
+    env: python
+    buildCommand: ""
+    startCommand: python testing_dashboard.py

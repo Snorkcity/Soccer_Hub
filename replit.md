@@ -100,6 +100,24 @@ Typical non-elite team: ~2 coaches, 1 manager, 15 players, ~30 parents (~48 user
 
 _Populate as you build — sharp edges, "always run X before Y" rules._
 
+- **Player-name join (goals ↔ minutes):** goal/assist attribution links to a player's
+  minutes by exact name match between the league-based sheet (`Scorer`/`Assist`) and the
+  player-based sheet (`Player Name`). Names must be byte-identical across both. Known
+  cross-sheet typos are reconciled in `NAME_FIXUPS` in `lib/db/src/seed.ts` (add new
+  entries there rather than editing raw CSVs, so fixes survive a re-upload).
+- **Transferred players (mid-season):** a player keeps her goals under the club she
+  scored for (league-based `Scorer Team`), but her minutes follow her to the new club in
+  the player-based sheet. Result: she can appear in her former club's Opponent Insights
+  with "0 mins" (e.g. EJ, Croatia→Belconnen, 2026). This is intentional/by-design, not a
+  bug. Match-side resolution means her relabeled minutes only ever count in matches her
+  new club actually played, so the new club's stats stay correct.
+- **Naming convention — siblings / same surnames:** 2026 data uses bare surnames
+  (`Bloggs`), which is ambiguous when families share one (already present this season:
+  Babic, Nikias, Singers, Cerne, DeMarco each have a bare entry AND initialed siblings
+  like `A.Babic`/`L.Babic`). From 2027 the plan is `Initial.Surname` (`J.Bloggs` = Joe
+  Bloggs) in BOTH sheets so siblings disambiguate naturally by their distinct initials —
+  no special app logic required as long as both sheets use the same spelling.
+
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
