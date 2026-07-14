@@ -27,4 +27,5 @@
 - [GPS Insights feature](gps-insights.md) — HSM=sprint_distance_m, VHS=zone5×1000; squad parsed from round suffix (team_id useless); stack halves only when both exist; accel/decel counts missing from import.
 - [Athletic testing feature](athletic-testing.md) — trainer-xlsx upload (replace per year+team), percentile ties=100 convention, coach-voice game notes; charts exclude "Averages"/"Unknown" rows.
 - [GPS player identity merging](player-identities.md) — duplicate GPS names pool via gps_player_aliases at READ time (never rewrite raw rows); positions keyed by canonical; season-stats link table.
+- [Multi-club module provisioning](multi-club-provisioning.md) — future clubs won't have GPS/testing; modules are per-club flags chosen at club creation. Don't assume GPS is universal.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
