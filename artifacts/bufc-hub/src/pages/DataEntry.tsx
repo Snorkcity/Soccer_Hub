@@ -36,7 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Plus, Upload, Loader2, ScanText } from "lucide-react";
+import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
 
 const FOCUS_CLUB = "Belconnen";
 
@@ -581,6 +581,14 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
             >
               <Plus className="h-4 w-4 mr-2" />Add row
             </Button>
+            {rows.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => { setRows([]); setWarnings([]); setOk(null); setErr(null); }}
+              >
+                <X className="h-4 w-4 mr-2" />Cancel — clear table
+              </Button>
+            )}
           </div>
         )}
 
