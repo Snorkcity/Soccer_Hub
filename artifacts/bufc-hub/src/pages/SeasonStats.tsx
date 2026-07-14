@@ -1754,7 +1754,7 @@ export default function SeasonStats() {
           )}
           {seasons && (
             <Select value={selectedSeasonId.toString()} onValueChange={v => setSelectedSeasonId(Number(v))}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Select Season" /></SelectTrigger>
+              <SelectTrigger className="w-[220px]"><SelectValue placeholder="Select Season" /></SelectTrigger>
               <SelectContent>{seasons.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.leagueName} · {s.label}</SelectItem>)}</SelectContent>
             </Select>
           )}
