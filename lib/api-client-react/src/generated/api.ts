@@ -77,6 +77,9 @@ import type {
   GoalUpdate,
   GoalsByOpponentResponse,
   GpsLoadSummary,
+  GpsPlayerPosition,
+  GpsPlayerPositionInput,
+  GpsPlayerPositionsSaveResult,
   GpsSession,
   GpsSessionInput,
   HealthStatus,
@@ -1884,6 +1887,154 @@ export const useCreateGpsSession = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateGpsSessionMutationOptions(options));
+    }
+
+export const getListGpsPlayerPositionsUrl = () => {
+
+
+
+
+  return `/api/gps-player-positions`
+}
+
+/**
+ * @summary List playing positions for GPS-logged players
+ */
+export const listGpsPlayerPositions = async ( options?: RequestInit): Promise<GpsPlayerPosition[]> => {
+
+  return customFetch<GpsPlayerPosition[]>(getListGpsPlayerPositionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsPlayerPositionsQueryKey = () => {
+    return [
+    `/api/gps-player-positions`
+    ] as const;
+    }
+
+
+export const getListGpsPlayerPositionsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsPlayerPositions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerPositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsPlayerPositionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsPlayerPositions>>> = ({ signal }) => listGpsPlayerPositions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerPositions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsPlayerPositionsQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsPlayerPositions>>>
+export type ListGpsPlayerPositionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List playing positions for GPS-logged players
+ */
+
+export function useListGpsPlayerPositions<TData = Awaited<ReturnType<typeof listGpsPlayerPositions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerPositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsPlayerPositionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveGpsPlayerPositionsUrl = () => {
+
+
+
+
+  return `/api/gps-player-positions`
+}
+
+/**
+ * @summary Upsert player positions (a null position removes the entry)
+ */
+export const saveGpsPlayerPositions = async (gpsPlayerPositionInput: GpsPlayerPositionInput[], options?: RequestInit): Promise<GpsPlayerPositionsSaveResult> => {
+
+  return customFetch<GpsPlayerPositionsSaveResult>(getSaveGpsPlayerPositionsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsPlayerPositionInput)
+  }
+);}
+
+
+
+
+
+export const getSaveGpsPlayerPositionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext> => {
+
+const mutationKey = ['saveGpsPlayerPositions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, {data: BodyType<GpsPlayerPositionInput[]>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGpsPlayerPositions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGpsPlayerPositionsMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsPlayerPositions>>>
+    export type SaveGpsPlayerPositionsMutationBody = BodyType<GpsPlayerPositionInput[]>
+    export type SaveGpsPlayerPositionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upsert player positions (a null position removes the entry)
+ */
+export const useSaveGpsPlayerPositions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGpsPlayerPositions>>,
+        TError,
+        {data: BodyType<GpsPlayerPositionInput[]>},
+        TContext
+      > => {
+      return useMutation(getSaveGpsPlayerPositionsMutationOptions(options));
     }
 
 export const getListAthleticTestsUrl = (params?: ListAthleticTestsParams,) => {

@@ -499,6 +499,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/GpsSession"
 
+  /gps-player-positions:
+    get:
+      operationId: listGpsPlayerPositions
+      tags: [gps]
+      summary: List playing positions for GPS-logged players
+      responses:
+        "200":
+          description: Player positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsPlayerPosition"
+    put:
+      operationId: saveGpsPlayerPositions
+      tags: [gps]
+      summary: Upsert player positions (a null position removes the entry)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/GpsPlayerPositionInput"
+      responses:
+        "200":
+          description: Save result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GpsPlayerPositionsSaveResult"
+
   # ─── ATHLETIC TESTING ───────────────────────────────────────────────────────
 
   /athletic-tests:
@@ -1684,6 +1718,27 @@ components:
         goalY:           { type: ["number", "null"] }
 
     # ── GPS Sessions ──────────────────────────────────────────────────────────
+
+    GpsPlayerPosition:
+      type: object
+      properties:
+        playerName: { type: string }
+        position:   { type: string, enum: [GK, Defender, Midfielder, Forward] }
+      required: [playerName, position]
+
+    GpsPlayerPositionInput:
+      type: object
+      properties:
+        playerName: { type: string }
+        position:   { type: ["string", "null"], enum: [GK, Defender, Midfielder, Forward, null] }
+      required: [playerName]
+
+    GpsPlayerPositionsSaveResult:
+      type: object
+      properties:
+        saved:   { type: integer }
+        removed: { type: integer }
+      required: [saved, removed]
 
     GpsSession:
       type: object

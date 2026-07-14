@@ -696,6 +696,31 @@ export const CreateGpsSessionResponse = zod.object({
 
 
 /**
+ * @summary List playing positions for GPS-logged players
+ */
+export const ListGpsPlayerPositionsResponseItem = zod.object({
+  "playerName": zod.string(),
+  "position": zod.enum(['GK', 'Defender', 'Midfielder', 'Forward'])
+})
+export const ListGpsPlayerPositionsResponse = zod.array(ListGpsPlayerPositionsResponseItem)
+
+
+/**
+ * @summary Upsert player positions (a null position removes the entry)
+ */
+export const SaveGpsPlayerPositionsBodyItem = zod.object({
+  "playerName": zod.string(),
+  "position": zod.union([zod.literal('GK'),zod.literal('Defender'),zod.literal('Midfielder'),zod.literal('Forward'),zod.literal(null)]).nullish()
+})
+export const SaveGpsPlayerPositionsBody = zod.array(SaveGpsPlayerPositionsBodyItem)
+
+export const SaveGpsPlayerPositionsResponse = zod.object({
+  "saved": zod.number(),
+  "removed": zod.number()
+})
+
+
+/**
  * @summary List athletic test results
  */
 export const ListAthleticTestsQueryParams = zod.object({

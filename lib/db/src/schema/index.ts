@@ -9,5 +9,6 @@ export * from "./leagueMatches";
 export * from "./leagueGoals";
 export * from "./leaguePlayerStats";
 export * from "./gpsSessions";
+export * from "./gpsPlayerPositions";
 export * from "./athleticTests";
 export * from "./clubs";

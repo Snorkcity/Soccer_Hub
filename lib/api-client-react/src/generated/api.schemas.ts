@@ -342,6 +342,45 @@ export interface GoalUpdate {
   goalY?: number | null;
 }
 
+export type GpsPlayerPositionPosition = typeof GpsPlayerPositionPosition[keyof typeof GpsPlayerPositionPosition];
+
+
+export const GpsPlayerPositionPosition = {
+  GK: 'GK',
+  Defender: 'Defender',
+  Midfielder: 'Midfielder',
+  Forward: 'Forward',
+} as const;
+
+export interface GpsPlayerPosition {
+  playerName: string;
+  position: GpsPlayerPositionPosition;
+}
+
+/**
+ * @nullable
+ */
+export type GpsPlayerPositionInputPosition = typeof GpsPlayerPositionInputPosition[keyof typeof GpsPlayerPositionInputPosition] | null;
+
+
+export const GpsPlayerPositionInputPosition = {
+  GK: 'GK',
+  Defender: 'Defender',
+  Midfielder: 'Midfielder',
+  Forward: 'Forward',
+} as const;
+
+export interface GpsPlayerPositionInput {
+  playerName: string;
+  /** @nullable */
+  position?: GpsPlayerPositionInputPosition;
+}
+
+export interface GpsPlayerPositionsSaveResult {
+  saved: number;
+  removed: number;
+}
+
 export interface GpsSession {
   id: number;
   /** @nullable */

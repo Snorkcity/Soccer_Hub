@@ -2,8 +2,12 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   useListGpsSessions,
   getListGpsSessionsQueryKey,
+  useListGpsPlayerPositions,
+  getListGpsPlayerPositionsQueryKey,
   type GpsSession,
 } from "@workspace/api-client-react";
+import type { ReportComparison } from "@/lib/playerGpsReport";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -254,6 +258,27 @@ const REPORT_BLURBS: Record<string, string> = {
 };
 const REPORT_SUMMABLE = new Set(["distance", "hsm", "vhs", "powerPlays"]);
 
+/** Average per-game numbers for a group of player-game bundles (a squad or a position). */
+function groupAverages(label: string, bs: Bundle[]): ReportComparison {
+  const mean = (vals: (number | null)[]): number | null => {
+    const ok = vals.filter((v): v is number => v != null);
+    return ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
+  };
+  return {
+    label,
+    games: bs.length,
+    values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, mean(bs.map(b => bundleTotal(b, m)))])),
+    accel: mean(bs.map(b => bundleCount(b, "accel"))),
+    decel: mean(bs.map(b => bundleCount(b, "decel"))),
+    maxAcc: mean(bs.map(b => b.game?.maxAccelerationMss ?? null)),
+    maxDec: mean(bs.map(b => b.game?.maxDecelerationMss ?? null)),
+  };
+}
+
+const plural = (pos: string) => (pos === "GK" ? "GKs" : `${pos}s`);
+/** Squad seniority, youngest first — a player defaults to seeing her own squad and everything above it. */
+const SQUAD_LADDER = ["17s / 18s", "Reserves", "1sts"];
+
 function PlayerReportDialog({ player, year, bundles }: { player: string; year: string; bundles: Bundle[] }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -262,17 +287,83 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
   const [season, setSeason] = useState(`${year} Season`);
   const [team, setTeam] = useState("");
   const [note, setNote] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [defaultsSet, setDefaultsSet] = useState(false);
+
+  const playerSquad = bundles.length ? squadOf(bundles[bundles.length - 1].key) : "1sts";
+
+  // Everyone's games this year + positions — only fetched while the dialog is open
+  const allParams = { year };
+  const { data: allRows, isLoading: loadingAll } = useListGpsSessions(
+    allParams,
+    { query: { enabled: open, queryKey: getListGpsSessionsQueryKey(allParams) } },
+  );
+  const { data: positions, isLoading: loadingPos } = useListGpsPlayerPositions(
+    { query: { enabled: open, queryKey: getListGpsPlayerPositionsQueryKey() } },
+  );
+  const loadingAverages = open && (loadingAll || loadingPos);
+
+  // Every player-game bundle in the year, tagged with its player + squad
+  const allBundles = useMemo(() => {
+    const byPlayer = new Map<string, GpsSession[]>();
+    for (const r of (allRows ?? []).filter(r => r.tags === "game")) {
+      if (!r.playerName) continue;
+      byPlayer.set(r.playerName, [...(byPlayer.get(r.playerName) ?? []), r]);
+    }
+    const out: { player: string; squad: string; bundle: Bundle }[] = [];
+    for (const [p, rows] of byPlayer) {
+      for (const b of buildBundles(rows, r => r.round ?? "")) {
+        out.push({ player: p, squad: squadOf(b.key), bundle: b });
+      }
+    }
+    return out;
+  }, [allRows]);
+
+  const posOf = useMemo(
+    () => new Map((positions ?? []).map(p => [p.playerName, p.position])),
+    [positions]);
+
+  // Available comparison groups: each squad with data, plus the player's position (all squads)
+  const groups = useMemo(() => {
+    const out: { key: string; title: string; comparison: ReportComparison }[] = [];
+    for (const squad of SQUAD_LADDER) {
+      const bs = allBundles.filter(e => e.squad === squad).map(e => e.bundle);
+      if (bs.length) out.push({ key: squad, title: `${squad} average`, comparison: groupAverages(`${squad} average`, bs) });
+    }
+    const pos = posOf.get(player);
+    if (pos) {
+      const bs = allBundles.filter(e => posOf.get(e.player) === pos).map(e => e.bundle);
+      if (bs.length) {
+        const title = `${plural(pos)} average (all squads)`;
+        out.push({ key: "pos", title, comparison: groupAverages(title, bs) });
+      }
+    }
+    return out;
+  }, [allBundles, posOf, player]);
 
   // Re-prefill whenever the dialog opens for the current selection
   useEffect(() => {
     if (!open) return;
     setName(player);
     setSeason(`${year} Season`);
-    const squad = bundles.length ? squadOf(bundles[bundles.length - 1].key) : "1sts";
-    setTeam(`Belconnen United FC — ${squad}`);
+    setTeam(`Belconnen United FC — ${playerSquad}`);
     setNote("");
     setError(null);
-  }, [open, player, year, bundles]);
+    setDefaultsSet(false);
+  }, [open, player, year, playerSquad]);
+
+  // Default ticks once the data is in: own squad + squads above it + own position
+  useEffect(() => {
+    if (!open || defaultsSet || loadingAverages) return;
+    const fromRung = SQUAD_LADDER.indexOf(playerSquad);
+    const defaults = new Set<string>();
+    for (const g of groups) {
+      if (g.key === "pos") defaults.add(g.key);
+      else if (SQUAD_LADDER.indexOf(g.key) >= fromRung) defaults.add(g.key);
+    }
+    setSelected(defaults);
+    setDefaultsSet(true);
+  }, [open, defaultsSet, loadingAverages, groups, playerSquad]);
 
   const generate = async () => {
     setBusy(true);
@@ -301,6 +392,7 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
           maxAcc: b.game?.maxAccelerationMss ?? null,
           maxDec: b.game?.maxDecelerationMss ?? null,
         })),
+        comparisons: groups.filter(g => selected.has(g.key)).map(g => g.comparison),
       });
       setOpen(false);
     } catch (e) {
@@ -339,6 +431,38 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
               <Label htmlFor="rep-team">Team</Label>
               <Input id="rep-team" value={team} onChange={e => setTeam(e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Averages to show in the report</Label>
+            {loadingAverages ? (
+              <p className="text-xs text-muted-foreground">Working out the averages…</p>
+            ) : groups.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No averages available for {year}.</p>
+            ) : (
+              <div className="space-y-1.5 rounded-md border p-3">
+                {groups.map(g => (
+                  <label key={g.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selected.has(g.key)}
+                      onCheckedChange={checked => {
+                        setSelected(prev => {
+                          const next = new Set(prev);
+                          if (checked === true) next.add(g.key); else next.delete(g.key);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span>{g.title}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{g.comparison.games} player-games</span>
+                  </label>
+                ))}
+                {!posOf.get(player) && !loadingAverages && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    No position set for {player} yet — add positions in Data Entry to unlock position averages.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="rep-note">A note from you (optional — goes on the final slide)</Label>

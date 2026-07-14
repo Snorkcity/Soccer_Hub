@@ -27,6 +27,11 @@ import {
   useDeleteEntryPlayerStats,
   useExtractPlayersFromImage,
   useSaveEntryAthleticTests,
+  useListGpsSessions,
+  getListGpsSessionsQueryKey,
+  useListGpsPlayerPositions,
+  getListGpsPlayerPositionsQueryKey,
+  useSaveGpsPlayerPositions,
   useListLeagues,
   useCreateLeague,
   useCreateSeason,
@@ -1314,12 +1319,13 @@ function EntryWorkspace() {
       </div>
 
       <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto md:h-10">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto md:h-10">
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
           <TabsTrigger value="league">4 · League Setup</TabsTrigger>
           <TabsTrigger value="testing">5 · Testing</TabsTrigger>
+          <TabsTrigger value="positions">6 · Positions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="match" className="mt-6">
@@ -1340,8 +1346,109 @@ function EntryWorkspace() {
         <TabsContent value="testing" className="mt-6">
           <TestingUploadForm teamId={teamId} />
         </TabsContent>
+        <TabsContent value="positions" className="mt-6">
+          <PositionsForm />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GPS player positions — drives position-specific averages in player reports
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GPS_POSITIONS = ["GK", "Defender", "Midfielder", "Forward"];
+
+function PositionsForm() {
+  const queryClient = useQueryClient();
+
+  // Every player name that has ever logged a GPS game (all years)
+  const gpsParams = { split: "game" };
+  const { data: gpsRows, isLoading: loadingNames } = useListGpsSessions(
+    gpsParams,
+    { query: { queryKey: getListGpsSessionsQueryKey(gpsParams) } },
+  );
+  const names = useMemo(
+    () => [...new Set((gpsRows ?? []).map(r => r.playerName).filter((n): n is string => !!n && n !== "Unknown"))].sort(),
+    [gpsRows]);
+
+  const { data: saved, isLoading: loadingPos } = useListGpsPlayerPositions(
+    { query: { queryKey: getListGpsPlayerPositionsQueryKey() } },
+  );
+  const savedMap = useMemo(() => new Map((saved ?? []).map(p => [p.playerName, p.position])), [saved]);
+
+  // Local edits layered over what's saved; "" = no position
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const valueOf = (n: string) => edits[n] ?? savedMap.get(n) ?? "";
+  const dirty = names.some(n => (edits[n] ?? savedMap.get(n) ?? "") !== (savedMap.get(n) ?? ""));
+
+  const [message, setMessage] = useState<string | null>(null);
+  const save = useSaveGpsPlayerPositions({ mutation: {
+    onSuccess: res => {
+      setEdits({});
+      setMessage(`Saved — ${res.saved} player${res.saved === 1 ? "" : "s"} with a position${res.removed ? `, ${res.removed} cleared` : ""}.`);
+      void queryClient.invalidateQueries({ queryKey: getListGpsPlayerPositionsQueryKey() });
+    },
+    onError: e => setMessage(errMsg(e)),
+  }});
+
+  const submit = () => {
+    setMessage(null);
+    const body = names
+      .filter(n => (edits[n] ?? savedMap.get(n) ?? "") !== (savedMap.get(n) ?? ""))
+      .map(n => {
+        const v = valueOf(n);
+        return { playerName: n, position: (v === "" ? null : v) as "GK" | "Defender" | "Midfielder" | "Forward" | null };
+      });
+    save.mutate({ data: body });
+  };
+
+  const unset = names.filter(n => !valueOf(n)).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Player positions</CardTitle>
+        <CardDescription>
+          Set each GPS-logged player as GK, Defender, Midfielder or Forward. Once set, player reports can show
+          position-specific averages — a much fairer comparison than the whole squad.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loadingNames || loadingPos ? (
+          <p className="text-muted-foreground py-8 text-center">Loading players…</p>
+        ) : names.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-center">No GPS-logged players found.</p>
+        ) : (
+          <>
+            <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              {names.map(n => (
+                <div key={n} className="flex items-center justify-between gap-2 border-b py-1.5">
+                  <span className="text-sm truncate">{n}</span>
+                  <Select value={valueOf(n) || "none"} onValueChange={v => setEdits(prev => ({ ...prev, [n]: v === "none" ? "" : v }))}>
+                    <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {GPS_POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={submit} disabled={!dirty || save.isPending}>
+                {save.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Saving…</> : "Save positions"}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                {unset ? `${unset} of ${names.length} players still without a position.` : `All ${names.length} players have a position.`}
+              </p>
+              {message && <p className="text-sm">{message}</p>}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -57,5 +57,13 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE gps_sessions ADD COLUMN IF NOT EXISTS decel_count_3_4 numeric(8,2)`);
   await db.execute(sql`ALTER TABLE gps_sessions ADD COLUMN IF NOT EXISTS decel_count_over_4 numeric(8,2)`);
 
+  // Player positions for GPS players (2026-07) — drives position-specific averages in reports
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gps_player_positions (
+      player_name text PRIMARY KEY,
+      position text NOT NULL
+    )
+  `);
+
   logger.info("Startup migrations applied");
 }

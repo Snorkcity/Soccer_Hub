@@ -28,6 +28,17 @@ export interface ReportGame {
   maxDec: number | null;
 }
 
+/** A benchmark group (squad or position) whose per-game averages appear alongside the player. */
+export interface ReportComparison {
+  label: string; // e.g. "1sts average", "Forwards average (all squads)"
+  games: number; // player-games the average is built from
+  values: Record<string, number | null>; // metricId -> average per game
+  accel: number | null; // average accel count per game
+  decel: number | null;
+  maxAcc: number | null; // average of per-game max accel
+  maxDec: number | null;
+}
+
 export interface ReportInput {
   playerName: string;
   seasonLabel: string;
@@ -36,6 +47,7 @@ export interface ReportInput {
   generatedOn: string; // e.g. "14 July 2026"
   metrics: ReportMetric[];
   games: ReportGame[]; // chronological, oldest first
+  comparisons?: ReportComparison[]; // chosen by whoever runs the report
 }
 
 // ── Brand ────────────────────────────────────────────────────────────────────
@@ -51,6 +63,9 @@ const TINT = "EFF7FB";
 
 const W = 13.33;
 const H = 7.5;
+
+/** Line colours for comparison averages (player's own season average stays purple). */
+const COMP_COLORS = ["ED8936", "2A9D8F", "D64570", "5E548E"];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +122,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
 
   const games = input.games;
   const cats = games.map(g => g.round);
+  const comps = input.comparisons ?? [];
 
   // ── Title slide ────────────────────────────────────────────────────────────
   {
@@ -184,6 +200,49 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     addFooter(s, input);
   }
 
+  // ── How you compare slide ─────────────────────────────────────────────────
+  if (comps.length) {
+    const s = pptx.addSlide();
+    s.background = { color: PAPER };
+    addHeader(s, "How you compare", "Your per-game averages next to the group averages you're measured against. Aim to be at or above the line that matters for you.");
+
+    type Cell = { text: string; options?: Record<string, unknown> };
+    const headRow: Cell[] = [
+      { text: "Per game", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
+      { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
+      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" as const } })),
+    ];
+    const rows: Cell[][] = [headRow];
+    const pushRow = (label: string, you: number | null, compVals: (number | null)[], d: number, unit: string) => {
+      if (you == null && compVals.every(v => v == null)) return;
+      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      rows.push([
+        { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
+        { text: fmt(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        ...compVals.map(v => ({
+          text: fmt(v, d, unit),
+          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
+        })),
+      ]);
+    };
+    for (const m of input.metrics) {
+      const st = metricStats(games, m.id);
+      pushRow(m.title, st.seasonAvg, comps.map(c => c.values[m.id] ?? null), m.decimals, m.unit);
+    }
+    const accG = games.filter(g => g.accel != null).map(g => g.accel as number);
+    const decG = games.filter(g => g.decel != null).map(g => g.decel as number);
+    pushRow("Accelerations >3 m/s²", avg(accG), comps.map(c => c.accel), 0, "");
+    pushRow("Decelerations >3 m/s²", avg(decG), comps.map(c => c.decel), 0, "");
+
+    s.addTable(rows as never, {
+      x: 0.75, y: 1.6, w: 11.8, colW: [4.2, ...Array(comps.length + 1).fill((11.8 - 4.2) / (comps.length + 1))],
+      fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+      valign: "middle",
+    });
+    addInsightBar(s, `Group averages are per game, built from every tracked player-game this season (${comps.map(c => `${c.label.replace(/ average/i, "")}: ${c.games}`).join(", ")}). Sky-blue means you're at or above that group.`);
+    addFooter(s, input);
+  }
+
   // ── Metric chart slides ───────────────────────────────────────────────────
   for (const m of input.metrics) {
     const stats = metricStats(games, m.id);
@@ -205,6 +264,15 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         data: [{ name: "Season average", labels: cats, values: cats.map(() => Number(stats.seasonAvg!.toFixed(m.decimals + 1))) }],
         options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
       },
+      // One flat dashed line per chosen comparison group (squad / position averages)
+      ...comps
+        .map((c, i) => ({ c, color: COMP_COLORS[i % COMP_COLORS.length] }))
+        .filter(({ c }) => c.values[m.id] != null)
+        .map(({ c, color }) => ({
+          type: "line",
+          data: [{ name: c.label, labels: cats, values: cats.map(() => Number((c.values[m.id] as number).toFixed(m.decimals + 1))) }],
+          options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDot", lineSize: 1.25 },
+        })),
     ];
     // pptxgenjs combo charts take (typesArray, options) at runtime; the TS typings
     // only describe the single-type (type, data, options) overload, hence the cast.
@@ -253,6 +321,10 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       bits.push(`Averages: ${Math.round(avg(accs.map(g => g.accel as number)) ?? 0)} accels`
         + (decs.length ? ` / ${Math.round(avg(decs.map(g => g.decel as number)) ?? 0)} decels per game` : " per game"));
     }
+    for (const c of comps) {
+      if (c.accel == null && c.decel == null) continue;
+      bits.push(`${c.label}: ${c.accel != null ? Math.round(c.accel) : "—"} accels / ${c.decel != null ? Math.round(c.decel) : "—"} decels`);
+    }
     addInsightBar(s, bits.join("   •   "));
     addFooter(s, input);
   }
@@ -274,6 +346,10 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       showLegend: true, legendPos: "b", legendFontSize: 10,
       catGridLine: { style: "none" },
     });
+    const maxBits = comps
+      .filter(c => c.maxAcc != null || c.maxDec != null)
+      .map(c => `${c.label}: ${fmt(c.maxAcc, 1, "")} accel / ${fmt(c.maxDec, 1, "")} decel m/s²`);
+    if (maxBits.length) addInsightBar(s, `Typical game peaks — ${maxBits.join("   •   ")}`);
     addFooter(s, input);
   }
 
