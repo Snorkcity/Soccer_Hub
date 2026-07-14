@@ -132,8 +132,12 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
     onSuccess: (res) => {
       setOk(`Saved ${matchId} (${res.fullScore})${res.belconnenMatchId != null ? " — Belconnen match row created too" : ""}`);
       onSaved();
+      // Reset the whole form back to its default look, ready for the next match
+      setMatchDate(""); setHomeTeam(""); setAwayTeam("");
       setHomeGoals(""); setAwayGoals(""); setHalfScore(""); setRound("");
-      setMatchIdEdited(false);
+      setMatchId(""); setMatchIdEdited(false);
+      setVenue(""); setConditions(""); setFormation(""); setOppFormation("");
+      setPossession(""); setShots(""); setPasses(""); setOppShots(""); setOppPasses("");
     },
     onError: (e) => setErr(errMsg(e)),
   }});
