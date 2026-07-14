@@ -405,7 +405,7 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
     "Extract EVERY player row you can see and return STRICT JSON only (no markdown, no commentary) in this exact shape:",
     `{"rows":[{"playerName":"...","minsPlayed":90,"position":"GK","discipline":null,"started":true,"appearance":true}],"warnings":["..."]}`,
     "Rules:",
-    "- playerName: format as first-initial dot surname, e.g. \"J.Bloggs\", whenever a first name or initial is visible. Never return a bare surname if any first-name information is shown. If only a surname is visible, return the surname and add a warning naming that player.",
+    "- playerName: return the SURNAME ONLY, e.g. \"Bloggs\" — even when a first name or initial is visible, drop it. For hyphenated or multi-word surnames keep the full surname (e.g. \"Smith-Jones\", \"van Dyk\"). If two players share a surname, keep the first-initial prefix for both (e.g. \"J.Bloggs\", \"K.Bloggs\") and add a warning naming them.",
     "- minsPlayed: integer minutes if shown, otherwise null. Do not guess.",
     "- position: the position shown (GK, RB, CB, LB, DM, CM, AM, ST, F, etc.), otherwise null.",
     "- discipline: card info if shown (e.g. \"Yellow\", \"Red\"), otherwise null.",
