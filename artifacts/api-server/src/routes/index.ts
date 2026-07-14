@@ -10,6 +10,8 @@ import gpsSessionsRouter from "./gpsSessions";
 import athleticTestsRouter from "./athleticTests";
 import analyticsRouter from "./analytics";
 import clubsRouter from "./clubs";
+import authRouter from "./auth";
+import entryRouter from "./entry";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use(gpsSessionsRouter);
 router.use(athleticTestsRouter);
 router.use(analyticsRouter);
 router.use(clubsRouter);
+router.use(authRouter);
+router.use(entryRouter);
 
 export default router;

@@ -1388,3 +1388,226 @@ export const GetGpsLoadSummaryResponseItem = zod.object({
 export const GetGpsLoadSummaryResponse = zod.array(GetGpsLoadSummaryResponseItem)
 
 
+/**
+ * @summary Log in as the data-entry admin
+ */
+export const LoginBody = zod.object({
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "authenticated": zod.boolean()
+})
+
+
+/**
+ * @summary Log out of the data-entry session
+ */
+export const LogoutResponse = zod.object({
+  "authenticated": zod.boolean()
+})
+
+
+/**
+ * @summary Whether the current session is authenticated for data entry
+ */
+export const GetAuthStatusResponse = zod.object({
+  "authenticated": zod.boolean()
+})
+
+
+/**
+ * @summary All league fixtures for a season (drives entry pickers)
+ */
+export const ListLeagueMatchesQueryParams = zod.object({
+  "seasonId": zod.coerce.number()
+})
+
+export const ListLeagueMatchesResponseItem = zod.object({
+  "id": zod.number(),
+  "matchId": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "fullScore": zod.string().nullable(),
+  "homeGoals": zod.number().nullable(),
+  "awayGoals": zod.number().nullable()
+})
+export const ListLeagueMatchesResponse = zod.array(ListLeagueMatchesResponseItem)
+
+
+/**
+ * @summary Existing vocabulary for goal-detail dropdowns (keeps spellings consistent)
+ */
+export const GetGoalOptionsQueryParams = zod.object({
+  "seasonId": zod.coerce.number()
+})
+
+export const GetGoalOptionsResponse = zod.object({
+  "goalTypes": zod.array(zod.string()),
+  "assistTypes": zod.array(zod.string()),
+  "howPenetrated": zod.array(zod.string()),
+  "buildupLanes": zod.array(zod.string()),
+  "finishTypes": zod.array(zod.string()),
+  "conditions": zod.array(zod.string()),
+  "venues": zod.array(zod.string()),
+  "formations": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
+ */
+
+
+
+
+export const createEntryMatchBodyHomeGoalsMin = 0;
+
+export const createEntryMatchBodyAwayGoalsMin = 0;
+
+export const createEntryMatchBodyPossessionMin = 0;
+export const createEntryMatchBodyPossessionMax = 100;
+
+export const createEntryMatchBodyShotsMin = 0;
+
+export const createEntryMatchBodyPassesMin = 0;
+
+export const createEntryMatchBodyOppShotsMin = 0;
+
+export const createEntryMatchBodyOppPassesMin = 0;
+
+
+
+export const CreateEntryMatchBody = zod.object({
+  "teamId": zod.number(),
+  "seasonId": zod.number(),
+  "matchId": zod.string().min(1),
+  "matchDate": zod.string().min(1),
+  "homeTeam": zod.string().min(1),
+  "awayTeam": zod.string().min(1),
+  "homeGoals": zod.number().min(createEntryMatchBodyHomeGoalsMin),
+  "awayGoals": zod.number().min(createEntryMatchBodyAwayGoalsMin),
+  "venue": zod.string().nullish(),
+  "halfScore": zod.string().nullish(),
+  "conditions": zod.string().nullish(),
+  "formation": zod.string().nullish(),
+  "oppFormation": zod.string().nullish(),
+  "possession": zod.number().min(createEntryMatchBodyPossessionMin).max(createEntryMatchBodyPossessionMax).nullish(),
+  "shots": zod.number().min(createEntryMatchBodyShotsMin).nullish(),
+  "passes": zod.number().min(createEntryMatchBodyPassesMin).nullish(),
+  "oppShots": zod.number().min(createEntryMatchBodyOppShotsMin).nullish(),
+  "oppPasses": zod.number().min(createEntryMatchBodyOppPassesMin).nullish()
+})
+
+export const CreateEntryMatchResponse = zod.object({
+  "leagueMatchId": zod.number(),
+  "belconnenMatchId": zod.number().nullable(),
+  "fullScore": zod.string()
+})
+
+
+/**
+ * @summary Record a goal with full detail (duplicated into the Belconnen goals table when applicable)
+ */
+
+
+export const createEntryGoalBodyMinuteScoredMin = 0;
+export const createEntryGoalBodyMinuteScoredMax = 130;
+
+export const createEntryGoalBodyGoalXMin = 0;
+export const createEntryGoalBodyGoalXMax = 100;
+
+export const createEntryGoalBodyGoalYMin = 0;
+
+
+
+export const CreateEntryGoalBody = zod.object({
+  "teamId": zod.number(),
+  "seasonId": zod.number(),
+  "matchId": zod.string().min(1),
+  "scorerTeam": zod.string().min(1),
+  "minuteScored": zod.number().min(createEntryGoalBodyMinuteScoredMin).max(createEntryGoalBodyMinuteScoredMax).nullish(),
+  "scorer": zod.string().nullish(),
+  "assist": zod.string().nullish(),
+  "goalType": zod.string().nullish(),
+  "assistType": zod.string().nullish(),
+  "howPenetrated": zod.string().nullish(),
+  "buildupLane": zod.string().nullish(),
+  "firstTimeFinish": zod.boolean().nullish(),
+  "finishType": zod.string().nullish(),
+  "passString": zod.string().nullish(),
+  "goalX": zod.number().min(createEntryGoalBodyGoalXMin).max(createEntryGoalBodyGoalXMax).nullish(),
+  "goalY": zod.number().min(createEntryGoalBodyGoalYMin).nullish()
+})
+
+export const CreateEntryGoalResponse = zod.object({
+  "leagueGoalId": zod.number(),
+  "belconnenGoalId": zod.number().nullable()
+})
+
+
+/**
+ * @summary Save one club's player rows for a match (replaces any previous rows for that match+club)
+ */
+
+
+
+export const saveEntryPlayerStatsBodyRowsItemMinsPlayedMin = 0;
+export const saveEntryPlayerStatsBodyRowsItemMinsPlayedMax = 130;
+
+
+
+export const SaveEntryPlayerStatsBody = zod.object({
+  "teamId": zod.number(),
+  "seasonId": zod.number(),
+  "matchId": zod.string().min(1),
+  "club": zod.string().min(1),
+  "year": zod.string().nullish(),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string().min(1),
+  "minsPlayed": zod.number().min(saveEntryPlayerStatsBodyRowsItemMinsPlayedMin).max(saveEntryPlayerStatsBodyRowsItemMinsPlayedMax).nullish(),
+  "position": zod.string().nullish(),
+  "discipline": zod.string().nullish(),
+  "started": zod.boolean(),
+  "appearance": zod.boolean()
+}))
+})
+
+export const SaveEntryPlayerStatsResponse = zod.object({
+  "saved": zod.number(),
+  "replaced": zod.number(),
+  "belconnenCopies": zod.number()
+})
+
+
+/**
+ * @summary Read player rows out of a Dribl screenshot using AI (returns rows for review, saves nothing)
+ */
+
+
+
+export const ExtractPlayersFromImageBody = zod.object({
+  "imageBase64": zod.string().min(1),
+  "club": zod.string().nullish()
+})
+
+
+export const extractPlayersFromImageResponseRowsItemMinsPlayedMin = 0;
+export const extractPlayersFromImageResponseRowsItemMinsPlayedMax = 130;
+
+
+
+export const ExtractPlayersFromImageResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "playerName": zod.string().min(1),
+  "minsPlayed": zod.number().min(extractPlayersFromImageResponseRowsItemMinsPlayedMin).max(extractPlayersFromImageResponseRowsItemMinsPlayedMax).nullish(),
+  "position": zod.string().nullish(),
+  "discipline": zod.string().nullish(),
+  "started": zod.boolean(),
+  "appearance": zod.boolean()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+

@@ -20,14 +20,25 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminLoginBody,
   AssistsByOpponentResponse,
   AthleticTest,
   AthleticTestInput,
+  AuthStatus,
   ClubInfo,
+  EntryGoalBody,
+  EntryGoalResponse,
+  EntryMatchBody,
+  EntryMatchResponse,
+  EntryPlayerStatsBody,
+  EntryPlayerStatsResponse,
+  ExtractPlayersBody,
+  ExtractPlayersResponse,
   FirstSubResponse,
   GetAssistsByOpponentParams,
   GetGoalBreakdownParams,
   GetGoalCombosParams,
+  GetGoalOptionsParams,
   GetGoalsByIntervalParams,
   GetGoalsByOpponentParams,
   GetGpsLoadSummaryParams,
@@ -49,6 +60,7 @@ import type {
   GoalCombosResponse,
   GoalInput,
   GoalIntervalBucket,
+  GoalOptionsResponse,
   GoalUpdate,
   GoalsByOpponentResponse,
   GpsLoadSummary,
@@ -56,9 +68,11 @@ import type {
   GpsSessionInput,
   HealthStatus,
   LadderEntry,
+  LeagueMatchInfo,
   ListAthleticTestsParams,
   ListGoalsParams,
   ListGpsSessionsParams,
+  ListLeagueMatchesParams,
   ListMatchesParams,
   ListPlayerStatsParams,
   ListPlayersParams,
@@ -3532,4 +3546,675 @@ export function useGetGpsLoadSummary<TData = Awaited<ReturnType<typeof getGpsLoa
 
 
 
+
+export const getLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * @summary Log in as the data-entry admin
+ */
+export const login = async (adminLoginBody: AdminLoginBody, options?: RequestInit): Promise<AuthStatus> => {
+
+  return customFetch<AuthStatus>(getLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminLoginBody)
+  }
+);}
+
+
+
+
+
+export const getLoginMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<AdminLoginBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<AdminLoginBody>}, TContext> => {
+
+const mutationKey = ['login'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: BodyType<AdminLoginBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  login(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = BodyType<AdminLoginBody>
+    export type LoginMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Log in as the data-entry admin
+ */
+export const useLogin = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<AdminLoginBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof login>>,
+        TError,
+        {data: BodyType<AdminLoginBody>},
+        TContext
+      > => {
+      return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getLogoutUrl = () => {
+
+
+
+
+  return `/api/auth/logout`
+}
+
+/**
+ * @summary Log out of the data-entry session
+ */
+export const logout = async ( options?: RequestInit): Promise<AuthStatus> => {
+
+  return customFetch<AuthStatus>(getLogoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext> => {
+
+const mutationKey = ['logout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, void> = () => {
+
+
+          return  logout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMutationResult = NonNullable<Awaited<ReturnType<typeof logout>>>
+
+    export type LogoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Log out of the data-entry session
+ */
+export const useLogout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getGetAuthStatusUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Whether the current session is authenticated for data entry
+ */
+export const getAuthStatus = async ( options?: RequestInit): Promise<AuthStatus> => {
+
+  return customFetch<AuthStatus>(getGetAuthStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthStatusQueryKey = () => {
+    return [
+    `/api/auth/me`
+    ] as const;
+    }
+
+
+export const getGetAuthStatusQueryOptions = <TData = Awaited<ReturnType<typeof getAuthStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthStatus>>> = ({ signal }) => getAuthStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthStatus>>>
+export type GetAuthStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether the current session is authenticated for data entry
+ */
+
+export function useGetAuthStatus<TData = Awaited<ReturnType<typeof getAuthStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLeagueMatchesUrl = (params: ListLeagueMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/league-matches?${stringifiedParams}` : `/api/entry/league-matches`
+}
+
+/**
+ * @summary All league fixtures for a season (drives entry pickers)
+ */
+export const listLeagueMatches = async (params: ListLeagueMatchesParams, options?: RequestInit): Promise<LeagueMatchInfo[]> => {
+
+  return customFetch<LeagueMatchInfo[]>(getListLeagueMatchesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueMatchesQueryKey = (params?: ListLeagueMatchesParams,) => {
+    return [
+    `/api/entry/league-matches`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLeagueMatchesQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueMatches>>, TError = ErrorType<unknown>>(params: ListLeagueMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueMatchesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueMatches>>> = ({ signal }) => listLeagueMatches(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueMatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueMatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueMatches>>>
+export type ListLeagueMatchesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All league fixtures for a season (drives entry pickers)
+ */
+
+export function useListLeagueMatches<TData = Awaited<ReturnType<typeof listLeagueMatches>>, TError = ErrorType<unknown>>(
+ params: ListLeagueMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueMatchesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetGoalOptionsUrl = (params: GetGoalOptionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/goal-options?${stringifiedParams}` : `/api/entry/goal-options`
+}
+
+/**
+ * @summary Existing vocabulary for goal-detail dropdowns (keeps spellings consistent)
+ */
+export const getGoalOptions = async (params: GetGoalOptionsParams, options?: RequestInit): Promise<GoalOptionsResponse> => {
+
+  return customFetch<GoalOptionsResponse>(getGetGoalOptionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoalOptionsQueryKey = (params?: GetGoalOptionsParams,) => {
+    return [
+    `/api/entry/goal-options`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGoalOptionsQueryOptions = <TData = Awaited<ReturnType<typeof getGoalOptions>>, TError = ErrorType<unknown>>(params: GetGoalOptionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoalOptionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoalOptions>>> = ({ signal }) => getGoalOptions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoalOptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoalOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getGoalOptions>>>
+export type GetGoalOptionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Existing vocabulary for goal-detail dropdowns (keeps spellings consistent)
+ */
+
+export function useGetGoalOptions<TData = Awaited<ReturnType<typeof getGoalOptions>>, TError = ErrorType<unknown>>(
+ params: GetGoalOptionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoalOptionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEntryMatchUrl = () => {
+
+
+
+
+  return `/api/entry/match`
+}
+
+/**
+ * @summary Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
+ */
+export const createEntryMatch = async (entryMatchBody: EntryMatchBody, options?: RequestInit): Promise<EntryMatchResponse> => {
+
+  return customFetch<EntryMatchResponse>(getCreateEntryMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryMatchBody)
+  }
+);}
+
+
+
+
+
+export const getCreateEntryMatchMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEntryMatch>>, TError,{data: BodyType<EntryMatchBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEntryMatch>>, TError,{data: BodyType<EntryMatchBody>}, TContext> => {
+
+const mutationKey = ['createEntryMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEntryMatch>>, {data: BodyType<EntryMatchBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEntryMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEntryMatchMutationResult = NonNullable<Awaited<ReturnType<typeof createEntryMatch>>>
+    export type CreateEntryMatchMutationBody = BodyType<EntryMatchBody>
+    export type CreateEntryMatchMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
+ */
+export const useCreateEntryMatch = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEntryMatch>>, TError,{data: BodyType<EntryMatchBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEntryMatch>>,
+        TError,
+        {data: BodyType<EntryMatchBody>},
+        TContext
+      > => {
+      return useMutation(getCreateEntryMatchMutationOptions(options));
+    }
+
+export const getCreateEntryGoalUrl = () => {
+
+
+
+
+  return `/api/entry/goal`
+}
+
+/**
+ * @summary Record a goal with full detail (duplicated into the Belconnen goals table when applicable)
+ */
+export const createEntryGoal = async (entryGoalBody: EntryGoalBody, options?: RequestInit): Promise<EntryGoalResponse> => {
+
+  return customFetch<EntryGoalResponse>(getCreateEntryGoalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryGoalBody)
+  }
+);}
+
+
+
+
+
+export const getCreateEntryGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEntryGoal>>, TError,{data: BodyType<EntryGoalBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEntryGoal>>, TError,{data: BodyType<EntryGoalBody>}, TContext> => {
+
+const mutationKey = ['createEntryGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEntryGoal>>, {data: BodyType<EntryGoalBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEntryGoal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEntryGoalMutationResult = NonNullable<Awaited<ReturnType<typeof createEntryGoal>>>
+    export type CreateEntryGoalMutationBody = BodyType<EntryGoalBody>
+    export type CreateEntryGoalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record a goal with full detail (duplicated into the Belconnen goals table when applicable)
+ */
+export const useCreateEntryGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEntryGoal>>, TError,{data: BodyType<EntryGoalBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEntryGoal>>,
+        TError,
+        {data: BodyType<EntryGoalBody>},
+        TContext
+      > => {
+      return useMutation(getCreateEntryGoalMutationOptions(options));
+    }
+
+export const getSaveEntryPlayerStatsUrl = () => {
+
+
+
+
+  return `/api/entry/player-stats`
+}
+
+/**
+ * @summary Save one club's player rows for a match (replaces any previous rows for that match+club)
+ */
+export const saveEntryPlayerStats = async (entryPlayerStatsBody: EntryPlayerStatsBody, options?: RequestInit): Promise<EntryPlayerStatsResponse> => {
+
+  return customFetch<EntryPlayerStatsResponse>(getSaveEntryPlayerStatsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryPlayerStatsBody)
+  }
+);}
+
+
+
+
+
+export const getSaveEntryPlayerStatsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryPlayerStats>>, TError,{data: BodyType<EntryPlayerStatsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveEntryPlayerStats>>, TError,{data: BodyType<EntryPlayerStatsBody>}, TContext> => {
+
+const mutationKey = ['saveEntryPlayerStats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveEntryPlayerStats>>, {data: BodyType<EntryPlayerStatsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveEntryPlayerStats(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveEntryPlayerStatsMutationResult = NonNullable<Awaited<ReturnType<typeof saveEntryPlayerStats>>>
+    export type SaveEntryPlayerStatsMutationBody = BodyType<EntryPlayerStatsBody>
+    export type SaveEntryPlayerStatsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save one club's player rows for a match (replaces any previous rows for that match+club)
+ */
+export const useSaveEntryPlayerStats = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryPlayerStats>>, TError,{data: BodyType<EntryPlayerStatsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveEntryPlayerStats>>,
+        TError,
+        {data: BodyType<EntryPlayerStatsBody>},
+        TContext
+      > => {
+      return useMutation(getSaveEntryPlayerStatsMutationOptions(options));
+    }
+
+export const getExtractPlayersFromImageUrl = () => {
+
+
+
+
+  return `/api/entry/extract-players`
+}
+
+/**
+ * @summary Read player rows out of a Dribl screenshot using AI (returns rows for review, saves nothing)
+ */
+export const extractPlayersFromImage = async (extractPlayersBody: ExtractPlayersBody, options?: RequestInit): Promise<ExtractPlayersResponse> => {
+
+  return customFetch<ExtractPlayersResponse>(getExtractPlayersFromImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extractPlayersBody)
+  }
+);}
+
+
+
+
+
+export const getExtractPlayersFromImageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractPlayersFromImage>>, TError,{data: BodyType<ExtractPlayersBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extractPlayersFromImage>>, TError,{data: BodyType<ExtractPlayersBody>}, TContext> => {
+
+const mutationKey = ['extractPlayersFromImage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extractPlayersFromImage>>, {data: BodyType<ExtractPlayersBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  extractPlayersFromImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtractPlayersFromImageMutationResult = NonNullable<Awaited<ReturnType<typeof extractPlayersFromImage>>>
+    export type ExtractPlayersFromImageMutationBody = BodyType<ExtractPlayersBody>
+    export type ExtractPlayersFromImageMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Read player rows out of a Dribl screenshot using AI (returns rows for review, saves nothing)
+ */
+export const useExtractPlayersFromImage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractPlayersFromImage>>, TError,{data: BodyType<ExtractPlayersBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extractPlayersFromImage>>,
+        TError,
+        {data: BodyType<ExtractPlayersBody>},
+        TContext
+      > => {
+      return useMutation(getExtractPlayersFromImageMutationOptions(options));
+    }
 

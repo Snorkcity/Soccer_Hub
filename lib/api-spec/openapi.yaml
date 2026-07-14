@@ -28,6 +28,10 @@ tags:
     description: Athletic testing results
   - name: analytics
     description: Aggregated analytics and summaries
+  - name: auth
+    description: Data-entry authentication
+  - name: entry
+    description: Data entry (composite writes across league + Belconnen tables)
 
 paths:
   /healthz:
@@ -1026,6 +1030,152 @@ paths:
                 items:
                   $ref: "#/components/schemas/GpsLoadSummary"
 
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in as the data-entry admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminLoginBody" }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthStatus" }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out of the data-entry session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthStatus" }
+
+  /auth/me:
+    get:
+      operationId: getAuthStatus
+      tags: [auth]
+      summary: Whether the current session is authenticated for data entry
+      responses:
+        "200":
+          description: Auth status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthStatus" }
+
+  /entry/league-matches:
+    get:
+      operationId: listLeagueMatches
+      tags: [entry]
+      summary: All league fixtures for a season (drives entry pickers)
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: League fixtures, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeagueMatchInfo" }
+
+  /entry/goal-options:
+    get:
+      operationId: getGoalOptions
+      tags: [entry]
+      summary: Existing vocabulary for goal-detail dropdowns (keeps spellings consistent)
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Distinct values already used per goal-detail field
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoalOptionsResponse" }
+
+  /entry/match:
+    post:
+      operationId: createEntryMatch
+      tags: [entry]
+      summary: Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryMatchBody" }
+      responses:
+        "201":
+          description: Fixture recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryMatchResponse" }
+
+  /entry/goal:
+    post:
+      operationId: createEntryGoal
+      tags: [entry]
+      summary: Record a goal with full detail (duplicated into the Belconnen goals table when applicable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryGoalBody" }
+      responses:
+        "201":
+          description: Goal recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGoalResponse" }
+
+  /entry/player-stats:
+    post:
+      operationId: saveEntryPlayerStats
+      tags: [entry]
+      summary: Save one club's player rows for a match (replaces any previous rows for that match+club)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryPlayerStatsBody" }
+      responses:
+        "200":
+          description: Rows saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryPlayerStatsResponse" }
+
+  /entry/extract-players:
+    post:
+      operationId: extractPlayersFromImage
+      tags: [entry]
+      summary: Read player rows out of a Dribl screenshot using AI (returns rows for review, saves nothing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExtractPlayersBody" }
+      responses:
+        "200":
+          description: Extracted rows for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtractPlayersResponse" }
+
+
 components:
   schemas:
     HealthStatus:
@@ -1960,3 +2110,150 @@ components:
           type: array
           items: { $ref: "#/components/schemas/OpponentProfilePlayer" }
       required: [club, opponents, record, matches, scoredByInterval, concededByInterval, scoredByType, concededByType, topScorers, goals, players]
+
+    AdminLoginBody:
+      type: object
+      properties:
+        password: { type: string }
+      required: [password]
+
+    AuthStatus:
+      type: object
+      properties:
+        authenticated: { type: boolean }
+      required: [authenticated]
+
+    LeagueMatchInfo:
+      type: object
+      properties:
+        id:        { type: integer }
+        matchId:   { type: string }
+        matchDate: { type: ["string", "null"] }
+        homeTeam:  { type: string }
+        awayTeam:  { type: string }
+        fullScore: { type: ["string", "null"] }
+        homeGoals: { type: ["integer", "null"] }
+        awayGoals: { type: ["integer", "null"] }
+      required: [id, matchId, matchDate, homeTeam, awayTeam, fullScore, homeGoals, awayGoals]
+
+    GoalOptionsResponse:
+      type: object
+      properties:
+        goalTypes:     { type: array, items: { type: string } }
+        assistTypes:   { type: array, items: { type: string } }
+        howPenetrated: { type: array, items: { type: string } }
+        buildupLanes:  { type: array, items: { type: string } }
+        finishTypes:   { type: array, items: { type: string } }
+        conditions:    { type: array, items: { type: string } }
+        venues:        { type: array, items: { type: string } }
+        formations:    { type: array, items: { type: string } }
+      required: [goalTypes, assistTypes, howPenetrated, buildupLanes, finishTypes, conditions, venues, formations]
+
+    EntryMatchBody:
+      type: object
+      properties:
+        teamId:       { type: integer }
+        seasonId:     { type: integer }
+        matchId:      { type: string, minLength: 1 }
+        matchDate:    { type: string, minLength: 1 }
+        homeTeam:     { type: string, minLength: 1 }
+        awayTeam:     { type: string, minLength: 1 }
+        homeGoals:    { type: integer, minimum: 0 }
+        awayGoals:    { type: integer, minimum: 0 }
+        venue:        { type: ["string", "null"] }
+        halfScore:    { type: ["string", "null"] }
+        conditions:   { type: ["string", "null"] }
+        formation:    { type: ["string", "null"] }
+        oppFormation: { type: ["string", "null"] }
+        possession:   { type: ["number", "null"], minimum: 0, maximum: 100 }
+        shots:        { type: ["integer", "null"], minimum: 0 }
+        passes:       { type: ["integer", "null"], minimum: 0 }
+        oppShots:     { type: ["integer", "null"], minimum: 0 }
+        oppPasses:    { type: ["integer", "null"], minimum: 0 }
+      required: [teamId, seasonId, matchId, matchDate, homeTeam, awayTeam, homeGoals, awayGoals]
+
+    EntryMatchResponse:
+      type: object
+      properties:
+        leagueMatchId:    { type: integer }
+        belconnenMatchId: { type: ["integer", "null"] }
+        fullScore:        { type: string }
+      required: [leagueMatchId, belconnenMatchId, fullScore]
+
+    EntryGoalBody:
+      type: object
+      properties:
+        teamId:          { type: integer }
+        seasonId:        { type: integer }
+        matchId:         { type: string, minLength: 1 }
+        scorerTeam:      { type: string, minLength: 1 }
+        minuteScored:    { type: ["integer", "null"], minimum: 0, maximum: 130 }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        finishType:      { type: ["string", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["number", "null"], minimum: 0, maximum: 100 }
+        goalY:           { type: ["number", "null"], minimum: 0 }
+      required: [teamId, seasonId, matchId, scorerTeam]
+
+    EntryGoalResponse:
+      type: object
+      properties:
+        leagueGoalId:    { type: integer }
+        belconnenGoalId: { type: ["integer", "null"] }
+      required: [leagueGoalId, belconnenGoalId]
+
+    EntryPlayerRow:
+      type: object
+      properties:
+        playerName: { type: string, minLength: 1 }
+        minsPlayed: { type: ["integer", "null"], minimum: 0, maximum: 130 }
+        position:   { type: ["string", "null"] }
+        discipline: { type: ["string", "null"] }
+        started:    { type: boolean }
+        appearance: { type: boolean }
+      required: [playerName, started, appearance]
+
+    EntryPlayerStatsBody:
+      type: object
+      properties:
+        teamId:   { type: integer }
+        seasonId: { type: integer }
+        matchId:  { type: string, minLength: 1 }
+        club:     { type: string, minLength: 1 }
+        year:     { type: ["string", "null"] }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EntryPlayerRow" }
+      required: [teamId, seasonId, matchId, club, rows]
+
+    EntryPlayerStatsResponse:
+      type: object
+      properties:
+        saved:           { type: integer }
+        replaced:        { type: integer }
+        belconnenCopies: { type: integer }
+      required: [saved, replaced, belconnenCopies]
+
+    ExtractPlayersBody:
+      type: object
+      properties:
+        imageBase64: { type: string, minLength: 1 }
+        club:        { type: ["string", "null"] }
+      required: [imageBase64]
+
+    ExtractPlayersResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EntryPlayerRow" }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [rows, warnings]

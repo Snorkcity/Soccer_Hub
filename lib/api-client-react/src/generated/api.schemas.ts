@@ -1003,6 +1003,197 @@ export interface OpponentProfileResponse {
   players: OpponentProfilePlayer[];
 }
 
+export interface AdminLoginBody {
+  password: string;
+}
+
+export interface AuthStatus {
+  authenticated: boolean;
+}
+
+export interface LeagueMatchInfo {
+  id: number;
+  matchId: string;
+  /** @nullable */
+  matchDate: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  /** @nullable */
+  fullScore: string | null;
+  /** @nullable */
+  homeGoals: number | null;
+  /** @nullable */
+  awayGoals: number | null;
+}
+
+export interface GoalOptionsResponse {
+  goalTypes: string[];
+  assistTypes: string[];
+  howPenetrated: string[];
+  buildupLanes: string[];
+  finishTypes: string[];
+  conditions: string[];
+  venues: string[];
+  formations: string[];
+}
+
+export interface EntryMatchBody {
+  teamId: number;
+  seasonId: number;
+  /** @minLength 1 */
+  matchId: string;
+  /** @minLength 1 */
+  matchDate: string;
+  /** @minLength 1 */
+  homeTeam: string;
+  /** @minLength 1 */
+  awayTeam: string;
+  /** @minimum 0 */
+  homeGoals: number;
+  /** @minimum 0 */
+  awayGoals: number;
+  /** @nullable */
+  venue?: string | null;
+  /** @nullable */
+  halfScore?: string | null;
+  /** @nullable */
+  conditions?: string | null;
+  /** @nullable */
+  formation?: string | null;
+  /** @nullable */
+  oppFormation?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  possession?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  shots?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  passes?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  oppShots?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  oppPasses?: number | null;
+}
+
+export interface EntryMatchResponse {
+  leagueMatchId: number;
+  /** @nullable */
+  belconnenMatchId: number | null;
+  fullScore: string;
+}
+
+export interface EntryGoalBody {
+  teamId: number;
+  seasonId: number;
+  /** @minLength 1 */
+  matchId: string;
+  /** @minLength 1 */
+  scorerTeam: string;
+  /**
+     * @minimum 0
+     * @maximum 130
+     * @nullable
+     */
+  minuteScored?: number | null;
+  /** @nullable */
+  scorer?: string | null;
+  /** @nullable */
+  assist?: string | null;
+  /** @nullable */
+  goalType?: string | null;
+  /** @nullable */
+  assistType?: string | null;
+  /** @nullable */
+  howPenetrated?: string | null;
+  /** @nullable */
+  buildupLane?: string | null;
+  /** @nullable */
+  firstTimeFinish?: boolean | null;
+  /** @nullable */
+  finishType?: string | null;
+  /** @nullable */
+  passString?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  goalX?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  goalY?: number | null;
+}
+
+export interface EntryGoalResponse {
+  leagueGoalId: number;
+  /** @nullable */
+  belconnenGoalId: number | null;
+}
+
+export interface EntryPlayerRow {
+  /** @minLength 1 */
+  playerName: string;
+  /**
+     * @minimum 0
+     * @maximum 130
+     * @nullable
+     */
+  minsPlayed?: number | null;
+  /** @nullable */
+  position?: string | null;
+  /** @nullable */
+  discipline?: string | null;
+  started: boolean;
+  appearance: boolean;
+}
+
+export interface EntryPlayerStatsBody {
+  teamId: number;
+  seasonId: number;
+  /** @minLength 1 */
+  matchId: string;
+  /** @minLength 1 */
+  club: string;
+  /** @nullable */
+  year?: string | null;
+  rows: EntryPlayerRow[];
+}
+
+export interface EntryPlayerStatsResponse {
+  saved: number;
+  replaced: number;
+  belconnenCopies: number;
+}
+
+export interface ExtractPlayersBody {
+  /** @minLength 1 */
+  imageBase64: string;
+  /** @nullable */
+  club?: string | null;
+}
+
+export interface ExtractPlayersResponse {
+  rows: EntryPlayerRow[];
+  warnings: string[];
+}
+
 export type ListPlayersParams = {
 teamId?: number;
 seasonId?: number;
@@ -1155,5 +1346,13 @@ club: string;
 export type GetGpsLoadSummaryParams = {
 teamId: number;
 year: string;
+};
+
+export type ListLeagueMatchesParams = {
+seasonId: number;
+};
+
+export type GetGoalOptionsParams = {
+seasonId: number;
 };
 

@@ -21,4 +21,5 @@
 - [Combo threat chart](combo-threat-chart.md) — assist→scorer partnership chart shared by Team + Opponent tabs; /analytics/goal-combos (team, roster attrib) + /analytics/opponent-goal-combos (league tables); buildCombos() excludes OG/unassisted/self-assist.
 - [Player Scoring DNA radar](player-dna-chart.md) — 9-spoke radar on Player tab (BUFC) AND Opponent tab (league_player_stats has minutes for every club); shared computeDnaResponse; per-90 max floor, OG exclusion.
 - [Recharts radar radius-domain](recharts-radius-domain.md) — v2 gotcha: PolarRadiusAxis `domain` is ignored when tick={false}; render ticks (angle+tickCount+visible tick) or a 0–100 series collapses to a tiny centre blob.
+- [Data Entry feature](data-entry.md) — HMAC-cookie auth gates all API writes; transactional dual-writes league+legacy tables; AI screenshot reader (J.Bloggs naming); Orval operationId/schema-name collision gotcha.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
