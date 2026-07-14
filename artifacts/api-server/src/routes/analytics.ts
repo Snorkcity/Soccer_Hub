@@ -29,6 +29,10 @@ import {
   GetOpponentProfileResponse,
   GetOpponentPlayersByOpponentQueryParams,
   GetOpponentPlayersByOpponentResponse,
+  GetGoalCombosQueryParams,
+  GetGoalCombosResponse,
+  GetOpponentGoalCombosQueryParams,
+  GetOpponentGoalCombosResponse,
 } from "@workspace/api-zod";
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs.
@@ -51,6 +55,33 @@ const isFocusGoal = (
   scorerTeam: string | null | undefined,
   roster: Set<string>,
 ): boolean => (!!scorer && roster.has(scorer)) || scorerTeam === FOCUS_CLUB;
+
+/**
+ * Aggregates assist->scorer partnerships ("combo threat") from a set of goals.
+ * Own goals ("OG") and unassisted goals are excluded from the partnership tally
+ * but still counted in `totalGoals`, so the chart can show what share of goals
+ * came from a named partnership. Names are trimmed to fold whitespace variants.
+ */
+function buildCombos(goals: Array<{ scorer: string | null; assist: string | null }>) {
+  const counts = new Map<string, { assister: string; scorer: string; count: number }>();
+  let assistedGoals = 0;
+  for (const g of goals) {
+    const scorer = g.scorer?.trim();
+    const assist = g.assist?.trim();
+    if (!scorer || !assist) continue;
+    if (scorer === "OG" || assist === "OG") continue;
+    if (scorer === assist) continue; // a player can't assist their own goal
+    assistedGoals++;
+    const key = `${assist}\u0000${scorer}`;
+    const existing = counts.get(key);
+    if (existing) existing.count++;
+    else counts.set(key, { assister: assist, scorer, count: 1 });
+  }
+  const combos = Array.from(counts.values()).sort(
+    (a, b) => b.count - a.count || a.assister.localeCompare(b.assister) || a.scorer.localeCompare(b.scorer),
+  );
+  return { combos, totalGoals: goals.length, assistedGoals };
+}
 
 const router: IRouter = Router();
 
@@ -488,6 +519,40 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
     goals: ourRecords,
     conceded: concededRecords,
   }));
+});
+
+// ─── Goal Combos (focus team's assist→scorer partnerships) ─────────────────────
+
+router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
+  const query = GetGoalCombosQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId, lastN } = query.data;
+
+  let matches = await db
+    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+
+  if (lastN != null && lastN > 0) {
+    matches = matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN);
+  }
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) { res.json(GetGoalCombosResponse.parse({ combos: [], totalGoals: 0, assistedGoals: 0 })); return; }
+
+  // Roster-based attribution (same rule as goal-breakdown) → only OUR goals count.
+  const stats = await db
+    .select({ playerName: playerStatsTable.playerName })
+    .from(playerStatsTable)
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+  const roster = new Set(stats.map(s => s.playerName));
+
+  const goals = await db
+    .select({ scorer: goalsTable.scorer, assist: goalsTable.assist, scorerTeam: goalsTable.scorerTeam })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
+
+  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
+  res.json(GetGoalCombosResponse.parse(buildCombos(ourGoals)));
 });
 
 // ─── GPS Load Summary ─────────────────────────────────────────────────────────
@@ -1068,6 +1133,51 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
+});
+
+// ─── Opponent Goal Combos (a selected club's assist→scorer partnerships) ───────
+
+router.get("/analytics/opponent-goal-combos", async (req, res): Promise<void> => {
+  const query = GetOpponentGoalCombosQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  if (!matches.length) { res.json(GetOpponentGoalCombosResponse.parse({ combos: [], totalGoals: 0, assistedGoals: 0 })); return; }
+
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+  // Optional "last N rounds" window. For a single club, N most-recent matches == N rounds.
+  // League-wide (__ALL__) has multiple fixtures per round, so window by distinct dates.
+  let relevantIds: Set<string>;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      relevantIds = new Set(relevant.filter(m => dateSet.has(m.matchDate ?? "")).map(m => m.matchId));
+    } else {
+      relevantIds = new Set(
+        relevant.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN).map(m => m.matchId),
+      );
+    }
+  } else {
+    relevantIds = new Set(relevant.map(m => m.matchId));
+  }
+  if (relevantIds.size === 0) { res.json(GetOpponentGoalCombosResponse.parse({ combos: [], totalGoals: 0, assistedGoals: 0 })); return; }
+  const relevantList = Array.from(relevantIds);
+
+  const goals = await db
+    .select({ scorer: leagueGoalsTable.scorer, assist: leagueGoalsTable.assist, scorerTeam: leagueGoalsTable.scorerTeam })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, relevantList)));
+
+  // Only the selected club's OWN goals (their scorers/assisters), unless __ALL__.
+  const clubGoals = isAll ? goals : goals.filter(g => g.scorerTeam === club);
+  res.json(GetOpponentGoalCombosResponse.parse(buildCombos(clubGoals)));
 });
 
 // ─── Opponent Profile (club-centric scouting across ALL their league games) ────

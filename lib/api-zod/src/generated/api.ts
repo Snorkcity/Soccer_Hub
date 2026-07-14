@@ -1146,6 +1146,47 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
 
 
 /**
+ * @summary Focus team's assist->scorer goal partnerships (combo threat)
+ */
+export const GetGoalCombosQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetGoalCombosResponse = zod.object({
+  "combos": zod.array(zod.object({
+  "assister": zod.string(),
+  "scorer": zod.string(),
+  "count": zod.number()
+})),
+  "totalGoals": zod.number(),
+  "assistedGoals": zod.number()
+})
+
+
+/**
+ * @summary A selected club's assist->scorer goal partnerships (combo threat)
+ */
+export const GetOpponentGoalCombosQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetOpponentGoalCombosResponse = zod.object({
+  "combos": zod.array(zod.object({
+  "assister": zod.string(),
+  "scorer": zod.string(),
+  "count": zod.number()
+})),
+  "totalGoals": zod.number(),
+  "assistedGoals": zod.number()
+})
+
+
+/**
  * @summary List all clubs with their brand colours
  */
 export const GetClubsResponseItem = zod.object({

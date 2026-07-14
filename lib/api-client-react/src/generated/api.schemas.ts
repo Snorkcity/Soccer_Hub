@@ -761,6 +761,18 @@ export interface OpponentPlayersByOpponentResponse {
   players: OpponentPlayerByOpponentPlayer[];
 }
 
+export interface GoalCombo {
+  assister: string;
+  scorer: string;
+  count: number;
+}
+
+export interface GoalCombosResponse {
+  combos: GoalCombo[];
+  totalGoals: number;
+  assistedGoals: number;
+}
+
 export interface OpponentGoalDetail {
   id: number;
   /** @nullable */
@@ -993,6 +1005,19 @@ club: string;
 };
 
 export type GetOpponentPlayersByOpponentParams = {
+teamId: number;
+seasonId: number;
+club: string;
+lastN?: number;
+};
+
+export type GetGoalCombosParams = {
+teamId: number;
+seasonId: number;
+lastN?: number;
+};
+
+export type GetOpponentGoalCombosParams = {
 teamId: number;
 seasonId: number;
 club: string;

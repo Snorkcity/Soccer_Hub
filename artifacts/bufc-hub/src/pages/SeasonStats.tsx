@@ -12,6 +12,8 @@ import {
   useGetAssistsByOpponent,
   useGetOpponentProfile,
   useGetOpponentPlayersByOpponent,
+  useGetGoalCombos,
+  useGetOpponentGoalCombos,
   useGetClubs,
   useListMatches,
   getListMatchesQueryKey,
@@ -24,6 +26,8 @@ import {
   getGetAssistsByOpponentQueryKey,
   getGetOpponentProfileQueryKey,
   getGetOpponentPlayersByOpponentQueryKey,
+  getGetGoalCombosQueryKey,
+  getGetOpponentGoalCombosQueryKey,
   getGetClubsQueryKey,
   type ScoredGoalRecord,
 } from "@workspace/api-client-react";
@@ -34,7 +38,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell, ReferenceLine, PieChart, Pie,
-  ScatterChart, Scatter, ReferenceArea,
+  ScatterChart, Scatter, ReferenceArea, LabelList,
 } from "recharts";
 import { Info } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1139,6 +1143,8 @@ export default function SeasonStats() {
   const [oppContribL3, setOppContribL3] = useState(false);
   const [oppStartsL3, setOppStartsL3]   = useState(false); // squad: starts & appearances
   const [oppMinsL3, setOppMinsL3]       = useState(false); // squad: total minutes
+  const [comboLastN, setComboLastN]       = useState(false); // team: combo threat
+  const [oppComboLastN, setOppComboLastN] = useState(false); // opponent: combo threat
 
   React.useEffect(() => {
     if (teams?.length && selectedTeamId === "") {
@@ -1164,6 +1170,11 @@ export default function SeasonStats() {
   const gbL3Params = { ...analyticsParams, lastN: 3 };
   const { data: goalBreakdownL3 } = useGetGoalBreakdown(gbL3Params,          { query: { enabled: isReady, queryKey: getGetGoalBreakdownQueryKey(gbL3Params) } });
   const { data: leaderboard } = useGetPlayerLeaderboard(analyticsParams,   { query: { enabled: isReady, queryKey: getGetPlayerLeaderboardQueryKey(analyticsParams) } });
+
+  // ── Combo threat (our assist→scorer partnerships): full season + last-3-rounds ─
+  const { data: goalCombosFull } = useGetGoalCombos(analyticsParams, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(analyticsParams) } });
+  const goalCombosL3Params = { ...analyticsParams, lastN: 3 };
+  const { data: goalCombosL3 } = useGetGoalCombos(goalCombosL3Params, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(goalCombosL3Params) } });
 
   // ── Opponent clubs ────────────────────────────────────────────────────────
   const { data: oppClubs, isLoading: oppClubsLoading } = useGetOpponentClubs(analyticsParams, { query: { enabled: isReady, queryKey: getGetOpponentClubsQueryKey(analyticsParams) } });
@@ -1195,6 +1206,16 @@ export default function SeasonStats() {
   const oppPlayersL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
   const { data: oppPlayersL3 } = useGetOpponentPlayersByOpponent(oppPlayersL3Params, {
     query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentPlayersByOpponentQueryKey(oppPlayersL3Params) },
+  });
+
+  // Combo threat for the selected club: their assist→scorer partnerships (full + L3)
+  const oppCombosParams = { teamId: tId, seasonId: sId, club: selectedClub };
+  const { data: oppCombosFull } = useGetOpponentGoalCombos(oppCombosParams, {
+    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosParams) },
+  });
+  const oppCombosL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
+  const { data: oppCombosL3 } = useGetOpponentGoalCombos(oppCombosL3Params, {
+    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosL3Params) },
   });
 
   // ── Clubs (brand colours) ─────────────────────────────────────────────────
@@ -1743,6 +1764,15 @@ export default function SeasonStats() {
             onToggle={toggleTeamClub}
             angledLabels
             controls={<Last3Toggle active={l3ScType} onToggle={() => setL3ScType(v => !v)} />}
+          />
+
+          {/* Combo Threat — our assist→scorer partnerships (who combines for goals) */}
+          <ComboThreatChart
+            title={`Combo Threat — Belconnen${comboLastN ? " — Last 3 Rounds" : ""}`}
+            label="Belconnen"
+            srcFull={goalCombosFull} srcL3={goalCombosL3}
+            lastN={comboLastN} onLastN={() => setComboLastN(v => !v)}
+            colorMap={clubColorMap} sn={sn} maxBars={12}
           />
 
           {/* Goal Detail by Type — stacked by opponent club, dropdown across 4 dimensions */}
@@ -2687,6 +2717,15 @@ export default function SeasonStats() {
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
               />
 
+              {/* 17b. Combo Threat — the club's assist→scorer partnerships */}
+              <ComboThreatChart
+                title={`Combo Threat — ${isAll ? "League" : selectedClub}${oppComboLastN ? " — Last 3 Rounds" : ""}`}
+                label={isAll ? "" : selectedClub}
+                srcFull={oppCombosFull} srcL3={oppCombosL3}
+                lastN={oppComboLastN} onLastN={() => setOppComboLastN(v => !v)}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 15 : 12}
+              />
+
               {/* 18. Starts & appearances (hidden league-wide) */}
               {!isAll && (
                 <PlayerBarCard
@@ -2765,6 +2804,87 @@ function StatCard({ title, value, subtitle }: { title: string; value: string | n
         {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Combo Threat: assist→scorer partnerships (shared by Team + Opponent tabs) ──
+
+interface ComboSrc {
+  combos: { assister: string; scorer: string; count: number }[];
+  totalGoals: number;
+  assistedGoals: number;
+}
+
+function ComboTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ payload: { assister: string; scorer: string; count: number } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-2">
+      <div className="font-semibold text-sm leading-tight">
+        {d.assister} <span className="text-muted-foreground">→</span> {d.scorer}
+      </div>
+      <div className="flex justify-between gap-6 border-t pt-2">
+        <span className="text-muted-foreground">Goals combined</span>
+        <span className="font-medium tabular-nums">{d.count}</span>
+      </div>
+    </div>
+  );
+}
+
+function ComboThreatChart({
+  title, label, srcFull, srcL3, lastN, onLastN, colorMap, sn, maxBars,
+}: {
+  title: string;
+  label: string;
+  srcFull?: ComboSrc; srcL3?: ComboSrc;
+  lastN: boolean; onLastN: () => void;
+  colorMap: Record<string, string>; sn: Record<string, string>;
+  maxBars?: number;
+}) {
+  const src = lastN ? srcL3 : srcFull;
+
+  const data = useMemo(() => {
+    const rows = (src?.combos ?? []).map(c => ({
+      pair: `${sn[c.assister] ?? c.assister} → ${sn[c.scorer] ?? c.scorer}`,
+      assister: c.assister, scorer: c.scorer, count: c.count,
+    }));
+    return maxBars ? rows.slice(0, maxBars) : rows;
+  }, [src, sn, maxBars]);
+
+  const fill = colorMap[label] ?? "hsl(var(--primary))";
+  const total = src?.totalGoals ?? 0;
+  const assisted = src?.assistedGoals ?? 0;
+  const pct = total > 0 ? Math.round((assisted / total) * 100) : 0;
+
+  return (
+    <ChartCard
+      tall
+      title={title}
+      description="Assist → scorer partnerships, ranked by goals combined for"
+      tooltip={`Each bar is a partnership — the assister set up the scorer this many times. Only assisted goals count (own goals and unassisted goals are excluded). ${assisted} of ${total} goals (${pct}%) came from a recorded partnership.`}
+      controls={<Last3Toggle active={lastN} onToggle={onLastN} />}
+    >
+      {data.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          No assisted goals recorded for this selection.
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 32, left: 8, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+            <XAxis type="number" {...AXIS_STYLE} allowDecimals={false} />
+            <YAxis type="category" dataKey="pair" {...AXIS_STYLE} width={150} interval={0} />
+            <Tooltip content={<ComboTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Bar dataKey="count" name="Goals combined" fill={fill} radius={[0, 4, 4, 0]}>
+              <LabelList dataKey="count" position="right" fontSize={11} fill="hsl(var(--foreground))" />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
   );
 }
 

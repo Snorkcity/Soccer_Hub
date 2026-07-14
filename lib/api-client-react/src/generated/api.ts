@@ -26,12 +26,14 @@ import type {
   ClubInfo,
   GetAssistsByOpponentParams,
   GetGoalBreakdownParams,
+  GetGoalCombosParams,
   GetGoalsByIntervalParams,
   GetGoalsByOpponentParams,
   GetGpsLoadSummaryParams,
   GetLeagueLadderParams,
   GetOpponentClubsParams,
   GetOpponentGoalBreakdownParams,
+  GetOpponentGoalCombosParams,
   GetOpponentLeaderboardParams,
   GetOpponentPlayersByOpponentParams,
   GetOpponentProfileParams,
@@ -40,6 +42,7 @@ import type {
   GetTeamFormParams,
   Goal,
   GoalBreakdownResponse,
+  GoalCombosResponse,
   GoalInput,
   GoalIntervalBucket,
   GoalUpdate,
@@ -2932,6 +2935,174 @@ export function useGetOpponentPlayersByOpponent<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentPlayersByOpponentQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetGoalCombosUrl = (params: GetGoalCombosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/goal-combos?${stringifiedParams}` : `/api/analytics/goal-combos`
+}
+
+/**
+ * @summary Focus team's assist->scorer goal partnerships (combo threat)
+ */
+export const getGoalCombos = async (params: GetGoalCombosParams, options?: RequestInit): Promise<GoalCombosResponse> => {
+
+  return customFetch<GoalCombosResponse>(getGetGoalCombosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoalCombosQueryKey = (params?: GetGoalCombosParams,) => {
+    return [
+    `/api/analytics/goal-combos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGoalCombosQueryOptions = <TData = Awaited<ReturnType<typeof getGoalCombos>>, TError = ErrorType<unknown>>(params: GetGoalCombosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalCombos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoalCombosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoalCombos>>> = ({ signal }) => getGoalCombos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoalCombos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoalCombosQueryResult = NonNullable<Awaited<ReturnType<typeof getGoalCombos>>>
+export type GetGoalCombosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Focus team's assist->scorer goal partnerships (combo threat)
+ */
+
+export function useGetGoalCombos<TData = Awaited<ReturnType<typeof getGoalCombos>>, TError = ErrorType<unknown>>(
+ params: GetGoalCombosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalCombos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoalCombosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOpponentGoalCombosUrl = (params: GetOpponentGoalCombosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/opponent-goal-combos?${stringifiedParams}` : `/api/analytics/opponent-goal-combos`
+}
+
+/**
+ * @summary A selected club's assist->scorer goal partnerships (combo threat)
+ */
+export const getOpponentGoalCombos = async (params: GetOpponentGoalCombosParams, options?: RequestInit): Promise<GoalCombosResponse> => {
+
+  return customFetch<GoalCombosResponse>(getGetOpponentGoalCombosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpponentGoalCombosQueryKey = (params?: GetOpponentGoalCombosParams,) => {
+    return [
+    `/api/analytics/opponent-goal-combos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOpponentGoalCombosQueryOptions = <TData = Awaited<ReturnType<typeof getOpponentGoalCombos>>, TError = ErrorType<unknown>>(params: GetOpponentGoalCombosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentGoalCombos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpponentGoalCombosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpponentGoalCombos>>> = ({ signal }) => getOpponentGoalCombos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpponentGoalCombos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpponentGoalCombosQueryResult = NonNullable<Awaited<ReturnType<typeof getOpponentGoalCombos>>>
+export type GetOpponentGoalCombosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A selected club's assist->scorer goal partnerships (combo threat)
+ */
+
+export function useGetOpponentGoalCombos<TData = Awaited<ReturnType<typeof getOpponentGoalCombos>>, TError = ErrorType<unknown>>(
+ params: GetOpponentGoalCombosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentGoalCombos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpponentGoalCombosQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
