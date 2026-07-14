@@ -1192,6 +1192,13 @@ export interface GoalTallyResponse {
   awayLogged: number;
 }
 
+export interface PlayerTallyResponse {
+  homeTeam: string;
+  awayTeam: string;
+  homeSaved: number;
+  awaySaved: number;
+}
+
 export interface EntryGoalListItem {
   id: number;
   /** @nullable */
@@ -1425,6 +1432,11 @@ seasonId: number;
 };
 
 export type GetGoalTallyParams = {
+seasonId: number;
+matchId: string;
+};
+
+export type GetPlayerTallyParams = {
 seasonId: number;
 matchId: string;
 };

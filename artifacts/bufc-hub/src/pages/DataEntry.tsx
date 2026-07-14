@@ -18,6 +18,8 @@ import {
   useListEntryGoals,
   getListEntryGoalsQueryKey,
   useDeleteEntryGoal,
+  useGetPlayerTally,
+  getGetPlayerTallyQueryKey,
   useSaveEntryPlayerStats,
   useExtractPlayersFromImage,
   useListLeagues,
@@ -534,6 +536,12 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
   const fixture = fixtures.find(f => f.matchId === matchId);
   useEffect(() => { setClub(""); setRows([]); setWarnings([]); setOk(null); setErr(null); }, [matchId]);
 
+  const queryClient = useQueryClient();
+  const { data: playerTally } = useGetPlayerTally(
+    { seasonId, matchId },
+    { query: { enabled: !!matchId, queryKey: getGetPlayerTallyQueryKey({ seasonId, matchId }) } },
+  );
+
   const extract = useExtractPlayersFromImage({ mutation: {
     onSuccess: (res) => {
       setRows(res.rows);
@@ -546,6 +554,8 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
   const save = useSaveEntryPlayerStats({ mutation: {
     onSuccess: (res) => {
       setOk(`Saved ${res.saved} players${res.replaced > 0 ? ` (replaced ${res.replaced} previous rows)` : ""}${res.belconnenCopies > 0 ? ` — mirrored into Belconnen tables` : ""}`);
+      // Prefix invalidation so every fixture's tally refreshes, even mid-flight
+      void queryClient.invalidateQueries({ queryKey: getGetPlayerTallyQueryKey() });
       // Reset back to the default look, ready for the next team sheet
       setRows([]); setWarnings([]); setClub("");
     },
@@ -614,6 +624,20 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
             </Select>
           </Field>
         </div>
+
+        {playerTally && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            {[
+              { team: playerTally.homeTeam, saved: playerTally.homeSaved },
+              { team: playerTally.awayTeam, saved: playerTally.awaySaved },
+            ].map(({ team, saved }) => (
+              <Badge key={team} variant="outline" className={saved > 0 ? "border-chart-3 text-chart-3" : "text-muted-foreground"}>
+                {saved > 0 && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                {team}: {saved > 0 ? `${saved} players saved` : "not done yet"}
+              </Badge>
+            ))}
+          </div>
+        )}
 
         {fixture && club && (
           <div className="flex flex-wrap items-center gap-2">

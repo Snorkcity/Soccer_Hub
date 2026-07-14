@@ -57,6 +57,7 @@ import type {
   GetOpponentProfileParams,
   GetPlayerDnaParams,
   GetPlayerLeaderboardParams,
+  GetPlayerTallyParams,
   GetSeasonSummaryParams,
   GetTeamFormParams,
   Goal,
@@ -97,6 +98,7 @@ import type {
   PlayerLeaderboardEntry,
   PlayerStat,
   PlayerStatInput,
+  PlayerTallyResponse,
   PlayerUpdate,
   Season,
   SeasonInput,
@@ -4233,6 +4235,90 @@ export function useGetGoalTally<TData = Awaited<ReturnType<typeof getGoalTally>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetGoalTallyQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlayerTallyUrl = (params: GetPlayerTallyParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/player-tally?${stringifiedParams}` : `/api/entry/player-tally`
+}
+
+/**
+ * @summary How many player rows have been saved for each team in a fixture
+ */
+export const getPlayerTally = async (params: GetPlayerTallyParams, options?: RequestInit): Promise<PlayerTallyResponse> => {
+
+  return customFetch<PlayerTallyResponse>(getGetPlayerTallyUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerTallyQueryKey = (params?: GetPlayerTallyParams,) => {
+    return [
+    `/api/entry/player-tally`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPlayerTallyQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerTally>>, TError = ErrorType<unknown>>(params: GetPlayerTallyParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerTally>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerTallyQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerTally>>> = ({ signal }) => getPlayerTally(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerTally>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerTallyQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerTally>>>
+export type GetPlayerTallyQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary How many player rows have been saved for each team in a fixture
+ */
+
+export function useGetPlayerTally<TData = Awaited<ReturnType<typeof getPlayerTally>>, TError = ErrorType<unknown>>(
+ params: GetPlayerTallyParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerTally>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerTallyQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

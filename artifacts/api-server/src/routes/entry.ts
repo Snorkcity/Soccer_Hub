@@ -17,6 +17,8 @@ import {
   GetGoalOptionsResponse,
   GetGoalTallyQueryParams,
   GetGoalTallyResponse,
+  GetPlayerTallyQueryParams,
+  GetPlayerTallyResponse,
   ListEntryGoalsQueryParams,
   ListEntryGoalsResponse,
   DeleteEntryGoalResponse,
@@ -86,6 +88,33 @@ router.get("/entry/goal-tally", async (req, res): Promise<void> => {
 });
 
 // ── Dropdown vocabulary (keeps spellings consistent with existing data) ──────
+router.get("/entry/player-tally", async (req, res): Promise<void> => {
+  const query = GetPlayerTallyQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, matchId } = query.data;
+  const [fixture] = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(and(eq(leagueMatchesTable.seasonId, seasonId), eq(leagueMatchesTable.matchId, matchId)));
+  if (!fixture) {
+    res.status(404).json({ error: `No fixture "${matchId}" this season` });
+    return;
+  }
+  const rows = await db
+    .select({ club: leaguePlayerStatsTable.club })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), eq(leaguePlayerStatsTable.matchId, matchId)));
+  res.json(GetPlayerTallyResponse.parse({
+    homeTeam: fixture.homeTeam,
+    awayTeam: fixture.awayTeam,
+    homeSaved: rows.filter(r => r.club === fixture.homeTeam).length,
+    awaySaved: rows.filter(r => r.club === fixture.awayTeam).length,
+  }));
+});
+
 router.get("/entry/goals", async (req, res): Promise<void> => {
   const query = ListEntryGoalsQueryParams.safeParse(req.query);
   if (!query.success) {

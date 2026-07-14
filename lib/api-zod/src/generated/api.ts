@@ -1527,6 +1527,22 @@ export const GetGoalTallyResponse = zod.object({
 
 
 /**
+ * @summary How many player rows have been saved for each team in a fixture
+ */
+export const GetPlayerTallyQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "matchId": zod.coerce.string()
+})
+
+export const GetPlayerTallyResponse = zod.object({
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "homeSaved": zod.number(),
+  "awaySaved": zod.number()
+})
+
+
+/**
  * @summary List the goals logged so far for a fixture (for review/editing)
  */
 export const ListEntryGoalsQueryParams = zod.object({

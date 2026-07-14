@@ -1177,6 +1177,27 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/GoalTallyResponse" }
 
+  /entry/player-tally:
+    get:
+      operationId: getPlayerTally
+      tags: [entry]
+      summary: How many player rows have been saved for each team in a fixture
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Saved player-row counts for each team in the fixture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerTallyResponse" }
+
   /entry/goals:
     get:
       operationId: listEntryGoals
@@ -2357,6 +2378,15 @@ components:
         homeLogged:   { type: integer }
         awayLogged:   { type: integer }
       required: [homeTeam, awayTeam, homeExpected, awayExpected, homeLogged, awayLogged]
+
+    PlayerTallyResponse:
+      type: object
+      properties:
+        homeTeam:  { type: string }
+        awayTeam:  { type: string }
+        homeSaved: { type: integer }
+        awaySaved: { type: integer }
+      required: [homeTeam, awayTeam, homeSaved, awaySaved]
 
     EntryGoalListItem:
       type: object
