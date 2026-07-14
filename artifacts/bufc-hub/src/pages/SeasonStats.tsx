@@ -3012,7 +3012,7 @@ function DnaTooltip({ active, payload }: {
         <span className="tabular-nums">{d.squadBest}</span>
       </div>
       {d.context && <div className="border-t pt-1.5 text-muted-foreground">{d.context}</div>}
-      {d.isPoacher && <PoacherZoneDiagram className="mt-1.5 w-full rounded" />}
+      {d.isPoacher && <PoacherZoneDiagram className="mt-1.5 h-16 w-auto rounded" />}
     </div>
   );
 }
@@ -3097,7 +3097,9 @@ function PlayerDnaChart({
                     subtle — they double as a "% of squad best" legend. */}
                 <PolarRadiusAxis angle={90} domain={[0, 100]} tickCount={5} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}`} axisLine={false} />
                 <Radar name={label} dataKey="value" stroke={fill} fill={fill} fillOpacity={0.45} isAnimationActive={false} />
-                <Tooltip content={<DnaTooltip />} />
+                {/* allowEscapeViewBox: the poacher-zone tooltip is taller than the rest;
+                    without this Recharts clamps it inside the chart, on top of the cursor */}
+                <Tooltip content={<DnaTooltip />} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 20 }} />
               </RadarChart>
             </ResponsiveContainer>
           )}
