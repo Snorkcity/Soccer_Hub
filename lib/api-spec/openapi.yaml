@@ -181,6 +181,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/LeagueInfo"
+    post:
+      operationId: createLeague
+      tags: [seasons]
+      summary: Create a new league (competition)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueInput"
+      responses:
+        "201":
+          description: Created league
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueInfo"
 
   /seasons:
     get:
@@ -1020,6 +1037,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ClubInfo"
+    post:
+      operationId: createClub
+      tags: [clubs]
+      summary: Add a club to a league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClubInput"
+      responses:
+        "201":
+          description: Created club
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClubInfo"
 
   /analytics/gps-load-summary:
     get:
@@ -1272,6 +1306,13 @@ components:
         name:   { type: string }
         region: { type: string, nullable: true }
       required: [id, name]
+
+    LeagueInput:
+      type: object
+      properties:
+        name:   { type: string }
+        region: { type: string }
+      required: [name]
 
     # ── Matches ───────────────────────────────────────────────────────────────
 
@@ -1763,10 +1804,19 @@ components:
       type: object
       properties:
         id:           { type: integer }
+        leagueId:     { type: integer }
         name:         { type: string }
         primaryColor: { type: string }
         logoUrl:      { type: ["string", "null"] }
-      required: [id, name, primaryColor]
+      required: [id, leagueId, name, primaryColor]
+
+    ClubInput:
+      type: object
+      properties:
+        leagueId:     { type: integer }
+        name:         { type: string }
+        primaryColor: { type: string }
+      required: [leagueId, name]
 
     # ── Goals by Opponent ──────────────────────────────────────────────────────
 

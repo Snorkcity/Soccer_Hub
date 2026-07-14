@@ -15,6 +15,13 @@ import {
   useCreateEntryGoal,
   useSaveEntryPlayerStats,
   useExtractPlayersFromImage,
+  useListLeagues,
+  useCreateLeague,
+  useCreateSeason,
+  useCreateClub,
+  getListLeaguesQueryKey,
+  getListSeasonsQueryKey,
+  getGetClubsQueryKey,
   type LeagueMatchInfo,
   type GoalOptionsResponse,
   type EntryPlayerRow,
@@ -598,6 +605,188 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// League setup — create a league, its season, and its clubs
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LeagueSetupCard() {
+  const queryClient = useQueryClient();
+  const { data: leagues } = useListLeagues();
+  const { data: seasons } = useListSeasons();
+  const { data: clubs } = useGetClubs();
+
+  const [leagueName, setLeagueName] = useState("");
+  const [leagueRegion, setLeagueRegion] = useState("");
+  const [seasonLeagueId, setSeasonLeagueId] = useState("");
+  const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
+  const [seasonActive, setSeasonActive] = useState(false);
+  const [clubLeagueId, setClubLeagueId] = useState("");
+  const [clubName, setClubName] = useState("");
+  const [clubColor, setClubColor] = useState("#888888");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: getListLeaguesQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListSeasonsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetClubsQueryKey() });
+  };
+
+  const createLeague = useCreateLeague({ mutation: {
+    onSuccess: (l) => {
+      setMsg({ ok: true, text: `League "${l.name}" created — now add its season and clubs below.` });
+      setLeagueName(""); setLeagueRegion("");
+      setSeasonLeagueId(String(l.id)); setClubLeagueId(String(l.id));
+      invalidate();
+    },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+  const createSeason = useCreateSeason({ mutation: {
+    onSuccess: (s) => { setMsg({ ok: true, text: `Season "${s.leagueName} · ${s.label}" created.` }); invalidate(); },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+  const createClub = useCreateClub({ mutation: {
+    onSuccess: (c) => { setMsg({ ok: true, text: `Club "${c.name}" added.` }); setClubName(""); invalidate(); },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+
+  const leagueSelect = (value: string, onChange: (v: string) => void) => (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger><SelectValue placeholder="Select league" /></SelectTrigger>
+      <SelectContent>
+        {(leagues ?? []).map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+
+  return (
+    <div className="space-y-6">
+      {msg && (
+        <div className={`flex items-center gap-2 text-sm rounded-md border px-3 py-2 ${msg.ok ? "border-emerald-500/40 text-emerald-500" : "border-destructive/40 text-destructive"}`}>
+          {msg.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+          {msg.text}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>1. Create a league</CardTitle>
+          <CardDescription>A competition, e.g. "ACT NPLW Reserves". Each league keeps its own clubs and seasons.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] items-end">
+          <div className="space-y-1.5">
+            <Label>League name</Label>
+            <Input value={leagueName} onChange={e => setLeagueName(e.target.value)} placeholder="ACT NPLW Reserves" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Region (optional)</Label>
+            <Input value={leagueRegion} onChange={e => setLeagueRegion(e.target.value)} placeholder="ACT" />
+          </div>
+          <Button
+            disabled={!leagueName.trim() || createLeague.isPending}
+            onClick={() => createLeague.mutate({ data: { name: leagueName.trim(), ...(leagueRegion.trim() ? { region: leagueRegion.trim() } : {}) } })}
+          >
+            <Plus className="h-4 w-4 mr-1.5" />Create league
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>2. Add a season</CardTitle>
+          <CardDescription>Which year this league is running. "Active" makes it that league's current season.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-[1fr_140px_auto_auto] items-end">
+          <div className="space-y-1.5">
+            <Label>League</Label>
+            {leagueSelect(seasonLeagueId, setSeasonLeagueId)}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Year</Label>
+            <Input value={seasonYear} onChange={e => setSeasonYear(e.target.value)} placeholder="2026" />
+          </div>
+          <div className="flex items-center gap-2 pb-2.5">
+            <Checkbox id="season-active" checked={seasonActive} onCheckedChange={v => setSeasonActive(v === true)} />
+            <Label htmlFor="season-active" className="cursor-pointer">Active</Label>
+          </div>
+          <Button
+            disabled={!seasonLeagueId || !/^\d{4}$/.test(seasonYear.trim()) || createSeason.isPending}
+            onClick={() => createSeason.mutate({ data: {
+              leagueId: Number(seasonLeagueId),
+              year: seasonYear.trim(),
+              label: `${seasonYear.trim()} Season`,
+              isActive: seasonActive,
+            } })}
+          >
+            <Plus className="h-4 w-4 mr-1.5" />Add season
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>3. Add clubs</CardTitle>
+          <CardDescription>The teams competing in the league, named exactly as the league calls them. The colour is used in the charts.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[1fr_1fr_90px_auto] items-end">
+            <div className="space-y-1.5">
+              <Label>League</Label>
+              {leagueSelect(clubLeagueId, setClubLeagueId)}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Club name</Label>
+              <Input value={clubName} onChange={e => setClubName(e.target.value)} placeholder="Belconnen" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Colour</Label>
+              <Input type="color" value={clubColor} onChange={e => setClubColor(e.target.value)} className="h-9 p-1 cursor-pointer" />
+            </div>
+            <Button
+              disabled={!clubLeagueId || !clubName.trim() || createClub.isPending}
+              onClick={() => createClub.mutate({ data: { leagueId: Number(clubLeagueId), name: clubName.trim(), primaryColor: clubColor } })}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />Add club
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Current leagues</CardTitle>
+          <CardDescription>Everything set up so far.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {(leagues ?? []).map(l => {
+            const leagueSeasons = (seasons ?? []).filter(s => s.leagueId === l.id);
+            const leagueClubs = (clubs ?? []).filter(c => c.leagueId === l.id);
+            return (
+              <div key={l.id} className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold">{l.name}</span>
+                  {leagueSeasons.map(s => (
+                    <Badge key={s.id} variant={s.isActive ? "default" : "secondary"}>{s.label}{s.isActive ? " · active" : ""}</Badge>
+                  ))}
+                  {leagueSeasons.length === 0 && <span className="text-xs text-muted-foreground">no season yet</span>}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {leagueClubs.map(c => (
+                    <span key={c.id} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground border rounded-full px-2.5 py-0.5">
+                      <span className="h-2.5 w-2.5 rounded-full inline-block" style={{ backgroundColor: c.primaryColor }} />
+                      {c.name}
+                    </span>
+                  ))}
+                  {leagueClubs.length === 0 && <span className="text-xs text-muted-foreground">no clubs yet</span>}
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -616,7 +805,10 @@ function EntryWorkspace() {
     }
   }, [teams, teamId]);
   useEffect(() => {
-    if (seasons && seasons.length > 0 && seasonId == null) setSeasonId(seasons[0].id);
+    if (seasons && seasons.length > 0 && seasonId == null) {
+      const active = seasons.find(s => s.isActive);
+      setSeasonId(active ? active.id : seasons[0].id);
+    }
   }, [seasons, seasonId]);
 
   const isReady = teamId != null && seasonId != null;
@@ -634,8 +826,12 @@ function EntryWorkspace() {
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: getGetAuthStatusQueryKey() }); },
   }});
 
-  const clubNames = useMemo(() => (clubs ?? []).map(c => c.name).sort(), [clubs]);
   const season = seasons?.find(s => s.id === seasonId);
+  // Only offer clubs that belong to the selected season's league
+  const clubNames = useMemo(
+    () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),
+    [clubs, season],
+  );
 
   if (!isReady) return <p className="text-muted-foreground text-center py-16">Loading…</p>;
 
@@ -655,10 +851,11 @@ function EntryWorkspace() {
       </div>
 
       <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto md:h-10">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto md:h-10">
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
+          <TabsTrigger value="league">4 · League Setup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="match" className="mt-6">
@@ -669,6 +866,9 @@ function EntryWorkspace() {
         </TabsContent>
         <TabsContent value="goals" className="mt-6">
           <GoalForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} options={options} />
+        </TabsContent>
+        <TabsContent value="league" className="mt-6">
+          <LeagueSetupCard />
         </TabsContent>
         <TabsContent value="players" className="mt-6">
           <PlayersForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />

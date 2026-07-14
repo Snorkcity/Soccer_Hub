@@ -6,11 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ClubInfo {
-  id: number;
+export interface ClubInput {
   leagueId: number;
   name: string;
-  primaryColor: string;
-  /** @nullable */
-  logoUrl?: string | null;
+  primaryColor?: string;
 }

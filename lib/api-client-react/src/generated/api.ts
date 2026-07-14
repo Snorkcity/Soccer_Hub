@@ -26,6 +26,7 @@ import type {
   AthleticTestInput,
   AuthStatus,
   ClubInfo,
+  ClubInput,
   EntryGoalBody,
   EntryGoalResponse,
   EntryMatchBody,
@@ -69,6 +70,7 @@ import type {
   HealthStatus,
   LadderEntry,
   LeagueInfo,
+  LeagueInput,
   LeagueMatchInfo,
   ListAthleticTestsParams,
   ListGoalsParams,
@@ -736,6 +738,77 @@ export function useListLeagues<TData = Awaited<ReturnType<typeof listLeagues>>, 
 
 
 
+
+export const getCreateLeagueUrl = () => {
+
+
+
+
+  return `/api/leagues`
+}
+
+/**
+ * @summary Create a new league (competition)
+ */
+export const createLeague = async (leagueInput: LeagueInput, options?: RequestInit): Promise<LeagueInfo> => {
+
+  return customFetch<LeagueInfo>(getCreateLeagueUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(leagueInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLeagueMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeague>>, TError,{data: BodyType<LeagueInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeague>>, TError,{data: BodyType<LeagueInput>}, TContext> => {
+
+const mutationKey = ['createLeague'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeague>>, {data: BodyType<LeagueInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLeague(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeagueMutationResult = NonNullable<Awaited<ReturnType<typeof createLeague>>>
+    export type CreateLeagueMutationBody = BodyType<LeagueInput>
+    export type CreateLeagueMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new league (competition)
+ */
+export const useCreateLeague = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeague>>, TError,{data: BodyType<LeagueInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLeague>>,
+        TError,
+        {data: BodyType<LeagueInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLeagueMutationOptions(options));
+    }
 
 export const getListSeasonsUrl = () => {
 
@@ -3540,6 +3613,77 @@ export function useGetClubs<TData = Awaited<ReturnType<typeof getClubs>>, TError
 
 
 
+
+export const getCreateClubUrl = () => {
+
+
+
+
+  return `/api/clubs`
+}
+
+/**
+ * @summary Add a club to a league
+ */
+export const createClub = async (clubInput: ClubInput, options?: RequestInit): Promise<ClubInfo> => {
+
+  return customFetch<ClubInfo>(getCreateClubUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clubInput)
+  }
+);}
+
+
+
+
+
+export const getCreateClubMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClub>>, TError,{data: BodyType<ClubInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClub>>, TError,{data: BodyType<ClubInput>}, TContext> => {
+
+const mutationKey = ['createClub'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClub>>, {data: BodyType<ClubInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createClub(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClubMutationResult = NonNullable<Awaited<ReturnType<typeof createClub>>>
+    export type CreateClubMutationBody = BodyType<ClubInput>
+    export type CreateClubMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a club to a league
+ */
+export const useCreateClub = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClub>>, TError,{data: BodyType<ClubInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClub>>,
+        TError,
+        {data: BodyType<ClubInput>},
+        TContext
+      > => {
+      return useMutation(getCreateClubMutationOptions(options));
+    }
 
 export const getGetGpsLoadSummaryUrl = (params: GetGpsLoadSummaryParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -139,6 +139,21 @@ export const ListLeaguesResponse = zod.array(ListLeaguesResponseItem)
 
 
 /**
+ * @summary Create a new league (competition)
+ */
+export const CreateLeagueBody = zod.object({
+  "name": zod.string(),
+  "region": zod.string().optional()
+})
+
+export const CreateLeagueResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "region": zod.string().nullish()
+})
+
+
+/**
  * @summary List all seasons
  */
 export const ListSeasonsResponseItem = zod.object({
@@ -1374,11 +1389,30 @@ export const GetOpponentFirstSubResponse = zod.object({
  */
 export const GetClubsResponseItem = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number(),
   "name": zod.string(),
   "primaryColor": zod.string(),
   "logoUrl": zod.string().nullish()
 })
 export const GetClubsResponse = zod.array(GetClubsResponseItem)
+
+
+/**
+ * @summary Add a club to a league
+ */
+export const CreateClubBody = zod.object({
+  "leagueId": zod.number(),
+  "name": zod.string(),
+  "primaryColor": zod.string().optional()
+})
+
+export const CreateClubResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "name": zod.string(),
+  "primaryColor": zod.string(),
+  "logoUrl": zod.string().nullish()
+})
 
 
 /**

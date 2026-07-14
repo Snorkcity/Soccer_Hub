@@ -72,6 +72,11 @@ export interface LeagueInfo {
   region?: string | null;
 }
 
+export interface LeagueInput {
+  name: string;
+  region?: string;
+}
+
 export interface Match {
   id: number;
   matchId: string;
@@ -703,10 +708,17 @@ export interface GpsLoadSummary {
 
 export interface ClubInfo {
   id: number;
+  leagueId: number;
   name: string;
   primaryColor: string;
   /** @nullable */
   logoUrl?: string | null;
+}
+
+export interface ClubInput {
+  leagueId: number;
+  name: string;
+  primaryColor?: string;
 }
 
 export interface GoalsByOpponentEntry {

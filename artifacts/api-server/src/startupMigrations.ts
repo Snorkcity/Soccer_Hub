@@ -37,6 +37,9 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_name_unique`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS clubs_league_name_unique ON clubs (league_id, name)`);
 
+  // At most one active season per league, enforced by the database
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS seasons_one_active_per_league ON seasons (league_id) WHERE is_active`);
+
   // Teams are referred to by their in-league club name (2026-07 rename)
   await db.execute(sql`UPDATE teams SET name = 'Belconnen' WHERE name = 'BUFC NPLW 1sts'`);
 
