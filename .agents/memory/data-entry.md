@@ -16,6 +16,8 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 
 **Screenshot reader**: `/entry/extract-players` — base64 image in JSON (express.json 25mb limit scoped to this route only), OpenAI vision via plain fetch to `AI_INTEGRATIONS_OPENAI_BASE_URL` (falls back to `OPENAI_API_KEY` + api.openai.com for Railway). Review-before-save: returns rows + warnings, saves nothing. Prompt enforces "J.Bloggs" (first-initial.surname) naming — user requirement to avoid duplicate-player issues from surname-only data.
 
+**Future multi-club direction (user-confirmed)**: when clubs get viewer logins, the session will also carry *which club* — Team/Player tabs show the logged-in club's data, Opponent tab shows the rest of the league from their POV. So prefer building charts off the league-wide tables (works for any club) over the legacy Belconnen tables; Belconnen-only extras (Veo possession/shots, GPS, testing) won't exist for other clubs until they enter their own.
+
 **Gotchas**:
 - Orval zod const names come from operationId, not schema name — a components schema named identically to `{OperationId}Body` (e.g. `LoginBody` for operationId `login`) breaks codegen with TS2308 export collision. Rename the schema (→ `AdminLoginBody`).
 - matchDate stored as "YYYY/MM/DD" strings; date input values must be converted.
