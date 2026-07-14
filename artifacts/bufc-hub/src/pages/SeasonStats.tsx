@@ -52,7 +52,7 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   LineChart, Line,
 } from "recharts";
-import { Info, ArrowLeft } from "lucide-react";
+import { Info, ArrowLeft, MousePointerClick } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ─── Position helpers ─────────────────────────────────────────────────────────
@@ -2399,22 +2399,25 @@ export default function SeasonStats() {
               {tlPlayer ? (
                 <PlayerTimelineChart seasonId={sId} club="Belconnen" player={tlPlayer} onBack={() => setTlPlayer(null)} />
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={startsData}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
-                    onClick={s => { const p = (s as { activePayload?: Array<{ payload?: { fullName?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.fullName) setTlPlayer(p.fullName); }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis {...AXIS_STYLE} allowDecimals={false} />
-                    <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="relative h-full">
+                  <ClickHint />
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={startsData}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
+                      onClick={s => { const p = (s as { activePayload?: Array<{ payload?: { fullName?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.fullName) setTlPlayer(p.fullName); }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+                      <YAxis {...AXIS_STYLE} allowDecimals={false} />
+                      <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </ChartCard>
             <ChartCard title="Total Minutes Played" description="Season total — dashed line = squad average" tooltip="All minutes played across the season. Includes sub appearances.">
@@ -3809,24 +3812,37 @@ function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, a
       ) : data.length === 0 ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No data recorded</div>
       ) : (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={data}
-            margin={{ top: 10, right: 10, left: -20, bottom: 60 }}
-            onClick={timeline ? (s => { const p = (s as { activePayload?: Array<{ payload?: { name?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.name) setTlPlayer(p.name); }) : undefined}
-            style={timeline ? { cursor: "pointer" } : undefined}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={60} />
-            <YAxis {...AXIS_STYLE} allowDecimals={variant === "startsApps" ? false : !!allowDecimals} />
-            <Tooltip content={<PlayerBarTooltip valueLabel={variant === "startsApps" ? "Appearances" : valueLabel} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-            {variant === "startsApps" && <Bar dataKey="starts" name="Starts" stackId="a" fill="#3b82f6" />}
-            {variant === "startsApps" && <Bar dataKey="sub" name="Off bench" stackId="a" fill="#93c5fd" radius={[3, 3, 0, 0]} />}
-            {variant !== "startsApps" && <Bar dataKey="value" name={valueLabel} fill={color} radius={[3, 3, 0, 0]} />}
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="relative h-full">
+          {timeline && <ClickHint />}
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 10, left: -20, bottom: 60 }}
+              onClick={timeline ? (s => { const p = (s as { activePayload?: Array<{ payload?: { name?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.name) setTlPlayer(p.name); }) : undefined}
+              style={timeline ? { cursor: "pointer" } : undefined}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={60} />
+              <YAxis {...AXIS_STYLE} allowDecimals={variant === "startsApps" ? false : !!allowDecimals} />
+              <Tooltip content={<PlayerBarTooltip valueLabel={variant === "startsApps" ? "Appearances" : valueLabel} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+              {variant === "startsApps" && <Bar dataKey="starts" name="Starts" stackId="a" fill="#3b82f6" />}
+              {variant === "startsApps" && <Bar dataKey="sub" name="Off bench" stackId="a" fill="#93c5fd" radius={[3, 3, 0, 0]} />}
+              {variant !== "startsApps" && <Bar dataKey="value" name={valueLabel} fill={color} radius={[3, 3, 0, 0]} />}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </ChartCard>
+  );
+}
+
+// Floating badge shown over clickable player charts so nobody misses the drill-down
+function ClickHint() {
+  return (
+    <div className="pointer-events-none absolute right-2 top-1 z-10 flex items-center gap-1 rounded-full border border-border bg-card/90 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+      <MousePointerClick className="h-3.5 w-3.5" />
+      Click a player for their game-by-game
+    </div>
   );
 }
 
