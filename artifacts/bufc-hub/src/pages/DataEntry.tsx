@@ -157,9 +157,6 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
           <Field label="Round">
             <Input type="number" min={1} value={round} onChange={e => setRound(e.target.value)} placeholder="e.g. 14" />
           </Field>
-          <Field label="Match ID" className="col-span-2">
-            <Input value={matchId} onChange={e => { setMatchId(e.target.value); setMatchIdEdited(true); }} placeholder="R14-BEL-CRO" />
-          </Field>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
           <Field label="Home team">
@@ -179,6 +176,11 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
           </Field>
           <Field label="Away goals">
             <Input type="number" min={0} value={awayGoals} onChange={e => setAwayGoals(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Field label="Match ID (fills in automatically)" className="col-span-2">
+            <Input value={matchId} onChange={e => { setMatchId(e.target.value); setMatchIdEdited(true); }} placeholder="R14-MAJ-CRO" />
           </Field>
         </div>
 
