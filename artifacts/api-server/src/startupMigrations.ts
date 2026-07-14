@@ -65,5 +65,68 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // GPS identity merging (2026-07): duplicate GPS names (U17-/U18- eras, nicknames)
+  // map to one canonical player. Raw gps_sessions rows stay untouched — the API
+  // canonicalises player names on read. Mapping confirmed by the coach.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gps_player_aliases (
+      alias text PRIMARY KEY,
+      canonical text NOT NULL
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS player_identity_links (
+      canonical text PRIMARY KEY,
+      season_stats_name text NOT NULL
+    )
+  `);
+  await db.execute(sql`
+    INSERT INTO gps_player_aliases (alias, canonical) VALUES
+      ('U17-Abbey','Abbey'),('U18-Abbey','Abbey'),
+      ('U17-Arna','Arna'),('U18-Arna','Arna'),
+      ('U17-Danijela','Danijela'),('Dani','Danijela'),
+      ('U17-EDEN','Eden'),('Eden Rodda','Eden'),
+      ('U17-Elfin','Elfin'),
+      ('U17-Isla','Isla'),
+      ('U17-Kristy','Kristy'),('U18-Kristy','Kristy'),
+      ('U17-Lily','Lily'),('U18-Lily','Lily'),
+      ('U17-Olive','Olive'),('U18-Olive','Olive'),
+      ('U17-Sage','Sage'),
+      ('U17-Sam','Sam'),
+      ('U17-Sarah','Sarah'),
+      ('Sienna','Siena'),('U17-Sienna','Siena'),
+      ('U18-Talia','Talia'),
+      ('U17-Tali','Tali'),
+      ('U18-Tahli','Tahli'),
+      ('U18-Emily','Emily.E'),
+      ('Emily','Emily.H'),
+      ('Matilde','Mati'),
+      ('Izzy S','Issy.S'),
+      ('Alyssa','DC'),
+      ('Caitlin Koch','Caitlin')
+    ON CONFLICT (alias) DO NOTHING
+  `);
+  await db.execute(sql`
+    INSERT INTO player_identity_links (canonical, season_stats_name) VALUES
+      ('Danijela','Dani'),
+      ('Sam','Sammy'),
+      ('Emily.H','Emily')
+    ON CONFLICT (canonical) DO NOTHING
+  `);
+  // Re-key any positions saved under a raw alias onto the canonical name
+  await db.execute(sql`
+    INSERT INTO gps_player_positions (player_name, position)
+    SELECT a.canonical, min(p.position)
+    FROM gps_player_positions p
+    JOIN gps_player_aliases a ON a.alias = p.player_name
+    GROUP BY a.canonical
+    ON CONFLICT (player_name) DO NOTHING
+  `);
+  await db.execute(sql`
+    DELETE FROM gps_player_positions p
+    USING gps_player_aliases a
+    WHERE a.alias = p.player_name
+  `);
+
   logger.info("Startup migrations applied");
 }

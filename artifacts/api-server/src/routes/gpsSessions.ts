@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, gpsSessionsTable } from "@workspace/db";
+import { eq, and, sql, getTableColumns } from "drizzle-orm";
+import { db, gpsSessionsTable, gpsPlayerAliasesTable } from "@workspace/db";
 
 const n2s = (v: number | null | undefined): string | null => (v == null ? null : String(v));
 import {
@@ -53,17 +53,23 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
   }
   const { playerId, year, teamId, round, playerName, split } = query.data;
 
+  // Duplicate GPS identities (U17-/U18- eras, nicknames) are merged on read:
+  // rows keep their raw name in the DB, but the API serves — and filters by —
+  // the canonical name from gps_player_aliases.
+  const canonicalName = sql<string>`coalesce(${gpsPlayerAliasesTable.canonical}, ${gpsSessionsTable.playerName})`;
+
   const conditions = [];
   if (playerId) conditions.push(eq(gpsSessionsTable.playerId, playerId));
   if (year) conditions.push(eq(gpsSessionsTable.year, year));
   if (teamId) conditions.push(eq(gpsSessionsTable.teamId, teamId));
   if (round) conditions.push(eq(gpsSessionsTable.round, round));
-  if (playerName) conditions.push(eq(gpsSessionsTable.playerName, playerName));
+  if (playerName) conditions.push(eq(canonicalName, playerName));
   if (split) conditions.push(eq(gpsSessionsTable.splitName, split));
 
   const rows = await db
-    .select()
+    .select({ ...getTableColumns(gpsSessionsTable), playerName: canonicalName })
     .from(gpsSessionsTable)
+    .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(gpsSessionsTable.sessionDate);
 

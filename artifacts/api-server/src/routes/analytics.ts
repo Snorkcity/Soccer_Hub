@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, inArray, desc, ne, isNotNull } from "drizzle-orm";
-import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, teamsTable, seasonsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
+import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, teamsTable, seasonsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
 import { GetGoalsByOpponentQueryParams, GetGoalsByOpponentResponse } from "@workspace/api-zod"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import {
   GetSeasonSummaryQueryParams,
@@ -820,10 +820,15 @@ router.get("/analytics/gps-load-summary", async (req, res): Promise<void> => {
   }
   const { teamId, year } = query.data;
 
-  const sessions = await db
+  const rawSessions = await db
     .select()
     .from(gpsSessionsTable)
     .where(and(eq(gpsSessionsTable.teamId, teamId), eq(gpsSessionsTable.year, year)));
+
+  // Pool duplicate GPS identities under their canonical name
+  const aliasRows = await db.select().from(gpsPlayerAliasesTable);
+  const aliasMap = new Map(aliasRows.map(a => [a.alias, a.canonical]));
+  const sessions = rawSessions.map(s => ({ ...s, playerName: aliasMap.get(s.playerName) ?? s.playerName }));
 
   const p = (v: string | null | undefined) => (v != null ? parseFloat(v) : null);
 

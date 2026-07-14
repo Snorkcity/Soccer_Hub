@@ -10,5 +10,6 @@ export * from "./leagueGoals";
 export * from "./leaguePlayerStats";
 export * from "./gpsSessions";
 export * from "./gpsPlayerPositions";
+export * from "./gpsPlayerAliases";
 export * from "./athleticTests";
 export * from "./clubs";
