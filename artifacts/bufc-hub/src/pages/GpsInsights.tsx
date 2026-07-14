@@ -111,6 +111,25 @@ function bundleTotal(b: Bundle, m: GpsMetric): number | null {
   return m.additive ? (v1 ?? 0) + (v2 ?? 0) : Math.max(v1 ?? -Infinity, v2 ?? -Infinity);
 }
 
+/** Accel/decel counts >3 m/s² = the 3–4 band plus the >4 band. */
+function countOf(r: GpsSession | undefined, kind: "accel" | "decel"): number | null {
+  if (!r) return null;
+  const a = kind === "accel" ? r.accelCount34 : r.decelCount34;
+  const b = kind === "accel" ? r.accelCountOver4 : r.decelCountOver4;
+  if (a == null && b == null) return null;
+  return (a ?? 0) + (b ?? 0);
+}
+
+/** Game-row count first, else sum of halves. */
+function bundleCount(b: Bundle, kind: "accel" | "decel"): number | null {
+  const g = countOf(b.game, kind);
+  if (g != null) return g;
+  const v1 = countOf(b.h1, kind);
+  const v2 = countOf(b.h2, kind);
+  if (v1 == null && v2 == null) return null;
+  return (v1 ?? 0) + (v2 ?? 0);
+}
+
 const bundleMins = (b: Bundle): number | null =>
   b.game?.minsPlayed ?? (b.h1?.minsPlayed != null || b.h2?.minsPlayed != null
     ? (b.h1?.minsPlayed ?? 0) + (b.h2?.minsPlayed ?? 0) : null);
@@ -204,6 +223,7 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
           {PLAYER_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
+          <PlayerAccelCountCard bundles={bundles} player={player} />
           <PlayerAccelCard bundles={bundles} player={player} />
         </div>
       )}
@@ -313,6 +333,96 @@ function PlayerTooltip({ active, payload, metric, avg }: {
   );
 }
 
+function Per10Toggle({ per10, setPer10 }: { per10: boolean; setPer10: (b: boolean) => void }) {
+  return (
+    <div className="flex rounded-md border overflow-hidden shrink-0">
+      <Button variant={per10 ? "ghost" : "secondary"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer10(false)}>Total</Button>
+      <Button variant={per10 ? "secondary" : "ghost"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer10(true)}>Per 10 min</Button>
+    </div>
+  );
+}
+
+interface AccelCountTip {
+  label: string; opponent?: string | null; mins: number | null;
+  acc: number | null; dec: number | null; accPer10: number | null; decPer10: number | null;
+}
+
+function AccelCountTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: AccelCountTip }> }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={TOOLTIP_BOX}>
+      <p className="font-semibold">{d.label}{d.opponent ? ` — vs ${d.opponent}` : ""}</p>
+      {d.mins != null && <p className="text-muted-foreground">{Math.round(d.mins)} mins played</p>}
+      <div className="mt-1 space-y-0.5">
+        <p><span style={{ color: C_ACC }}>●</span> Accelerations: {d.acc != null ? Math.round(d.acc) : "—"}</p>
+        {d.accPer10 != null && <p className="text-muted-foreground pl-4">{d.accPer10.toFixed(1)} per 10 min</p>}
+        <p><span style={{ color: C_DEC }}>●</span> Decelerations: {d.dec != null ? Math.round(d.dec) : "—"}</p>
+        {d.decPer10 != null && <p className="text-muted-foreground pl-4">{d.decPer10.toFixed(1)} per 10 min</p>}
+        {d.acc != null && d.dec != null && d.acc > 0 && (
+          <p className="text-muted-foreground">{(d.dec / d.acc).toFixed(2)} decels per accel — {d.dec > d.acc ? "more braking than bursting" : "more bursting than braking"}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlayerAccelCountCard({ bundles, player }: { bundles: Bundle[]; player: string }) {
+  const [lastN, setLastN] = useState(false);
+  const [per10, setPer10] = useState(false);
+  const shown = lastN ? bundles.slice(-4) : bundles;
+
+  const data = useMemo(() => shown.map(b => {
+    const acc = bundleCount(b, "accel");
+    const dec = bundleCount(b, "decel");
+    const mins = bundleMins(b);
+    const accPer10 = acc != null && mins ? (acc / mins) * 10 : null;
+    const decPer10 = dec != null && mins ? (dec / mins) * 10 : null;
+    return {
+      label: b.key, opponent: b.opponent, mins,
+      acc, dec, accPer10, decPer10,
+      accShow: per10 ? accPer10 : acc,
+      decShow: per10 ? decPer10 : dec,
+    };
+  }), [shown, per10]);
+
+  const hasData = data.some(d => d.acc != null || d.dec != null);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+        <div className="space-y-1">
+          <CardTitle className="text-base">Accelerations / Decelerations &gt;3m/s²{per10 ? " (per 10 min)" : ""}</CardTitle>
+          <CardDescription className="text-xs">
+            How many hard bursts and hard stops per game. Per-10-min levels rounds where {player} played fewer minutes.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Per10Toggle per10={per10} setPer10={setPer10} />
+          <LastNToggle lastN={lastN} setLastN={setLastN} />
+        </div>
+      </CardHeader>
+      <CardContent className="h-[280px]">
+        {!hasData ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No accel/decel counts recorded for these games.</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 30 }} barGap={1}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="label" {...AXIS} angle={-40} textAnchor="end" interval={0} />
+              <YAxis {...AXIS} fontSize={11} />
+              <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="accShow" name="Accelerations" fill={C_ACC} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="decShow" name="Decelerations" fill={C_DEC} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: string }) {
   const [lastN, setLastN] = useState(false);
   const shown = lastN ? bundles.slice(-4) : bundles;
@@ -331,7 +441,7 @@ function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: strin
         <div className="space-y-1">
           <CardTitle className="text-base">Max Acceleration / Deceleration (m/s²)</CardTitle>
           <CardDescription className="text-xs">
-            The GPS import doesn't include the accel/decel counts from the old app — this shows each game's hardest single acceleration and braking effort instead.
+            A different lens: not how often, but how hard — each game's single hardest burst and hardest stop.
           </CardDescription>
         </div>
         <LastNToggle lastN={lastN} setLastN={setLastN} />
@@ -437,6 +547,7 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
           {PLAYER_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
+          <TeamAccelCountCard bundles={bundles} />
           <TeamAccelCard bundles={bundles} />
         </div>
       )}
@@ -553,6 +664,58 @@ function TeamTooltip({ active, payload, metric, view, avg }: {
   );
 }
 
+function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
+  const [per10, setPer10] = useState(false);
+
+  const data = useMemo(() =>
+    bundles.map(b => {
+      const acc = bundleCount(b, "accel");
+      const dec = bundleCount(b, "decel");
+      const mins = bundleMins(b);
+      const accPer10 = acc != null && mins ? (acc / mins) * 10 : null;
+      const decPer10 = dec != null && mins ? (dec / mins) * 10 : null;
+      return {
+        label: b.key, mins, acc, dec, accPer10, decPer10,
+        accShow: per10 ? accPer10 : acc,
+        decShow: per10 ? decPer10 : dec,
+      };
+    })
+      .filter(d => d.acc != null || d.dec != null)
+      .sort((a, b) => ((per10 ? b.accShow : b.acc) ?? 0) - ((per10 ? a.accShow : a.acc) ?? 0)),
+    [bundles, per10]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+        <div className="space-y-1">
+          <CardTitle className="text-base">Accelerations / Decelerations &gt;3m/s²{per10 ? " (per 10 min)" : ""}</CardTitle>
+          <CardDescription className="text-xs">
+            Hard bursts and hard stops per player. Per-10-min levels the field for players with fewer minutes.
+          </CardDescription>
+        </div>
+        <Per10Toggle per10={per10} setPer10={setPer10} />
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        {data.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No accel/decel counts recorded for this round.</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="label" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+              <YAxis {...AXIS} fontSize={11} />
+              <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="accShow" name="Accelerations" fill={C_ACC} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="decShow" name="Decelerations" fill={C_DEC} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
   const data = useMemo(() =>
     bundles
@@ -571,7 +734,7 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Max Acceleration / Deceleration (m/s²)</CardTitle>
         <CardDescription className="text-xs">
-          Hardest single acceleration and braking effort per player. (The accel/decel counts from the old app aren't in this data import.)
+          A different lens: not how often, but how hard — each player's single hardest burst and hardest stop.
         </CardDescription>
       </CardHeader>
       <CardContent className="h-[300px]">

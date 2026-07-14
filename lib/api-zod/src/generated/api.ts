@@ -605,7 +605,11 @@ export const ListGpsSessionsResponseItem = zod.object({
   "distanceZone2Km": zod.number().nullish(),
   "distanceZone3Km": zod.number().nullish(),
   "distanceZone4Km": zod.number().nullish(),
-  "distanceZone5Km": zod.number().nullish()
+  "distanceZone5Km": zod.number().nullish(),
+  "accelCount34": zod.number().nullish(),
+  "accelCountOver4": zod.number().nullish(),
+  "decelCount34": zod.number().nullish(),
+  "decelCountOver4": zod.number().nullish()
 })
 export const ListGpsSessionsResponse = zod.array(ListGpsSessionsResponseItem)
 
@@ -644,7 +648,11 @@ export const CreateGpsSessionBody = zod.object({
   "distanceZone2Km": zod.number().nullish(),
   "distanceZone3Km": zod.number().nullish(),
   "distanceZone4Km": zod.number().nullish(),
-  "distanceZone5Km": zod.number().nullish()
+  "distanceZone5Km": zod.number().nullish(),
+  "accelCount34": zod.number().nullish(),
+  "accelCountOver4": zod.number().nullish(),
+  "decelCount34": zod.number().nullish(),
+  "decelCountOver4": zod.number().nullish()
 })
 
 export const CreateGpsSessionResponse = zod.object({
@@ -679,7 +687,11 @@ export const CreateGpsSessionResponse = zod.object({
   "distanceZone2Km": zod.number().nullish(),
   "distanceZone3Km": zod.number().nullish(),
   "distanceZone4Km": zod.number().nullish(),
-  "distanceZone5Km": zod.number().nullish()
+  "distanceZone5Km": zod.number().nullish(),
+  "accelCount34": zod.number().nullish(),
+  "accelCountOver4": zod.number().nullish(),
+  "decelCount34": zod.number().nullish(),
+  "decelCountOver4": zod.number().nullish()
 })
 
 

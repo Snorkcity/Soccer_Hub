@@ -35,6 +35,10 @@ export const gpsSessionsTable = pgTable("gps_sessions", {
   distanceZone3Km: numeric("distance_zone3_km", { precision: 8, scale: 3 }),
   distanceZone4Km: numeric("distance_zone4_km", { precision: 8, scale: 3 }),
   distanceZone5Km: numeric("distance_zone5_km", { precision: 8, scale: 3 }),
+  accelCount34: numeric("accel_count_3_4", { precision: 8, scale: 2 }),
+  accelCountOver4: numeric("accel_count_over_4", { precision: 8, scale: 2 }),
+  decelCount34: numeric("decel_count_3_4", { precision: 8, scale: 2 }),
+  decelCountOver4: numeric("decel_count_over_4", { precision: 8, scale: 2 }),
 });
 
 export const insertGpsSessionSchema = createInsertSchema(gpsSessionsTable).omit({ id: true });

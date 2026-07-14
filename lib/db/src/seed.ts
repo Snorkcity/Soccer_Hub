@@ -385,6 +385,10 @@ async function seed() {
         distanceZone3Km: str(row["Distance in Speed Zone 3 (km)"]),
         distanceZone4Km: str(row["Distance in Speed Zone 4 (km)"]),
         distanceZone5Km: str(row["Distance in Speed Zone 5 (km)"]),
+        accelCount34: str(row["Accelerations Zone Count: 3 - 4 m/s/s"]),
+        accelCountOver4: str(row["Accelerations Zone Count: > 4 m/s/s"]),
+        decelCount34: str(row["Deceleration Zone Count: 3 - 4 m/s/s"]),
+        decelCountOver4: str(row["Deceleration Zone Count: > 4 m/s/s"]),
       }));
       await db.insert(gpsSessionsTable).values(batch);
     }

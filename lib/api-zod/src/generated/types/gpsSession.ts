@@ -67,4 +67,12 @@ export interface GpsSession {
   distanceZone4Km?: number | null;
   /** @nullable */
   distanceZone5Km?: number | null;
+  /** @nullable */
+  accelCount34?: number | null;
+  /** @nullable */
+  accelCountOver4?: number | null;
+  /** @nullable */
+  decelCount34?: number | null;
+  /** @nullable */
+  decelCountOver4?: number | null;
 }

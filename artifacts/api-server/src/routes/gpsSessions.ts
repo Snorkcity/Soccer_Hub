@@ -38,6 +38,10 @@ function mapRow(r: typeof gpsSessionsTable.$inferSelect) {
     distanceZone3Km: parseNum(r.distanceZone3Km),
     distanceZone4Km: parseNum(r.distanceZone4Km),
     distanceZone5Km: parseNum(r.distanceZone5Km),
+    accelCount34: parseNum(r.accelCount34),
+    accelCountOver4: parseNum(r.accelCountOver4),
+    decelCount34: parseNum(r.decelCount34),
+    decelCountOver4: parseNum(r.decelCountOver4),
   };
 }
 
@@ -82,6 +86,8 @@ router.post("/gps-sessions", async (req, res): Promise<void> => {
     workRatio: n2s(d.workRatio), hrMaxBpm: n2s(d.hrMaxBpm), maxDecelerationMss: n2s(d.maxDecelerationMss),
     maxAccelerationMss: n2s(d.maxAccelerationMss), distanceZone1Km: n2s(d.distanceZone1Km), distanceZone2Km: n2s(d.distanceZone2Km),
     distanceZone3Km: n2s(d.distanceZone3Km), distanceZone4Km: n2s(d.distanceZone4Km), distanceZone5Km: n2s(d.distanceZone5Km),
+    accelCount34: n2s(d.accelCount34), accelCountOver4: n2s(d.accelCountOver4),
+    decelCount34: n2s(d.decelCount34), decelCountOver4: n2s(d.decelCountOver4),
   }).returning();
   res.status(201).json(CreateGpsSessionResponse.parse(mapRow(session)));
 });
