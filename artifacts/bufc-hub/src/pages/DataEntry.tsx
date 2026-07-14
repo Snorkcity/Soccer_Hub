@@ -471,6 +471,8 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
 
 type EditableRow = EntryPlayerRow;
 
+const POSITIONS = ["GK", "LB", "RB", "CB", "LWB", "RWB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "ST", "F"] as const;
+
 function PlayersForm({ teamId, seasonId, fixtures }: {
   teamId: number; seasonId: number; fixtures: LeagueMatchInfo[];
 }) {
@@ -625,8 +627,17 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
                     <td className="py-1.5 pr-2 w-20">
                       <Input className="h-8" type="number" min={0} max={130} value={r.minsPlayed ?? ""} onChange={e => update(i, { minsPlayed: e.target.value === "" ? null : Number(e.target.value) })} />
                     </td>
-                    <td className="py-1.5 pr-2 w-20">
-                      <Input className="h-8" value={r.position ?? ""} onChange={e => update(i, { position: e.target.value || null })} />
+                    <td className="py-1.5 pr-2 w-24">
+                      <Select value={r.position ?? "__none__"} onValueChange={v => update(i, { position: v === "__none__" ? null : v })}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">—</SelectItem>
+                          {POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          {r.position && !POSITIONS.includes(r.position as typeof POSITIONS[number]) && (
+                            <SelectItem value={r.position}>{r.position}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="py-1.5 pr-2 w-24">
                       <Input className="h-8" value={r.discipline ?? ""} onChange={e => update(i, { discipline: e.target.value || null })} placeholder="—" />

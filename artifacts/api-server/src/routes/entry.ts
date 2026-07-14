@@ -448,7 +448,7 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
     "  * Bench player WITH a green icon always took the field — appearance true, even when the capped calculation gives 0 minutes (e.g. came on at 92').",
     "  * A ball icon means a goal — ignore it for minutes.",
     "  * If minutes are printed directly as a number of minutes played, use that instead. Never guess beyond these rules.",
-    "- position: the position shown (GK, RB, CB, LB, DM, CM, AM, ST, F, etc.), otherwise null.",
+    "- position: the position shown, mapped to one of exactly: GK, LB, RB, CB, LWB, RWB, DM, CM, AM, LM, RM, LW, RW, ST, F. Otherwise null.",
     "- discipline: card info if shown (e.g. \"Yellow\", \"Red\"), otherwise null.",
     "- started: true if the player is in the starting lineup section, false if listed as a substitute/bench.",
     "- appearance: true if the player actually took the field (starters, and substitutes shown as having come on). Unused bench players: appearance false.",
