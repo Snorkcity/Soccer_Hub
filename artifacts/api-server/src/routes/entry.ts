@@ -31,6 +31,8 @@ import {
   ListEntryPlayerStatsQueryParams,
   ListEntryPlayerStatsResponse,
   DeleteEntryPlayerStatResponse,
+  DeleteEntryPlayerStatsQueryParams,
+  DeleteEntryPlayerStatsResponse,
   ExtractPlayersFromImageBody,
   ExtractPlayersFromImageResponse,
 } from "@workspace/api-zod";
@@ -552,6 +554,58 @@ router.get("/entry/player-stats", async (req, res): Promise<void> => {
     ))
     .orderBy(leaguePlayerStatsTable.playerName);
   res.json(ListEntryPlayerStatsResponse.parse({ rows }));
+});
+
+// ── Remove ALL saved player rows for one club in a fixture ───────────────────
+// Same replace-semantics delete the save endpoint uses, without the re-insert —
+// clears the league rows and (for Belconnen fixtures) the legacy mirror together.
+router.delete("/entry/player-stats", async (req, res): Promise<void> => {
+  const query = DeleteEntryPlayerStatsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, matchId, club } = query.data;
+
+  const [fixture] = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(and(eq(leagueMatchesTable.matchId, matchId), eq(leagueMatchesTable.seasonId, seasonId)));
+  if (!fixture) {
+    res.status(404).json({ error: `No fixture "${matchId}" this season` });
+    return;
+  }
+
+  const { removed, belconnenRemoved } = await db.transaction(async (tx) => {
+    const removed = (await tx
+      .delete(leaguePlayerStatsTable)
+      .where(and(
+        eq(leaguePlayerStatsTable.seasonId, seasonId),
+        eq(leaguePlayerStatsTable.matchId, matchId),
+        eq(leaguePlayerStatsTable.club, club),
+      ))
+      .returning({ id: leaguePlayerStatsTable.id })).length;
+
+    let belconnenRemoved = 0;
+    if (fixture.homeTeam === FOCUS_CLUB || fixture.awayTeam === FOCUS_CLUB) {
+      const matchRows = await tx
+        .select({ id: matchesTable.id })
+        .from(matchesTable)
+        .where(and(eq(matchesTable.matchId, matchId), eq(matchesTable.seasonId, seasonId)));
+      if (matchRows.length > 0) {
+        belconnenRemoved = (await tx
+          .delete(playerStatsTable)
+          .where(and(
+            inArray(playerStatsTable.matchId, matchRows.map(m => m.id)),
+            eq(playerStatsTable.club, club),
+          ))
+          .returning({ id: playerStatsTable.id })).length;
+      }
+    }
+    return { removed, belconnenRemoved };
+  });
+
+  res.json(DeleteEntryPlayerStatsResponse.parse({ removed, belconnenRemoved }));
 });
 
 // ── Delete one saved player row (league row + Belconnen mirror copy) ─────────

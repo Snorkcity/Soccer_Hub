@@ -1712,6 +1712,21 @@ export const ListEntryPlayerStatsResponse = zod.object({
 
 
 /**
+ * @summary Remove ALL saved player rows for one club in a fixture (clears the Belconnen mirror too when applicable)
+ */
+export const DeleteEntryPlayerStatsQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "matchId": zod.coerce.string(),
+  "club": zod.coerce.string()
+})
+
+export const DeleteEntryPlayerStatsResponse = zod.object({
+  "removed": zod.number(),
+  "belconnenRemoved": zod.number()
+})
+
+
+/**
  * @summary Save one club's player rows for a match (replaces any previous rows for that match+club)
  */
 

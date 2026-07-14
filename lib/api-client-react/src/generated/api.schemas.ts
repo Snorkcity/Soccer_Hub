@@ -1304,6 +1304,11 @@ export interface EntryPlayerStatDeleteResponse {
   belconnenDeleted: boolean;
 }
 
+export interface EntryPlayerStatsClearResponse {
+  removed: number;
+  belconnenRemoved: number;
+}
+
 export interface ExtractPlayersBody {
   /** @minLength 1 */
   imageBase64: string;
@@ -1500,6 +1505,12 @@ matchId: string;
 };
 
 export type ListEntryPlayerStatsParams = {
+seasonId: number;
+matchId: string;
+club: string;
+};
+
+export type DeleteEntryPlayerStatsParams = {
 seasonId: number;
 matchId: string;
 club: string;

@@ -1320,6 +1320,29 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EntrySavedPlayersResponse" }
+    delete:
+      operationId: deleteEntryPlayerStats
+      tags: [entry]
+      summary: Remove ALL saved player rows for one club in a fixture (clears the Belconnen mirror too when applicable)
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: All player rows removed for the club in this fixture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryPlayerStatsClearResponse" }
     post:
       operationId: saveEntryPlayerStats
       tags: [entry]
@@ -2559,6 +2582,13 @@ components:
         deleted:          { type: boolean }
         belconnenDeleted: { type: boolean }
       required: [deleted, belconnenDeleted]
+
+    EntryPlayerStatsClearResponse:
+      type: object
+      properties:
+        removed:          { type: integer }
+        belconnenRemoved: { type: integer }
+      required: [removed, belconnenRemoved]
 
     ExtractPlayersBody:
       type: object

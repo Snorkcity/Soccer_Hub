@@ -27,6 +27,7 @@ import type {
   AuthStatus,
   ClubInfo,
   ClubInput,
+  DeleteEntryPlayerStatsParams,
   EntryGoalBody,
   EntryGoalDeleteResponse,
   EntryGoalListResponse,
@@ -35,6 +36,7 @@ import type {
   EntryMatchResponse,
   EntryPlayerStatDeleteResponse,
   EntryPlayerStatsBody,
+  EntryPlayerStatsClearResponse,
   EntryPlayerStatsResponse,
   EntrySavedPlayersResponse,
   ExtractPlayersBody,
@@ -4800,6 +4802,84 @@ export function useListEntryPlayerStats<TData = Awaited<ReturnType<typeof listEn
 
 
 
+
+export const getDeleteEntryPlayerStatsUrl = (params: DeleteEntryPlayerStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/player-stats?${stringifiedParams}` : `/api/entry/player-stats`
+}
+
+/**
+ * @summary Remove ALL saved player rows for one club in a fixture (clears the Belconnen mirror too when applicable)
+ */
+export const deleteEntryPlayerStats = async (params: DeleteEntryPlayerStatsParams, options?: RequestInit): Promise<EntryPlayerStatsClearResponse> => {
+
+  return customFetch<EntryPlayerStatsClearResponse>(getDeleteEntryPlayerStatsUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEntryPlayerStatsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStats>>, TError,{params: DeleteEntryPlayerStatsParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStats>>, TError,{params: DeleteEntryPlayerStatsParams}, TContext> => {
+
+const mutationKey = ['deleteEntryPlayerStats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEntryPlayerStats>>, {params: DeleteEntryPlayerStatsParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  deleteEntryPlayerStats(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEntryPlayerStatsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEntryPlayerStats>>>
+
+    export type DeleteEntryPlayerStatsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove ALL saved player rows for one club in a fixture (clears the Belconnen mirror too when applicable)
+ */
+export const useDeleteEntryPlayerStats = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStats>>, TError,{params: DeleteEntryPlayerStatsParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEntryPlayerStats>>,
+        TError,
+        {params: DeleteEntryPlayerStatsParams},
+        TContext
+      > => {
+      return useMutation(getDeleteEntryPlayerStatsMutationOptions(options));
+    }
 
 export const getSaveEntryPlayerStatsUrl = () => {
 

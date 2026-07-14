@@ -24,6 +24,7 @@ import {
   useListEntryPlayerStats,
   getListEntryPlayerStatsQueryKey,
   useDeleteEntryPlayerStat,
+  useDeleteEntryPlayerStats,
   useExtractPlayersFromImage,
   useListLeagues,
   useCreateLeague,
@@ -565,6 +566,17 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
     onError: (e) => setErr(errMsg(e)),
   }});
 
+  const [confirmClear, setConfirmClear] = useState(false);
+  const removeAll = useDeleteEntryPlayerStats({ mutation: {
+    onSuccess: (res) => {
+      invalidatePlayerQueries();
+      setConfirmClear(false);
+      setOk(`Removed all ${res.removed} saved players${res.belconnenRemoved > 0 ? " (Belconnen copies removed too)" : ""}`);
+    },
+    onError: (e) => { setConfirmClear(false); setErr(errMsg(e)); },
+  }});
+  useEffect(() => { setConfirmClear(false); }, [matchId, club]);
+
   const extract = useExtractPlayersFromImage({ mutation: {
     onSuccess: (res) => {
       setRows(res.rows);
@@ -664,9 +676,32 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
 
         {fixture && club && savedPlayers && savedPlayers.rows.length > 0 && (
           <div className="rounded-md border border-border/60 divide-y divide-border/40">
-            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">
-              {club} players already saved for this match — bin one if it shouldn't be there
-            </p>
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                {club} players already saved for this match — bin one if it shouldn't be there
+              </p>
+              {confirmClear ? (
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant="destructive" size="sm" className="h-7 text-xs"
+                    disabled={removeAll.isPending}
+                    onClick={() => { setOk(null); setErr(null); removeAll.mutate({ params: { seasonId, matchId, club } }); }}
+                  >
+                    {removeAll.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Yes, remove all ${savedPlayers.rows.length}`}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setConfirmClear(false)}>
+                    Keep them
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  variant="outline" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground"
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />Remove all
+                </Button>
+              )}
+            </div>
             {savedPlayers.rows.map(p => (
               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                 <span className="font-medium">{p.playerName}</span>
