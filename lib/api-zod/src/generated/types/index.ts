@@ -70,6 +70,7 @@ export * from './gpsSessionInput';
 export * from './headToHeadRecord';
 export * from './healthStatus';
 export * from './ladderEntry';
+export * from './leagueInfo';
 export * from './leagueMatchInfo';
 export * from './listAthleticTestsParams';
 export * from './listGoalsParams';

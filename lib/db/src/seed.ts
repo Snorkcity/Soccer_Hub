@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parse } from "csv-parse/sync";
-import { db, teamsTable, seasonsTable, matchesTable, playerStatsTable, goalsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, gpsSessionsTable, athleticTestsTable, playersTable, clubsTable } from "./index";
+import { db, teamsTable, seasonsTable, matchesTable, playerStatsTable, goalsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, gpsSessionsTable, athleticTestsTable, playersTable, clubsTable, leaguesTable } from "./index";
 import { eq } from "drizzle-orm";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,13 +78,20 @@ async function seed() {
   const womenFirsts = insertedTeams.find(t => t.name.includes("NPLW 1sts"))!;
   console.log(`Inserted ${insertedTeams.length} teams. Focus team ID: ${womenFirsts.id}`);
 
+  // ─── Leagues ──────────────────────────────────────────────────────────────
+  console.log("Seeding leagues...");
+  await db.delete(seasonsTable);
+  await db.delete(clubsTable);
+  await db.delete(leaguesTable);
+  const [actNplw] = await db.insert(leaguesTable).values({ name: "ACT NPLW", region: "ACT" }).returning();
+  console.log(`Inserted league: ${actNplw.name}`);
+
   // ─── Seasons ──────────────────────────────────────────────────────────────
   console.log("Seeding seasons...");
-  await db.delete(seasonsTable);
   const seasons = [
-    { year: "2026", label: "2026 Season", isActive: true },
-    { year: "2025", label: "2025 Season", isActive: false },
-    { year: "2024", label: "2024 Season", isActive: false },
+    { leagueId: actNplw.id, year: "2026", label: "2026 Season", isActive: true },
+    { leagueId: actNplw.id, year: "2025", label: "2025 Season", isActive: false },
+    { leagueId: actNplw.id, year: "2024", label: "2024 Season", isActive: false },
   ];
   const insertedSeasons = await db.insert(seasonsTable).values(seasons).returning();
   const season2026 = insertedSeasons.find(s => s.year === "2026")!;
@@ -426,13 +433,13 @@ async function seed() {
   console.log("Seeding clubs...");
   await db.delete(clubsTable);
   const clubRows = [
-    { name: "Belconnen",   primaryColor: "#87CEEB" },
-    { name: "Croatia",     primaryColor: "#DC143C" },
-    { name: "Majura",      primaryColor: "#4169E1" },
-    { name: "Olympic",     primaryColor: "#000080" },
-    { name: "Tuggeranong", primaryColor: "#008000" },
-    { name: "Wanderers",   primaryColor: "#B22222" },
-    { name: "ANU",         primaryColor: "#FFA500" },
+    { leagueId: actNplw.id, name: "Belconnen",   primaryColor: "#87CEEB" },
+    { leagueId: actNplw.id, name: "Croatia",     primaryColor: "#DC143C" },
+    { leagueId: actNplw.id, name: "Majura",      primaryColor: "#4169E1" },
+    { leagueId: actNplw.id, name: "Olympic",     primaryColor: "#000080" },
+    { leagueId: actNplw.id, name: "Tuggeranong", primaryColor: "#008000" },
+    { leagueId: actNplw.id, name: "Wanderers",   primaryColor: "#B22222" },
+    { leagueId: actNplw.id, name: "ANU",         primaryColor: "#FFA500" },
   ];
   await db.insert(clubsTable).values(clubRows);
   console.log(`Inserted ${clubRows.length} clubs`);

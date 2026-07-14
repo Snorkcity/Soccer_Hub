@@ -6,11 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Season {
+export interface LeagueInfo {
   id: number;
-  leagueId: number;
-  leagueName: string;
-  year: string;
-  label: string;
-  isActive: boolean;
+  name: string;
+  region?: string | null;
 }

@@ -167,6 +167,21 @@ paths:
 
   # ─── SEASONS ────────────────────────────────────────────────────────────────
 
+  /leagues:
+    get:
+      operationId: listLeagues
+      tags: [seasons]
+      summary: List all leagues (competitions)
+      responses:
+        "200":
+          description: List of leagues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeagueInfo"
+
   /seasons:
     get:
       operationId: listSeasons
@@ -1233,19 +1248,30 @@ components:
     Season:
       type: object
       properties:
-        id:       { type: integer }
-        year:     { type: string }
-        label:    { type: string }
-        isActive: { type: boolean }
-      required: [id, year, label, isActive]
+        id:         { type: integer }
+        leagueId:   { type: integer }
+        leagueName: { type: string }
+        year:       { type: string }
+        label:      { type: string }
+        isActive:   { type: boolean }
+      required: [id, leagueId, leagueName, year, label, isActive]
 
     SeasonInput:
       type: object
       properties:
+        leagueId: { type: integer }
         year:     { type: string }
         label:    { type: string }
         isActive: { type: boolean }
-      required: [year, label]
+      required: [leagueId, year, label]
+
+    LeagueInfo:
+      type: object
+      properties:
+        id:     { type: integer }
+        name:   { type: string }
+        region: { type: string, nullable: true }
+      required: [id, name]
 
     # ── Matches ───────────────────────────────────────────────────────────────
 

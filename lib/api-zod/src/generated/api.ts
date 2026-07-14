@@ -128,10 +128,23 @@ export const GetTeamResponse = zod.object({
 
 
 /**
+ * @summary List all leagues (competitions)
+ */
+export const ListLeaguesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "region": zod.string().nullish()
+})
+export const ListLeaguesResponse = zod.array(ListLeaguesResponseItem)
+
+
+/**
  * @summary List all seasons
  */
 export const ListSeasonsResponseItem = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number(),
+  "leagueName": zod.string(),
   "year": zod.string(),
   "label": zod.string(),
   "isActive": zod.boolean()
@@ -143,6 +156,7 @@ export const ListSeasonsResponse = zod.array(ListSeasonsResponseItem)
  * @summary Create a season
  */
 export const CreateSeasonBody = zod.object({
+  "leagueId": zod.number(),
   "year": zod.string(),
   "label": zod.string(),
   "isActive": zod.boolean().optional()
@@ -150,6 +164,8 @@ export const CreateSeasonBody = zod.object({
 
 export const CreateSeasonResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number(),
+  "leagueName": zod.string(),
   "year": zod.string(),
   "label": zod.string(),
   "isActive": zod.boolean()

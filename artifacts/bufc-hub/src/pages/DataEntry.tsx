@@ -647,7 +647,7 @@ function EntryWorkspace() {
           <p className="text-muted-foreground">Record fixtures, goals and player minutes — everything flows straight into the charts.</p>
         </div>
         <div className="flex items-center gap-2">
-          {season && <Badge variant="secondary">{season.label}</Badge>}
+          {season && <Badge variant="secondary">{season.leagueName} · {season.label}</Badge>}
           <Button variant="ghost" size="sm" onClick={() => logout.mutate()} className="text-muted-foreground">
             <LogOut className="h-4 w-4 mr-1.5" />Log out
           </Button>

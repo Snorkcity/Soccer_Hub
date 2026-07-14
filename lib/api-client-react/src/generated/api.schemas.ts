@@ -52,15 +52,24 @@ export interface Team {
 
 export interface Season {
   id: number;
+  leagueId: number;
+  leagueName: string;
   year: string;
   label: string;
   isActive: boolean;
 }
 
 export interface SeasonInput {
+  leagueId: number;
   year: string;
   label: string;
   isActive?: boolean;
+}
+
+export interface LeagueInfo {
+  id: number;
+  name: string;
+  region?: string | null;
 }
 
 export interface Match {

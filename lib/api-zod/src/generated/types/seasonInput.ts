@@ -7,6 +7,7 @@
  */
 
 export interface SeasonInput {
+  leagueId: number;
   year: string;
   label: string;
   isActive?: boolean;
