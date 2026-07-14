@@ -137,7 +137,7 @@ export default function Testing() {
         </CardContent></Card>
       ) : (
         <Tabs defaultValue="squad" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto md:h-10">
+          <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
             <TabsTrigger value="squad">Squad</TabsTrigger>
             <TabsTrigger value="sprints">Sprints</TabsTrigger>
             <TabsTrigger value="h2h">Head to Head</TabsTrigger>
