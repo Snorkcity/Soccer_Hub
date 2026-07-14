@@ -37,6 +37,7 @@ import type {
   GetOpponentLeaderboardParams,
   GetOpponentPlayersByOpponentParams,
   GetOpponentProfileParams,
+  GetPlayerDnaParams,
   GetPlayerLeaderboardParams,
   GetSeasonSummaryParams,
   GetTeamFormParams,
@@ -66,6 +67,7 @@ import type {
   OpponentPlayersByOpponentResponse,
   OpponentProfileResponse,
   Player,
+  PlayerDnaResponse,
   PlayerInput,
   PlayerLeaderboardEntry,
   PlayerStat,
@@ -3103,6 +3105,90 @@ export function useGetOpponentGoalCombos<TData = Awaited<ReturnType<typeof getOp
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentGoalCombosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlayerDnaUrl = (params: GetPlayerDnaParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/player-dna?${stringifiedParams}` : `/api/analytics/player-dna`
+}
+
+/**
+ * @summary A single focus-team player's scoring DNA (radar metrics + best-of callouts)
+ */
+export const getPlayerDna = async (params: GetPlayerDnaParams, options?: RequestInit): Promise<PlayerDnaResponse> => {
+
+  return customFetch<PlayerDnaResponse>(getGetPlayerDnaUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerDnaQueryKey = (params?: GetPlayerDnaParams,) => {
+    return [
+    `/api/analytics/player-dna`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPlayerDnaQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerDna>>, TError = ErrorType<unknown>>(params: GetPlayerDnaParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerDna>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerDnaQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerDna>>> = ({ signal }) => getPlayerDna(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerDna>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerDnaQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerDna>>>
+export type GetPlayerDnaQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A single focus-team player's scoring DNA (radar metrics + best-of callouts)
+ */
+
+export function useGetPlayerDna<TData = Awaited<ReturnType<typeof getPlayerDna>>, TError = ErrorType<unknown>>(
+ params: GetPlayerDnaParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerDna>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerDnaQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

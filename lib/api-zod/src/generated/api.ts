@@ -1187,6 +1187,52 @@ export const GetOpponentGoalCombosResponse = zod.object({
 
 
 /**
+ * @summary A single focus-team player's scoring DNA (radar metrics + best-of callouts)
+ */
+export const GetPlayerDnaQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "player": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetPlayerDnaResponse = zod.object({
+  "player": zod.string(),
+  "minsPlayed": zod.number(),
+  "appearances": zod.number(),
+  "minsPerGoal": zod.number().nullable(),
+  "metrics": zod.object({
+  "goals": zod.number(),
+  "goalsPer90": zod.number(),
+  "assists": zod.number(),
+  "assistsPer90": zod.number(),
+  "firstTouchPct": zod.number(),
+  "rightFoot": zod.number(),
+  "leftFoot": zod.number(),
+  "header": zod.number()
+}),
+  "squadMax": zod.object({
+  "goals": zod.number(),
+  "goalsPer90": zod.number(),
+  "assists": zod.number(),
+  "assistsPer90": zod.number(),
+  "firstTouchPct": zod.number(),
+  "rightFoot": zod.number(),
+  "leftFoot": zod.number(),
+  "header": zod.number()
+}),
+  "favouriteOpponent": zod.union([zod.object({
+  "label": zod.string(),
+  "count": zod.number()
+}),zod.null()]),
+  "topAssistPartner": zod.union([zod.object({
+  "label": zod.string(),
+  "count": zod.number()
+}),zod.null()])
+})
+
+
+/**
  * @summary List all clubs with their brand colours
  */
 export const GetClubsResponseItem = zod.object({

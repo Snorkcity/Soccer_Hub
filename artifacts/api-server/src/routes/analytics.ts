@@ -33,6 +33,8 @@ import {
   GetGoalCombosResponse,
   GetOpponentGoalCombosQueryParams,
   GetOpponentGoalCombosResponse,
+  GetPlayerDnaQueryParams,
+  GetPlayerDnaResponse,
 } from "@workspace/api-zod";
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs.
@@ -553,6 +555,156 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
 
   const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
   res.json(GetGoalCombosResponse.parse(buildCombos(ourGoals)));
+});
+
+// ─── Player Scoring DNA (radar) ────────────────────────────────────────────────
+// One focus-team player's attacking profile: goals/assists (raw + per-90), foot/head
+// split, first-touch finish %, plus best-of callouts (favourite opponent, top assist
+// partner). Also returns squad maxima per metric so the client can scale the radar
+// (each spoke = player value ÷ squad best). Per-90 maxima ignore low-minute players
+// so a cameo goal doesn't blow out the scale.
+const MIN_MINS_FOR_RATE_MAX = 90;
+
+router.get("/analytics/player-dna", async (req, res): Promise<void> => {
+  const query = GetPlayerDnaQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId, player, lastN } = query.data;
+
+  const emptyMetrics = { goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, rightFoot: 0, leftFoot: 0, header: 0 };
+  const emptyResponse = {
+    player, minsPlayed: 0, appearances: 0, minsPerGoal: null,
+    metrics: { ...emptyMetrics }, squadMax: { ...emptyMetrics },
+    favouriteOpponent: null, topAssistPartner: null,
+  };
+
+  let matches = await db
+    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate, opponent: matchesTable.opponent })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+
+  if (lastN != null && lastN > 0) {
+    matches = matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN);
+  }
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) { res.json(GetPlayerDnaResponse.parse(emptyResponse)); return; }
+  const matchOppMap = new Map<number, string | null>();
+  for (const m of matches) matchOppMap.set(m.id, m.opponent ?? null);
+
+  // Minutes + appearances per focus-team player (roster is the eligible player set).
+  const stats = await db
+    .select({ playerName: playerStatsTable.playerName, minsPlayed: playerStatsTable.minsPlayed, appearance: playerStatsTable.appearance })
+    .from(playerStatsTable)
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+
+  const minsMap = new Map<string, number>();
+  const appsMap = new Map<string, number>();
+  for (const s of stats) {
+    const name = s.playerName;
+    minsMap.set(name, (minsMap.get(name) ?? 0) + (s.minsPlayed ?? 0));
+    if (s.appearance) appsMap.set(name, (appsMap.get(name) ?? 0) + 1);
+  }
+  const roster = new Set(stats.map(s => s.playerName));
+
+  const goals = await db
+    .select({
+      scorer: goalsTable.scorer, assist: goalsTable.assist, scorerTeam: goalsTable.scorerTeam,
+      matchId: goalsTable.matchId, finishType: goalsTable.finishType, firstTimeFinish: goalsTable.firstTimeFinish,
+    })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
+  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
+
+  // Per-player aggregation.
+  type Agg = { goals: number; assists: number; rightFoot: number; leftFoot: number; header: number; ftYes: number; ftTotal: number };
+  const agg = new Map<string, Agg>();
+  const ensure = (name: string): Agg => {
+    let a = agg.get(name);
+    if (!a) { a = { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0 }; agg.set(name, a); }
+    return a;
+  };
+  for (const name of roster) ensure(name);
+
+  for (const g of ourGoals) {
+    const scorer = g.scorer?.trim();
+    if (scorer && roster.has(scorer)) {
+      const a = ensure(scorer);
+      a.goals++;
+      const ft = g.finishType?.trim().toLowerCase();
+      if (ft === "right foot") a.rightFoot++;
+      else if (ft === "left foot") a.leftFoot++;
+      else if (ft === "head") a.header++;
+      if (g.firstTimeFinish != null) { a.ftTotal++; if (g.firstTimeFinish) a.ftYes++; }
+    }
+    // Mirror ComboThreat: no assist is credited on an own goal (scorer "OG"),
+    // and an "OG" assist / self-assist never counts.
+    const assist = g.assist?.trim();
+    if (assist && assist !== "OG" && scorer !== "OG" && assist !== scorer && roster.has(assist)) ensure(assist).assists++;
+  }
+
+  const metricsFor = (name: string) => {
+    const a = agg.get(name) ?? { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0 };
+    const mins = minsMap.get(name) ?? 0;
+    return {
+      goals: a.goals,
+      goalsPer90: mins > 0 ? Math.round((a.goals / mins) * 90 * 100) / 100 : 0,
+      assists: a.assists,
+      assistsPer90: mins > 0 ? Math.round((a.assists / mins) * 90 * 100) / 100 : 0,
+      firstTouchPct: a.ftTotal > 0 ? Math.round((a.ftYes / a.ftTotal) * 1000) / 10 : 0,
+      rightFoot: a.rightFoot,
+      leftFoot: a.leftFoot,
+      header: a.header,
+    };
+  };
+
+  // Squad maxima per metric (per-90 maxima ignore low-minute cameos).
+  const squadMax = { ...emptyMetrics };
+  for (const name of roster) {
+    const m = metricsFor(name);
+    const mins = minsMap.get(name) ?? 0;
+    squadMax.goals = Math.max(squadMax.goals, m.goals);
+    squadMax.assists = Math.max(squadMax.assists, m.assists);
+    squadMax.firstTouchPct = Math.max(squadMax.firstTouchPct, m.firstTouchPct);
+    squadMax.rightFoot = Math.max(squadMax.rightFoot, m.rightFoot);
+    squadMax.leftFoot = Math.max(squadMax.leftFoot, m.leftFoot);
+    squadMax.header = Math.max(squadMax.header, m.header);
+    if (mins >= MIN_MINS_FOR_RATE_MAX) {
+      squadMax.goalsPer90 = Math.max(squadMax.goalsPer90, m.goalsPer90);
+      squadMax.assistsPer90 = Math.max(squadMax.assistsPer90, m.assistsPer90);
+    }
+  }
+  // A high-rate cameo player could still exceed the floored max — never let the
+  // selected player's own value be unreachable on their radar.
+  const metrics = metricsFor(player);
+  squadMax.goalsPer90 = Math.max(squadMax.goalsPer90, metrics.goalsPer90);
+  squadMax.assistsPer90 = Math.max(squadMax.assistsPer90, metrics.assistsPer90);
+
+  // Best-of callouts (from the selected player's scored goals only).
+  const oppCount = new Map<string, number>();
+  const partnerCount = new Map<string, number>();
+  for (const g of ourGoals) {
+    if (g.scorer?.trim() !== player) continue;
+    const opp = matchOppMap.get(g.matchId);
+    if (opp) oppCount.set(opp, (oppCount.get(opp) ?? 0) + 1);
+    const assist = g.assist?.trim();
+    if (assist && assist !== "OG" && assist !== player) partnerCount.set(assist, (partnerCount.get(assist) ?? 0) + 1);
+  }
+  const topOf = (m: Map<string, number>) => {
+    let best: { label: string; count: number } | null = null;
+    for (const [label, count] of m) if (!best || count > best.count) best = { label, count };
+    return best;
+  };
+
+  const minsPlayed = minsMap.get(player) ?? 0;
+  res.json(GetPlayerDnaResponse.parse({
+    player,
+    minsPlayed,
+    appearances: appsMap.get(player) ?? 0,
+    minsPerGoal: metrics.goals > 0 ? Math.round(minsPlayed / metrics.goals) : null,
+    metrics,
+    squadMax,
+    favouriteOpponent: topOf(oppCount),
+    topAssistPartner: topOf(partnerCount),
+  }));
 });
 
 // ─── GPS Load Summary ─────────────────────────────────────────────────────────

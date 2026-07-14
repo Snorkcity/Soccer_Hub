@@ -14,6 +14,7 @@ import {
   useGetOpponentPlayersByOpponent,
   useGetGoalCombos,
   useGetOpponentGoalCombos,
+  useGetPlayerDna,
   useGetClubs,
   useListMatches,
   getListMatchesQueryKey,
@@ -28,8 +29,10 @@ import {
   getGetOpponentPlayersByOpponentQueryKey,
   getGetGoalCombosQueryKey,
   getGetOpponentGoalCombosQueryKey,
+  getGetPlayerDnaQueryKey,
   getGetClubsQueryKey,
   type ScoredGoalRecord,
+  type PlayerDnaResponse,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,6 +42,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell, ReferenceLine, PieChart, Pie,
   ScatterChart, Scatter, ReferenceArea, LabelList,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
 import { Info } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1145,6 +1149,8 @@ export default function SeasonStats() {
   const [oppMinsL3, setOppMinsL3]       = useState(false); // squad: total minutes
   const [comboLastN, setComboLastN]       = useState(false); // team: combo threat
   const [oppComboLastN, setOppComboLastN] = useState(false); // opponent: combo threat
+  const [dnaPlayer, setDnaPlayer]         = useState("");    // team: scoring-DNA focus player
+  const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
 
   React.useEffect(() => {
     if (teams?.length && selectedTeamId === "") {
@@ -1175,6 +1181,13 @@ export default function SeasonStats() {
   const { data: goalCombosFull } = useGetGoalCombos(analyticsParams, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(analyticsParams) } });
   const goalCombosL3Params = { ...analyticsParams, lastN: 3 };
   const { data: goalCombosL3 } = useGetGoalCombos(goalCombosL3Params, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(goalCombosL3Params) } });
+
+  // ── Scoring DNA (radar) for the selected focus-team player: full season + last-3 ─
+  const dnaParams = { teamId: tId, seasonId: sId, player: dnaPlayer };
+  const dnaEnabled = isReady && !!dnaPlayer;
+  const { data: dnaFull } = useGetPlayerDna(dnaParams, { query: { enabled: dnaEnabled, queryKey: getGetPlayerDnaQueryKey(dnaParams) } });
+  const dnaL3Params = { ...dnaParams, lastN: 3 };
+  const { data: dnaL3 } = useGetPlayerDna(dnaL3Params, { query: { enabled: dnaEnabled, queryKey: getGetPlayerDnaQueryKey(dnaL3Params) } });
 
   // ── Opponent clubs ────────────────────────────────────────────────────────
   const { data: oppClubs, isLoading: oppClubsLoading } = useGetOpponentClubs(analyticsParams, { query: { enabled: isReady, queryKey: getGetOpponentClubsQueryKey(analyticsParams) } });
@@ -1279,6 +1292,14 @@ export default function SeasonStats() {
 
   // ── Short-name lookup (deduplicates first names within the squad) ─────────
   const sn = useMemo(() => leaderboard ? buildShortNames(leaderboard) : {}, [leaderboard]);
+
+  // Default the scoring-DNA focus to the top scorer; reset if the current pick is no
+  // longer in the squad (team/season switch). Leaderboard is pre-sorted by goals desc.
+  useEffect(() => {
+    if (!leaderboard?.length) return;
+    const names = leaderboard.map(p => p.playerName);
+    if (!names.includes(dnaPlayer)) setDnaPlayer(names[0]);
+  }, [leaderboard]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toggle helpers ────────────────────────────────────────────────────────
   const toggleContribOpponent = (opp: string) => setHiddenContribOpponents(prev => {
@@ -1773,6 +1794,18 @@ export default function SeasonStats() {
             srcFull={goalCombosFull} srcL3={goalCombosL3}
             lastN={comboLastN} onLastN={() => setComboLastN(v => !v)}
             colorMap={clubColorMap} sn={sn} maxBars={12}
+          />
+
+          {/* Scoring DNA — one player's attacking profile as a radar (pick via dropdown) */}
+          <PlayerDnaChart
+            title={`Scoring DNA${dnaLastN ? " — Last 3 Rounds" : ""}`}
+            label="Belconnen"
+            srcFull={dnaFull} srcL3={dnaL3}
+            lastN={dnaLastN} onLastN={() => setDnaLastN(v => !v)}
+            colorMap={clubColorMap}
+            players={(leaderboard ?? []).map(p => p.playerName)}
+            player={dnaPlayer} onPlayer={setDnaPlayer}
+            sn={sn}
           />
 
           {/* Goal Detail by Type — stacked by opponent club, dropdown across 4 dimensions */}
@@ -2884,6 +2917,154 @@ function ComboThreatChart({
           </BarChart>
         </ResponsiveContainer>
       )}
+    </ChartCard>
+  );
+}
+
+// ─── Player Scoring DNA (radar) ────────────────────────────────────────────────
+type DnaMetricKey = keyof PlayerDnaResponse["metrics"];
+const DNA_AXES: { key: DnaMetricKey; label: string; fmt: (v: number) => string }[] = [
+  { key: "goals",         label: "Goals",       fmt: v => `${v}` },
+  { key: "goalsPer90",    label: "Goals /90",   fmt: v => v.toFixed(2) },
+  { key: "assists",       label: "Assists",     fmt: v => `${v}` },
+  { key: "assistsPer90",  label: "Assists /90", fmt: v => v.toFixed(2) },
+  { key: "firstTouchPct", label: "1st-touch %", fmt: v => `${v}%` },
+  { key: "rightFoot",     label: "Right foot",  fmt: v => `${v}` },
+  { key: "leftFoot",      label: "Left foot",   fmt: v => `${v}` },
+  { key: "header",        label: "Header",      fmt: v => `${v}` },
+];
+
+function DnaTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ payload: { metric: string; raw: string; squadBest: string } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[170px] space-y-2">
+      <div className="font-semibold text-sm">{d.metric}</div>
+      <div className="flex justify-between gap-6">
+        <span className="text-muted-foreground">This player</span>
+        <span className="font-medium tabular-nums">{d.raw}</span>
+      </div>
+      <div className="flex justify-between gap-6 border-t pt-1.5">
+        <span className="text-muted-foreground">Squad best</span>
+        <span className="tabular-nums">{d.squadBest}</span>
+      </div>
+    </div>
+  );
+}
+
+function DnaCallout({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-md border bg-muted/30 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold leading-tight">{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
+function PlayerDnaChart({
+  title, label, srcFull, srcL3, lastN, onLastN, colorMap, players, player, onPlayer, sn,
+}: {
+  title: string;
+  label: string;
+  srcFull?: PlayerDnaResponse; srcL3?: PlayerDnaResponse;
+  lastN: boolean; onLastN: () => void;
+  colorMap: Record<string, string>;
+  players: string[]; player: string; onPlayer: (v: string) => void;
+  sn: Record<string, string>;
+}) {
+  const src = lastN ? srcL3 : srcFull;
+  const fill = colorMap[label] ?? "hsl(var(--primary))";
+
+  const data = useMemo(() => {
+    if (!src) return [];
+    return DNA_AXES.map(a => {
+      const raw = src.metrics[a.key];
+      const max = src.squadMax[a.key];
+      return {
+        metric: a.label,
+        value: max > 0 ? Math.min(100, Math.round((raw / max) * 1000) / 10) : 0,
+        raw: a.fmt(raw),
+        squadBest: a.fmt(max),
+      };
+    });
+  }, [src]);
+
+  const hasGoals = (src?.metrics.goals ?? 0) > 0 || (src?.metrics.assists ?? 0) > 0;
+  const favOpp = src?.favouriteOpponent ?? null;
+  const partner = src?.topAssistPartner ?? null;
+
+  return (
+    <ChartCard
+      tall
+      title={title}
+      description="Attacking profile — each spoke is scaled against the squad's best on that metric"
+      tooltip="One player's scoring shape. Each spoke shows the player relative to the squad's best on that metric (hover for the real numbers). Per-90 rates use total minutes. First-touch % is the share of their goals finished first-time."
+      controls={
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={player} onValueChange={onPlayer}>
+            <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Select player" /></SelectTrigger>
+            <SelectContent>
+              {players.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Last3Toggle active={lastN} onToggle={onLastN} />
+        </div>
+      }
+    >
+      <div className="grid h-full gap-4 md:grid-cols-5">
+        <div className="md:col-span-3 min-h-[280px]">
+          {data.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select a player to see their scoring DNA.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={data} margin={{ top: 16, right: 24, bottom: 16, left: 24 }}>
+                <PolarGrid stroke="hsl(var(--border))" />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                {/* Radius ticks must actually render for Recharts v2 to honour `domain`;
+                    with tick={false} the [0,100] scale is silently ignored. Keep them
+                    subtle — they double as a "% of squad best" legend. */}
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tickCount={5} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}`} axisLine={false} />
+                <Radar name={label} dataKey="value" stroke={fill} fill={fill} fillOpacity={0.45} isAnimationActive={false} />
+                <Tooltip content={<DnaTooltip />} />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        <div className="md:col-span-2 flex flex-col justify-center gap-2">
+          {!hasGoals && src ? (
+            <div className="text-sm text-muted-foreground">No goal involvements recorded for this selection.</div>
+          ) : (
+            <>
+              <DnaCallout
+                label="Favourite opponent"
+                value={favOpp ? favOpp.label : "—"}
+                sub={favOpp ? `${favOpp.count} goal${favOpp.count === 1 ? "" : "s"} scored` : undefined}
+              />
+              <DnaCallout
+                label="Top assist partner"
+                value={partner ? (sn[partner.label] ?? partner.label) : "—"}
+                sub={partner ? `set up ${partner.count} of their goal${partner.count === 1 ? "" : "s"}` : undefined}
+              />
+              <DnaCallout
+                label="Minutes per goal"
+                value={src?.minsPerGoal != null ? `${src.minsPerGoal}'` : "—"}
+                sub={src ? `${src.metrics.goals} goal${src.metrics.goals === 1 ? "" : "s"} total` : undefined}
+              />
+              <DnaCallout
+                label="Game time"
+                value={src ? `${src.minsPlayed}'` : "—"}
+                sub={src ? `${src.appearances} appearance${src.appearances === 1 ? "" : "s"}` : undefined}
+              />
+            </>
+          )}
+        </div>
+      </div>
     </ChartCard>
   );
 }

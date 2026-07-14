@@ -773,6 +773,34 @@ export interface GoalCombosResponse {
   assistedGoals: number;
 }
 
+export interface PlayerDnaMetrics {
+  goals: number;
+  goalsPer90: number;
+  assists: number;
+  assistsPer90: number;
+  firstTouchPct: number;
+  rightFoot: number;
+  leftFoot: number;
+  header: number;
+}
+
+export interface PlayerDnaBest {
+  label: string;
+  count: number;
+}
+
+export interface PlayerDnaResponse {
+  player: string;
+  minsPlayed: number;
+  appearances: number;
+  /** @nullable */
+  minsPerGoal: number | null;
+  metrics: PlayerDnaMetrics;
+  squadMax: PlayerDnaMetrics;
+  favouriteOpponent: PlayerDnaBest | null;
+  topAssistPartner: PlayerDnaBest | null;
+}
+
 export interface OpponentGoalDetail {
   id: number;
   /** @nullable */
@@ -1021,6 +1049,13 @@ export type GetOpponentGoalCombosParams = {
 teamId: number;
 seasonId: number;
 club: string;
+lastN?: number;
+};
+
+export type GetPlayerDnaParams = {
+teamId: number;
+seasonId: number;
+player: string;
 lastN?: number;
 };
 

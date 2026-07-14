@@ -897,6 +897,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/GoalCombosResponse"
 
+  /analytics/player-dna:
+    get:
+      operationId: getPlayerDna
+      tags: [analytics]
+      summary: A single focus-team player's scoring DNA (radar metrics + best-of callouts)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: player
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Scoring DNA metrics for the selected player plus squad maxima for radar scaling
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerDnaResponse"
+
   /clubs:
     get:
       operationId: getClubs
@@ -1624,6 +1654,41 @@ components:
         totalGoals:    { type: integer }
         assistedGoals: { type: integer }
       required: [combos, totalGoals, assistedGoals]
+
+    # ── Player Scoring DNA (radar) ─────────────────────────────────────────────
+
+    PlayerDnaMetrics:
+      type: object
+      properties:
+        goals:         { type: integer }
+        goalsPer90:    { type: number }
+        assists:       { type: integer }
+        assistsPer90:  { type: number }
+        firstTouchPct: { type: number }
+        rightFoot:     { type: integer }
+        leftFoot:      { type: integer }
+        header:        { type: integer }
+      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, rightFoot, leftFoot, header]
+
+    PlayerDnaBest:
+      type: object
+      properties:
+        label: { type: string }
+        count: { type: integer }
+      required: [label, count]
+
+    PlayerDnaResponse:
+      type: object
+      properties:
+        player:            { type: string }
+        minsPlayed:        { type: integer }
+        appearances:       { type: integer }
+        minsPerGoal:       { type: ["integer", "null"] }
+        metrics:           { $ref: "#/components/schemas/PlayerDnaMetrics" }
+        squadMax:          { $ref: "#/components/schemas/PlayerDnaMetrics" }
+        favouriteOpponent: { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
+        topAssistPartner:  { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
+      required: [player, minsPlayed, appearances, minsPerGoal, metrics, squadMax, favouriteOpponent, topAssistPartner]
 
     # ── Opponent Goal Breakdown ────────────────────────────────────────────────
 
