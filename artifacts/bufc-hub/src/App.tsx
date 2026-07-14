@@ -11,7 +11,6 @@ import Home from '@/pages/Home';
 import SeasonStats from '@/pages/SeasonStats';
 import GpsInsights from '@/pages/GpsInsights';
 import Testing from '@/pages/Testing';
-import GoalMap from '@/pages/GoalMap';
 import DataEntry from '@/pages/DataEntry';
 
 const queryClient = new QueryClient();
@@ -24,7 +23,6 @@ function Router() {
         <Route path="/season-stats" component={SeasonStats} />
         <Route path="/gps" component={GpsInsights} />
         <Route path="/testing" component={Testing} />
-        <Route path="/goal-map" component={GoalMap} />
         <Route path="/data-entry" component={DataEntry} />
         <Route component={NotFound} />
       </Switch>

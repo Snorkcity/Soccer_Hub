@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 import { useListTeams, useListSeasons, useGetSeasonSummary, getGetSeasonSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
-import { ArrowRight, BarChart3, Navigation2, Activity, Map, Calendar } from "lucide-react";
+import { ArrowRight, BarChart3, Navigation2, Activity, Calendar } from "lucide-react";
 
 export default function Home() {
   const { data: teams } = useListTeams();
@@ -43,14 +43,6 @@ export default function Home() {
       stat: "Performance Baselines",
       color: "text-chart-3"
     },
-    {
-      title: "Goal Map Tool",
-      description: "Interactive pitch mapper for goal creation and conceded events.",
-      icon: Map,
-      href: "/goal-map",
-      stat: "X/Y Coordinate Plotting",
-      color: "text-chart-5"
-    }
   ];
 
   return (

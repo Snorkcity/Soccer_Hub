@@ -1959,7 +1959,7 @@ export default function SeasonStats() {
             title="Goal Location Map"
             auto
             description="Where goals were finished — blue = we scored, red = we conceded (hover a point for detail)"
-            tooltip="Every goal with mapped pitch coordinates, on a vertical attacking third (goal at top). X spans the pitch width; Y is yards from the goal line (a point on the 18-yard line was finished from 18 yards out). Filter by club or goal type. Coordinates are set in the Goal Map tool."
+            tooltip="Every goal with mapped pitch coordinates, on a vertical attacking third (goal at top). X spans the pitch width; Y is yards from the goal line (a point on the 18-yard line was finished from 18 yards out). Filter by club or goal type. Coordinates are set when logging goals in Data Entry."
           >
             <GoalLocationMap scored={goalBreakdownFull?.goals ?? []} conceded={goalBreakdownFull?.conceded ?? []} />
           </ChartCard>

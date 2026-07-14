@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, Edit3, Home, Map, Navigation2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Activity, BarChart3, Edit3, Home, Navigation2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 const navItems = [
@@ -8,7 +8,6 @@ const navItems = [
   { href: "/season-stats", label: "Season Stats", icon: BarChart3 },
   { href: "/gps", label: "GPS Insights", icon: Navigation2 },
   { href: "/testing", label: "Testing", icon: Activity },
-  { href: "/goal-map", label: "Goal Map", icon: Map },
   { href: "/data-entry", label: "Data Entry", icon: Edit3 },
 ];
 
