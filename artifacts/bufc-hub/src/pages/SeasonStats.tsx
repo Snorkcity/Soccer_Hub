@@ -3718,17 +3718,16 @@ function PlayerTimelineChart({ seasonId, club, player, onBack }: {
     query: { queryKey: getGetPlayerTimelineQueryKey(params) },
   });
 
-  // Most recent fixture first (left side of the chart)
+  // Chronological order: earliest fixture on the left, latest on the right
   const rows = useMemo(() =>
     (data?.matches ?? [])
-      .slice().reverse()
       .map(m => ({ ...m, statusNum: TL_STATUS_NUM[m.status as keyof typeof TL_STATUS_NUM] ?? 0 })),
     [data]);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 pb-2">
-        <span className="text-sm font-semibold">{player} — game by game <span className="font-normal text-muted-foreground">(latest on the left)</span></span>
+        <span className="text-sm font-semibold">{player} — game by game <span className="font-normal text-muted-foreground">(season left to right)</span></span>
         <button
           onClick={onBack}
           className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"

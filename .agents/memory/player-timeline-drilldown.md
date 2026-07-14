@@ -6,7 +6,7 @@ description: Click-a-player drill-down on Starts & Appearances charts → game-b
 Both Starts & Appearances charts (Player tab + Opponent Insights) support clicking a player's bar to swap the chart area for `/analytics/player-timeline` (seasonId, club, player) — every club fixture in chronological order with status start/bench/out + minutes, so missed games show as gaps.
 
 **Key decisions**
-- Frontend reverses the array: most recent match on the LEFT (coach asked to read the season right-to-left — "are they playing lately?").
+- Chronological order, earliest match on the LEFT (coach initially asked for latest-on-left, then reversed the decision on 2026-07-14 — keep it left-to-right by date).
 - Endpoint is club-scoped over league tables, so it works for Belconnen (Player tab, club="Belconnen") and any opponent club alike.
 - Click extraction must use `activePayload[0].payload` (fullName on Player tab where display names are shortened via `sn`; `name` on opponent chart where it's already the raw playerName) — never the shortened axis label on the Player tab.
 - Drill-down state resets on club AND season/team change; card controls (Last-3 toggle / sort pills) are hidden while drilled in because they don't apply to the timeline view.
