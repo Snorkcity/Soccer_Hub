@@ -9,6 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { FileDown, Loader2 } from "lucide-react";
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
 
@@ -210,12 +217,15 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Select value={player} onValueChange={setPlayer}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="Player" /></SelectTrigger>
           <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">{bundles.length} games with GPS in {year}</p>
+        <div className="ml-auto">
+          <PlayerReportDialog player={player} year={year} bundles={bundles} />
+        </div>
       </div>
 
       {bundles.length === 0 ? (
@@ -228,6 +238,123 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
         </div>
       )}
     </div>
+  );
+}
+
+// ── Player report (PPTX) ─────────────────────────────────────────────────────
+
+const REPORT_BLURBS: Record<string, string> = {
+  distance: "Total ground covered each game — the engine-room number.",
+  hsm: "Metres covered above 18 km/h — the hard running that stretches defences.",
+  vhs: "Metres covered above 25 km/h — genuine sprinting territory.",
+  topSpeed: "The fastest moment recorded each game.",
+  powerPlays: "Explosive efforts — short, sharp bursts of high power output.",
+  dpm: "Work rate — metres covered for every minute on the pitch.",
+  load: "Overall physical workload for the game, from every movement measured.",
+};
+const REPORT_SUMMABLE = new Set(["distance", "hsm", "vhs", "powerPlays"]);
+
+function PlayerReportDialog({ player, year, bundles }: { player: string; year: string; bundles: Bundle[] }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState(player);
+  const [season, setSeason] = useState(`${year} Season`);
+  const [team, setTeam] = useState("");
+  const [note, setNote] = useState("");
+
+  // Re-prefill whenever the dialog opens for the current selection
+  useEffect(() => {
+    if (!open) return;
+    setName(player);
+    setSeason(`${year} Season`);
+    const squad = bundles.length ? squadOf(bundles[bundles.length - 1].key) : "1sts";
+    setTeam(`Belconnen United FC — ${squad}`);
+    setNote("");
+    setError(null);
+  }, [open, player, year, bundles]);
+
+  const generate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { generatePlayerGpsReport } = await import("@/lib/playerGpsReport");
+      const today = new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+      await generatePlayerGpsReport({
+        playerName: name.trim() || player,
+        seasonLabel: season.trim() || `${year} Season`,
+        teamLabel: team.trim() || "Belconnen United FC",
+        coachNote: note,
+        generatedOn: today,
+        metrics: PLAYER_METRICS.map(m => ({
+          id: m.id, title: m.title, unit: m.unit, decimals: m.decimals,
+          blurb: REPORT_BLURBS[m.id] ?? "", summable: REPORT_SUMMABLE.has(m.id),
+        })),
+        games: bundles.map(b => ({
+          round: b.key,
+          opponent: b.opponent,
+          dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? null,
+          mins: bundleMins(b),
+          values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, bundleTotal(b, m)])),
+          accel: bundleCount(b, "accel"),
+          decel: bundleCount(b, "decel"),
+          maxAcc: b.game?.maxAccelerationMss ?? null,
+          maxDec: b.game?.maxDecelerationMss ?? null,
+        })),
+      });
+      setOpen(false);
+    } catch (e) {
+      setError("Something went wrong building the report. Please try again.");
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={!player || bundles.length === 0}>
+          <FileDown className="h-4 w-4 mr-1.5" /> Player report
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>Player season report</DialogTitle>
+          <DialogDescription>
+            Builds a PowerPoint with every GPS chart for the season so far ({bundles.length} game{bundles.length === 1 ? "" : "s"}), ready to send to the player.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="rep-name">Player name (as it appears on the report)</Label>
+            <Input id="rep-name" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="rep-season">Season</Label>
+              <Input id="rep-season" value={season} onChange={e => setSeason(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rep-team">Team</Label>
+              <Input id="rep-team" value={team} onChange={e => setTeam(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rep-note">A note from you (optional — goes on the final slide)</Label>
+            <Textarea id="rep-note" rows={3} value={note} onChange={e => setNote(e.target.value)}
+              placeholder="e.g. Great first half of the season — your work rate has jumped. Keep attacking those sprints." />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={generate} disabled={busy}>
+            {busy ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Building…</> : <><FileDown className="h-4 w-4 mr-1.5" /> Create report</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

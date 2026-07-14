@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "pptxgenjs": "^4.0.1",
     "xlsx": "^0.18.5"
   }
 }

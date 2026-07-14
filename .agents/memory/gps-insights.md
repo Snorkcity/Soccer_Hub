@@ -8,6 +8,7 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - "Very High Speed Metres (>25 km/h)" = `distance_zone5_km × 1000`.
 - Top speed stored as m/s (`top_speed_ms`); display in km/h (×3.6).
 - Accel/decel counts >3 m/s² = sum of the "3 - 4" and "> 4" zone-count bands. Columns `accel_count_3_4`, `accel_count_over_4`, `decel_count_3_4`, `decel_count_over_4` were added later and backfilled from the source CSVs (`lib/db/src/backfillAccelCounts.ts`, run via esbuild bundle since tsx isn't installed); seed + startup migration cover future re-seeds/prod. Both count charts AND max-accel/decel charts exist (how often vs how hard).
+- **Player PPTX report:** client-side via pptxgenjs (lazy dynamic import) in `src/lib/playerGpsReport.ts`; input is plain mapped data (no app imports → no cycles). pptxgenjs combo charts use runtime `(typesArray, options)` signature — TS typings only know `(type, data, opts)`, so cast. Pass `null` (not 0) for missing games so charts show gaps, not fake zero bars; nulls verified fine in generated XML.
 - **Backfill gotcha:** ~280 training rows have blank player/date/round keys — a blank-key CSV tuple matches ALL of them and sprays its values; the backfill script filters those out. Prod DB still needs the backfill run at next deploy.
 
 ## Round codes & squads
