@@ -13,4 +13,6 @@ description: Multi-league (competition) support — schema shape, invariants, an
 
 **Prod migration is automatic**: api-server runs idempotent startup migrations (`startupMigrations.ts`) before listening — creates `leagues`, backfills league_id on seasons/clubs. Safe to re-run every boot; add future schema upgrades there so Railway deploys self-migrate. Server exits if migrations fail.
 
-**Gotcha**: seed deletes clubs+seasons before leagues (FK order); re-seeds still change all IDs (never hardcode league/season/team IDs).
+**Naming rule (user-confirmed)**: clubs/teams are called by their in-league name — the league provides the context. Focus team is named "Belconnen" (not "BUFC NPLW 1sts"); when ACT NPLW Reserves is added, the reserves team also becomes just "Belconnen" in that league. Club names are unique per (league_id, name), NOT globally — same name may exist in several leagues.
+
+**Gotcha**: seed deletes clubs+seasons before leagues (FK order); re-seeds still change all IDs (never hardcode league/season/team IDs). Also: the Edit/WriteFile tooling collapsed `$` in a SQL DO-block once — prefer `CREATE UNIQUE INDEX IF NOT EXISTS` style idempotent statements in startupMigrations over DO blocks.

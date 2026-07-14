@@ -33,5 +33,12 @@ export async function runStartupMigrations(): Promise<void> {
   `);
   await db.execute(sql`ALTER TABLE clubs ALTER COLUMN league_id SET NOT NULL`);
 
+  // Club names are unique per league (same club name can exist in two leagues)
+  await db.execute(sql`ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_name_unique`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS clubs_league_name_unique ON clubs (league_id, name)`);
+
+  // Teams are referred to by their in-league club name (2026-07 rename)
+  await db.execute(sql`UPDATE teams SET name = 'Belconnen' WHERE name = 'BUFC NPLW 1sts'`);
+
   logger.info("Startup migrations applied");
 }

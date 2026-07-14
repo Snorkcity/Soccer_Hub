@@ -57,7 +57,8 @@ async function seed() {
   console.log("Seeding teams...");
   await db.delete(teamsTable);
   const teams = [
-    { name: "BUFC NPLW 1sts", gender: "female", ageGroup: "Seniors", analyticsEnabled: true },
+    // The focus team is named by its in-league club name (league: ACT NPLW)
+    { name: "Belconnen", gender: "female", ageGroup: "Seniors", analyticsEnabled: true },
     // Reserves + Men's 1sts stay analytics-disabled until their data is set up (they'll appear in the team dropdown once enabled).
     { name: "Belconnen United FC Women's Reserves", gender: "female", ageGroup: "Seniors", analyticsEnabled: false },
     { name: "Belconnen United FC Men's 1sts", gender: "male", ageGroup: "Seniors", analyticsEnabled: false },
@@ -75,7 +76,7 @@ async function seed() {
     { name: "BUFC Men U11", gender: "male", ageGroup: "u11", analyticsEnabled: false },
   ];
   const insertedTeams = await db.insert(teamsTable).values(teams).returning();
-  const womenFirsts = insertedTeams.find(t => t.name.includes("NPLW 1sts"))!;
+  const womenFirsts = insertedTeams.find(t => t.name === "Belconnen")!;
   console.log(`Inserted ${insertedTeams.length} teams. Focus team ID: ${womenFirsts.id}`);
 
   // ─── Leagues ──────────────────────────────────────────────────────────────
