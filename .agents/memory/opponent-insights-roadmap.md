@@ -16,6 +16,8 @@ infers subs from league_player_stats (appearance && !started; sub minute = 90 �
 match = first change; game state = scoreline strictly before that minute; impact = goals ≤15′ after; result from
 league_matches scores (falls back to goal-record counts when scores are null). Club-relative → hidden under __ALL__.
 Preferred first sub threshold ≥3 rendered client-side. FirstSubCard = dot timeline + by-state table in Team Charts sub-view.
+"When it counts" toggle (default ON) drops first subs ≤45′ (half-time changes in decided games / injuries) — user's call;
+stats recomputed client-side from entries, excluded dots stay on the timeline faded at 25% opacity.
 
 Agreed order (code incrementally, one/few at a time):
 1. Opponent match list

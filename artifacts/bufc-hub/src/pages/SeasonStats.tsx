@@ -2922,34 +2922,83 @@ export default function SeasonStats() {
 // club's coach makes the first change, whether they have a favoured first sub,
 // what happens in the 15 minutes after it, and how state-at-sub maps to results.
 function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string }) {
+  // "When it counts": first subs at 45′ are usually half-time changes in games
+  // already decided, and anything earlier is usually an injury — so the default
+  // view only counts first changes made AFTER half-time. Excluded matches stay
+  // on the timeline (faded) so the blowout/injury pattern is still visible.
+  const [whenItCounts, setWhenItCounts] = useState(true);
   if (!data) return null;
 
   const resColor = (r: string) =>
     r === "W" ? "hsl(var(--chart-3))" : r === "L" ? "hsl(var(--chart-4))" : "hsl(var(--muted-foreground))";
+
+  const isCompetitive = (minute: number) => minute > 45;
+  const included = whenItCounts ? data.entries.filter(e => isCompetitive(e.minute)) : data.entries;
+
+  // All summary stats recomputed from the included set (entries carry everything needed).
+  const avgMinute = included.length ? included.reduce((s, e) => s + e.minute, 0) / included.length : null;
+  const counts = new Map<string, number>();
+  for (const e of included) counts.set(e.player, (counts.get(e.player) ?? 0) + 1);
+  const [prefPlayer, prefCount] = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? [null, 0];
+  const byState = (["Winning", "Drawing", "Losing"] as const)
+    .map(state => {
+      const rows = included.filter(e => e.gameState === state);
+      if (!rows.length) return null;
+      return {
+        state,
+        matches: rows.length,
+        avgMinute: rows.reduce((s, e) => s + e.minute, 0) / rows.length,
+        goalsFor: rows.reduce((s, e) => s + e.goalsFor15, 0),
+        goalsAgainst: rows.reduce((s, e) => s + e.goalsAgainst15, 0),
+        noGoal: rows.filter(e => e.goalsFor15 === 0 && e.goalsAgainst15 === 0).length,
+        wins: rows.filter(e => e.result === "W").length,
+        draws: rows.filter(e => e.result === "D").length,
+        losses: rows.filter(e => e.result === "L").length,
+      };
+    })
+    .filter((s): s is NonNullable<typeof s> => s != null);
 
   // Stack dots that share the same minute so none are hidden.
   const seen = new Map<number, number>();
   const dots = data.entries.map(e => {
     const n = seen.get(e.minute) ?? 0;
     seen.set(e.minute, n + 1);
-    return { ...e, stack: n };
+    return { ...e, stack: n, excluded: whenItCounts && !isCompetitive(e.minute) };
   });
 
   return (
     <ChartCard
       title={`Coach Behaviour — First Substitution`}
       description={`When ${club}'s coach makes the first change, and what happens next`}
-      tooltip="Sub minutes are inferred as 90 − minutes played for players who came off the bench; the earliest sub in each match is 'the first change'. Game state = the scoreline just before that minute. Impact window = the 15 minutes after it. Dot colour = the final result of that match."
+      tooltip="Sub minutes are inferred as 90 − minutes played for players who came off the bench; the earliest sub in each match is 'the first change'. Game state = the scoreline just before that minute. Impact window = the 15 minutes after it. Dot colour = the final result of that match. 'When it counts' excludes first subs at 45′ or earlier — usually half-time changes in decided games, or injuries — so the stats reflect genuine in-game decisions."
+      controls={
+        <button
+          onClick={() => setWhenItCounts(v => !v)}
+          className={cn(
+            "px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors",
+            whenItCounts
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+          )}
+        >
+          When it counts (46′+)
+        </button>
+      }
       auto
     >
       {data.matchesTracked === 0 ? (
         <p className="text-sm text-muted-foreground">No substitution data available for {club} yet.</p>
+      ) : included.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Every first change {club} made came at 45′ or earlier — no competitive-phase substitutions to analyse yet. Toggle off "When it counts" to see them all.
+        </p>
       ) : (
         <div className="space-y-5">
           {/* Headline numbers */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <p className="text-2xl font-bold">{data.avgFirstSubMinute != null ? `${Math.round(data.avgFirstSubMinute)}′` : "—"}</p>
+              <p className="text-2xl font-bold">{avgMinute != null ? `${Math.round(avgMinute)}′` : "—"}</p>
               <p className="text-xs text-muted-foreground">Avg first sub</p>
             </div>
             <div>
@@ -2957,8 +3006,10 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
               <p className="text-xs text-muted-foreground">Subs per match</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{data.matchesTracked}</p>
-              <p className="text-xs text-muted-foreground">Matches tracked</p>
+              <p className="text-2xl font-bold">{included.length}</p>
+              <p className="text-xs text-muted-foreground">
+                {included.length < data.matchesTracked ? `Matches counted (of ${data.matchesTracked})` : "Matches tracked"}
+              </p>
             </div>
           </div>
 
@@ -2976,23 +3027,24 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
                   <span className="absolute text-[10px] text-muted-foreground" style={{ left: `${(t / 90) * 100}%`, top: "78%", transform: "translateX(-50%)" }}>{t}′</span>
                 </React.Fragment>
               ))}
-              {data.avgFirstSubMinute != null && (
+              {avgMinute != null && (
                 <div
                   className="absolute w-px bg-foreground/40"
-                  style={{ left: `${(Math.min(data.avgFirstSubMinute, 90) / 90) * 100}%`, top: "10%", height: "50%" }}
-                  title={`Average first sub: ${Math.round(data.avgFirstSubMinute)}′`}
+                  style={{ left: `${(Math.min(avgMinute, 90) / 90) * 100}%`, top: "10%", height: "50%" }}
+                  title={`Average first sub: ${Math.round(avgMinute)}′`}
                 />
               )}
               {dots.map(e => (
                 <div
                   key={e.matchId}
-                  title={`${e.matchDate ?? ""} vs ${e.opponent}: ${e.player} on at ${e.minute}′ while ${e.gameState.toLowerCase()} → next 15′: ${e.goalsFor15} for / ${e.goalsAgainst15} against · final result ${e.result}`}
+                  title={`${e.matchDate ?? ""} vs ${e.opponent}: ${e.player} on at ${e.minute}′ while ${e.gameState.toLowerCase()} → next 15′: ${e.goalsFor15} for / ${e.goalsAgainst15} against · final result ${e.result}${e.excluded ? " · excluded (45′ or earlier)" : ""}`}
                   className="absolute h-3 w-3 rounded-full border border-background cursor-default"
                   style={{
                     left: `${(Math.min(e.minute, 90) / 90) * 100}%`,
                     top: `calc(60% - ${e.stack * 10}px)`,
                     transform: "translate(-50%, -50%)",
                     background: resColor(e.result),
+                    opacity: e.excluded ? 0.25 : 1,
                   }}
                 />
               ))}
@@ -3001,8 +3053,8 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
 
           {/* Preferred first substitute */}
           <p className="text-sm">
-            {data.preferredPlayer && data.preferredCount >= 3 ? (
-              <>Favoured first change: <span className="font-semibold">{data.preferredPlayer}</span> ({data.preferredCount}×) — a trusted impact option.</>
+            {prefPlayer && prefCount >= 3 ? (
+              <>Favoured first change: <span className="font-semibold">{prefPlayer}</span> ({prefCount}×) — a trusted impact option.</>
             ) : (
               <span className="text-muted-foreground">No favoured impact player — the first change varies with the game context.</span>
             )}
@@ -3020,7 +3072,7 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.byState.map(s => (
+              {byState.map(s => (
                 <TableRow key={s.state}>
                   <TableCell className="font-medium">{s.state}</TableCell>
                   <TableCell className="text-center">{s.matches}</TableCell>
