@@ -24,6 +24,7 @@ import type {
   AthleticTest,
   AthleticTestInput,
   ClubInfo,
+  FirstSubResponse,
   GetAssistsByOpponentParams,
   GetGoalBreakdownParams,
   GetGoalCombosParams,
@@ -32,6 +33,7 @@ import type {
   GetGpsLoadSummaryParams,
   GetLeagueLadderParams,
   GetOpponentClubsParams,
+  GetOpponentFirstSubParams,
   GetOpponentGoalBreakdownParams,
   GetOpponentGoalCombosParams,
   GetOpponentLeaderboardParams,
@@ -3274,6 +3276,90 @@ export function useGetOpponentPlayerDna<TData = Awaited<ReturnType<typeof getOpp
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentPlayerDnaQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOpponentFirstSubUrl = (params: GetOpponentFirstSubParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/opponent-first-sub?${stringifiedParams}` : `/api/analytics/opponent-first-sub`
+}
+
+/**
+ * @summary A selected club's first-substitution behaviour (timing, preferred sub, game state, 15-min impact, results)
+ */
+export const getOpponentFirstSub = async (params: GetOpponentFirstSubParams, options?: RequestInit): Promise<FirstSubResponse> => {
+
+  return customFetch<FirstSubResponse>(getGetOpponentFirstSubUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpponentFirstSubQueryKey = (params?: GetOpponentFirstSubParams,) => {
+    return [
+    `/api/analytics/opponent-first-sub`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOpponentFirstSubQueryOptions = <TData = Awaited<ReturnType<typeof getOpponentFirstSub>>, TError = ErrorType<unknown>>(params: GetOpponentFirstSubParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentFirstSub>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpponentFirstSubQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpponentFirstSub>>> = ({ signal }) => getOpponentFirstSub(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpponentFirstSub>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpponentFirstSubQueryResult = NonNullable<Awaited<ReturnType<typeof getOpponentFirstSub>>>
+export type GetOpponentFirstSubQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary A selected club's first-substitution behaviour (timing, preferred sub, game state, 15-min impact, results)
+ */
+
+export function useGetOpponentFirstSub<TData = Awaited<ReturnType<typeof getOpponentFirstSub>>, TError = ErrorType<unknown>>(
+ params: GetOpponentFirstSubParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentFirstSub>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpponentFirstSubQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

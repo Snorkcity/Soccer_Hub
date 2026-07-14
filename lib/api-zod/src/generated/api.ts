@@ -1314,6 +1314,46 @@ export const GetOpponentPlayerDnaResponse = zod.object({
 
 
 /**
+ * @summary A selected club's first-substitution behaviour (timing, preferred sub, game state, 15-min impact, results)
+ */
+export const GetOpponentFirstSubQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string()
+})
+
+export const GetOpponentFirstSubResponse = zod.object({
+  "matchesTracked": zod.number(),
+  "avgFirstSubMinute": zod.number().nullable(),
+  "subsPerMatch": zod.number().nullable(),
+  "preferredPlayer": zod.string().nullable(),
+  "preferredCount": zod.number(),
+  "entries": zod.array(zod.object({
+  "matchId": zod.string(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "minute": zod.number(),
+  "player": zod.string(),
+  "gameState": zod.enum(['Winning', 'Drawing', 'Losing']),
+  "result": zod.enum(['W', 'D', 'L']),
+  "goalsFor15": zod.number(),
+  "goalsAgainst15": zod.number()
+})),
+  "byState": zod.array(zod.object({
+  "state": zod.enum(['Winning', 'Drawing', 'Losing']),
+  "matches": zod.number(),
+  "avgMinute": zod.number(),
+  "goalsFor": zod.number(),
+  "goalsAgainst": zod.number(),
+  "noGoal": zod.number(),
+  "wins": zod.number(),
+  "draws": zod.number(),
+  "losses": zod.number()
+}))
+})
+
+
+/**
  * @summary List all clubs with their brand colours
  */
 export const GetClubsResponseItem = zod.object({

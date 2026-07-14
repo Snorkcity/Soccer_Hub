@@ -15,6 +15,7 @@ import {
   useGetGoalCombos,
   useGetOpponentGoalCombos,
   useGetOpponentPlayerDna,
+  useGetOpponentFirstSub,
   useGetPlayerDna,
   useGetClubs,
   useListMatches,
@@ -31,10 +32,12 @@ import {
   getGetGoalCombosQueryKey,
   getGetOpponentGoalCombosQueryKey,
   getGetOpponentPlayerDnaQueryKey,
+  getGetOpponentFirstSubQueryKey,
   getGetPlayerDnaQueryKey,
   getGetClubsQueryKey,
   type ScoredGoalRecord,
   type PlayerDnaResponse,
+  type FirstSubResponse,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1236,6 +1239,13 @@ export default function SeasonStats() {
     query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentProfileQueryKey(profileParams) },
   });
   const isAll = selectedClub === "__ALL__";
+
+  // Coach behaviour: first-substitution patterns for the selected club.
+  // Game state & "first change" are club-relative, so there is no __ALL__ view.
+  const firstSubParams = { teamId: tId, seasonId: sId, club: selectedClub };
+  const { data: firstSub } = useGetOpponentFirstSub(firstSubParams, {
+    query: { enabled: isReady && !!selectedClub && !isAll, queryKey: getGetOpponentFirstSubQueryKey(firstSubParams) },
+  });
 
   // Per-player goals/assists/mins for the selected club, broken down by opponent faced.
   // Two sources (full season + last-3-rounds); each chart picks via its own L3 toggle.
@@ -2586,6 +2596,9 @@ export default function SeasonStats() {
                 </ChartCard>
               )}
 
+              {/* 2b. Coach behaviour — first-substitution patterns (any club; club-relative so hidden league-wide) */}
+              {!isAll && <FirstSubCard data={firstSub} club={selectedClub} />}
+
               {/* 3. Goals scored by interval */}
               <OpponentStackChart
                 title={`${isAll ? "Goals Scored by Interval — by scoring club" : `When ${selectedClub} Score`}${l3ProfScInt ? " — Last 3 Rounds" : ""}`}
@@ -2904,6 +2917,133 @@ export default function SeasonStats() {
 }
 
 // ─── Shared components ────────────────────────────────────────────────────────
+// ─── Coach behaviour: first-substitution patterns ──────────────────────────────
+// Ported from the original Dash app's Coach Behaviour summary. Shows when a
+// club's coach makes the first change, whether they have a favoured first sub,
+// what happens in the 15 minutes after it, and how state-at-sub maps to results.
+function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string }) {
+  if (!data) return null;
+
+  const resColor = (r: string) =>
+    r === "W" ? "hsl(var(--chart-3))" : r === "L" ? "hsl(var(--chart-4))" : "hsl(var(--muted-foreground))";
+
+  // Stack dots that share the same minute so none are hidden.
+  const seen = new Map<number, number>();
+  const dots = data.entries.map(e => {
+    const n = seen.get(e.minute) ?? 0;
+    seen.set(e.minute, n + 1);
+    return { ...e, stack: n };
+  });
+
+  return (
+    <ChartCard
+      title={`Coach Behaviour — First Substitution`}
+      description={`When ${club}'s coach makes the first change, and what happens next`}
+      tooltip="Sub minutes are inferred as 90 − minutes played for players who came off the bench; the earliest sub in each match is 'the first change'. Game state = the scoreline just before that minute. Impact window = the 15 minutes after it. Dot colour = the final result of that match."
+      auto
+    >
+      {data.matchesTracked === 0 ? (
+        <p className="text-sm text-muted-foreground">No substitution data available for {club} yet.</p>
+      ) : (
+        <div className="space-y-5">
+          {/* Headline numbers */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-2xl font-bold">{data.avgFirstSubMinute != null ? `${Math.round(data.avgFirstSubMinute)}′` : "—"}</p>
+              <p className="text-xs text-muted-foreground">Avg first sub</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{data.subsPerMatch != null ? data.subsPerMatch.toFixed(1) : "—"}</p>
+              <p className="text-xs text-muted-foreground">Subs per match</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{data.matchesTracked}</p>
+              <p className="text-xs text-muted-foreground">Matches tracked</p>
+            </div>
+          </div>
+
+          {/* Timeline of first-sub minutes */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">
+              First-sub minute in each match — dot colour shows the final result
+              (<span style={{ color: "hsl(var(--chart-3))" }}>W</span> · <span className="text-muted-foreground">D</span> · <span style={{ color: "hsl(var(--chart-4))" }}>L</span>). Hover a dot for detail.
+            </p>
+            <div className="relative h-16 mt-4">
+              <div className="absolute left-0 right-0 h-px bg-border" style={{ top: "60%" }} />
+              {[0, 15, 30, 45, 60, 75, 90].map(t => (
+                <React.Fragment key={t}>
+                  <div className="absolute w-px h-2 bg-border" style={{ left: `${(t / 90) * 100}%`, top: "60%" }} />
+                  <span className="absolute text-[10px] text-muted-foreground" style={{ left: `${(t / 90) * 100}%`, top: "78%", transform: "translateX(-50%)" }}>{t}′</span>
+                </React.Fragment>
+              ))}
+              {data.avgFirstSubMinute != null && (
+                <div
+                  className="absolute w-px bg-foreground/40"
+                  style={{ left: `${(Math.min(data.avgFirstSubMinute, 90) / 90) * 100}%`, top: "10%", height: "50%" }}
+                  title={`Average first sub: ${Math.round(data.avgFirstSubMinute)}′`}
+                />
+              )}
+              {dots.map(e => (
+                <div
+                  key={e.matchId}
+                  title={`${e.matchDate ?? ""} vs ${e.opponent}: ${e.player} on at ${e.minute}′ while ${e.gameState.toLowerCase()} → next 15′: ${e.goalsFor15} for / ${e.goalsAgainst15} against · final result ${e.result}`}
+                  className="absolute h-3 w-3 rounded-full border border-background cursor-default"
+                  style={{
+                    left: `${(Math.min(e.minute, 90) / 90) * 100}%`,
+                    top: `calc(60% - ${e.stack * 10}px)`,
+                    transform: "translate(-50%, -50%)",
+                    background: resColor(e.result),
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Preferred first substitute */}
+          <p className="text-sm">
+            {data.preferredPlayer && data.preferredCount >= 3 ? (
+              <>Favoured first change: <span className="font-semibold">{data.preferredPlayer}</span> ({data.preferredCount}×) — a trusted impact option.</>
+            ) : (
+              <span className="text-muted-foreground">No favoured impact player — the first change varies with the game context.</span>
+            )}
+          </p>
+
+          {/* Game state at first sub → impact + results */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>State at first sub</TableHead>
+                <TableHead className="text-center">Matches</TableHead>
+                <TableHead className="text-center">Avg minute</TableHead>
+                <TableHead className="text-center">Next 15′ (for / against / quiet)</TableHead>
+                <TableHead className="text-center">Final results</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.byState.map(s => (
+                <TableRow key={s.state}>
+                  <TableCell className="font-medium">{s.state}</TableCell>
+                  <TableCell className="text-center">{s.matches}</TableCell>
+                  <TableCell className="text-center">{Math.round(s.avgMinute)}′</TableCell>
+                  <TableCell className="text-center">
+                    <span className="text-[hsl(var(--chart-3))] font-medium">{s.goalsFor}</span>
+                    <span className="text-muted-foreground"> / </span>
+                    <span className="text-[hsl(var(--chart-4))] font-medium">{s.goalsAgainst}</span>
+                    <span className="text-muted-foreground"> / {s.noGoal}</span>
+                  </TableCell>
+                  <TableCell className="text-center font-medium">
+                    {s.wins}W · {s.draws}D · {s.losses}L
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
 function StatCard({ title, value, subtitle }: { title: string; value: string | number; subtitle?: string }) {
   return (
     <Card>

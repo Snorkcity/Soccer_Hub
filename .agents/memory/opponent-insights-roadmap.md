@@ -11,6 +11,12 @@ Players = items 15–19 + Scoring DNA + Combo Threat + Top Scorers. The club sel
 
 Charts show the details of the **club selected/clicked at the top of the page**. Many mirror the Team Insights tab charts but scoped to the chosen opponent (for = goals we scored vs them, against = goals they scored vs us), so reuse the Team Insights components where possible (OpponentStackChart, GoalTypePie, tooltips, colour maps).
 
+**First-substitution card (roadmap item 2, ported from the original Dash app):** `/analytics/opponent-first-sub`
+infers subs from league_player_stats (appearance && !started; sub minute = 90 − mins_played), earliest sub per
+match = first change; game state = scoreline strictly before that minute; impact = goals ≤15′ after; result from
+league_matches scores (falls back to goal-record counts when scores are null). Club-relative → hidden under __ALL__.
+Preferred first sub threshold ≥3 rendered client-side. FirstSubCard = dot timeline + by-state table in Team Charts sub-view.
+
 Agreed order (code incrementally, one/few at a time):
 1. Opponent match list
 2. Coach behaviour

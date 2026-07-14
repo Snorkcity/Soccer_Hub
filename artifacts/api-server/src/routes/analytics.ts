@@ -37,6 +37,8 @@ import {
   GetPlayerDnaResponse,
   GetOpponentPlayerDnaQueryParams,
   GetOpponentPlayerDnaResponse,
+  GetOpponentFirstSubQueryParams,
+  GetOpponentFirstSubResponse,
 } from "@workspace/api-zod";
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs.
@@ -1505,6 +1507,126 @@ router.get("/analytics/opponent-player-dna", async (req, res): Promise<void> => 
     opponentLabel: g.scorerTeam === g.homeTeam ? g.awayTeam : g.homeTeam,
   }));
   res.json(GetOpponentPlayerDnaResponse.parse(computeDnaResponse({ player, roster, minsMap, appsMap, goals: dnaGoals })));
+});
+
+// ─── Coach Behaviour: first substitution (any club, whole-league data) ─────────
+// Ported from the original Dash app's "Coach Behaviour" summary. Sub minute is
+// inferred as 90 − minutes played for non-starters who appeared (same as the
+// original). Per match: the earliest sub is "the first change"; game state is
+// the scoreline strictly BEFORE that minute; impact is goals in the 15 minutes
+// after it; result comes from league_matches scores relative to the club.
+router.get("/analytics/opponent-first-sub", async (req, res): Promise<void> => {
+  const query = GetOpponentFirstSubQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club } = query.data;
+
+  const empty = { matchesTracked: 0, avgFirstSubMinute: null, subsPerMatch: null, preferredPlayer: null, preferredCount: 0, entries: [], byState: [] };
+  // Game state & first-change logic are club-relative, so no __ALL__ view here.
+  if (club === "__ALL__") { res.json(GetOpponentFirstSubResponse.parse(empty)); return; }
+
+  const matches = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  const clubMatches = new Map(matches.filter(m => m.homeTeam === club || m.awayTeam === club).map(m => [m.matchId, m]));
+  if (clubMatches.size === 0) { res.json(GetOpponentFirstSubResponse.parse(empty)); return; }
+  const matchIds = Array.from(clubMatches.keys());
+
+  const lps = await db
+    .select({ matchId: leaguePlayerStatsTable.matchId, playerName: leaguePlayerStatsTable.playerName, minsPlayed: leaguePlayerStatsTable.minsPlayed, started: leaguePlayerStatsTable.started, appearance: leaguePlayerStatsTable.appearance })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), eq(leaguePlayerStatsTable.club, club), inArray(leaguePlayerStatsTable.matchId, matchIds)));
+
+  // Substitutes = appeared but did not start. Sub minute = 90 − minutes played.
+  const subs = lps
+    .filter(r => r.appearance && !r.started && r.minsPlayed != null)
+    .map(r => ({ matchId: r.matchId, player: r.playerName, minute: 90 - (r.minsPlayed as number) }))
+    .filter(s => s.minute >= 0 && s.minute <= 90);
+  if (subs.length === 0) { res.json(GetOpponentFirstSubResponse.parse(empty)); return; }
+
+  // First sub per match (earliest minute; ties broken by name for determinism).
+  const firstByMatch = new Map<string, { player: string; minute: number }>();
+  for (const s of subs.slice().sort((a, b) => a.minute - b.minute || a.player.localeCompare(b.player))) {
+    if (!firstByMatch.has(s.matchId)) firstByMatch.set(s.matchId, { player: s.player, minute: s.minute });
+  }
+
+  const goals = await db
+    .select({ matchId: leagueGoalsTable.matchId, minuteScored: leagueGoalsTable.minuteScored, scorerTeam: leagueGoalsTable.scorerTeam })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, matchIds)));
+  const goalsByMatch = new Map<string, { minute: number; forClub: boolean }[]>();
+  for (const g of goals) {
+    if (g.minuteScored == null) continue;
+    const arr = goalsByMatch.get(g.matchId) ?? [];
+    arr.push({ minute: g.minuteScored, forClub: g.scorerTeam === club });
+    goalsByMatch.set(g.matchId, arr);
+  }
+
+  const entries = Array.from(firstByMatch.entries()).map(([matchId, fs]) => {
+    const m = clubMatches.get(matchId)!;
+    const isHome = m.homeTeam === club;
+    const opponent = isHome ? m.awayTeam : m.homeTeam;
+    const mg = goalsByMatch.get(matchId) ?? [];
+
+    const before = mg.filter(g => g.minute < fs.minute);
+    const gf = before.filter(g => g.forClub).length;
+    const ga = before.length - gf;
+    const gameState = gf > ga ? "Winning" : gf < ga ? "Losing" : "Drawing";
+
+    const window = mg.filter(g => g.minute > fs.minute && g.minute <= fs.minute + 15);
+    const goalsFor15 = window.filter(g => g.forClub).length;
+    const goalsAgainst15 = window.length - goalsFor15;
+
+    // Final result: prefer the recorded score; if it's missing, reconstruct the
+    // scoreline from the goal records so null scores don't masquerade as draws.
+    let ourGoals: number, theirGoals: number;
+    if (m.homeGoals != null && m.awayGoals != null) {
+      ourGoals = isHome ? m.homeGoals : m.awayGoals;
+      theirGoals = isHome ? m.awayGoals : m.homeGoals;
+    } else {
+      ourGoals = mg.filter(g => g.forClub).length;
+      theirGoals = mg.length - ourGoals;
+    }
+    const result = ourGoals > theirGoals ? "W" : ourGoals < theirGoals ? "L" : "D";
+
+    return { matchId, opponent, matchDate: m.matchDate ?? null, minute: fs.minute, player: fs.player, gameState, result, goalsFor15, goalsAgainst15 };
+  }).sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? ""));
+
+  const avg = entries.reduce((s, e) => s + e.minute, 0) / entries.length;
+  const subsPerMatch = subs.length / firstByMatch.size;
+
+  // Preferred first substitute: most frequent first change (threshold applied client-side text; ≥3 = trusted).
+  const counts = new Map<string, number>();
+  for (const e of entries) counts.set(e.player, (counts.get(e.player) ?? 0) + 1);
+  const [prefPlayer, prefCount] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+  const byState = (["Winning", "Drawing", "Losing"] as const)
+    .map(state => {
+      const rows = entries.filter(e => e.gameState === state);
+      if (!rows.length) return null;
+      return {
+        state,
+        matches: rows.length,
+        avgMinute: rows.reduce((s, e) => s + e.minute, 0) / rows.length,
+        goalsFor: rows.reduce((s, e) => s + e.goalsFor15, 0),
+        goalsAgainst: rows.reduce((s, e) => s + e.goalsAgainst15, 0),
+        noGoal: rows.filter(e => e.goalsFor15 === 0 && e.goalsAgainst15 === 0).length,
+        wins: rows.filter(e => e.result === "W").length,
+        draws: rows.filter(e => e.result === "D").length,
+        losses: rows.filter(e => e.result === "L").length,
+      };
+    })
+    .filter((s): s is NonNullable<typeof s> => s != null);
+
+  res.json(GetOpponentFirstSubResponse.parse({
+    matchesTracked: entries.length,
+    avgFirstSubMinute: avg,
+    subsPerMatch,
+    preferredPlayer: prefPlayer,
+    preferredCount: prefCount,
+    entries,
+    byState,
+  }));
 });
 
 // ─── Opponent Profile (club-centric scouting across ALL their league games) ────

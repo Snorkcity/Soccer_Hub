@@ -961,6 +961,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlayerDnaResponse"
 
+  /analytics/opponent-first-sub:
+    get:
+      operationId: getOpponentFirstSub
+      tags: [analytics]
+      summary: A selected club's first-substitution behaviour (timing, preferred sub, game state, 15-min impact, results)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: First-substitution behaviour summary for the selected club
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirstSubResponse"
+
   /clubs:
     get:
       operationId: getClubs
@@ -1688,6 +1714,52 @@ components:
         totalGoals:    { type: integer }
         assistedGoals: { type: integer }
       required: [combos, totalGoals, assistedGoals]
+
+    # ── Coach behaviour: first substitution ────────────────────────────────────
+
+    FirstSubEntry:
+      type: object
+      properties:
+        matchId:       { type: string }
+        opponent:      { type: string }
+        matchDate:     { type: string, nullable: true }
+        minute:        { type: integer }
+        player:        { type: string }
+        gameState:     { type: string, enum: [Winning, Drawing, Losing] }
+        result:        { type: string, enum: [W, D, L] }
+        goalsFor15:    { type: integer }
+        goalsAgainst15: { type: integer }
+      required: [matchId, opponent, matchDate, minute, player, gameState, result, goalsFor15, goalsAgainst15]
+
+    FirstSubStateSummary:
+      type: object
+      properties:
+        state:        { type: string, enum: [Winning, Drawing, Losing] }
+        matches:      { type: integer }
+        avgMinute:    { type: number }
+        goalsFor:     { type: integer }
+        goalsAgainst: { type: integer }
+        noGoal:       { type: integer }
+        wins:         { type: integer }
+        draws:        { type: integer }
+        losses:       { type: integer }
+      required: [state, matches, avgMinute, goalsFor, goalsAgainst, noGoal, wins, draws, losses]
+
+    FirstSubResponse:
+      type: object
+      properties:
+        matchesTracked:    { type: integer }
+        avgFirstSubMinute: { type: number, nullable: true }
+        subsPerMatch:      { type: number, nullable: true }
+        preferredPlayer:   { type: string, nullable: true }
+        preferredCount:    { type: integer }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/FirstSubEntry" }
+        byState:
+          type: array
+          items: { $ref: "#/components/schemas/FirstSubStateSummary" }
+      required: [matchesTracked, avgFirstSubMinute, subsPerMatch, preferredPlayer, preferredCount, entries, byState]
 
     # ── Player Scoring DNA (radar) ─────────────────────────────────────────────
 

@@ -773,6 +773,67 @@ export interface GoalCombosResponse {
   assistedGoals: number;
 }
 
+export type FirstSubEntryGameState = typeof FirstSubEntryGameState[keyof typeof FirstSubEntryGameState];
+
+
+export const FirstSubEntryGameState = {
+  Winning: 'Winning',
+  Drawing: 'Drawing',
+  Losing: 'Losing',
+} as const;
+
+export type FirstSubEntryResult = typeof FirstSubEntryResult[keyof typeof FirstSubEntryResult];
+
+
+export const FirstSubEntryResult = {
+  W: 'W',
+  D: 'D',
+  L: 'L',
+} as const;
+
+export interface FirstSubEntry {
+  matchId: string;
+  opponent: string;
+  matchDate: string | null;
+  minute: number;
+  player: string;
+  gameState: FirstSubEntryGameState;
+  result: FirstSubEntryResult;
+  goalsFor15: number;
+  goalsAgainst15: number;
+}
+
+export type FirstSubStateSummaryState = typeof FirstSubStateSummaryState[keyof typeof FirstSubStateSummaryState];
+
+
+export const FirstSubStateSummaryState = {
+  Winning: 'Winning',
+  Drawing: 'Drawing',
+  Losing: 'Losing',
+} as const;
+
+export interface FirstSubStateSummary {
+  state: FirstSubStateSummaryState;
+  matches: number;
+  avgMinute: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  noGoal: number;
+  wins: number;
+  draws: number;
+  losses: number;
+}
+
+export interface FirstSubResponse {
+  matchesTracked: number;
+  avgFirstSubMinute: number | null;
+  subsPerMatch: number | null;
+  preferredPlayer: string | null;
+  preferredCount: number;
+  entries: FirstSubEntry[];
+  byState: FirstSubStateSummary[];
+}
+
 export interface PlayerDnaMetrics {
   goals: number;
   goalsPer90: number;
@@ -1083,6 +1144,12 @@ seasonId: number;
 club: string;
 player: string;
 lastN?: number;
+};
+
+export type GetOpponentFirstSubParams = {
+teamId: number;
+seasonId: number;
+club: string;
 };
 
 export type GetGpsLoadSummaryParams = {
