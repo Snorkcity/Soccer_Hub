@@ -1177,6 +1177,7 @@ export default function SeasonStats() {
   const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
   const [oppDnaLastN, setOppDnaLastN]     = useState(false); // opponent: scoring-DNA window
   const [oppDnaPlayer, setOppDnaPlayer]   = useState("");    // opponent: scoring-DNA focus player
+  const [oppView, setOppView]             = useState<"team" | "player">("team"); // opponent: Team / Players sub-view
 
   React.useEffect(() => {
     if (teams?.length && selectedTeamId === "") {
@@ -2489,8 +2490,18 @@ export default function SeasonStats() {
             </div>
           )}
 
+          {/* Team / Players sub-view — mirrors the main Team/Player split for easier navigation */}
+          <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player")}>
+            <TabsList>
+              <TabsTrigger value="team">Team Charts</TabsTrigger>
+              <TabsTrigger value="player">Player Charts</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           {selectedClub && profile && (
             <>
+              {oppView === "team" && (
+              <>
               {isAll ? (
                 <p className="text-sm text-muted-foreground">
                   League-wide view across all <span className="font-medium text-foreground">{profile.record.played}</span> league matches this season. Charts show every goal in the league, stacked by the club that scored or conceded. The record summary and match-history views are club-specific, so they are hidden here.
@@ -2765,7 +2776,11 @@ export default function SeasonStats() {
                   </ChartCard>
                 </>
               )}
+              </>
+              )}
 
+              {oppView === "player" && (
+              <>
               {/* 15. Goals by opponent — stacked, clickable legend, Last 3 rounds, Total / Mins-per */}
               <OppPlayerStackChart
                 metric="goals"
@@ -2877,6 +2892,8 @@ export default function SeasonStats() {
                     </Table>
                   </CardContent>
                 </Card>
+              )}
+              </>
               )}
             </>
           )}

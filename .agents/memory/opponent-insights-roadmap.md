@@ -5,6 +5,10 @@ description: Agreed order/spec of charts for the BUFC Hub Opponent Insights tab;
 
 # Opponent Insights tab — chart roadmap
 
+The tab has a **Team Charts / Player Charts sub-toggle** (nested Tabs, `oppView` state) just below the
+club selector, mirroring the main Team/Player split: Team = intro/record/match history + items 1–14;
+Players = items 15–19 + Scoring DNA + Combo Threat + Top Scorers. The club selector stays shared.
+
 Charts show the details of the **club selected/clicked at the top of the page**. Many mirror the Team Insights tab charts but scoped to the chosen opponent (for = goals we scored vs them, against = goals they scored vs us), so reuse the Team Insights components where possible (OpponentStackChart, GoalTypePie, tooltips, colour maps).
 
 Agreed order (code incrementally, one/few at a time):
