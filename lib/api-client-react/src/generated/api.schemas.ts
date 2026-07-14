@@ -779,7 +779,7 @@ export interface PlayerDnaMetrics {
   assists: number;
   assistsPer90: number;
   firstTouchPct: number;
-  conePct: number;
+  poacherPct: number;
   rightFoot: number;
   leftFoot: number;
   header: number;
@@ -791,7 +791,7 @@ export interface PlayerDnaAverages {
   assists: number;
   assistsPer90: number;
   firstTouchPct: number;
-  conePct: number;
+  poacherPct: number;
   rightFoot: number;
   leftFoot: number;
   header: number;
@@ -813,8 +813,8 @@ export interface PlayerDnaResponse {
   squadAvg: PlayerDnaAverages;
   firstTouchYes: number;
   firstTouchTotal: number;
-  coneYes: number;
-  coneTotal: number;
+  poacherYes: number;
+  poacherTotal: number;
   favouriteOpponent: PlayerDnaBest | null;
   topAssistPartner: PlayerDnaBest | null;
 }

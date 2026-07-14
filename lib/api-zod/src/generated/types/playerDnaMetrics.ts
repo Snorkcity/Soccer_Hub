@@ -12,7 +12,7 @@ export interface PlayerDnaMetrics {
   assists: number;
   assistsPer90: number;
   firstTouchPct: number;
-  conePct: number;
+  poacherPct: number;
   rightFoot: number;
   leftFoot: number;
   header: number;

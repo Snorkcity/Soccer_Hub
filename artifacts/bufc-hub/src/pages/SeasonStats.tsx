@@ -725,28 +725,14 @@ function GoalLocationMap({ scored, conceded }: { scored: ScoredGoalRecord[]; con
   );
 }
 
-// ── Scoring Cone by Player (inside vs outside the scoring cone) ───────────────
-// The "scoring cone": lines drawn from each goalpost flaring outward at 45°, so
-// they pass exactly through the corners of the penalty area 18 yds out. Central
-// finishes (inside the cone) are the high-percentage chances; wide-angle finishes
-// sit outside it. Coordinate contract: goalX 0–100 across the pitch width (posts
-// at 45 & 55, centre 50); goalY = yards from the goal line. 1 yd = 1.25 goalX
-// units (80-yd width mapped to 0–100), hence the 1.25 slope.
-type GoalZone = "inCone" | "outCone";
-const ZONE_META: { key: GoalZone; label: string; color: string }[] = [
-  { key: "inCone",  label: "Inside the cone",  color: "#22c55e" },
-  { key: "outCone", label: "Outside the cone", color: "#f59e0b" },
-];
-function goalZone(gx: number, gy: number): GoalZone {
-  return gx >= 45 - 1.25 * gy && gx <= 55 + 1.25 * gy ? "inCone" : "outCone";
-}
 
-// Mini pitch diagram with the scoring cone shaded — shown wherever the cone needs
-// visual context (chart header, DNA tooltip). Drawn in yards, goal at top.
-function ConeDiagram({ className }: { className?: string }) {
+// Mini pitch diagram with the poacher zone shaded — shown in the DNA tooltip for
+// the Poacher % spoke. The zone is post-to-post wide (8 yds) and 10 yds deep:
+// close, central finishes only. Drawn in yards, goal at top.
+function PoacherZoneDiagram({ className }: { className?: string }) {
   const L = "rgba(255,255,255,0.45)";
   return (
-    <svg viewBox="-2 -3.5 84 33" className={className} aria-label="Scoring cone diagram">
+    <svg viewBox="-2 -3.5 84 33" className={className} aria-label="Poacher zone diagram">
       <rect x="-2" y="-3.5" width="84" height="33" rx="2" fill="#0B1B2B" />
       <g fill="none" stroke={L} strokeWidth={0.5}>
         <line x1="0" y1="0" x2="80" y2="0" />
@@ -754,119 +740,12 @@ function ConeDiagram({ className }: { className?: string }) {
         <path d="M 18 0 L 18 18 L 62 18 L 62 0" />
         <path d="M 30 0 L 30 6 L 50 6 L 50 0" />
       </g>
-      {/* cone: posts (36 & 44 yd) flaring at 45° through the penalty-area corners */}
-      <polygon points="36,0 8,28 72,28 44,0" fill="#22c55e" fillOpacity={0.28} stroke="#22c55e" strokeWidth={0.6} strokeDasharray="2 1.5" />
+      {/* poacher zone: post-to-post (36–44 yd across) out to 10 yds from the goal line */}
+      <rect x="36" y="0" width="8" height="10" fill="#22c55e" fillOpacity={0.28} stroke="#22c55e" strokeWidth={0.6} strokeDasharray="2 1.5" />
     </svg>
   );
 }
 
-interface ZoneRow { scorer: string; inCone: number; outCone: number; total: number }
-
-function ZoneTooltip({ active, payload }: {
-  active?: boolean;
-  payload?: Array<{ payload: ZoneRow }>;
-}) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0].payload;
-  return (
-    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-1.5">
-      <div className="font-semibold text-sm mb-1">{row.scorer} · {row.total} goal{row.total === 1 ? "" : "s"}</div>
-      {ZONE_META.map(z => {
-        const n = row[z.key];
-        const pct = row.total ? Math.round((n / row.total) * 100) : 0;
-        return (
-          <div key={z.key} className="flex justify-between gap-6">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: z.color }} />{z.label}
-            </span>
-            <span className="tabular-nums">{n} ({pct}%)</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]; scoredL3: ScoredGoalRecord[] }) {
-  const [lastN, setLastN] = useState(false);
-  const scored = lastN ? scoredL3 : scoredFull;
-
-  const { rows, totals, mapped, noCoords } = useMemo(() => {
-    const m = new Map<string, ZoneRow>();
-    const totals = { inCone: 0, outCone: 0, total: 0 };
-    let noCoords = 0;
-    for (const g of scored) {
-      const scorer = g.scorer?.trim();
-      if (!scorer || scorer.toUpperCase() === "OG") continue; // own goals for us have no BUFC scorer
-      const gx = g.goalX;
-      const gy = g.goalY;
-      if (gx == null || gy == null || !Number.isFinite(gx) || !Number.isFinite(gy)) { noCoords++; continue; }
-      const z = goalZone(gx, gy);
-      const row = m.get(scorer) ?? { scorer, inCone: 0, outCone: 0, total: 0 };
-      row[z] += 1;
-      row.total += 1;
-      m.set(scorer, row);
-      totals[z] += 1;
-      totals.total += 1;
-    }
-    const rows = Array.from(m.values()).sort((a, b) => b.total - a.total || a.scorer.localeCompare(b.scorer));
-    return { rows, totals, mapped: totals.total, noCoords };
-  }, [scored]);
-
-  const insidePct = totals.total ? Math.round((totals.inCone / totals.total) * 100) : 0;
-
-  return (
-    <ChartCard
-      tall
-      title="Scoring Cone by Player"
-      description="Who finishes inside the scoring cone — the central channel flaring out from the goalposts"
-      tooltip="Every mapped goal is classified as inside or outside the scoring cone — the shaded channel formed by lines from each goalpost flaring out through the corners of the penalty area (see the diagram). Central, high-percentage finishes fall inside; wide-angle finishes fall outside. Bars are stacked per scorer and ranked by total goals. Own goals and goals without mapped coordinates are excluded."
-      controls={<Last3Toggle active={lastN} onToggle={() => setLastN(v => !v)} />}
-    >
-      {rows.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-          No mapped goals for this selection.
-        </div>
-      ) : (
-        <div className="flex h-full flex-col">
-          <div className="mb-2 flex items-center justify-center gap-3">
-            <ConeDiagram className="h-12 w-auto shrink-0 rounded" />
-            <div className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">{insidePct}%</span> of mapped goals came from inside the scoring cone
-              {" "}({totals.inCone} of {mapped})
-              {noCoords > 0 && <span className="opacity-70"> · {noCoords} unmapped</span>}
-            </div>
-          </div>
-          <div className="min-h-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 32, left: 8, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis type="number" {...AXIS_STYLE} allowDecimals={false} />
-                <YAxis type="category" dataKey="scorer" {...AXIS_STYLE} width={110} interval={0} />
-                <Tooltip content={<ZoneTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {ZONE_META.map((z, i) => (
-                  <Bar
-                    key={z.key}
-                    dataKey={z.key}
-                    name={z.label}
-                    stackId="z"
-                    fill={z.color}
-                    radius={i === ZONE_META.length - 1 ? [0, 4, 4, 0] : undefined}
-                  >
-                    {i === ZONE_META.length - 1 && (
-                      <LabelList dataKey="total" position="right" fontSize={11} fill="hsl(var(--foreground))" />
-                    )}
-                  </Bar>
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-    </ChartCard>
-  );
-}
 
 // ── First Goal Value Index ────────────────────────────────────────────────────
 interface FgSplit { w: number; d: number; l: number; n: number }
@@ -2063,8 +1942,6 @@ export default function SeasonStats() {
             <GoalLocationMap scored={goalBreakdownFull?.goals ?? []} conceded={goalBreakdownFull?.conceded ?? []} />
           </ChartCard>
 
-          {/* Scoring Cone by Player — inside vs outside the scoring cone (client-side from mapped coords) */}
-          <ScoringZones scoredFull={goalBreakdownFull?.goals ?? []} scoredL3={goalBreakdownL3?.goals ?? []} />
 
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
           <OpponentStackChart
@@ -3069,14 +2946,14 @@ function ComboThreatChart({
 
 // ─── Player Scoring DNA (radar) ────────────────────────────────────────────────
 type DnaMetricKey = keyof PlayerDnaResponse["metrics"];
-type DnaAxisKind = "goals" | "goalsPer90" | "assists" | "assistsPer90" | "firstTouch" | "cone" | "foot";
+type DnaAxisKind = "goals" | "goalsPer90" | "assists" | "assistsPer90" | "firstTouch" | "poacher" | "foot";
 const DNA_AXES: { key: DnaMetricKey; label: string; kind: DnaAxisKind }[] = [
   { key: "goals",         label: "Goals",       kind: "goals" },
   { key: "goalsPer90",    label: "Goals /90",   kind: "goalsPer90" },
   { key: "assists",       label: "Assists",     kind: "assists" },
   { key: "assistsPer90",  label: "Assists /90", kind: "assistsPer90" },
   { key: "firstTouchPct", label: "1st-touch %", kind: "firstTouch" },
-  { key: "conePct",       label: "Cone %",      kind: "cone" },
+  { key: "poacherPct",    label: "Poacher %",   kind: "poacher" },
   { key: "rightFoot",     label: "Right foot",  kind: "foot" },
   { key: "leftFoot",      label: "Left foot",   kind: "foot" },
   { key: "header",        label: "Header",      kind: "foot" },
@@ -3085,7 +2962,7 @@ const DNA_AXES: { key: DnaMetricKey; label: string; kind: DnaAxisKind }[] = [
 // Format a value for a given axis: rates → 2dp, percentages → "n%", counts/averages → int or 1dp.
 function fmtDnaVal(key: DnaMetricKey, v: number): string {
   if (key === "goalsPer90" || key === "assistsPer90") return v.toFixed(2);
-  if (key === "firstTouchPct" || key === "conePct") return `${v}%`;
+  if (key === "firstTouchPct" || key === "poacherPct") return `${v}%`;
   return Number.isInteger(v) ? `${v}` : v.toFixed(1);
 }
 
@@ -3102,8 +2979,8 @@ function dnaContext(kind: DnaAxisKind, key: DnaMetricKey, src: PlayerDnaResponse
     case "firstTouch":  return src.firstTouchTotal > 0
       ? `${src.firstTouchYes} of ${plural(src.firstTouchTotal, "goal")} finished first-time`
       : "no finish data recorded";
-    case "cone":        return src.coneTotal > 0
-      ? `${src.coneYes} of ${plural(src.coneTotal, "mapped goal")} inside the scoring cone`
+    case "poacher":     return src.poacherTotal > 0
+      ? `${src.poacherYes} of ${plural(src.poacherTotal, "mapped goal")} from the poacher zone (post-to-post, within 10 yds)`
       : "no goal locations mapped";
     case "foot": {
       const n = m[key] as number;
@@ -3115,7 +2992,7 @@ function dnaContext(kind: DnaAxisKind, key: DnaMetricKey, src: PlayerDnaResponse
 
 function DnaTooltip({ active, payload }: {
   active?: boolean;
-  payload?: Array<{ payload: { metric: string; raw: string; squadAvg: string; squadBest: string; context: string | null; isCone?: boolean } }>;
+  payload?: Array<{ payload: { metric: string; raw: string; squadAvg: string; squadBest: string; context: string | null; isPoacher?: boolean } }>;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -3135,7 +3012,7 @@ function DnaTooltip({ active, payload }: {
         <span className="tabular-nums">{d.squadBest}</span>
       </div>
       {d.context && <div className="border-t pt-1.5 text-muted-foreground">{d.context}</div>}
-      {d.isCone && <ConeDiagram className="mt-1.5 w-full rounded" />}
+      {d.isPoacher && <PoacherZoneDiagram className="mt-1.5 w-full rounded" />}
     </div>
   );
 }
@@ -3177,7 +3054,7 @@ function PlayerDnaChart({
         squadAvg: fmtDnaVal(a.key, avg),
         squadBest: fmtDnaVal(a.key, max),
         context: dnaContext(a.kind, a.key, src),
-        isCone: a.kind === "cone",
+        isPoacher: a.kind === "poacher",
       };
     });
   }, [src]);

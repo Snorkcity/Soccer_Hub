@@ -1207,7 +1207,7 @@ export const GetPlayerDnaResponse = zod.object({
   "assists": zod.number(),
   "assistsPer90": zod.number(),
   "firstTouchPct": zod.number(),
-  "conePct": zod.number(),
+  "poacherPct": zod.number(),
   "rightFoot": zod.number(),
   "leftFoot": zod.number(),
   "header": zod.number()
@@ -1218,7 +1218,7 @@ export const GetPlayerDnaResponse = zod.object({
   "assists": zod.number(),
   "assistsPer90": zod.number(),
   "firstTouchPct": zod.number(),
-  "conePct": zod.number(),
+  "poacherPct": zod.number(),
   "rightFoot": zod.number(),
   "leftFoot": zod.number(),
   "header": zod.number()
@@ -1229,15 +1229,15 @@ export const GetPlayerDnaResponse = zod.object({
   "assists": zod.number(),
   "assistsPer90": zod.number(),
   "firstTouchPct": zod.number(),
-  "conePct": zod.number(),
+  "poacherPct": zod.number(),
   "rightFoot": zod.number(),
   "leftFoot": zod.number(),
   "header": zod.number()
 }),
   "firstTouchYes": zod.number(),
   "firstTouchTotal": zod.number(),
-  "coneYes": zod.number(),
-  "coneTotal": zod.number(),
+  "poacherYes": zod.number(),
+  "poacherTotal": zod.number(),
   "favouriteOpponent": zod.union([zod.object({
   "label": zod.string(),
   "count": zod.number()

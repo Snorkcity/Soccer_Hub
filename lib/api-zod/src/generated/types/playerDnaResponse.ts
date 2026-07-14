@@ -20,8 +20,8 @@ export interface PlayerDnaResponse {
   squadAvg: PlayerDnaAverages;
   firstTouchYes: number;
   firstTouchTotal: number;
-  coneYes: number;
-  coneTotal: number;
+  poacherYes: number;
+  poacherTotal: number;
   favouriteOpponent: PlayerDnaBest | null;
   topAssistPartner: PlayerDnaBest | null;
 }
