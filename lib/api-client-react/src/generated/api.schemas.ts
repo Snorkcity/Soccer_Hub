@@ -1007,8 +1007,21 @@ export interface AdminLoginBody {
   password: string;
 }
 
+/**
+ * Present when authenticated. Admin can write data; viewer is read-only (future club logins).
+ */
+export type AuthStatusRole = typeof AuthStatusRole[keyof typeof AuthStatusRole];
+
+
+export const AuthStatusRole = {
+  admin: 'admin',
+  viewer: 'viewer',
+} as const;
+
 export interface AuthStatus {
   authenticated: boolean;
+  /** Present when authenticated. Admin can write data; viewer is read-only (future club logins). */
+  role?: AuthStatusRole;
 }
 
 export interface LeagueMatchInfo {

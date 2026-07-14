@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse, LogoutResponse, GetAuthStatusResponse } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { setSessionCookie, clearSessionCookie, isAuthenticated } from "../middlewares/entryAuth";
+import { setSessionCookie, clearSessionCookie, getSessionRole } from "../middlewares/entryAuth";
 
 const router: IRouter = Router();
 
@@ -28,8 +28,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Incorrect password" });
     return;
   }
-  setSessionCookie(res);
-  res.json(LoginResponse.parse({ authenticated: true }));
+  // Today the single club password grants the admin role; future club logins
+  // will set role "viewer" here based on their credentials.
+  setSessionCookie(res, "admin");
+  res.json(LoginResponse.parse({ authenticated: true, role: "admin" }));
 });
 
 router.post("/auth/logout", async (_req, res): Promise<void> => {
@@ -38,7 +40,8 @@ router.post("/auth/logout", async (_req, res): Promise<void> => {
 });
 
 router.get("/auth/me", async (req, res): Promise<void> => {
-  res.json(GetAuthStatusResponse.parse({ authenticated: isAuthenticated(req) }));
+  const role = getSessionRole(req);
+  res.json(GetAuthStatusResponse.parse(role ? { authenticated: true, role } : { authenticated: false }));
 });
 
 export default router;

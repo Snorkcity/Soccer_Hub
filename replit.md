@@ -26,7 +26,9 @@ _Populate as you build — short repo map plus pointers to the source-of-truth f
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- App-wide auth: single club password (`ADMIN_PASSWORD` env) → stateless HMAC-signed cookie session carrying a role (`admin` today; `viewer` reserved). One API gate: any session reads, only admin writes. Designed so future per-club coach logins and a second admin slot in at the login step with no rework.
+- Data Entry writes are transactional dual-writes: league-wide tables always, mirrored into legacy Belconnen tables for Belconnen fixtures — enter once, feeds all charts.
+- Railway prod needs `ADMIN_PASSWORD` (and `OPENAI_API_KEY` for the screenshot reader) set in its environment.
 
 ## Product
 

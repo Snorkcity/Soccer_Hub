@@ -1396,7 +1396,8 @@ export const LoginBody = zod.object({
 })
 
 export const LoginResponse = zod.object({
-  "authenticated": zod.boolean()
+  "authenticated": zod.boolean(),
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
 })
 
 
@@ -1404,7 +1405,8 @@ export const LoginResponse = zod.object({
  * @summary Log out of the data-entry session
  */
 export const LogoutResponse = zod.object({
-  "authenticated": zod.boolean()
+  "authenticated": zod.boolean(),
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
 })
 
 
@@ -1412,7 +1414,8 @@ export const LogoutResponse = zod.object({
  * @summary Whether the current session is authenticated for data entry
  */
 export const GetAuthStatusResponse = zod.object({
-  "authenticated": zod.boolean()
+  "authenticated": zod.boolean(),
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
 })
 
 

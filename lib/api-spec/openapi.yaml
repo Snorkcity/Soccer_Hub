@@ -2121,6 +2121,10 @@ components:
       type: object
       properties:
         authenticated: { type: boolean }
+        role:
+          type: string
+          enum: [admin, viewer]
+          description: Present when authenticated. Admin can write data; viewer is read-only (future club logins).
       required: [authenticated]
 
     LeagueMatchInfo:

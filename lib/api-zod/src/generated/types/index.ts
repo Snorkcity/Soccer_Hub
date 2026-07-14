@@ -14,6 +14,7 @@ export * from './assistsByOpponentResponse';
 export * from './athleticTest';
 export * from './athleticTestInput';
 export * from './authStatus';
+export * from './authStatusRole';
 export * from './clubInfo';
 export * from './entryGoalBody';
 export * from './entryGoalResponse';

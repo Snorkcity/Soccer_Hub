@@ -5,7 +5,10 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthStatusRole } from './authStatusRole';
 
 export interface AuthStatus {
   authenticated: boolean;
+  /** Present when authenticated. Admin can write data; viewer is read-only (future club logins). */
+  role?: AuthStatusRole;
 }

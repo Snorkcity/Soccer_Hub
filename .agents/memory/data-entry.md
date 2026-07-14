@@ -5,7 +5,7 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 
 # Data Entry (BUFC hub)
 
-**Auth**: stateless HMAC cookie `bufc_entry` signed with SESSION_SECRET (middleware `entryAuth.ts`); ALL mutating `/api` requests require it (reads stay public). Password checked against `ADMIN_PASSWORD` env — when unset, entry is locked everywhere (no dev fallback). Railway prod needs `ADMIN_PASSWORD` set manually.
+**Auth**: whole app is behind login. Stateless HMAC cookie `bufc_session`, token `exp.role.hmac` signed with SESSION_SECRET (middleware `entryAuth.ts`). Roles: `admin` (view + write; the single ADMIN_PASSWORD grants it today) and `viewer` (view-only, reserved for future club coach logins — user plans 3-4 logins per club, plus a 2nd admin later). Middleware gates ALL `/api` routes except `/auth/*`: any role reads, only admin writes. Frontend `AuthGate` wraps the router (no data loads pre-login); Data Entry page additionally requires role==="admin". When ADMIN_PASSWORD unset, everything is locked (no dev fallback). Railway prod needs `ADMIN_PASSWORD` set manually. **Why roles-in-token now:** user explicitly wants future multi-login growth without rework — add credentials at login, keep the single gate.
 
 **Dual-write rules** (all wrapped in db.transaction — never write these tables separately):
 - `/entry/match` → `league_matches` always + Belconnen `matches` row (Veo fields, cleanSheet computed) when Belconnen plays.

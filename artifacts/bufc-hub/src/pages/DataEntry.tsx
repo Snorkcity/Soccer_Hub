@@ -6,7 +6,6 @@ import {
   useGetClubs,
   useGetAuthStatus,
   getGetAuthStatusQueryKey,
-  useLogin,
   useLogout,
   useListLeagueMatches,
   getListLeagueMatchesQueryKey,
@@ -78,46 +77,6 @@ function VocabInput({ label, value, onChange, options, listId, placeholder, clas
       <Input list={listId} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
       <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>
     </Field>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Login gate
-// ─────────────────────────────────────────────────────────────────────────────
-
-function LoginCard() {
-  const queryClient = useQueryClient();
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const login = useLogin({ mutation: {
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: getGetAuthStatusQueryKey() }); },
-    onError: (e) => setErr(errMsg(e)),
-  }});
-
-  return (
-    <div className="max-w-sm mx-auto mt-16">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lock className="h-5 w-5" />Data Entry</CardTitle>
-          <CardDescription>Enter the admin password to record match data.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="space-y-3"
-            onSubmit={e => { e.preventDefault(); setErr(null); login.mutate({ data: { password } }); }}
-          >
-            <Input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Password" autoFocus
-            />
-            <Button type="submit" className="w-full" disabled={login.isPending || password.length === 0}>
-              {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Log in"}
-            </Button>
-            <StatusLine ok={null} err={err} />
-          </form>
-        </CardContent>
-      </Card>
-    </div>
   );
 }
 
@@ -720,8 +679,17 @@ function EntryWorkspace() {
 }
 
 export default function DataEntry() {
+  // The app-wide AuthGate guarantees a session; this page additionally needs
+  // the admin role (future viewer/coach logins can see charts but not this).
   const { data: auth, isLoading } = useGetAuthStatus();
   if (isLoading) return <p className="text-muted-foreground text-center py-16">Loading…</p>;
-  if (!auth?.authenticated) return <LoginCard />;
+  if (auth?.role !== "admin") {
+    return (
+      <div className="max-w-sm mx-auto mt-16 text-center space-y-2">
+        <Lock className="h-6 w-6 mx-auto text-muted-foreground" />
+        <p className="text-muted-foreground">Data entry needs an admin login.</p>
+      </div>
+    );
+  }
   return <EntryWorkspace />;
 }
