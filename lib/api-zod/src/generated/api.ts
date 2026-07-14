@@ -1509,6 +1509,24 @@ export const GetGoalOptionsResponse = zod.object({
 
 
 /**
+ * @summary How many goals have been logged so far for a fixture, per team, vs the final score
+ */
+export const GetGoalTallyQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "matchId": zod.coerce.string()
+})
+
+export const GetGoalTallyResponse = zod.object({
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "homeExpected": zod.number().nullable(),
+  "awayExpected": zod.number().nullable(),
+  "homeLogged": zod.number(),
+  "awayLogged": zod.number()
+})
+
+
+/**
  * @summary Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
  */
 

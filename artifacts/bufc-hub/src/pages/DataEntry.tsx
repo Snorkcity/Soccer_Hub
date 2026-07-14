@@ -13,6 +13,8 @@ import {
   getGetGoalOptionsQueryKey,
   useCreateEntryMatch,
   useCreateEntryGoal,
+  useGetGoalTally,
+  getGetGoalTallyQueryKey,
   useSaveEntryPlayerStats,
   useExtractPlayersFromImage,
   useListLeagues,
@@ -335,8 +337,15 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
   const fixture = fixtures.find(f => f.matchId === matchId);
   useEffect(() => { setScorerTeam(""); }, [matchId]);
 
+  const queryClient = useQueryClient();
+  const { data: tally } = useGetGoalTally(
+    { seasonId, matchId },
+    { query: { enabled: !!matchId, queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) } },
+  );
+
   const create = useCreateEntryGoal({ mutation: {
     onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) });
       setOk(`Goal saved${res.belconnenGoalId != null ? " (Belconnen copy written too)" : ""} — ready for the next one`);
       // keep match + scorer team selected for rapid entry; clear the goal detail
       setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
@@ -378,6 +387,25 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
             </Select>
           </Field>
         </div>
+
+        {tally && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            {[
+              { team: tally.homeTeam, logged: tally.homeLogged, expected: tally.homeExpected },
+              { team: tally.awayTeam, logged: tally.awayLogged, expected: tally.awayExpected },
+            ].map(({ team, logged, expected }) => {
+              const done = expected != null && logged >= expected;
+              const over = expected != null && logged > expected;
+              return (
+                <Badge key={team} variant="outline" className={over ? "border-chart-4 text-chart-4" : done ? "border-chart-3 text-chart-3" : "text-muted-foreground"}>
+                  {done && !over && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                  {over && <AlertTriangle className="h-3 w-3 mr-1" />}
+                  {team}: {logged} of {expected ?? "?"} logged{over ? " — too many!" : ""}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Field label="Minute">

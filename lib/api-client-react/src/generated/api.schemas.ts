@@ -1181,6 +1181,17 @@ export interface EntryGoalResponse {
   belconnenGoalId: number | null;
 }
 
+export interface GoalTallyResponse {
+  homeTeam: string;
+  awayTeam: string;
+  /** @nullable */
+  homeExpected: number | null;
+  /** @nullable */
+  awayExpected: number | null;
+  homeLogged: number;
+  awayLogged: number;
+}
+
 export interface EntryPlayerRow {
   /** @minLength 1 */
   playerName: string;
@@ -1388,5 +1399,10 @@ seasonId: number;
 
 export type GetGoalOptionsParams = {
 seasonId: number;
+};
+
+export type GetGoalTallyParams = {
+seasonId: number;
+matchId: string;
 };
 

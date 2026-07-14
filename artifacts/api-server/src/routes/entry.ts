@@ -15,6 +15,8 @@ import {
   ListLeagueMatchesResponse,
   GetGoalOptionsQueryParams,
   GetGoalOptionsResponse,
+  GetGoalTallyQueryParams,
+  GetGoalTallyResponse,
   CreateEntryMatchBody,
   CreateEntryMatchResponse,
   CreateEntryGoalBody,
@@ -48,6 +50,36 @@ router.get("/entry/league-matches", async (req, res): Promise<void> => {
     homeTeam: r.homeTeam, awayTeam: r.awayTeam, fullScore: r.fullScore,
     homeGoals: r.homeGoals, awayGoals: r.awayGoals,
   }))));
+});
+
+// ── Goal tally: logged-so-far vs the final score, per team ───────────────────
+router.get("/entry/goal-tally", async (req, res): Promise<void> => {
+  const query = GetGoalTallyQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, matchId } = query.data;
+  const [fixture] = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(and(eq(leagueMatchesTable.seasonId, seasonId), eq(leagueMatchesTable.matchId, matchId)));
+  if (!fixture) {
+    res.status(404).json({ error: `No fixture "${matchId}" this season` });
+    return;
+  }
+  const logged = await db
+    .select({ scorerTeam: leagueGoalsTable.scorerTeam })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), eq(leagueGoalsTable.matchId, matchId)));
+  res.json(GetGoalTallyResponse.parse({
+    homeTeam: fixture.homeTeam,
+    awayTeam: fixture.awayTeam,
+    homeExpected: fixture.homeGoals,
+    awayExpected: fixture.awayGoals,
+    homeLogged: logged.filter(g => g.scorerTeam === fixture.homeTeam).length,
+    awayLogged: logged.filter(g => g.scorerTeam === fixture.awayTeam).length,
+  }));
 });
 
 // ── Dropdown vocabulary (keeps spellings consistent with existing data) ──────

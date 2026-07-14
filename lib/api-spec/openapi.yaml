@@ -1156,6 +1156,27 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/GoalOptionsResponse" }
 
+  /entry/goal-tally:
+    get:
+      operationId: getGoalTally
+      tags: [entry]
+      summary: How many goals have been logged so far for a fixture, per team, vs the final score
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Logged vs expected goal counts for each team in the fixture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoalTallyResponse" }
+
   /entry/match:
     post:
       operationId: createEntryMatch
@@ -2287,6 +2308,17 @@ components:
         leagueGoalId:    { type: integer }
         belconnenGoalId: { type: ["integer", "null"] }
       required: [leagueGoalId, belconnenGoalId]
+
+    GoalTallyResponse:
+      type: object
+      properties:
+        homeTeam:     { type: string }
+        awayTeam:     { type: string }
+        homeExpected: { type: ["integer", "null"] }
+        awayExpected: { type: ["integer", "null"] }
+        homeLogged:   { type: integer }
+        awayLogged:   { type: integer }
+      required: [homeTeam, awayTeam, homeExpected, awayExpected, homeLogged, awayLogged]
 
     EntryPlayerRow:
       type: object

@@ -40,6 +40,7 @@ import type {
   GetGoalBreakdownParams,
   GetGoalCombosParams,
   GetGoalOptionsParams,
+  GetGoalTallyParams,
   GetGoalsByIntervalParams,
   GetGoalsByOpponentParams,
   GetGpsLoadSummaryParams,
@@ -62,6 +63,7 @@ import type {
   GoalInput,
   GoalIntervalBucket,
   GoalOptionsResponse,
+  GoalTallyResponse,
   GoalUpdate,
   GoalsByOpponentResponse,
   GpsLoadSummary,
@@ -4144,6 +4146,90 @@ export function useGetGoalOptions<TData = Awaited<ReturnType<typeof getGoalOptio
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetGoalOptionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetGoalTallyUrl = (params: GetGoalTallyParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/goal-tally?${stringifiedParams}` : `/api/entry/goal-tally`
+}
+
+/**
+ * @summary How many goals have been logged so far for a fixture, per team, vs the final score
+ */
+export const getGoalTally = async (params: GetGoalTallyParams, options?: RequestInit): Promise<GoalTallyResponse> => {
+
+  return customFetch<GoalTallyResponse>(getGetGoalTallyUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoalTallyQueryKey = (params?: GetGoalTallyParams,) => {
+    return [
+    `/api/entry/goal-tally`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGoalTallyQueryOptions = <TData = Awaited<ReturnType<typeof getGoalTally>>, TError = ErrorType<unknown>>(params: GetGoalTallyParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalTally>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoalTallyQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoalTally>>> = ({ signal }) => getGoalTally(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoalTally>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoalTallyQueryResult = NonNullable<Awaited<ReturnType<typeof getGoalTally>>>
+export type GetGoalTallyQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary How many goals have been logged so far for a fixture, per team, vs the final score
+ */
+
+export function useGetGoalTally<TData = Awaited<ReturnType<typeof getGoalTally>>, TError = ErrorType<unknown>>(
+ params: GetGoalTallyParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalTally>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoalTallyQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
