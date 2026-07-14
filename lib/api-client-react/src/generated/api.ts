@@ -28,6 +28,8 @@ import type {
   ClubInfo,
   ClubInput,
   DeleteEntryPlayerStatsParams,
+  EntryAthleticTestsSaveRequest,
+  EntryAthleticTestsSaveResponse,
   EntryGoalBody,
   EntryGoalDeleteResponse,
   EntryGoalListResponse,
@@ -5092,5 +5094,76 @@ export const useExtractPlayersFromImage = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getExtractPlayersFromImageMutationOptions(options));
+    }
+
+export const getSaveEntryAthleticTestsUrl = () => {
+
+
+
+
+  return `/api/entry/athletic-tests`
+}
+
+/**
+ * @summary Replace a year's athletic testing results with rows read from the trainer's spreadsheet
+ */
+export const saveEntryAthleticTests = async (entryAthleticTestsSaveRequest: EntryAthleticTestsSaveRequest, options?: RequestInit): Promise<EntryAthleticTestsSaveResponse> => {
+
+  return customFetch<EntryAthleticTestsSaveResponse>(getSaveEntryAthleticTestsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryAthleticTestsSaveRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveEntryAthleticTestsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryAthleticTests>>, TError,{data: BodyType<EntryAthleticTestsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveEntryAthleticTests>>, TError,{data: BodyType<EntryAthleticTestsSaveRequest>}, TContext> => {
+
+const mutationKey = ['saveEntryAthleticTests'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveEntryAthleticTests>>, {data: BodyType<EntryAthleticTestsSaveRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveEntryAthleticTests(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveEntryAthleticTestsMutationResult = NonNullable<Awaited<ReturnType<typeof saveEntryAthleticTests>>>
+    export type SaveEntryAthleticTestsMutationBody = BodyType<EntryAthleticTestsSaveRequest>
+    export type SaveEntryAthleticTestsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Replace a year's athletic testing results with rows read from the trainer's spreadsheet
+ */
+export const useSaveEntryAthleticTests = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryAthleticTests>>, TError,{data: BodyType<EntryAthleticTestsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveEntryAthleticTests>>,
+        TError,
+        {data: BodyType<EntryAthleticTestsSaveRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveEntryAthleticTestsMutationOptions(options));
     }
 

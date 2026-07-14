@@ -9,6 +9,7 @@ import {
   goalsTable,
   playerStatsTable,
   playersTable,
+  athleticTestsTable,
 } from "@workspace/db";
 import {
   ListLeagueMatchesQueryParams,
@@ -35,6 +36,8 @@ import {
   DeleteEntryPlayerStatsResponse,
   ExtractPlayersFromImageBody,
   ExtractPlayersFromImageResponse,
+  SaveEntryAthleticTestsBody,
+  SaveEntryAthleticTestsResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
@@ -768,6 +771,73 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
     logger.error({ err }, "AI extraction failed");
     res.status(502).json({ error: "Could not read the screenshot — try a clearer image, or enter rows manually" });
   }
+});
+
+// ── Athletic testing bulk save (trainer's spreadsheet) ───────────────────────
+// Replace-semantics per year+team: clears that year's results and inserts the
+// uploaded rows, so re-uploading a corrected spreadsheet just works.
+router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
+  const parsed = SaveEntryAthleticTestsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { year, teamId, rows } = parsed.data;
+
+  const cleanRows = rows
+    .map(r => ({ ...r, playerName: r.playerName.trim() }))
+    .filter(r => r.playerName.length > 0 && !/^averages?$/i.test(r.playerName));
+  if (cleanRows.length === 0) {
+    res.status(400).json({ error: "No player rows to save" });
+    return;
+  }
+
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const r of cleanRows) {
+    const key = r.playerName.toLowerCase();
+    if (seen.has(key)) dupes.add(r.playerName);
+    seen.add(key);
+  }
+  if (dupes.size > 0) {
+    res.status(400).json({ error: `The file lists ${[...dupes].join(", ")} more than once — fix the duplicate row(s) and re-upload` });
+    return;
+  }
+
+  // Best-effort link to the players table by exact name (nice-to-have; charts key off playerName)
+  const knownPlayers = await db
+    .select({ id: playersTable.id, name: playersTable.name })
+    .from(playersTable)
+    .where(eq(playersTable.club, FOCUS_CLUB));
+  const idByName = new Map(knownPlayers.map(p => [p.name.toLowerCase(), p.id]));
+
+  const { saved, replaced } = await db.transaction(async (tx) => {
+    const replaced = (await tx
+      .delete(athleticTestsTable)
+      .where(and(eq(athleticTestsTable.year, year), eq(athleticTestsTable.teamId, teamId)))
+      .returning({ id: athleticTestsTable.id })).length;
+
+    const inserted = await tx.insert(athleticTestsTable).values(cleanRows.map(r => ({
+      playerId: idByName.get(r.playerName.toLowerCase()) ?? null,
+      playerName: r.playerName,
+      teamId,
+      year,
+      position: r.position ?? null,
+      verticalStart: n2s(r.verticalStart),
+      verticalM: n2s(r.verticalM),
+      verticalTotal: n2s(r.verticalTotal),
+      horizontalM: n2s(r.horizontalM),
+      balsomS: n2s(r.balsomS),
+      split010: n2s(r.split010),
+      split1020: n2s(r.split1020),
+      split2030: n2s(r.split2030),
+      total30m: n2s(r.total30m),
+    }))).returning({ id: athleticTestsTable.id });
+
+    return { saved: inserted.length, replaced };
+  });
+
+  res.json(SaveEntryAthleticTestsResponse.parse({ saved, replaced }));
 });
 
 export default router;

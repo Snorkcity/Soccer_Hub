@@ -1803,3 +1803,30 @@ export const ExtractPlayersFromImageResponse = zod.object({
 })
 
 
+/**
+ * @summary Replace a year's athletic testing results with rows read from the trainer's spreadsheet
+ */
+export const SaveEntryAthleticTestsBody = zod.object({
+  "year": zod.string(),
+  "teamId": zod.number(),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "position": zod.string().nullish(),
+  "verticalStart": zod.number().nullish(),
+  "verticalM": zod.number().nullish(),
+  "verticalTotal": zod.number().nullish(),
+  "horizontalM": zod.number().nullish(),
+  "balsomS": zod.number().nullish(),
+  "split010": zod.number().nullish(),
+  "split1020": zod.number().nullish(),
+  "split2030": zod.number().nullish(),
+  "total30m": zod.number().nullish()
+}))
+})
+
+export const SaveEntryAthleticTestsResponse = zod.object({
+  "saved": zod.number(),
+  "replaced": zod.number()
+})
+
+

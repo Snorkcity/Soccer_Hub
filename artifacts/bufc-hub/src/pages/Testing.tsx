@@ -1,164 +1,742 @@
-import React, { useState, useMemo } from "react";
-import { useListAthleticTests, useListTeams, getListAthleticTestsQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/core";
+import React, { useState, useMemo, useEffect } from "react";
+import { useListAthleticTests, useListTeams, getListAthleticTestsQueryKey, type AthleticTest } from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  BarChart, Bar, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
+  ScatterChart, Scatter, LabelList,
+} from "recharts";
+import { Zap, ShieldAlert } from "lucide-react";
 
-const METRICS = [
-  { id: "verticalStart", label: "Vertical Start" },
-  { id: "verticalM", label: "Vertical Max" },
-  { id: "horizontalM", label: "Horizontal (m)" },
-  { id: "balsomS", label: "Balsom Agility (s)" },
-  { id: "split010", label: "0-10m Split (s)" },
-  { id: "total30m", label: "Total 30m (s)" },
+// ─────────────────────────────────────────────────────────────────────────────
+// Metric metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
+type MetricKey = "verticalStart" | "verticalM" | "verticalTotal" | "horizontalM"
+  | "balsomS" | "split010" | "split1020" | "split2030" | "total30m";
+
+interface MetricDef { id: MetricKey; label: string; short: string; lowerIsBetter: boolean; decimals: number }
+
+const METRICS: MetricDef[] = [
+  { id: "verticalStart",  label: "Vertical Start",       short: "Vert start", lowerIsBetter: false, decimals: 0 },
+  { id: "verticalM",      label: "Vertical Max",         short: "Vert max",   lowerIsBetter: false, decimals: 0 },
+  { id: "verticalTotal",  label: "Vertical Total",       short: "Vert total", lowerIsBetter: false, decimals: 0 },
+  { id: "horizontalM",    label: "Horizontal Jump (m)",  short: "Horizontal", lowerIsBetter: false, decimals: 2 },
+  { id: "balsomS",        label: "Balsom Agility (s)",   short: "Balsom",     lowerIsBetter: true,  decimals: 2 },
+  { id: "split010",       label: "0-10m Split (s)",      short: "0-10m",      lowerIsBetter: true,  decimals: 2 },
+  { id: "split1020",      label: "10-20m Split (s)",     short: "10-20m",     lowerIsBetter: true,  decimals: 2 },
+  { id: "split2030",      label: "20-30m Split (s)",     short: "20-30m",     lowerIsBetter: true,  decimals: 2 },
+  { id: "total30m",       label: "Total 30m (s)",        short: "30m total",  lowerIsBetter: true,  decimals: 2 },
 ];
+const metricDef = (id: string) => METRICS.find(m => m.id === id) ?? METRICS[0];
 
 const POS_COLORS: Record<string, string> = {
-  "GK": "hsl(var(--chart-1))", // Blue
-  "Defender": "hsl(var(--chart-2))", // Orange/Amber
-  "Midfielder": "hsl(var(--chart-3))", // Green
-  "Forward": "hsl(var(--chart-5))", // Purple
+  GK: "hsl(var(--chart-1))",
+  Defender: "hsl(var(--chart-2))",
+  Midfielder: "hsl(var(--chart-3))",
+  Forward: "hsl(var(--chart-5))",
+};
+const POS_ORDER = ["GK", "Defender", "Midfielder", "Forward"];
+
+function getPosGroup(pos: string | null | undefined): string {
+  if (!pos) return "Unknown";
+  const p = pos.trim().toLowerCase();
+  if (p === "gk" || p === "goalkeeper" || p === "keeper") return "GK";
+  if (p === "defender" || ["rb", "lb", "cb", "rcb", "lcb", "rwb", "lwb"].includes(p)) return "Defender";
+  if (p === "midfielder" || ["dm", "cm", "rm", "lm", "cam", "cdm"].includes(p)) return "Midfielder";
+  if (p === "forward" || p === "striker" || ["st", "cf", "rw", "lw"].includes(p)) return "Forward";
+  return "Unknown";
+}
+
+const GREY = "hsl(var(--muted-foreground) / 0.35)";
+const GREEN = "hsl(var(--chart-3))";
+const AMBER = "hsl(var(--chart-4))";
+const AXIS = { stroke: "hsl(var(--muted-foreground))", fontSize: 10 };
+const TOOLTIP_STYLE = {
+  backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))",
+  color: "hsl(var(--foreground))", fontSize: 12, borderRadius: 8,
 };
 
-function getPosGroup(pos: string | null | undefined) {
-  if (!pos) return "Midfielder";
-  if (["GK"].includes(pos)) return "GK";
-  if (["RB", "LB", "CB", "RCB", "LCB"].includes(pos)) return "Defender";
-  if (["DM", "CM", "RM", "LM", "CAM"].includes(pos)) return "Midfielder";
-  return "Forward";
+const isRealPlayer = (t: AthleticTest) => !/^(averages?|unknown)$/i.test(t.playerName.trim());
+
+/**
+ * Percentile of `v` within `values` (which includes `v` itself), where 100 = best.
+ * Convention: "at least as good as X% of the rest of the squad" — ties count,
+ * so joint-best players all score 100.
+ */
+function pct(values: number[], v: number, lowerIsBetter: boolean): number {
+  if (values.length <= 1) return 50;
+  const notWorse = values.filter(o => (lowerIsBetter ? v <= o : v >= o)).length - 1; // -1 excludes self
+  return Math.round((notWorse / (values.length - 1)) * 100);
 }
+
+const avg = (vals: number[]) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Testing() {
   const { data: teams } = useListTeams();
-  const [selectedTeamId, setSelectedTeamId] = useState<number | "">("");
-  const [selectedYear, setSelectedYear] = useState("2026");
-  const [selectedMetric, setSelectedMetric] = useState("total30m");
+  const [teamId, setTeamId] = useState<number | "">("");
+  useEffect(() => {
+    if (teams?.length && teamId === "") {
+      const analytics = teams.find(t => t.analyticsEnabled && t.gender === "female") ?? teams[0];
+      setTeamId(analytics.id);
+    }
+  }, [teams, teamId]);
 
-  React.useEffect(() => {
-    if (teams?.length && selectedTeamId === "") setSelectedTeamId(teams[0].id);
-  }, [teams, selectedTeamId]);
-
-  const testsParams = { teamId: selectedTeamId as number, year: selectedYear };
-  const { data: tests } = useListAthleticTests(
-    testsParams,
-    { query: { enabled: !!selectedTeamId && !!selectedYear, queryKey: getListAthleticTestsQueryKey(testsParams) } }
+  const params = { teamId: teamId as number };
+  const { data: allTests } = useListAthleticTests(
+    params,
+    { query: { enabled: teamId !== "", queryKey: getListAthleticTestsQueryKey(params) } },
   );
 
-  const chartData = useMemo(() => {
-    if (!tests) return [];
-    
-    // Sort logic depends on metric type. Time (s) -> lower is better. Distance -> higher is better.
-    const isTime = ["balsomS", "split010", "split1020", "split2030", "total30m"].includes(selectedMetric);
-    
-    return [...tests]
-      .filter(t => t[selectedMetric as keyof typeof t] != null)
-      .sort((a, b) => {
-        const valA = a[selectedMetric as keyof typeof a] as number;
-        const valB = b[selectedMetric as keyof typeof b] as number;
-        return isTime ? valA - valB : valB - valA; // Ascending for time, Descending for height/dist
-      })
-      .map(t => ({
-        name: t.playerName.split(' ').map(n => n[0]).join(''), // Initials
-        fullName: t.playerName,
-        value: t[selectedMetric as keyof typeof t] as number,
-        posGroup: getPosGroup(t.position)
-      }));
-  }, [tests, selectedMetric]);
+  const years = useMemo(() => {
+    const ys = [...new Set((allTests ?? []).map(t => t.year))].sort();
+    return ys;
+  }, [allTests]);
 
-  const avgValue = useMemo(() => {
-    if (!chartData.length) return 0;
-    return chartData.reduce((acc, curr) => acc + curr.value, 0) / chartData.length;
-  }, [chartData]);
+  const [year, setYear] = useState<string>("");
+  useEffect(() => {
+    if (years.length && (year === "" || !years.includes(year))) setYear(years[years.length - 1]);
+  }, [years, year]);
+
+  const tests = useMemo(
+    () => (allTests ?? []).filter(t => t.year === year && isRealPlayer(t)),
+    [allTests, year],
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Athletic Testing</h1>
-        
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Athletic Testing</h1>
+          <p className="text-muted-foreground text-sm mt-1">Jumps, agility and sprint results — and what they mean on the pitch.</p>
+        </div>
+        <div className="flex gap-2">
           {teams && (
-            <Select value={selectedTeamId.toString()} onValueChange={(v) => setSelectedTeamId(Number(v))}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select Team" />
-              </SelectTrigger>
-              <SelectContent>
-                {teams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
-              </SelectContent>
+            <Select value={teamId.toString()} onValueChange={v => setTeamId(Number(v))}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Team" /></SelectTrigger>
+              <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={selectedMetric} onValueChange={setSelectedMetric}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select Metric" />
-            </SelectTrigger>
-            <SelectContent>
-              {METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
-            </SelectContent>
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger className="w-[110px]"><SelectValue placeholder="Year" /></SelectTrigger>
+            <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
 
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Squad Distribution - {METRICS.find(m => m.id === selectedMetric)?.label}</CardTitle>
+      {tests.length === 0 ? (
+        <Card><CardContent className="py-16 text-center text-muted-foreground">
+          No testing data for this team yet — upload the trainer's spreadsheet in Data Entry → Testing.
+        </CardContent></Card>
+      ) : (
+        <Tabs defaultValue="squad" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto md:h-10">
+            <TabsTrigger value="squad">Squad</TabsTrigger>
+            <TabsTrigger value="sprints">Sprints</TabsTrigger>
+            <TabsTrigger value="profile">Player Profile</TabsTrigger>
+            <TabsTrigger value="improvement">Year on Year</TabsTrigger>
+            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+            <TabsTrigger value="feedback">Feedback Mode</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="squad" className="mt-6 space-y-6">
+            <SquadDistribution tests={tests} />
+            <PositionComparison tests={tests} />
+          </TabsContent>
+          <TabsContent value="sprints" className="mt-6 space-y-6">
+            <SprintBreakdown tests={tests} />
+            <SpeedTypeScatter tests={tests} />
+          </TabsContent>
+          <TabsContent value="profile" className="mt-6">
+            <PlayerProfile tests={tests} year={year} />
+          </TabsContent>
+          <TabsContent value="improvement" className="mt-6">
+            <Improvement allTests={(allTests ?? []).filter(isRealPlayer)} years={years} />
+          </TabsContent>
+          <TabsContent value="leaderboard" className="mt-6">
+            <Leaderboard tests={tests} />
+          </TabsContent>
+          <TabsContent value="feedback" className="mt-6">
+            <FeedbackMode tests={tests} />
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Squad distribution (ranked bars, coloured by position)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SquadDistribution({ tests }: { tests: AthleticTest[] }) {
+  const [metric, setMetric] = useState<MetricKey>("total30m");
+  const def = metricDef(metric);
+
+  const data = useMemo(() =>
+    tests
+      .filter(t => t[metric] != null)
+      .sort((a, b) => def.lowerIsBetter ? (a[metric]! - b[metric]!) : (b[metric]! - a[metric]!))
+      .map(t => ({
+        name: t.playerName, value: t[metric] as number, posGroup: getPosGroup(t.position),
+      })),
+    [tests, metric, def.lowerIsBetter]);
+
+  const mean = avg(data.map(d => d.value));
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Squad ranking — {def.label}</CardTitle>
+          <CardDescription>Best on the left. Dashed line is the squad average.</CardDescription>
+        </div>
+        <MetricSelect value={metric} onChange={setMetric} />
+      </CardHeader>
+      <CardContent className="h-[420px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+            <YAxis {...AXIS} fontSize={11} domain={["auto", "auto"]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v.toFixed(def.decimals), def.label]} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <ReferenceLine y={mean} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              {data.map((d, i) => <Cell key={i} fill={POS_COLORS[d.posGroup] ?? "hsl(var(--primary))"} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+      <div className="flex gap-4 items-center justify-center text-xs text-muted-foreground flex-wrap pb-4">
+        {POS_ORDER.map(p => (
+          <span key={p} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: POS_COLORS[p] }} />{p}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5 border-l border-border pl-4">
+          <span className="w-4 border-t border-dashed border-muted-foreground inline-block" />Squad average
+        </span>
+      </div>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Position group comparison
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PositionComparison({ tests }: { tests: AthleticTest[] }) {
+  const [metric, setMetric] = useState<MetricKey>("total30m");
+  const def = metricDef(metric);
+
+  const data = useMemo(() => {
+    const groups = new Map<string, number[]>();
+    for (const t of tests) {
+      const v = t[metric];
+      if (v == null) continue;
+      const g = getPosGroup(t.position);
+      if (g === "Unknown") continue;
+      groups.set(g, [...(groups.get(g) ?? []), v]);
+    }
+    return POS_ORDER
+      .filter(g => groups.has(g))
+      .map(g => ({ group: g, value: avg(groups.get(g)!), count: groups.get(g)!.length }));
+  }, [tests, metric]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Position groups — {def.label}</CardTitle>
+          <CardDescription>Average per position group. {def.lowerIsBetter ? "Lower is better." : "Higher is better."}</CardDescription>
+        </div>
+        <MetricSelect value={metric} onChange={setMetric} />
+      </CardHeader>
+      <CardContent className="h-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 20, right: 10, left: -15, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="group" {...AXIS} fontSize={12} />
+            <YAxis {...AXIS} fontSize={11} domain={["auto", "auto"]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE}
+              formatter={(v: number, _n, item) => [`${v.toFixed(def.decimals)} (from ${(item?.payload as { count?: number })?.count ?? "?"} players)`, "Average"]}
+              cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="value" position="top" formatter={(v: number) => v.toFixed(def.decimals)} style={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              {data.map((d, i) => <Cell key={i} fill={POS_COLORS[d.group]} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint breakdown (three splits side by side)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SprintBreakdown({ tests }: { tests: AthleticTest[] }) {
+  const [sortBy, setSortBy] = useState<MetricKey>("split010");
+
+  const data = useMemo(() =>
+    tests
+      .filter(t => t.split010 != null && t.split1020 != null && t.split2030 != null)
+      .sort((a, b) => (a[sortBy] ?? 99) - (b[sortBy] ?? 99))
+      .map(t => ({ name: t.playerName, s1: t.split010, s2: t.split1020, s3: t.split2030 })),
+    [tests, sortBy]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Sprint splits — who's quick off the mark vs quick at full speed</CardTitle>
+          <CardDescription>Each player's 0-10, 10-20 and 20-30 metre times. Sorted fastest-first on the highlighted split.</CardDescription>
+        </div>
+        <Select value={sortBy} onValueChange={v => setSortBy(v as MetricKey)}>
+          <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="split010">Sort by 0-10m</SelectItem>
+            <SelectItem value="split1020">Sort by 10-20m</SelectItem>
+            <SelectItem value="split2030">Sort by 20-30m</SelectItem>
+            <SelectItem value="total30m">Sort by total 30m</SelectItem>
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="h-[420px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 40 }} barGap={1} barCategoryGap="20%">
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+            <YAxis {...AXIS} fontSize={11} domain={[(dataMin: number) => Math.floor(dataMin * 10) / 10, "auto"]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => v.toFixed(2)} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="s1" name="0-10m" fill="hsl(var(--chart-1))" opacity={sortBy === "split010" || sortBy === "total30m" ? 1 : 0.45} />
+            <Bar dataKey="s2" name="10-20m" fill="hsl(var(--chart-2))" opacity={sortBy === "split1020" || sortBy === "total30m" ? 1 : 0.45} />
+            <Bar dataKey="s3" name="20-30m" fill="hsl(var(--chart-5))" opacity={sortBy === "split2030" || sortBy === "total30m" ? 1 : 0.45} />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Speed type scatter — explosive starters vs long-run speedsters
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SpeedTypeScatter({ tests }: { tests: AthleticTest[] }) {
+  const data = useMemo(() =>
+    tests
+      .filter(t => t.split010 != null && t.split2030 != null)
+      .map(t => ({ name: t.playerName, x: t.split010!, y: t.split2030!, posGroup: getPosGroup(t.position) })),
+    [tests]);
+
+  const avgX = avg(data.map(d => d.x));
+  const avgY = avg(data.map(d => d.y));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Speed types — first step vs top gear</CardTitle>
+        <CardDescription>
+          Left of the line = explosive first 10m (trust her in stop-start 1v1s). Below the line = flying 20-30m
+          (can knock the ball past and just run). Bottom-left corner is both.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="h-[380px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 15, right: 25, left: 0, bottom: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis type="number" dataKey="x" name="0-10m (s)" {...AXIS} fontSize={11} domain={["auto", "auto"]}
+              label={{ value: "0-10m split (s) — faster ←", position: "insideBottom", offset: -5, fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis type="number" dataKey="y" name="20-30m (s)" {...AXIS} fontSize={11} domain={["auto", "auto"]}
+              label={{ value: "20-30m split (s) — faster ↓", angle: -90, position: "insideLeft", fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <ZAxis range={[70, 70]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }}
+              formatter={(v: number) => v.toFixed(2)}
+              labelFormatter={() => ""}
+              content={({ payload }) => {
+                const p = payload?.[0]?.payload as { name: string; x: number; y: number } | undefined;
+                if (!p) return null;
+                return (
+                  <div style={TOOLTIP_STYLE as React.CSSProperties} className="border px-3 py-2">
+                    <p className="font-medium">{p.name}</p>
+                    <p>0-10m: {p.x.toFixed(2)}s · 20-30m: {p.y.toFixed(2)}s</p>
+                  </div>
+                );
+              }} />
+            <ReferenceLine x={avgX} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+            <ReferenceLine y={avgY} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+            <Scatter data={data}>
+              {data.map((d, i) => <Cell key={i} fill={POS_COLORS[d.posGroup] ?? "hsl(var(--primary))"} />)}
+              <LabelList dataKey="name" position="top" style={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Player profile — radar + on-pitch notes
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildGameNotes(t: AthleticTest, squad: AthleticTest[]): { strengths: string[]; cautions: string[] } {
+  const p = (m: MetricKey): number | null => {
+    const v = t[m];
+    if (v == null) return null;
+    const vals = squad.map(s => s[m]).filter((x): x is number => x != null);
+    return pct(vals, v, metricDef(m).lowerIsBetter);
+  };
+
+  const strengths: string[] = [];
+  const cautions: string[] = [];
+  const HIGH = 67, LOW = 33;
+
+  const s010 = p("split010");
+  if (s010 != null && s010 >= HIGH) strengths.push("Explosive first 10m — in a 1v1 she can let it come to a stop and trust her first step: react late when defending, or stop the defender dead and accelerate away when dribbling.");
+  if (s010 != null && s010 <= LOW) cautions.push("Slower first 10m — don't let 1v1s come to a standstill. Stay touch-tight when defending and keep the ball moving when attacking, rather than trusting a standing start.");
+
+  const s2030 = p("split2030");
+  if (s2030 != null && s2030 >= HIGH) strengths.push("Flying 20-30m — she can push the ball well past an opponent and simply outrun them. No need to beat anyone with skill.");
+  if (s2030 != null && s2030 <= LOW) cautions.push("Top speed builds slowly — avoid long straight foot-races; win the duel early with body position and anticipation instead.");
+
+  const vert = Math.max(p("verticalM") ?? -1, p("verticalStart") ?? -1);
+  if (vert >= HIGH) strengths.push("Big vertical jump — use her in the key areas at set pieces, attacking and defending.");
+  if (vert !== -1 && vert <= LOW) cautions.push("Smaller aerial presence — at set pieces give her a ground job: edge of the box, short option, or marking a smaller opponent.");
+
+  const bals = p("balsomS");
+  if (bals != null && bals >= HIGH) strengths.push("Sharp change of direction — thrives in tight areas and twisting 1v1s where the game keeps turning.");
+  if (bals != null && bals <= LOW) cautions.push("Turning isn't her weapon — when defending, show the attacker into a footrace she can win rather than a twisting duel.");
+
+  const t30 = p("total30m");
+  if (t30 != null && t30 >= HIGH) strengths.push("One of the quickest over 30m — trust her with recovery runs and defending space in behind.");
+
+  const horiz = p("horizontalM");
+  if (horiz != null && horiz >= HIGH) strengths.push("Strong horizontal power — hard to knock off the ball and quick off the mark in duels.");
+
+  return { strengths, cautions };
+}
+
+function PlayerProfile({ tests, year }: { tests: AthleticTest[]; year: string }) {
+  const names = useMemo(() => tests.map(t => t.playerName).sort(), [tests]);
+  const [player, setPlayer] = useState<string>("");
+  useEffect(() => {
+    if (names.length && (!player || !names.includes(player))) setPlayer(names[0]);
+  }, [names, player]);
+
+  const t = tests.find(x => x.playerName === player);
+
+  const radarData = useMemo(() => {
+    if (!t) return [];
+    return METRICS.filter(m => m.id !== "verticalTotal").map(m => {
+      const v = t[m.id];
+      const vals = tests.map(s => s[m.id]).filter((x): x is number => x != null);
+      return {
+        metric: m.short,
+        percentile: v == null ? 0 : pct(vals, v, m.lowerIsBetter),
+        squad: 50,
+        raw: v,
+        decimals: m.decimals,
+      };
+    });
+  }, [t, tests]);
+
+  const notes = useMemo(() => (t ? buildGameNotes(t, tests) : { strengths: [], cautions: [] }), [t, tests]);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle>Testing profile — {player || "…"}</CardTitle>
+            <CardDescription>Each spoke is her standing in the {year} squad (100 = best). Dashed ring = squad middle.</CardDescription>
+          </div>
+          <Select value={player} onValueChange={setPlayer}>
+            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Player" /></SelectTrigger>
+            <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+          </Select>
         </CardHeader>
-        <CardContent className="h-[500px]">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={10} 
-                  interval={0}
-                  angle={-45}
-                  textAnchor="end"
-                  tickMargin={10}
-                />
-                <YAxis 
-                  domain={['auto', 'auto']} 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={12} 
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                  labelFormatter={(v, payload) => payload?.[0]?.payload?.fullName || v}
-                  formatter={(val: number) => [val.toFixed(2), "Result"]}
-                />
-                <ReferenceLine y={avgValue} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={POS_COLORS[entry.posGroup] || "hsl(var(--primary))"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              No testing data for this period
-            </div>
-          )}
+        <CardContent className="h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={radarData} outerRadius="72%">
+              <PolarGrid stroke="hsl(var(--border))" />
+              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <PolarRadiusAxis domain={[0, 100]} tickCount={5} angle={90}
+                tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground) / 0.6)" }} />
+              <Radar name="Squad middle" dataKey="squad" stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" fill="none" />
+              <Radar name={player} dataKey="percentile" stroke={GREEN} fill={GREEN} fillOpacity={0.25} />
+              <Tooltip contentStyle={TOOLTIP_STYLE}
+                formatter={(v: number, name, item) => {
+                  if (name !== player) return [null as unknown as string, null as unknown as string];
+                  const pl = item?.payload as { raw: number | null; decimals: number } | undefined;
+                  const rawTxt = pl?.raw == null ? "no result" : pl.raw.toFixed(pl.decimals);
+                  return [`better than ${v}% of the squad (${rawTxt})`, name];
+                }} />
+            </RadarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
-      
-      <div className="flex gap-4 items-center justify-center text-sm text-muted-foreground flex-wrap">
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-chart-1"></div>GK</div>
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-chart-2"></div>Defender</div>
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-chart-3"></div>Midfielder</div>
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-chart-5"></div>Forward</div>
-        <div className="flex items-center gap-1 ml-4 border-l border-border pl-4">
-          <div className="w-4 border-t border-dashed border-muted-foreground"></div>Squad Average
-        </div>
-      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>What this means on the pitch</CardTitle>
+          <CardDescription>Coaching notes generated from where she sits in the squad — top third earns a strength, bottom third a caution.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {notes.strengths.length === 0 && notes.cautions.length === 0 && (
+            <p className="text-sm text-muted-foreground">She sits mid-pack across the board — no standout flags either way. A balanced athletic profile.</p>
+          )}
+          {notes.strengths.map((n, i) => (
+            <div key={`s${i}`} className="flex gap-2.5 text-sm">
+              <Zap className="h-4 w-4 shrink-0 mt-0.5" style={{ color: GREEN }} />
+              <p>{n}</p>
+            </div>
+          ))}
+          {notes.cautions.map((n, i) => (
+            <div key={`c${i}`} className="flex gap-2.5 text-sm">
+              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" style={{ color: AMBER }} />
+              <p className="text-muted-foreground">{n}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Year on year improvement
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Improvement({ allTests, years }: { allTests: AthleticTest[]; years: string[] }) {
+  const [metric, setMetric] = useState<MetricKey>("total30m");
+  const def = metricDef(metric);
+  const prevYear = years.length >= 2 ? years[years.length - 2] : null;
+  const currYear = years.length >= 1 ? years[years.length - 1] : null;
+
+  const data = useMemo(() => {
+    if (!prevYear || !currYear) return [];
+    const prev = new Map(allTests.filter(t => t.year === prevYear && t[metric] != null).map(t => [t.playerName, t[metric] as number]));
+    return allTests
+      .filter(t => t.year === currYear && t[metric] != null && prev.has(t.playerName))
+      .map(t => {
+        const before = prev.get(t.playerName)!;
+        const after = t[metric] as number;
+        // Positive delta always means "got better"
+        const delta = def.lowerIsBetter ? before - after : after - before;
+        return { name: t.playerName, before, after, delta: Number(delta.toFixed(def.decimals + 1)) };
+      })
+      .sort((a, b) => b.delta - a.delta);
+  }, [allTests, metric, prevYear, currYear, def]);
+
+  if (!prevYear) {
+    return <Card><CardContent className="py-16 text-center text-muted-foreground">
+      Year-on-year comparison unlocks once there are two years of testing in the system.
+    </CardContent></Card>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Improvement {prevYear} → {currYear} — {def.label}</CardTitle>
+          <CardDescription>
+            Green got better, amber went backwards — direction already accounts for whether lower or higher is better.
+            Only players tested in both years appear.
+          </CardDescription>
+        </div>
+        <MetricSelect value={metric} onChange={setMetric} />
+      </CardHeader>
+      <CardContent className="h-[420px]">
+        {data.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-muted-foreground">No players with this test in both years</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+              <YAxis {...AXIS} fontSize={11} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                formatter={(v: number, _n, item) => {
+                  const pl = item?.payload as { before: number; after: number } | undefined;
+                  return [`${v > 0 ? "improved" : v < 0 ? "declined" : "no change"} · ${prevYear}: ${pl?.before.toFixed(def.decimals)} → ${currYear}: ${pl?.after.toFixed(def.decimals)}`, "Change"];
+                }} />
+              <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
+              <Bar dataKey="delta" radius={[4, 4, 0, 0]}>
+                {data.map((d, i) => <Cell key={i} fill={d.delta >= 0 ? GREEN : AMBER} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Leaderboard table
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Leaderboard({ tests }: { tests: AthleticTest[] }) {
+  const [sortKey, setSortKey] = useState<MetricKey | "playerName">("total30m");
+
+  const best = useMemo(() => {
+    const b = new Map<MetricKey, number>();
+    for (const m of METRICS) {
+      const vals = tests.map(t => t[m.id]).filter((v): v is number => v != null);
+      if (vals.length) b.set(m.id, m.lowerIsBetter ? Math.min(...vals) : Math.max(...vals));
+    }
+    return b;
+  }, [tests]);
+
+  const rows = useMemo(() => {
+    const sorted = [...tests];
+    if (sortKey === "playerName") sorted.sort((a, b) => a.playerName.localeCompare(b.playerName));
+    else {
+      const def = metricDef(sortKey);
+      sorted.sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return def.lowerIsBetter ? av - bv : bv - av;
+      });
+    }
+    return sorted;
+  }, [tests, sortKey]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Leaderboard — every test, every player</CardTitle>
+        <CardDescription>Click a column to rank by it (best at the top). The squad's best result in each test is highlighted.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b bg-muted/50 text-muted-foreground">
+                <th className="px-2 py-2 text-left font-medium sticky left-0 bg-muted/50 cursor-pointer hover:text-foreground" onClick={() => setSortKey("playerName")}>
+                  Player{sortKey === "playerName" && " ▾"}
+                </th>
+                <th className="px-2 py-2 text-left font-medium">Pos</th>
+                {METRICS.map(m => (
+                  <th key={m.id} className="px-2 py-2 text-right font-medium cursor-pointer hover:text-foreground whitespace-nowrap" onClick={() => setSortKey(m.id)}>
+                    {m.short}{sortKey === m.id && " ▾"}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((t, i) => (
+                <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-2 py-1.5 font-medium whitespace-nowrap sticky left-0 bg-card">
+                    <span className="text-muted-foreground tabular-nums mr-2">{i + 1}</span>{t.playerName}
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{getPosGroup(t.position)}</td>
+                  {METRICS.map(m => {
+                    const v = t[m.id];
+                    const isBest = v != null && v === best.get(m.id);
+                    return (
+                      <td key={m.id} className={`px-2 py-1.5 text-right tabular-nums ${isBest ? "font-bold" : ""}`}
+                        style={isBest ? { color: GREEN } : undefined}>
+                        {v == null ? "—" : v.toFixed(m.decimals)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feedback mode — anonymous bars, pick a player to light hers up
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FeedbackMode({ tests }: { tests: AthleticTest[] }) {
+  const [metric, setMetric] = useState<MetricKey>("total30m");
+  const [player, setPlayer] = useState<string>("");
+  const def = metricDef(metric);
+  const names = useMemo(() => tests.map(t => t.playerName).sort(), [tests]);
+
+  const data = useMemo(() =>
+    tests
+      .filter(t => t[metric] != null)
+      .sort((a, b) => def.lowerIsBetter ? (a[metric]! - b[metric]!) : (b[metric]! - a[metric]!))
+      .map(t => ({ name: t.playerName, value: t[metric] as number })),
+    [tests, metric, def.lowerIsBetter]);
+
+  const mean = avg(data.map(d => d.value));
+  const selected = data.find(d => d.name === player);
+  const rank = selected ? data.indexOf(selected) + 1 : null;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Individual feedback — {def.label}</CardTitle>
+          <CardDescription>
+            Made for showing a player where she sits: no names anywhere, just grey bars — pick her and her bar turns green.
+          </CardDescription>
+        </div>
+        <div className="flex gap-2">
+          <MetricSelect value={metric} onChange={setMetric} />
+          <Select value={player} onValueChange={setPlayer}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Pick a player…" /></SelectTrigger>
+            <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="h-[420px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 25, right: 10, left: -15, bottom: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" tick={false} axisLine={{ stroke: "hsl(var(--border))" }}
+              label={{ value: def.lowerIsBetter ? "← fastest                                   slowest →" : "← best                                   →", fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis {...AXIS} fontSize={11} domain={["auto", "auto"]} />
+            <ReferenceLine y={mean} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3"
+              label={{ value: "squad average", position: "insideTopRight", fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+            <Bar dataKey="value" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+              {data.map((d, i) => <Cell key={i} fill={d.name === player ? GREEN : GREY} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+      {selected && rank && (
+        <div className="flex items-center justify-center gap-2 pb-4 text-sm text-muted-foreground">
+          <Badge variant="secondary" style={{ color: GREEN }}>her result: {selected.value.toFixed(def.decimals)}</Badge>
+          <span>· {rank} of {data.length} in the squad · squad average {mean.toFixed(def.decimals)}</span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared metric select
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MetricSelect({ value, onChange }: { value: MetricKey; onChange: (m: MetricKey) => void }) {
+  return (
+    <Select value={value} onValueChange={v => onChange(v as MetricKey)}>
+      <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
   );
 }

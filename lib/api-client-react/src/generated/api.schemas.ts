@@ -1309,6 +1309,41 @@ export interface EntryPlayerStatsClearResponse {
   belconnenRemoved: number;
 }
 
+export interface EntryAthleticTestRow {
+  playerName: string;
+  /** @nullable */
+  position?: string | null;
+  /** @nullable */
+  verticalStart?: number | null;
+  /** @nullable */
+  verticalM?: number | null;
+  /** @nullable */
+  verticalTotal?: number | null;
+  /** @nullable */
+  horizontalM?: number | null;
+  /** @nullable */
+  balsomS?: number | null;
+  /** @nullable */
+  split010?: number | null;
+  /** @nullable */
+  split1020?: number | null;
+  /** @nullable */
+  split2030?: number | null;
+  /** @nullable */
+  total30m?: number | null;
+}
+
+export interface EntryAthleticTestsSaveRequest {
+  year: string;
+  teamId: number;
+  rows: EntryAthleticTestRow[];
+}
+
+export interface EntryAthleticTestsSaveResponse {
+  saved: number;
+  replaced: number;
+}
+
 export interface ExtractPlayersBody {
   /** @minLength 1 */
   imageBase64: string;

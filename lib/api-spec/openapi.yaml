@@ -1393,6 +1393,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ExtractPlayersResponse" }
 
+  /entry/athletic-tests:
+    post:
+      operationId: saveEntryAthleticTests
+      tags: [entry]
+      summary: Replace a year's athletic testing results with rows read from the trainer's spreadsheet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryAthleticTestsSaveRequest" }
+      responses:
+        "200":
+          description: Year's testing results replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryAthleticTestsSaveResponse" }
+
 
 components:
   schemas:
@@ -2589,6 +2606,39 @@ components:
         removed:          { type: integer }
         belconnenRemoved: { type: integer }
       required: [removed, belconnenRemoved]
+
+    EntryAthleticTestRow:
+      type: object
+      properties:
+        playerName:    { type: string }
+        position:      { type: ["string", "null"] }
+        verticalStart: { type: ["number", "null"] }
+        verticalM:     { type: ["number", "null"] }
+        verticalTotal: { type: ["number", "null"] }
+        horizontalM:   { type: ["number", "null"] }
+        balsomS:       { type: ["number", "null"] }
+        split010:      { type: ["number", "null"] }
+        split1020:     { type: ["number", "null"] }
+        split2030:     { type: ["number", "null"] }
+        total30m:      { type: ["number", "null"] }
+      required: [playerName]
+
+    EntryAthleticTestsSaveRequest:
+      type: object
+      properties:
+        year:   { type: string }
+        teamId: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EntryAthleticTestRow" }
+      required: [year, teamId, rows]
+
+    EntryAthleticTestsSaveResponse:
+      type: object
+      properties:
+        saved:    { type: integer }
+        replaced: { type: integer }
+      required: [saved, replaced]
 
     ExtractPlayersBody:
       type: object

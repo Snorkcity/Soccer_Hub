@@ -26,6 +26,7 @@ import {
   useDeleteEntryPlayerStat,
   useDeleteEntryPlayerStats,
   useExtractPlayersFromImage,
+  useSaveEntryAthleticTests,
   useListLeagues,
   useCreateLeague,
   useCreateSeason,
@@ -1017,6 +1018,238 @@ function LeagueSetupCard() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Athletic testing upload (trainer's spreadsheet)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface TestingRow {
+  playerName: string;
+  position: string | null;
+  verticalStart: number | null;
+  verticalM: number | null;
+  verticalTotal: number | null;
+  horizontalM: number | null;
+  balsomS: number | null;
+  split010: number | null;
+  split1020: number | null;
+  split2030: number | null;
+  total30m: number | null;
+}
+
+const TESTING_METRIC_KEYS = [
+  "verticalStart", "verticalM", "verticalTotal", "horizontalM", "balsomS",
+  "split010", "split1020", "split2030", "total30m",
+] as const;
+
+/** Normalise a spreadsheet header for tolerant matching: lowercase, letters+digits only. */
+function normHeader(h: string): string {
+  return h.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Header → schema field, keyed by normalised header. Covers the trainer's
+// current layout ("Vertical start", "Balsom (s)", "0-10 split", …) plus
+// reasonable spelling variations.
+const TESTING_HEADER_MAP: Record<string, keyof TestingRow> = {
+  player: "playerName", playername: "playerName", name: "playerName",
+  position: "position", pos: "position",
+  verticalstart: "verticalStart",
+  verticalm: "verticalM", vertical: "verticalM", verticalcm: "verticalM",
+  verticaltotal: "verticalTotal",
+  horizontalm: "horizontalM", horizontal: "horizontalM",
+  balsoms: "balsomS", balsom: "balsomS", balsomagility: "balsomS", balsomagilitys: "balsomS",
+  "010split": "split010", split010: "split010", "010": "split010", "010m": "split010", "010msplit": "split010",
+  "1020split": "split1020", split1020: "split1020", "1020": "split1020", "1020m": "split1020", "1020msplit": "split1020",
+  "2030split": "split2030", split2030: "split2030", "2030": "split2030", "2030m": "split2030", "2030msplit": "split2030",
+  total30m: "total30m", total30: "total30m", "30mtotal": "total30m", total30ms: "total30m",
+};
+
+function toNum(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function TestingUploadForm({ teamId }: { teamId: number }) {
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [rows, setRows] = useState<TestingRow[]>([]);
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const [unmatchedHeaders, setUnmatchedHeaders] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const save = useSaveEntryAthleticTests({ mutation: {
+    onSuccess: (res) => {
+      setOk(res.replaced > 0
+        ? `Saved ${res.saved} players for ${year} (replaced the ${res.replaced} previously saved)`
+        : `Saved ${res.saved} players for ${year}`);
+      setRows([]); setSkipped([]); setUnmatchedHeaders([]); setFileName(null);
+      if (fileRef.current) fileRef.current.value = "";
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  async function handleFile(file: File) {
+    setParsing(true); setOk(null); setErr(null);
+    setRows([]); setSkipped([]); setUnmatchedHeaders([]); setFileName(file.name);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      if (!sheet) throw new Error("The file has no sheets in it");
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+      if (raw.length === 0) throw new Error("No rows found — is the first sheet the results table?");
+
+      const headers = Object.keys(raw[0]);
+      const mapping = new Map<string, keyof TestingRow>();
+      const unknown: string[] = [];
+      for (const h of headers) {
+        const field = TESTING_HEADER_MAP[normHeader(h)];
+        if (field) mapping.set(h, field);
+        else unknown.push(h);
+      }
+      if (![...mapping.values()].includes("playerName")) {
+        throw new Error(`Couldn't find a "Player" column — headers were: ${headers.join(", ")}`);
+      }
+
+      const parsed: TestingRow[] = [];
+      const skippedNames: string[] = [];
+      for (const r of raw) {
+        const row: TestingRow = {
+          playerName: "", position: null,
+          verticalStart: null, verticalM: null, verticalTotal: null, horizontalM: null,
+          balsomS: null, split010: null, split1020: null, split2030: null, total30m: null,
+        };
+        for (const [header, field] of mapping) {
+          const v = r[header];
+          if (field === "playerName") row.playerName = v == null ? "" : String(v).trim();
+          else if (field === "position") row.position = v == null || String(v).trim() === "" ? null : String(v).trim();
+          else row[field] = toNum(v);
+        }
+        if (!row.playerName) continue;
+        if (/^averages?$/i.test(row.playerName)) { skippedNames.push(row.playerName); continue; }
+        parsed.push(row);
+      }
+      if (parsed.length === 0) throw new Error("No player rows found in the file");
+      setRows(parsed);
+      setSkipped(skippedNames);
+      setUnmatchedHeaders(unknown);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't read that file");
+      setFileName(null);
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const missingCounts = useMemo(() => rows.map(r => TESTING_METRIC_KEYS.filter(k => r[k] == null).length), [rows]);
+  const fmt = (v: number | null) => (v == null ? "—" : String(v));
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload testing results</CardTitle>
+          <CardDescription>
+            Drop in the spreadsheet exactly as the trainer sends it (xlsx or csv). You'll see every row it read
+            before anything is saved. Saving replaces everything already stored for that year, so re-uploading a
+            corrected file just works.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[140px_1fr] items-end">
+            <Field label="Testing year">
+              <Input value={year} onChange={e => setYear(e.target.value)} placeholder="2026" />
+            </Field>
+            <Field label="Trainer's spreadsheet">
+              <Input
+                ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
+                className="cursor-pointer file:mr-3 file:cursor-pointer"
+                onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+              />
+            </Field>
+          </div>
+          {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}
+          <StatusLine ok={ok} err={err} />
+        </CardContent>
+      </Card>
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div className="space-y-1.5">
+              <CardTitle>Check what was read — {rows.length} players</CardTitle>
+              <CardDescription>
+                {fileName}
+                {skipped.length > 0 && ` · skipped the "${skipped.join('", "')}" row`}
+                {unmatchedHeaders.length > 0 && ` · ignored columns: ${unmatchedHeaders.join(", ")}`}
+              </CardDescription>
+            </div>
+            <Button
+              disabled={save.isPending || !/^\d{4}$/.test(year.trim())}
+              onClick={() => { setOk(null); setErr(null); save.mutate({ data: { year: year.trim(), teamId, rows } }); }}
+            >
+              {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+              Save {rows.length} players to {year.trim() || "…"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-muted-foreground">
+                    <th className="px-2 py-1.5 text-left font-medium">Player</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Position</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Vert start</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Vert (m)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Vert total</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Horiz (m)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Balsom (s)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">0-10</th>
+                    <th className="px-2 py-1.5 text-right font-medium">10-20</th>
+                    <th className="px-2 py-1.5 text-right font-medium">20-30</th>
+                    <th className="px-2 py-1.5 text-right font-medium">30m</th>
+                    <th className="px-2 py-1.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.playerName}</td>
+                      <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{r.position ?? "—"}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.verticalStart)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.verticalM)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.verticalTotal)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.horizontalM)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.balsomS)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.split010)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.split1020)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.split2030)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmt(r.total30m)}</td>
+                      <td className="px-2 py-1.5">
+                        {missingCounts[i] > 0 && (
+                          <Badge variant="outline" className="text-[10px] text-chart-4 border-chart-4/40">
+                            {missingCounts[i]} blank
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1081,11 +1314,12 @@ function EntryWorkspace() {
       </div>
 
       <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto md:h-10">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto md:h-10">
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
           <TabsTrigger value="league">4 · League Setup</TabsTrigger>
+          <TabsTrigger value="testing">5 · Testing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="match" className="mt-6">
@@ -1102,6 +1336,9 @@ function EntryWorkspace() {
         </TabsContent>
         <TabsContent value="players" className="mt-6">
           <PlayersForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />
+        </TabsContent>
+        <TabsContent value="testing" className="mt-6">
+          <TestingUploadForm teamId={teamId} />
         </TabsContent>
       </Tabs>
     </div>
