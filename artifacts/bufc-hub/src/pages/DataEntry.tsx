@@ -497,6 +497,8 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
   const save = useSaveEntryPlayerStats({ mutation: {
     onSuccess: (res) => {
       setOk(`Saved ${res.saved} players${res.replaced > 0 ? ` (replaced ${res.replaced} previous rows)` : ""}${res.belconnenCopies > 0 ? ` — mirrored into Belconnen tables` : ""}`);
+      // Reset back to the default look, ready for the next team sheet
+      setRows([]); setWarnings([]); setClub("");
     },
     onError: (e) => setErr(errMsg(e)),
   }});
