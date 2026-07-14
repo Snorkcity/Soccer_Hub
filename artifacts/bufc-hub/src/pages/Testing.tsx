@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart, Bar, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
-  ScatterChart, Scatter, LabelList,
+  ScatterChart, Scatter, LabelList, LineChart, Line,
 } from "recharts";
 import { Zap, ShieldAlert } from "lucide-react";
 
@@ -137,9 +137,10 @@ export default function Testing() {
         </CardContent></Card>
       ) : (
         <Tabs defaultValue="squad" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto md:h-10">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 h-auto md:h-10">
             <TabsTrigger value="squad">Squad</TabsTrigger>
             <TabsTrigger value="sprints">Sprints</TabsTrigger>
+            <TabsTrigger value="h2h">Head to Head</TabsTrigger>
             <TabsTrigger value="profile">Player Profile</TabsTrigger>
             <TabsTrigger value="improvement">Year on Year</TabsTrigger>
             <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
@@ -153,6 +154,9 @@ export default function Testing() {
           <TabsContent value="sprints" className="mt-6 space-y-6">
             <SprintBreakdown tests={tests} />
             <SpeedTypeScatter tests={tests} />
+          </TabsContent>
+          <TabsContent value="h2h" className="mt-6">
+            <HeadToHead allTests={(allTests ?? []).filter(isRealPlayer)} years={years} defaultYear={year} />
           </TabsContent>
           <TabsContent value="profile" className="mt-6">
             <PlayerProfile tests={tests} year={year} />
@@ -508,6 +512,194 @@ function PlayerProfile({ tests, year }: { tests: AthleticTest[]; year: string })
               <p className="text-muted-foreground">{n}</p>
             </div>
           ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Head to head — two players (or one player vs her past self)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const H2H_COLOR_1 = "hsl(var(--chart-1))";
+const H2H_COLOR_2 = "hsl(var(--chart-5))";
+
+function HeadToHead({ allTests, years, defaultYear }: { allTests: AthleticTest[]; years: string[]; defaultYear: string }) {
+  const [year1, setYear1] = useState(defaultYear);
+  const [year2, setYear2] = useState(defaultYear);
+  const [player1, setPlayer1] = useState("");
+  const [player2, setPlayer2] = useState("");
+
+  const namesFor = (y: string) => [...new Set(allTests.filter(t => t.year === y).map(t => t.playerName))].sort();
+  const names1 = useMemo(() => namesFor(year1), [allTests, year1]); // eslint-disable-line react-hooks/exhaustive-deps
+  const names2 = useMemo(() => namesFor(year2), [allTests, year2]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!names1.length) { if (player1) setPlayer1(""); }
+    else if (!player1 || !names1.includes(player1)) setPlayer1(names1[0]);
+  }, [names1, player1]);
+  useEffect(() => {
+    if (!names2.length) { if (player2) setPlayer2(""); }
+    else if (!player2 || !names2.includes(player2)) setPlayer2(names2[Math.min(1, names2.length - 1)]);
+  }, [names2, player2]);
+
+  const t1 = allTests.find(t => t.year === year1 && t.playerName === player1);
+  const t2 = allTests.find(t => t.year === year2 && t.playerName === player2);
+  const label1 = `${player1} (${year1})`;
+  const label2 = `${player2} (${year2})`;
+  const samePick = t1 && t2 && t1.id === t2.id;
+
+  const raceData = useMemo(() => {
+    const cumul = (t: AthleticTest | undefined): (number | null)[] => {
+      if (!t || t.split010 == null || t.split1020 == null || t.split2030 == null) return [null, null, null, null];
+      const a = t.split010, b = a + t.split1020, c = b + t.split2030;
+      return [0, a, b, c].map(v => Number(v.toFixed(2)));
+    };
+    const c1 = cumul(t1), c2 = cumul(t2);
+    return [0, 10, 20, 30].map((d, i) => ({ distance: d, p1: c1[i], p2: c2[i] }));
+  }, [t1, t2]);
+
+  const hasRace = raceData.some(d => d.p1 != null) && raceData.some(d => d.p2 != null);
+  const finish = raceData[3];
+  const raceVerdict = useMemo(() => {
+    if (!hasRace || finish.p1 == null || finish.p2 == null || samePick) return null;
+    const gap = Math.abs(finish.p1 - finish.p2);
+    if (gap < 0.005) return "Dead heat over 30m.";
+    const winner = finish.p1 < finish.p2 ? label1 : label2;
+    const metres = ((gap / Math.max(finish.p1, finish.p2)) * 30);
+    return `${winner} wins the 30m race by ${gap.toFixed(2)}s — roughly ${metres.toFixed(1)} metres at the line.`;
+  }, [hasRace, finish, label1, label2, samePick]);
+
+  const compareRows = useMemo(() =>
+    METRICS.map(m => {
+      const v1 = t1?.[m.id] ?? null;
+      const v2 = t2?.[m.id] ?? null;
+      let winner: 0 | 1 | 2 = 0;
+      if (v1 != null && v2 != null && v1 !== v2 && !samePick) {
+        winner = (m.lowerIsBetter ? v1 < v2 : v1 > v2) ? 1 : 2;
+      }
+      return { def: m, v1, v2, winner };
+    }),
+    [t1, t2, samePick]);
+
+  const wins1 = compareRows.filter(r => r.winner === 1).length;
+  const wins2 = compareRows.filter(r => r.winner === 2).length;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="space-y-4">
+          <div className="space-y-1.5">
+            <CardTitle>30m sprint — head to head</CardTitle>
+            <CardDescription>
+              Cumulative time at each 10m mark, built from the splits. Pick the same player in both slots with
+              different years to race her against her past self.
+            </CardDescription>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: H2H_COLOR_1 }}>Player 1</p>
+              <Select value={player1} onValueChange={setPlayer1}>
+                <SelectTrigger><SelectValue placeholder="Player 1" /></SelectTrigger>
+                <SelectContent>{names1.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Year</p>
+              <Select value={year1} onValueChange={setYear1}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: H2H_COLOR_2 }}>Player 2</p>
+              <Select value={player2} onValueChange={setPlayer2}>
+                <SelectTrigger><SelectValue placeholder="Player 2" /></SelectTrigger>
+                <SelectContent>{names2.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Year</p>
+              <Select value={year2} onValueChange={setYear2}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="h-[380px]">
+          {!hasRace ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+              One of these two doesn't have full sprint splits for the chosen year.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={raceData} margin={{ top: 20, right: 30, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="distance" type="number" domain={[0, 30]} ticks={[0, 10, 20, 30]} {...AXIS} fontSize={11}
+                  label={{ value: "Distance (m)", position: "insideBottom", offset: -2, fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis {...AXIS} fontSize={11}
+                  label={{ value: "Cumulative time (s)", angle: -90, position: "insideLeft", offset: 20, fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <Tooltip contentStyle={TOOLTIP_STYLE}
+                  formatter={(v: number) => `${v.toFixed(2)}s`}
+                  labelFormatter={(d) => `${d}m mark`} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Line dataKey="p1" name={label1} stroke={H2H_COLOR_1} strokeWidth={2.5} dot={{ r: 4, fill: H2H_COLOR_1 }}>
+                  <LabelList dataKey="p1" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: H2H_COLOR_1 }} />
+                </Line>
+                <Line dataKey="p2" name={label2} stroke={H2H_COLOR_2} strokeWidth={2.5} dot={{ r: 4, fill: H2H_COLOR_2 }}>
+                  <LabelList dataKey="p2" position="bottom" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: H2H_COLOR_2 }} />
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+        {raceVerdict && (
+          <p className="text-center text-sm text-muted-foreground pb-4">{raceVerdict}</p>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Every test, side by side</CardTitle>
+          <CardDescription>
+            {samePick
+              ? "Pick two different players (or two different years) to compare."
+              : `The better result in each test is highlighted — ${label1} leads ${wins1}, ${label2} leads ${wins2}.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-muted-foreground text-xs">
+                  <th className="px-3 py-2 text-left font-medium">Test</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: H2H_COLOR_1 }}>{label1}</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: H2H_COLOR_2 }}>{label2}</th>
+                  <th className="px-3 py-2 text-right font-medium">Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareRows.map(({ def, v1, v2, winner }) => (
+                  <tr key={def.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-3 py-2 whitespace-nowrap">{def.label}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${winner === 1 ? "font-bold" : ""}`}
+                      style={winner === 1 ? { color: GREEN } : undefined}>
+                      {v1 == null ? "—" : v1.toFixed(def.decimals)}
+                    </td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${winner === 2 ? "font-bold" : ""}`}
+                      style={winner === 2 ? { color: GREEN } : undefined}>
+                      {v2 == null ? "—" : v2.toFixed(def.decimals)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      {v1 == null || v2 == null ? "—" : Math.abs(v1 - v2).toFixed(def.decimals)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>
