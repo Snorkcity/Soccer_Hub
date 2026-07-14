@@ -256,18 +256,20 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
 function GoalSpotPicker({ goalX, goalY, onPick }: {
   goalX: number | null; goalY: number | null; onPick: (x: number, y: number) => void;
 }) {
-  const DEPTH = 30; // yards shown
-  const W = 300, H = 240;
-  const sx = (x: number) => (x / 100) * W;
-  const sy = (y: number) => (y / DEPTH) * H;
+  const DEPTH = 35;        // yards of pitch shown from the goal line
+  const YARDS_ACROSS = 70; // standard pitch width — keeps the boxes true to life
+  const W = 320, H = (DEPTH / YARDS_ACROSS) * W;
+  const sx = (x: number) => (x / 100) * W;                  // 0–100 across → px
+  const sy = (y: number) => (y / DEPTH) * H;                // yards out → px
+  const yd = (yards: number) => (yards / YARDS_ACROSS) * W; // real yards → px
 
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">
-        Where from? Click the pitch (goal at the top){goalX != null && goalY != null ? ` — across ${goalX}, ${goalY} yds out` : ""}
+        Where from? Click the pitch (goal at the top){goalX != null && goalY != null ? ` — across ${goalX}, ${goalY} out` : ""}
       </Label>
       <svg
-        viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[340px] rounded-md border bg-chart-3/5 cursor-crosshair select-none"
+        viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[380px] rounded-md border bg-chart-3/5 cursor-crosshair select-none"
         onClick={(e) => {
           const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
           const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -275,20 +277,24 @@ function GoalSpotPicker({ goalX, goalY, onPick }: {
           onPick(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
         }}
       >
-        {/* goal line + goal mouth */}
+        {/* goal line + goal mouth (posts at 45/55 — matches the goal-map data) */}
         <line x1={0} y1={1} x2={W} y2={1} stroke="currentColor" strokeOpacity={0.5} strokeWidth={2} />
-        <rect x={sx(45)} y={0} width={sx(10)} height={5} fill="currentColor" fillOpacity={0.65} />
-        {/* 6-yard box (goal area: 20yd wide → 40..60) */}
-        <rect x={sx(40)} y={0} width={sx(20)} height={sy(6)} fill="none" stroke="currentColor" strokeOpacity={0.35} />
-        {/* 18-yard box (44yd wide → 28..72) */}
-        <rect x={sx(28)} y={0} width={sx(44)} height={sy(18)} fill="none" stroke="currentColor" strokeOpacity={0.35} />
-        {/* penalty spot */}
-        <circle cx={sx(50)} cy={sy(12)} r={2.5} fill="currentColor" fillOpacity={0.45} />
-        {/* depth guides */}
-        {[10, 20].map(y => (
+        <rect x={sx(45)} y={0} width={sx(10)} height={4} fill="currentColor" fillOpacity={0.65} />
+        {/* 6-yard box: 20yd wide, 6yd deep */}
+        <rect x={W / 2 - yd(10)} y={0} width={yd(20)} height={sy(6)} fill="none" stroke="currentColor" strokeOpacity={0.35} />
+        {/* 18-yard box: 44yd wide, 18yd deep */}
+        <rect x={W / 2 - yd(22)} y={0} width={yd(44)} height={sy(18)} fill="none" stroke="currentColor" strokeOpacity={0.35} />
+        {/* penalty spot (12yd) + arc (10yd radius from the spot) */}
+        <circle cx={W / 2} cy={sy(12)} r={2} fill="currentColor" fillOpacity={0.45} />
+        <path
+          d={`M ${W / 2 - yd(8)} ${sy(18)} A ${yd(10)} ${yd(10)} 0 0 0 ${W / 2 + yd(8)} ${sy(18)}`}
+          fill="none" stroke="currentColor" strokeOpacity={0.35}
+        />
+        {/* depth guides — plain numbers (yards out from the goal line) */}
+        {[10, 20, 30].map(y => (
           <g key={y}>
             <line x1={0} y1={sy(y)} x2={W} y2={sy(y)} stroke="currentColor" strokeOpacity={0.08} />
-            <text x={4} y={sy(y) - 3} fontSize={8} fill="currentColor" fillOpacity={0.4}>{y} yds</text>
+            <text x={4} y={sy(y) - 3} fontSize={8} fill="currentColor" fillOpacity={0.4}>{y}</text>
           </g>
         ))}
         {goalX != null && goalY != null && (
