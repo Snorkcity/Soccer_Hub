@@ -2874,7 +2874,7 @@ export default function SeasonStats() {
                   valueLabel="Appearances"
                   variant="startsApps"
                   controls={<Last3Toggle active={oppStartsL3} onToggle={() => setOppStartsL3(v => !v)} />}
-                  timeline={{ seasonId: sId, club: selectedClub }}
+                  timeline={{ seasonId: sId, club: selectedClub, accent: clubColorMap[selectedClub] }}
                 />
               )}
 
@@ -3691,11 +3691,18 @@ function PlayerBarTooltip({ active, payload, valueLabel }: {
 // so you read the season right-to-left ("are they playing lately?").
 const TL_STATUS_NUM = { start: 2, bench: 1, out: 0 } as const;
 const TL_STATUS_LABEL: Record<number, string> = { 2: "Started", 1: "Off bench", 0: "Didn't play" };
-const TL_STATUS_COLOR: Record<number, string> = { 2: "#3b82f6", 1: "#93c5fd", 0: "hsl(var(--muted-foreground))" };
+const TL_DEFAULT_ACCENT = "#3b82f6";
+// status → colour, tinted with the club's brand colour when one is supplied
+function tlStatusColor(statusNum: number, accent: string): string {
+  if (statusNum === 2) return accent;              // started: full club colour
+  if (statusNum === 1) return `${accent}80`;       // off bench: club colour at 50% opacity
+  return "hsl(var(--muted-foreground))";           // didn't play
+}
 
-function TimelineTooltip({ active, payload }: {
+function TimelineTooltip({ active, payload, accent = TL_DEFAULT_ACCENT }: {
   active?: boolean;
   payload?: Array<{ payload: { matchId: string; matchDate: string | null; opponent: string | null; statusNum: number; minutes: number } }>;
+  accent?: string;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -3704,14 +3711,14 @@ function TimelineTooltip({ active, payload }: {
       <div className="font-semibold">{d.matchId}</div>
       {d.matchDate && <div className="text-muted-foreground">{d.matchDate}</div>}
       <div className="flex justify-between gap-6"><span className="text-muted-foreground">Opponent</span><span>{d.opponent ?? "—"}</span></div>
-      <div className="flex justify-between gap-6 font-semibold"><span className="text-muted-foreground">Result</span><span style={{ color: TL_STATUS_COLOR[d.statusNum] }}>{TL_STATUS_LABEL[d.statusNum]}</span></div>
+      <div className="flex justify-between gap-6 font-semibold"><span className="text-muted-foreground">Result</span><span style={{ color: tlStatusColor(d.statusNum, accent) }}>{TL_STATUS_LABEL[d.statusNum]}</span></div>
       <div className="flex justify-between gap-6"><span className="text-muted-foreground">Minutes</span><span>{d.minutes}</span></div>
     </div>
   );
 }
 
-function PlayerTimelineChart({ seasonId, club, player, onBack }: {
-  seasonId: number; club: string; player: string; onBack: () => void;
+function PlayerTimelineChart({ seasonId, club, player, onBack, accent = TL_DEFAULT_ACCENT }: {
+  seasonId: number; club: string; player: string; onBack: () => void; accent?: string;
 }) {
   const params = { seasonId, club, player };
   const { data, isLoading } = useGetPlayerTimeline(params, {
@@ -3752,18 +3759,18 @@ function PlayerTimelineChart({ seasonId, club, player, onBack }: {
                 tickFormatter={(v: number) => TL_STATUS_LABEL[v] ?? ""}
                 width={70}
               />
-              <Tooltip content={<TimelineTooltip />} cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }} />
+              <Tooltip content={<TimelineTooltip accent={accent} />} cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }} />
               <Line
                 type="linear"
                 dataKey="statusNum"
-                stroke="#3b82f6"
+                stroke={accent}
                 strokeWidth={2}
                 isAnimationActive={false}
                 dot={(props: { cx?: number; cy?: number; payload?: { statusNum: number; matchId: string } }) => (
                   <circle
                     key={props.payload?.matchId}
                     cx={props.cx} cy={props.cy} r={5}
-                    fill={TL_STATUS_COLOR[props.payload?.statusNum ?? 0]}
+                    fill={tlStatusColor(props.payload?.statusNum ?? 0, accent)}
                     stroke="hsl(var(--background))" strokeWidth={1.5}
                   />
                 )}
@@ -3784,7 +3791,7 @@ function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, a
   title: string; description?: string; tooltip?: string;
   data: PlayerBarDatum[]; color: string; valueLabel: string; allowDecimals?: boolean;
   variant?: "single" | "startsApps"; controls?: React.ReactNode;
-  timeline?: { seasonId: number; club: string };
+  timeline?: { seasonId: number; club: string; accent?: string };
 }) {
   const [tlPlayer, setTlPlayer] = useState<string | null>(null);
   useEffect(() => { setTlPlayer(null); }, [timeline?.club, timeline?.seasonId]);
@@ -3798,7 +3805,7 @@ function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, a
       footer={variant === "startsApps" && !tlPlayer ? <KeyLegend keys={["Starts", "Off bench"]} colorFn={k => (k === "Starts" ? "#3b82f6" : "#93c5fd")} /> : undefined}
     >
       {tlPlayer && timeline ? (
-        <PlayerTimelineChart seasonId={timeline.seasonId} club={timeline.club} player={tlPlayer} onBack={() => setTlPlayer(null)} />
+        <PlayerTimelineChart seasonId={timeline.seasonId} club={timeline.club} player={tlPlayer} onBack={() => setTlPlayer(null)} accent={timeline.accent} />
       ) : data.length === 0 ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No data recorded</div>
       ) : (
