@@ -26,6 +26,8 @@ import {
   GetOpponentGoalBreakdownQueryParams,
   GetOpponentGoalBreakdownResponse,
   GetOpponentProfileQueryParams,
+  GetPlayerTimelineQueryParams,
+  GetPlayerTimelineResponse,
   GetOpponentProfileResponse,
   GetOpponentPlayersByOpponentQueryParams,
   GetOpponentPlayersByOpponentResponse,
@@ -1663,6 +1665,48 @@ function buildOpponentPlayers(lps: LeaguePlayerRow[], goals: LeagueGoalRow[], cl
     .map(([playerName, e]) => ({ playerName, club: e.club, minsPlayed: e.mins, starts: e.starts, appearances: e.apps, goals: e.goals, assists: e.assists }))
     .sort((a, b) => b.minsPlayed - a.minsPlayed);
 }
+
+// One player's game-by-game involvement across their club's whole league season.
+// Every club fixture appears — even ones the player missed — so gaps are visible.
+router.get("/analytics/player-timeline", async (req, res): Promise<void> => {
+  const query = GetPlayerTimelineQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, player } = query.data;
+
+  const fixtures = (await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId)))
+    .filter(m => m.homeTeam === club || m.awayTeam === club)
+    .sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? ""));
+
+  const rows = fixtures.length === 0 ? [] : await db
+    .select({ matchId: leaguePlayerStatsTable.matchId, minsPlayed: leaguePlayerStatsTable.minsPlayed, started: leaguePlayerStatsTable.started, appearance: leaguePlayerStatsTable.appearance })
+    .from(leaguePlayerStatsTable)
+    .where(and(
+      eq(leaguePlayerStatsTable.seasonId, seasonId),
+      eq(leaguePlayerStatsTable.club, club),
+      eq(leaguePlayerStatsTable.playerName, player),
+      inArray(leaguePlayerStatsTable.matchId, fixtures.map(f => f.matchId)),
+    ));
+  const byMatch = new Map(rows.map(r => [r.matchId, r]));
+
+  res.json(GetPlayerTimelineResponse.parse({
+    player,
+    club,
+    matches: fixtures.map(f => {
+      const r = byMatch.get(f.matchId);
+      const status = r?.started ? "start" : r?.appearance ? "bench" : "out";
+      return {
+        matchId: f.matchId,
+        matchDate: f.matchDate ?? null,
+        opponent: f.homeTeam === club ? f.awayTeam : f.homeTeam,
+        status,
+        minutes: r?.minsPlayed ?? 0,
+      };
+    }),
+  }));
+});
 
 router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
   const query = GetOpponentProfileQueryParams.safeParse(req.query);

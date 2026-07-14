@@ -1010,6 +1010,31 @@ export interface OpponentProfilePlayer {
   assists: number;
 }
 
+export type PlayerTimelineMatchStatus = typeof PlayerTimelineMatchStatus[keyof typeof PlayerTimelineMatchStatus];
+
+
+export const PlayerTimelineMatchStatus = {
+  start: 'start',
+  bench: 'bench',
+  out: 'out',
+} as const;
+
+export interface PlayerTimelineMatch {
+  matchId: string;
+  /** @nullable */
+  matchDate: string | null;
+  /** @nullable */
+  opponent: string | null;
+  status: PlayerTimelineMatchStatus;
+  minutes: number;
+}
+
+export interface PlayerTimelineResponse {
+  player: string;
+  club: string;
+  matches: PlayerTimelineMatch[];
+}
+
 export interface OpponentProfileResponse {
   club: string;
   opponents: string[];
@@ -1375,6 +1400,12 @@ export type GetOpponentProfileParams = {
 teamId: number;
 seasonId: number;
 club: string;
+};
+
+export type GetPlayerTimelineParams = {
+seasonId: number;
+club: string;
+player: string;
 };
 
 export type GetOpponentPlayersByOpponentParams = {

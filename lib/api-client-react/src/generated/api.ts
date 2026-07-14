@@ -58,6 +58,7 @@ import type {
   GetPlayerDnaParams,
   GetPlayerLeaderboardParams,
   GetPlayerTallyParams,
+  GetPlayerTimelineParams,
   GetSeasonSummaryParams,
   GetTeamFormParams,
   Goal,
@@ -99,6 +100,7 @@ import type {
   PlayerStat,
   PlayerStatInput,
   PlayerTallyResponse,
+  PlayerTimelineResponse,
   PlayerUpdate,
   Season,
   SeasonInput,
@@ -3028,6 +3030,90 @@ export function useGetOpponentProfile<TData = Awaited<ReturnType<typeof getOppon
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentProfileQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlayerTimelineUrl = (params: GetPlayerTimelineParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/player-timeline?${stringifiedParams}` : `/api/analytics/player-timeline`
+}
+
+/**
+ * @summary One player's match-by-match starts/bench/out record across their club's league season
+ */
+export const getPlayerTimeline = async (params: GetPlayerTimelineParams, options?: RequestInit): Promise<PlayerTimelineResponse> => {
+
+  return customFetch<PlayerTimelineResponse>(getGetPlayerTimelineUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerTimelineQueryKey = (params?: GetPlayerTimelineParams,) => {
+    return [
+    `/api/analytics/player-timeline`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPlayerTimelineQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerTimeline>>, TError = ErrorType<unknown>>(params: GetPlayerTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerTimelineQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerTimeline>>> = ({ signal }) => getPlayerTimeline(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerTimeline>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerTimelineQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerTimeline>>>
+export type GetPlayerTimelineQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary One player's match-by-match starts/bench/out record across their club's league season
+ */
+
+export function useGetPlayerTimeline<TData = Awaited<ReturnType<typeof getPlayerTimeline>>, TError = ErrorType<unknown>>(
+ params: GetPlayerTimelineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerTimeline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerTimelineQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -847,6 +847,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpponentProfileResponse"
 
+  /analytics/player-timeline:
+    get:
+      operationId: getPlayerTimeline
+      tags: [analytics]
+      summary: One player's match-by-match starts/bench/out record across their club's league season
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: player
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Chronological per-match appearance timeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerTimelineResponse"
+
   /analytics/opponent-players-by-opponent:
     get:
       operationId: getOpponentPlayersByOpponent
@@ -2231,6 +2257,27 @@ components:
         goals:       { type: integer }
         assists:     { type: integer }
       required: [playerName, club, minsPlayed, starts, appearances, goals, assists]
+
+    PlayerTimelineMatch:
+      type: object
+      properties:
+        matchId:   { type: string }
+        matchDate: { type: ["string", "null"] }
+        opponent:  { type: ["string", "null"] }
+        status:    { type: string, enum: [start, bench, out] }
+        minutes:   { type: integer }
+      required: [matchId, matchDate, opponent, status, minutes]
+
+    PlayerTimelineResponse:
+      type: object
+      properties:
+        player:  { type: string }
+        club:    { type: string }
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerTimelineMatch"
+      required: [player, club, matches]
 
     OpponentProfileResponse:
       type: object

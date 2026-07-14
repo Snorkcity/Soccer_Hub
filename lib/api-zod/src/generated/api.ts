@@ -1149,6 +1149,28 @@ export const GetOpponentProfileResponse = zod.object({
 
 
 /**
+ * @summary One player's match-by-match starts/bench/out record across their club's league season
+ */
+export const GetPlayerTimelineQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "player": zod.coerce.string()
+})
+
+export const GetPlayerTimelineResponse = zod.object({
+  "player": zod.string(),
+  "club": zod.string(),
+  "matches": zod.array(zod.object({
+  "matchId": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "status": zod.enum(['start', 'bench', 'out']),
+  "minutes": zod.number()
+}))
+})
+
+
+/**
  * @summary Per-player goals/assists/minutes for a club, broken down by the opponent they faced
  */
 export const GetOpponentPlayersByOpponentQueryParams = zod.object({

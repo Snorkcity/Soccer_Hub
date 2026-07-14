@@ -17,6 +17,8 @@ import {
   useGetOpponentPlayerDna,
   useGetOpponentFirstSub,
   useGetPlayerDna,
+  useGetPlayerTimeline,
+  getGetPlayerTimelineQueryKey,
   useGetClubs,
   useListMatches,
   getListMatchesQueryKey,
@@ -48,8 +50,9 @@ import {
   ResponsiveContainer, Cell, ReferenceLine, PieChart, Pie,
   ScatterChart, Scatter, ReferenceArea, LabelList,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  LineChart, Line,
 } from "recharts";
-import { Info } from "lucide-react";
+import { Info, ArrowLeft } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ─── Position helpers ─────────────────────────────────────────────────────────
@@ -1127,6 +1130,7 @@ export default function SeasonStats() {
   const [mpgSort, setMpgSort] = useState<"goals" | "mpg">("goals");
   const [mpgLastN, setMpgLastN] = useState(false);
   const [startsSort, setStartsSort] = useState<"appearances" | "starts">("appearances");
+  const [tlPlayer, setTlPlayer] = useState<string | null>(null); // player-tab timeline drill-down
   const [goalDetailDim, setGoalDetailDim] = useState<GoalDetailDim>("assist");
   const [concededDim, setConcededDim] = useState<GoalDetailDim>("assist");
   const [hiddenTeamClubs, setHiddenTeamClubs] = useState<Set<string>>(new Set());
@@ -1195,6 +1199,8 @@ export default function SeasonStats() {
 
   const tId = selectedTeamId as number;
   const sId = selectedSeasonId as number;
+  // Leave any player timeline drill-down when the team/season context changes
+  useEffect(() => { setTlPlayer(null); }, [tId, sId]);
   const isReady = !!tId && !!sId;
 
   const analyticsParams = { teamId: tId, seasonId: sId };
@@ -2377,9 +2383,9 @@ export default function SeasonStats() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <ChartCard
               title="Starts & Appearances"
-              description="Blue = starts, amber = bench appearances"
-              tooltip="Shows squad involvement across the season. Sort by total appearances or starts, highest to lowest."
-              controls={
+              description={tlPlayer ? "Click any dot for match details" : "Blue = starts, amber = bench appearances — click a player for their game-by-game record"}
+              tooltip="Shows squad involvement across the season. Sort by total appearances or starts, highest to lowest. Click a player's bar to see their game-by-game record."
+              controls={tlPlayer ? undefined : (
                 <PillGroup
                   options={[
                     { value: "appearances", label: "By Appearances" },
@@ -2388,19 +2394,28 @@ export default function SeasonStats() {
                   value={startsSort}
                   onChange={v => setStartsSort(v as "appearances" | "starts")}
                 />
-              }
+              )}
             >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={startsData} margin={{ top: 10, right: 10, left: -20, bottom: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
-                  <YAxis {...AXIS_STYLE} allowDecimals={false} />
-                  <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {tlPlayer ? (
+                <PlayerTimelineChart seasonId={sId} club="Belconnen" player={tlPlayer} onBack={() => setTlPlayer(null)} />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={startsData}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
+                    onClick={s => { const p = (s as { activePayload?: Array<{ payload?: { fullName?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.fullName) setTlPlayer(p.fullName); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+                    <YAxis {...AXIS_STYLE} allowDecimals={false} />
+                    <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </ChartCard>
             <ChartCard title="Total Minutes Played" description="Season total — dashed line = squad average" tooltip="All minutes played across the season. Includes sub appearances.">
               <ResponsiveContainer width="100%" height="100%">
@@ -2859,6 +2874,7 @@ export default function SeasonStats() {
                   valueLabel="Appearances"
                   variant="startsApps"
                   controls={<Last3Toggle active={oppStartsL3} onToggle={() => setOppStartsL3(v => !v)} />}
+                  timeline={{ seasonId: sId, club: selectedClub }}
                 />
               )}
 
@@ -3669,27 +3685,131 @@ function PlayerBarTooltip({ active, payload, valueLabel }: {
   );
 }
 
+// ─── Player timeline drill-down ───────────────────────────────────────────────
+// Click a player in a Starts & Appearances chart and the chart area becomes their
+// game-by-game record: Start / Bench / Out per fixture, most recent game on the LEFT
+// so you read the season right-to-left ("are they playing lately?").
+const TL_STATUS_NUM = { start: 2, bench: 1, out: 0 } as const;
+const TL_STATUS_LABEL: Record<number, string> = { 2: "Started", 1: "Off bench", 0: "Didn't play" };
+const TL_STATUS_COLOR: Record<number, string> = { 2: "#3b82f6", 1: "#93c5fd", 0: "hsl(var(--muted-foreground))" };
+
+function TimelineTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ payload: { matchId: string; matchDate: string | null; opponent: string | null; statusNum: number; minutes: number } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md space-y-1">
+      <div className="font-semibold">{d.matchId}</div>
+      {d.matchDate && <div className="text-muted-foreground">{d.matchDate}</div>}
+      <div className="flex justify-between gap-6"><span className="text-muted-foreground">Opponent</span><span>{d.opponent ?? "—"}</span></div>
+      <div className="flex justify-between gap-6 font-semibold"><span className="text-muted-foreground">Result</span><span style={{ color: TL_STATUS_COLOR[d.statusNum] }}>{TL_STATUS_LABEL[d.statusNum]}</span></div>
+      <div className="flex justify-between gap-6"><span className="text-muted-foreground">Minutes</span><span>{d.minutes}</span></div>
+    </div>
+  );
+}
+
+function PlayerTimelineChart({ seasonId, club, player, onBack }: {
+  seasonId: number; club: string; player: string; onBack: () => void;
+}) {
+  const params = { seasonId, club, player };
+  const { data, isLoading } = useGetPlayerTimeline(params, {
+    query: { queryKey: getGetPlayerTimelineQueryKey(params) },
+  });
+
+  // Most recent fixture first (left side of the chart)
+  const rows = useMemo(() =>
+    (data?.matches ?? [])
+      .slice().reverse()
+      .map(m => ({ ...m, statusNum: TL_STATUS_NUM[m.status as keyof typeof TL_STATUS_NUM] ?? 0 })),
+    [data]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between gap-2 pb-2">
+        <span className="text-sm font-semibold">{player} — game by game <span className="font-normal text-muted-foreground">(latest on the left)</span></span>
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-3 w-3" /> Back to squad
+        </button>
+      </div>
+      <div className="flex-1 min-h-0">
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No games found for {player}</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={rows} margin={{ top: 10, right: 15, left: 10, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="matchId" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={60} />
+              <YAxis
+                {...AXIS_STYLE}
+                domain={[0, 2]}
+                ticks={[0, 1, 2]}
+                tickFormatter={(v: number) => TL_STATUS_LABEL[v] ?? ""}
+                width={70}
+              />
+              <Tooltip content={<TimelineTooltip />} cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }} />
+              <Line
+                type="linear"
+                dataKey="statusNum"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                isAnimationActive={false}
+                dot={(props: { cx?: number; cy?: number; payload?: { statusNum: number; matchId: string } }) => (
+                  <circle
+                    key={props.payload?.matchId}
+                    cx={props.cx} cy={props.cy} r={5}
+                    fill={TL_STATUS_COLOR[props.payload?.statusNum ?? 0]}
+                    stroke="hsl(var(--background))" strokeWidth={1.5}
+                  />
+                )}
+                activeDot={{ r: 7 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // One player-metric bar chart. "single" plots one value per player; "startsApps"
-// stacks starts + off-the-bench appearances.
-function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, allowDecimals, variant = "single", controls }: {
+// stacks starts + off-the-bench appearances. When `timeline` is supplied, clicking a
+// player's bar swaps the chart for their game-by-game timeline.
+function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, allowDecimals, variant = "single", controls, timeline }: {
   title: string; description?: string; tooltip?: string;
   data: PlayerBarDatum[]; color: string; valueLabel: string; allowDecimals?: boolean;
   variant?: "single" | "startsApps"; controls?: React.ReactNode;
+  timeline?: { seasonId: number; club: string };
 }) {
+  const [tlPlayer, setTlPlayer] = useState<string | null>(null);
+  useEffect(() => { setTlPlayer(null); }, [timeline?.club, timeline?.seasonId]);
   return (
     <ChartCard
       title={title}
-      description={description}
+      description={tlPlayer ? "Click any dot for match details" : timeline ? `${description ?? ""} — click a player for their game-by-game record` : description}
       tooltip={tooltip}
       tall
-      controls={controls}
-      footer={variant === "startsApps" ? <KeyLegend keys={["Starts", "Off bench"]} colorFn={k => (k === "Starts" ? "#3b82f6" : "#93c5fd")} /> : undefined}
+      controls={tlPlayer ? undefined : controls}
+      footer={variant === "startsApps" && !tlPlayer ? <KeyLegend keys={["Starts", "Off bench"]} colorFn={k => (k === "Starts" ? "#3b82f6" : "#93c5fd")} /> : undefined}
     >
-      {data.length === 0 ? (
+      {tlPlayer && timeline ? (
+        <PlayerTimelineChart seasonId={timeline.seasonId} club={timeline.club} player={tlPlayer} onBack={() => setTlPlayer(null)} />
+      ) : data.length === 0 ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No data recorded</div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 60 }}>
+          <BarChart
+            data={data}
+            margin={{ top: 10, right: 10, left: -20, bottom: 60 }}
+            onClick={timeline ? (s => { const p = (s as { activePayload?: Array<{ payload?: { name?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.name) setTlPlayer(p.name); }) : undefined}
+            style={timeline ? { cursor: "pointer" } : undefined}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={60} />
             <YAxis {...AXIS_STYLE} allowDecimals={variant === "startsApps" ? false : !!allowDecimals} />
