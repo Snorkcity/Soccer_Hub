@@ -35,6 +35,8 @@ import {
   GetOpponentGoalCombosResponse,
   GetPlayerDnaQueryParams,
   GetPlayerDnaResponse,
+  GetOpponentPlayerDnaQueryParams,
+  GetOpponentPlayerDnaResponse,
 } from "@workspace/api-zod";
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs.
@@ -565,57 +567,34 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
 // so a cameo goal doesn't blow out the scale.
 const MIN_MINS_FOR_RATE_MAX = 90;
 
-router.get("/analytics/player-dna", async (req, res): Promise<void> => {
-  const query = GetPlayerDnaQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
-  const { teamId, seasonId, player, lastN } = query.data;
+// Shared DNA computation for both the focus-team endpoint (matches/goals tables) and
+// the opponent endpoint (whole-league tables). Callers scope `goals` to the club's own
+// goals and supply an opponentLabel per goal for the favourite-opponent callout.
+type DnaGoalRow = {
+  scorer: string | null;
+  assist: string | null;
+  finishType: string | null;
+  firstTimeFinish: boolean | null;
+  goalX: string | null;
+  goalY: string | null;
+  opponentLabel: string | null;
+};
 
-  const emptyMetrics = { goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, poacherPct: 0, rightFoot: 0, leftFoot: 0, header: 0 };
-  const emptyResponse = {
-    player, minsPlayed: 0, appearances: 0, minsPerGoal: null,
-    metrics: { ...emptyMetrics }, squadMax: { ...emptyMetrics }, squadAvg: { ...emptyMetrics },
-    firstTouchYes: 0, firstTouchTotal: 0, poacherYes: 0, poacherTotal: 0,
-    favouriteOpponent: null, topAssistPartner: null,
-  };
+const emptyDnaMetrics = () => ({ goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, poacherPct: 0, rightFoot: 0, leftFoot: 0, header: 0 });
+const emptyDnaResponse = (player: string) => ({
+  player, minsPlayed: 0, appearances: 0, minsPerGoal: null,
+  metrics: emptyDnaMetrics(), squadMax: emptyDnaMetrics(), squadAvg: emptyDnaMetrics(),
+  firstTouchYes: 0, firstTouchTotal: 0, poacherYes: 0, poacherTotal: 0,
+  favouriteOpponent: null, topAssistPartner: null,
+});
 
-  let matches = await db
-    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate, opponent: matchesTable.opponent })
-    .from(matchesTable)
-    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
-
-  if (lastN != null && lastN > 0) {
-    matches = matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN);
-  }
-  const matchIds = matches.map(m => m.id);
-  if (matchIds.length === 0) { res.json(GetPlayerDnaResponse.parse(emptyResponse)); return; }
-  const matchOppMap = new Map<number, string | null>();
-  for (const m of matches) matchOppMap.set(m.id, m.opponent ?? null);
-
-  // Minutes + appearances per focus-team player (roster is the eligible player set).
-  const stats = await db
-    .select({ playerName: playerStatsTable.playerName, minsPlayed: playerStatsTable.minsPlayed, appearance: playerStatsTable.appearance })
-    .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
-
-  const minsMap = new Map<string, number>();
-  const appsMap = new Map<string, number>();
-  for (const s of stats) {
-    const name = s.playerName;
-    minsMap.set(name, (minsMap.get(name) ?? 0) + (s.minsPlayed ?? 0));
-    if (s.appearance) appsMap.set(name, (appsMap.get(name) ?? 0) + 1);
-  }
-  const roster = new Set(stats.map(s => s.playerName));
-
-  const goals = await db
-    .select({
-      scorer: goalsTable.scorer, assist: goalsTable.assist, scorerTeam: goalsTable.scorerTeam,
-      matchId: goalsTable.matchId, finishType: goalsTable.finishType, firstTimeFinish: goalsTable.firstTimeFinish,
-      goalX: goalsTable.goalX, goalY: goalsTable.goalY,
-    })
-    .from(goalsTable)
-    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
-  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
-
+function computeDnaResponse({ player, roster, minsMap, appsMap, goals }: {
+  player: string;
+  roster: Set<string>;
+  minsMap: Map<string, number>;
+  appsMap: Map<string, number>;
+  goals: DnaGoalRow[];
+}) {
   // Per-player aggregation.
   type Agg = { goals: number; assists: number; rightFoot: number; leftFoot: number; header: number; ftYes: number; ftTotal: number; poacherYes: number; poacherTotal: number };
   const agg = new Map<string, Agg>();
@@ -626,7 +605,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   };
   for (const name of roster) ensure(name);
 
-  for (const g of ourGoals) {
+  for (const g of goals) {
     const scorer = g.scorer?.trim();
     if (scorer && roster.has(scorer)) {
       const a = ensure(scorer);
@@ -670,7 +649,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   };
 
   // Squad maxima per metric (per-90 maxima ignore low-minute cameos).
-  const squadMax = { ...emptyMetrics };
+  const squadMax = emptyDnaMetrics();
   for (const name of roster) {
     const m = metricsFor(name);
     const mins = minsMap.get(name) ?? 0;
@@ -700,9 +679,10 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   //   - assists                → averaged over assisters (assists > 0).
   //   - goals/90, assists/90   → over contributors that also clear the MIN_MINS floor.
   //   - first-touch %          → over players with first-touch-eligible goals.
+  //   - poacher %              → over players with location-mapped goals.
   // Non-contributors (zeros) are excluded so they don't drag the "typical" figure down.
-  const avgSum = { ...emptyMetrics };
-  const avgCnt = { ...emptyMetrics };
+  const avgSum = emptyDnaMetrics();
+  const avgCnt = emptyDnaMetrics();
   for (const name of roster) {
     const m = metricsFor(name);
     const a = agg.get(name);
@@ -721,7 +701,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     if ((a?.ftTotal ?? 0) > 0) { avgSum.firstTouchPct += m.firstTouchPct; avgCnt.firstTouchPct++; }
     if ((a?.poacherTotal ?? 0) > 0) { avgSum.poacherPct += m.poacherPct; avgCnt.poacherPct++; }
   }
-  const avgOf = (key: keyof typeof emptyMetrics, dp: number) =>
+  const avgOf = (key: keyof ReturnType<typeof emptyDnaMetrics>, dp: number) =>
     avgCnt[key] > 0 ? Math.round((avgSum[key] / avgCnt[key]) * 10 ** dp) / 10 ** dp : 0;
   const squadAvg = {
     goals: avgOf("goals", 1),
@@ -735,7 +715,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     header: avgOf("header", 1),
   };
 
-  // First-touch context for the selected player (goals finished first-time / eligible goals).
+  // First-touch / poacher context for the selected player.
   const selAgg = agg.get(player);
   const firstTouchYes = selAgg?.ftYes ?? 0;
   const firstTouchTotal = selAgg?.ftTotal ?? 0;
@@ -745,10 +725,9 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   // Best-of callouts (from the selected player's scored goals only).
   const oppCount = new Map<string, number>();
   const partnerCount = new Map<string, number>();
-  for (const g of ourGoals) {
+  for (const g of goals) {
     if (g.scorer?.trim() !== player) continue;
-    const opp = matchOppMap.get(g.matchId);
-    if (opp) oppCount.set(opp, (oppCount.get(opp) ?? 0) + 1);
+    if (g.opponentLabel) oppCount.set(g.opponentLabel, (oppCount.get(g.opponentLabel) ?? 0) + 1);
     const assist = g.assist?.trim();
     if (assist && assist !== "OG" && assist !== player) partnerCount.set(assist, (partnerCount.get(assist) ?? 0) + 1);
   }
@@ -759,7 +738,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   };
 
   const minsPlayed = minsMap.get(player) ?? 0;
-  res.json(GetPlayerDnaResponse.parse({
+  return {
     player,
     minsPlayed,
     appearances: appsMap.get(player) ?? 0,
@@ -773,7 +752,58 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     poacherTotal,
     favouriteOpponent: topOf(oppCount),
     topAssistPartner: topOf(partnerCount),
+  };
+}
+
+router.get("/analytics/player-dna", async (req, res): Promise<void> => {
+  const query = GetPlayerDnaQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId, player, lastN } = query.data;
+
+  let matches = await db
+    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate, opponent: matchesTable.opponent })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+
+  if (lastN != null && lastN > 0) {
+    matches = matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN);
+  }
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) { res.json(GetPlayerDnaResponse.parse(emptyDnaResponse(player))); return; }
+  const matchOppMap = new Map<number, string | null>();
+  for (const m of matches) matchOppMap.set(m.id, m.opponent ?? null);
+
+  // Minutes + appearances per focus-team player (roster is the eligible player set).
+  const stats = await db
+    .select({ playerName: playerStatsTable.playerName, minsPlayed: playerStatsTable.minsPlayed, appearance: playerStatsTable.appearance })
+    .from(playerStatsTable)
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+
+  const minsMap = new Map<string, number>();
+  const appsMap = new Map<string, number>();
+  for (const s of stats) {
+    const name = s.playerName;
+    minsMap.set(name, (minsMap.get(name) ?? 0) + (s.minsPlayed ?? 0));
+    if (s.appearance) appsMap.set(name, (appsMap.get(name) ?? 0) + 1);
+  }
+  const roster = new Set(stats.map(s => s.playerName));
+
+  const goals = await db
+    .select({
+      scorer: goalsTable.scorer, assist: goalsTable.assist, scorerTeam: goalsTable.scorerTeam,
+      matchId: goalsTable.matchId, finishType: goalsTable.finishType, firstTimeFinish: goalsTable.firstTimeFinish,
+      goalX: goalsTable.goalX, goalY: goalsTable.goalY,
+    })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
+  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
+
+  const dnaGoals: DnaGoalRow[] = ourGoals.map(g => ({
+    scorer: g.scorer, assist: g.assist, finishType: g.finishType, firstTimeFinish: g.firstTimeFinish,
+    goalX: g.goalX, goalY: g.goalY,
+    opponentLabel: matchOppMap.get(g.matchId) ?? null,
   }));
+  res.json(GetPlayerDnaResponse.parse(computeDnaResponse({ player, roster, minsMap, appsMap, goals: dnaGoals })));
 });
 
 // ─── GPS Load Summary ─────────────────────────────────────────────────────────
@@ -1399,6 +1429,82 @@ router.get("/analytics/opponent-goal-combos", async (req, res): Promise<void> =>
   // Only the selected club's OWN goals (their scorers/assisters), unless __ALL__.
   const clubGoals = isAll ? goals : goals.filter(g => g.scorerTeam === club);
   res.json(GetOpponentGoalCombosResponse.parse(buildCombos(clubGoals)));
+});
+
+// ─── Opponent Player Scoring DNA (radar) ───────────────────────────────────────
+// Same radar as /analytics/player-dna, but for a selected club's players, computed
+// from the whole-league tables: their goals AND minutes across ALL league games
+// (league_player_stats covers every club), so per-90 spokes work here too. The
+// "squad" used for scaling is the selected club's roster (or the whole league
+// for __ALL__).
+router.get("/analytics/opponent-player-dna", async (req, res): Promise<void> => {
+  const query = GetOpponentPlayerDnaQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, player, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+
+  // Optional "last N rounds" window. Single club: N most-recent matches == N rounds.
+  // League-wide (__ALL__) has multiple fixtures per round, so window by distinct dates.
+  let relevantIds: Set<string>;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      relevantIds = new Set(relevant.filter(m => dateSet.has(m.matchDate ?? "")).map(m => m.matchId));
+    } else {
+      relevantIds = new Set(
+        relevant.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN).map(m => m.matchId),
+      );
+    }
+  } else {
+    relevantIds = new Set(relevant.map(m => m.matchId));
+  }
+  if (relevantIds.size === 0) { res.json(GetOpponentPlayerDnaResponse.parse(emptyDnaResponse(player))); return; }
+  const relevantList = Array.from(relevantIds);
+
+  // Minutes + appearances from the league player stats; roster = the club's players
+  // (club column carries the club name for every side in the league).
+  const stats = await db
+    .select({ playerName: leaguePlayerStatsTable.playerName, minsPlayed: leaguePlayerStatsTable.minsPlayed, appearance: leaguePlayerStatsTable.appearance, club: leaguePlayerStatsTable.club })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, relevantList)));
+  const clubStats = isAll ? stats : stats.filter(s => s.club === club);
+
+  const minsMap = new Map<string, number>();
+  const appsMap = new Map<string, number>();
+  for (const s of clubStats) {
+    minsMap.set(s.playerName, (minsMap.get(s.playerName) ?? 0) + (s.minsPlayed ?? 0));
+    if (s.appearance) appsMap.set(s.playerName, (appsMap.get(s.playerName) ?? 0) + 1);
+  }
+  const roster = new Set(clubStats.map(s => s.playerName));
+
+  const goals = await db
+    .select({
+      scorer: leagueGoalsTable.scorer, assist: leagueGoalsTable.assist, scorerTeam: leagueGoalsTable.scorerTeam,
+      homeTeam: leagueGoalsTable.homeTeam, awayTeam: leagueGoalsTable.awayTeam,
+      finishType: leagueGoalsTable.finishType, firstTimeFinish: leagueGoalsTable.firstTimeFinish,
+      goalX: leagueGoalsTable.goalX, goalY: leagueGoalsTable.goalY,
+      matchId: leagueGoalsTable.matchId,
+    })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, relevantList)));
+
+  // Only the selected club's OWN goals, unless __ALL__ (league-wide scaling).
+  const clubGoals = isAll ? goals : goals.filter(g => g.scorerTeam === club);
+  const dnaGoals: DnaGoalRow[] = clubGoals.map(g => ({
+    scorer: g.scorer, assist: g.assist, finishType: g.finishType, firstTimeFinish: g.firstTimeFinish,
+    goalX: g.goalX, goalY: g.goalY,
+    // Favourite-opponent callout: the other side in that fixture.
+    opponentLabel: g.scorerTeam === g.homeTeam ? g.awayTeam : g.homeTeam,
+  }));
+  res.json(GetOpponentPlayerDnaResponse.parse(computeDnaResponse({ player, roster, minsMap, appsMap, goals: dnaGoals })));
 });
 
 // ─── Opponent Profile (club-centric scouting across ALL their league games) ────

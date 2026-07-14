@@ -14,6 +14,7 @@ import {
   useGetOpponentPlayersByOpponent,
   useGetGoalCombos,
   useGetOpponentGoalCombos,
+  useGetOpponentPlayerDna,
   useGetPlayerDna,
   useGetClubs,
   useListMatches,
@@ -29,6 +30,7 @@ import {
   getGetOpponentPlayersByOpponentQueryKey,
   getGetGoalCombosQueryKey,
   getGetOpponentGoalCombosQueryKey,
+  getGetOpponentPlayerDnaQueryKey,
   getGetPlayerDnaQueryKey,
   getGetClubsQueryKey,
   type ScoredGoalRecord,
@@ -1173,6 +1175,8 @@ export default function SeasonStats() {
   const [oppComboLastN, setOppComboLastN] = useState(false); // opponent: combo threat
   const [dnaPlayer, setDnaPlayer]         = useState("");    // team: scoring-DNA focus player
   const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
+  const [oppDnaLastN, setOppDnaLastN]     = useState(false); // opponent: scoring-DNA window
+  const [oppDnaPlayer, setOppDnaPlayer]   = useState("");    // opponent: scoring-DNA focus player
 
   React.useEffect(() => {
     if (teams?.length && selectedTeamId === "") {
@@ -1252,6 +1256,28 @@ export default function SeasonStats() {
   const { data: oppCombosL3 } = useGetOpponentGoalCombos(oppCombosL3Params, {
     query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosL3Params) },
   });
+
+  // Scoring DNA for a selected player of the selected club (league tables; full + L3)
+  const oppDnaParams = { teamId: tId, seasonId: sId, club: selectedClub, player: oppDnaPlayer };
+  const oppDnaEnabled = isReady && !!selectedClub && !!oppDnaPlayer;
+  const { data: oppDnaFull } = useGetOpponentPlayerDna(oppDnaParams, {
+    query: { enabled: oppDnaEnabled, queryKey: getGetOpponentPlayerDnaQueryKey(oppDnaParams) },
+  });
+  const oppDnaL3Params = { ...oppDnaParams, lastN: 3 };
+  const { data: oppDnaL3 } = useGetOpponentPlayerDna(oppDnaL3Params, {
+    query: { enabled: oppDnaEnabled, queryKey: getGetOpponentPlayerDnaQueryKey(oppDnaL3Params) },
+  });
+  // Dropdown list for the opponent DNA — the club's players ranked by G+A.
+  const oppDnaPlayers = useMemo(() => {
+    const ps = oppPlayersFull?.players ?? [];
+    return ps.slice()
+      .sort((a, b) => (b.totalGoals + b.totalAssists) - (a.totalGoals + a.totalAssists) || a.playerName.localeCompare(b.playerName))
+      .map(p => p.playerName);
+  }, [oppPlayersFull]);
+  // Default to the club's top contributor; reset when the club (and thus list) changes.
+  useEffect(() => {
+    if (!oppDnaPlayers.includes(oppDnaPlayer)) setOppDnaPlayer(oppDnaPlayers[0] ?? "");
+  }, [oppDnaPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Clubs (brand colours) ─────────────────────────────────────────────────
   const { data: clubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
@@ -1809,27 +1835,6 @@ export default function SeasonStats() {
             controls={<Last3Toggle active={l3ScType} onToggle={() => setL3ScType(v => !v)} />}
           />
 
-          {/* Combo Threat — our assist→scorer partnerships (who combines for goals) */}
-          <ComboThreatChart
-            title={`Combo Threat — Belconnen${comboLastN ? " — Last 3 Rounds" : ""}`}
-            label="Belconnen"
-            srcFull={goalCombosFull} srcL3={goalCombosL3}
-            lastN={comboLastN} onLastN={() => setComboLastN(v => !v)}
-            colorMap={clubColorMap} sn={sn} maxBars={12}
-          />
-
-          {/* Scoring DNA — one player's attacking profile as a radar (pick via dropdown) */}
-          <PlayerDnaChart
-            title={`Scoring DNA${dnaLastN ? " — Last 3 Rounds" : ""}`}
-            label="Belconnen"
-            srcFull={dnaFull} srcL3={dnaL3}
-            lastN={dnaLastN} onLastN={() => setDnaLastN(v => !v)}
-            colorMap={clubColorMap}
-            players={(leaderboard ?? []).map(p => p.playerName)}
-            player={dnaPlayer} onPlayer={setDnaPlayer}
-            sn={sn}
-          />
-
           {/* Goal Detail by Type — stacked by opponent club, dropdown across 4 dimensions */}
           <OpponentStackChart
             title={`Goal Detail by Type${l3ScDet ? " — Last 3 Rounds" : ""}`}
@@ -2268,6 +2273,27 @@ export default function SeasonStats() {
               </ChartCard>
             </div>
           </div>
+
+          {/* Scoring DNA — one player's attacking profile as a radar (pick via dropdown) */}
+          <PlayerDnaChart
+            title={`Scoring DNA${dnaLastN ? " — Last 3 Rounds" : ""}`}
+            label="Belconnen"
+            srcFull={dnaFull} srcL3={dnaL3}
+            lastN={dnaLastN} onLastN={() => setDnaLastN(v => !v)}
+            colorMap={clubColorMap}
+            players={(leaderboard ?? []).map(p => p.playerName)}
+            player={dnaPlayer} onPlayer={setDnaPlayer}
+            sn={sn}
+          />
+
+          {/* Combo Threat — our assist→scorer partnerships (who combines for goals) */}
+          <ComboThreatChart
+            title={`Combo Threat — Belconnen${comboLastN ? " — Last 3 Rounds" : ""}`}
+            label="Belconnen"
+            srcFull={goalCombosFull} srcL3={goalCombosL3}
+            lastN={comboLastN} onLastN={() => setComboLastN(v => !v)}
+            colorMap={clubColorMap} sn={sn} maxBars={12}
+          />
 
           {/* 4 & 5 — Mins per Goal Conceded + On-Field Impact */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -2771,6 +2797,18 @@ export default function SeasonStats() {
                 sort={oppContribSort} onSort={setOppContribSort}
                 hidden={hiddenOppContribOpp} onToggle={toggleOppContribOpp}
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+              />
+
+              {/* 17c. Scoring DNA — one of the club's players (whole-league data) */}
+              <PlayerDnaChart
+                title={`Scoring DNA — ${isAll ? "League" : selectedClub}${oppDnaLastN ? " — Last 3 Rounds" : ""}`}
+                label={isAll ? "" : selectedClub}
+                srcFull={oppDnaFull} srcL3={oppDnaL3}
+                lastN={oppDnaLastN} onLastN={() => setOppDnaLastN(v => !v)}
+                colorMap={clubColorMap}
+                players={oppDnaPlayers}
+                player={oppDnaPlayer} onPlayer={setOppDnaPlayer}
+                sn={sn}
               />
 
               {/* 17b. Combo Threat — the club's assist→scorer partnerships */}

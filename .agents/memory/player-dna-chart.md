@@ -1,19 +1,30 @@
 ---
 name: Player Scoring DNA radar chart
-description: /analytics/player-dna endpoint + PlayerDnaChart radar; data mapping, per-90 squad-max floor, OG exclusion, Team-tab-only scope.
+description: /analytics/player-dna + /analytics/opponent-player-dna + PlayerDnaChart radar; data mapping, per-90 squad-max floor, OG exclusion, shared computeDnaResponse helper.
 ---
 
-# Player Scoring DNA (radar) — Team Insights tab
+# Player Scoring DNA (radar) — Player Insights + Opponent Insights tabs
 
 A player-focused radar with a dropdown (populated from the leaderboard, default = top scorer) and a
-Last-3-rounds toggle. 8 numeric spokes, each normalized to `value / squadMax * 100` (clamped 0–100):
-Goals, Goals/90, Assists, Assists/90, First-touch %, Right foot, Left foot, Header.
+Last-3-rounds toggle. 9 numeric spokes, each normalized to `value / squadMax * 100` (clamped 0–100):
+Goals, Goals/90, Assists, Assists/90, First-touch %, Poacher %, Right foot, Left foot, Header.
 
 Categorical facts can't be radar spokes (they're names) → shown as **text callouts** beside the web:
 favourite opponent, top assist partner, minutes-per-goal, game time.
 
-**Scope:** Belconnen (FOCUS_CLUB) players only, Team Insights tab. NOT shared with the Opponent tab
-(unlike the Combo-Threat chart). Reuses `FOCUS_CLUB` / `isFocusGoal` / roster patterns.
+**Scope:** TWO instances of the same `PlayerDnaChart` component:
+- **Player Insights tab** — Belconnen players (endpoint `/analytics/player-dna`, matches/goals/player_stats
+  tables, `FOCUS_CLUB` / `isFocusGoal` roster attribution). DNA sits under Goal Contributions, with
+  Combo Threat below it (both moved here from Team Insights July 2026).
+- **Opponent Insights tab** — the selected club's players (endpoint `/analytics/opponent-player-dna`,
+  whole-league tables), between the contributions chart and Combo Threat. Gets ALL 9 spokes incl per-90
+  because `league_player_stats` carries minutes for EVERY club, not just Belconnen. Dropdown ranked by
+  totalGoals+totalAssists from opponent-players-by-opponent; `__ALL__` and lastN (distinct-date rounds)
+  supported, mirroring opponent-goal-combos conventions.
+
+**Shared backend:** both routes call `computeDnaResponse({player, roster, minsMap, appsMap, goals})`
+in analytics.ts; goals rows carry a pre-resolved `opponentLabel` (team route: matchOppMap; opponent
+route: other side of the fixture). Both reuse the same `PlayerDnaResponse` OpenAPI schema.
 
 ## Data mapping (goals table)
 - Foot/head: `goals.finish_type` = "Right Foot" / "Left Foot" / "Head" (compare lowercased/trimmed).

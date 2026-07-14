@@ -1077,6 +1077,14 @@ player: string;
 lastN?: number;
 };
 
+export type GetOpponentPlayerDnaParams = {
+teamId: number;
+seasonId: number;
+club: string;
+player: string;
+lastN?: number;
+};
+
 export type GetGpsLoadSummaryParams = {
 teamId: number;
 year: string;

@@ -25,6 +25,7 @@ export * from './getOpponentClubsParams';
 export * from './getOpponentGoalBreakdownParams';
 export * from './getOpponentGoalCombosParams';
 export * from './getOpponentLeaderboardParams';
+export * from './getOpponentPlayerDnaParams';
 export * from './getOpponentPlayersByOpponentParams';
 export * from './getOpponentProfileParams';
 export * from './getPlayerDnaParams';

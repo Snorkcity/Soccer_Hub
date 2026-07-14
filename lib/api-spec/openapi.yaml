@@ -927,6 +927,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlayerDnaResponse"
 
+  /analytics/opponent-player-dna:
+    get:
+      operationId: getOpponentPlayerDna
+      tags: [analytics]
+      summary: A selected club player's scoring DNA (computed from the whole-league tables)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: player
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Scoring DNA metrics for the selected club player plus club maxima for radar scaling
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerDnaResponse"
+
   /clubs:
     get:
       operationId: getClubs
