@@ -1386,6 +1386,11 @@ playerId?: number;
 year?: string;
 teamId?: number;
 round?: string;
+playerName?: string;
+/**
+ * Filter by split name (e.g. game, 1st.half, 2nd.half)
+ */
+split?: string;
 };
 
 export type ListAthleticTestsParams = {

@@ -465,6 +465,13 @@ paths:
         - name: round
           in: query
           schema: { type: string }
+        - name: playerName
+          in: query
+          schema: { type: string }
+        - name: split
+          in: query
+          description: Filter by split name (e.g. game, 1st.half, 2nd.half)
+          schema: { type: string }
       responses:
         "200":
           description: List of GPS sessions

@@ -47,13 +47,15 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const { playerId, year, teamId, round } = query.data;
+  const { playerId, year, teamId, round, playerName, split } = query.data;
 
   const conditions = [];
   if (playerId) conditions.push(eq(gpsSessionsTable.playerId, playerId));
   if (year) conditions.push(eq(gpsSessionsTable.year, year));
   if (teamId) conditions.push(eq(gpsSessionsTable.teamId, teamId));
   if (round) conditions.push(eq(gpsSessionsTable.round, round));
+  if (playerName) conditions.push(eq(gpsSessionsTable.playerName, playerName));
+  if (split) conditions.push(eq(gpsSessionsTable.splitName, split));
 
   const rows = await db
     .select()

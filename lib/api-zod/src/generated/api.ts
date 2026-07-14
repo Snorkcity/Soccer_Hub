@@ -568,7 +568,9 @@ export const ListGpsSessionsQueryParams = zod.object({
   "playerId": zod.coerce.number().optional(),
   "year": zod.coerce.string().optional(),
   "teamId": zod.coerce.number().optional(),
-  "round": zod.coerce.string().optional()
+  "round": zod.coerce.string().optional(),
+  "playerName": zod.coerce.string().optional(),
+  "split": zod.coerce.string().optional().describe('Filter by split name (e.g. game, 1st.half, 2nd.half)')
 })
 
 export const ListGpsSessionsResponseItem = zod.object({
