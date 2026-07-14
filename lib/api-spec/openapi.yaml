@@ -1665,10 +1665,11 @@ components:
         assists:       { type: integer }
         assistsPer90:  { type: number }
         firstTouchPct: { type: number }
+        conePct:       { type: number }
         rightFoot:     { type: integer }
         leftFoot:      { type: integer }
         header:        { type: integer }
-      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, rightFoot, leftFoot, header]
+      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, conePct, rightFoot, leftFoot, header]
 
     # Squad averages — same axes as PlayerDnaMetrics but every field is fractional.
     PlayerDnaAverages:
@@ -1679,10 +1680,11 @@ components:
         assists:       { type: number }
         assistsPer90:  { type: number }
         firstTouchPct: { type: number }
+        conePct:       { type: number }
         rightFoot:     { type: number }
         leftFoot:      { type: number }
         header:        { type: number }
-      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, rightFoot, leftFoot, header]
+      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, conePct, rightFoot, leftFoot, header]
 
     PlayerDnaBest:
       type: object
@@ -1703,9 +1705,11 @@ components:
         squadAvg:          { $ref: "#/components/schemas/PlayerDnaAverages" }
         firstTouchYes:     { type: integer }
         firstTouchTotal:   { type: integer }
+        coneYes:           { type: integer }
+        coneTotal:         { type: integer }
         favouriteOpponent: { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
         topAssistPartner:  { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
-      required: [player, minsPlayed, appearances, minsPerGoal, metrics, squadMax, squadAvg, firstTouchYes, firstTouchTotal, favouriteOpponent, topAssistPartner]
+      required: [player, minsPlayed, appearances, minsPerGoal, metrics, squadMax, squadAvg, firstTouchYes, firstTouchTotal, coneYes, coneTotal, favouriteOpponent, topAssistPartner]
 
     # ── Opponent Goal Breakdown ────────────────────────────────────────────────
 

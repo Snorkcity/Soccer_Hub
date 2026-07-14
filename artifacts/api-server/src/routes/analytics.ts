@@ -570,11 +570,11 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, player, lastN } = query.data;
 
-  const emptyMetrics = { goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, rightFoot: 0, leftFoot: 0, header: 0 };
+  const emptyMetrics = { goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, conePct: 0, rightFoot: 0, leftFoot: 0, header: 0 };
   const emptyResponse = {
     player, minsPlayed: 0, appearances: 0, minsPerGoal: null,
     metrics: { ...emptyMetrics }, squadMax: { ...emptyMetrics }, squadAvg: { ...emptyMetrics },
-    firstTouchYes: 0, firstTouchTotal: 0,
+    firstTouchYes: 0, firstTouchTotal: 0, coneYes: 0, coneTotal: 0,
     favouriteOpponent: null, topAssistPartner: null,
   };
 
@@ -610,17 +610,18 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     .select({
       scorer: goalsTable.scorer, assist: goalsTable.assist, scorerTeam: goalsTable.scorerTeam,
       matchId: goalsTable.matchId, finishType: goalsTable.finishType, firstTimeFinish: goalsTable.firstTimeFinish,
+      goalX: goalsTable.goalX, goalY: goalsTable.goalY,
     })
     .from(goalsTable)
     .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
   const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
 
   // Per-player aggregation.
-  type Agg = { goals: number; assists: number; rightFoot: number; leftFoot: number; header: number; ftYes: number; ftTotal: number };
+  type Agg = { goals: number; assists: number; rightFoot: number; leftFoot: number; header: number; ftYes: number; ftTotal: number; coneYes: number; coneTotal: number };
   const agg = new Map<string, Agg>();
   const ensure = (name: string): Agg => {
     let a = agg.get(name);
-    if (!a) { a = { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0 }; agg.set(name, a); }
+    if (!a) { a = { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0, coneYes: 0, coneTotal: 0 }; agg.set(name, a); }
     return a;
   };
   for (const name of roster) ensure(name);
@@ -635,6 +636,15 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
       else if (ft === "left foot") a.leftFoot++;
       else if (ft === "head") a.header++;
       if (g.firstTimeFinish != null) { a.ftTotal++; if (g.firstTimeFinish) a.ftYes++; }
+      // Scoring cone: lines from each goalpost (goalX 45 & 55, goal centre 50) flaring
+      // at 45° so they pass through the penalty-area corners at 18 yds. goalY is yards
+      // from the goal line; 1 yd = 1.25 goalX units (pitch width 80 yds mapped to 0–100).
+      const gx = g.goalX != null ? Number(g.goalX) : NaN;
+      const gy = g.goalY != null ? Number(g.goalY) : NaN;
+      if (Number.isFinite(gx) && Number.isFinite(gy)) {
+        a.coneTotal++;
+        if (gx >= 45 - 1.25 * gy && gx <= 55 + 1.25 * gy) a.coneYes++;
+      }
     }
     // Mirror ComboThreat: no assist is credited on an own goal (scorer "OG"),
     // and an "OG" assist / self-assist never counts.
@@ -643,7 +653,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   }
 
   const metricsFor = (name: string) => {
-    const a = agg.get(name) ?? { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0 };
+    const a = agg.get(name) ?? { goals: 0, assists: 0, rightFoot: 0, leftFoot: 0, header: 0, ftYes: 0, ftTotal: 0, coneYes: 0, coneTotal: 0 };
     const mins = minsMap.get(name) ?? 0;
     return {
       goals: a.goals,
@@ -651,6 +661,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
       assists: a.assists,
       assistsPer90: mins > 0 ? Math.round((a.assists / mins) * 90 * 100) / 100 : 0,
       firstTouchPct: a.ftTotal > 0 ? Math.round((a.ftYes / a.ftTotal) * 1000) / 10 : 0,
+      conePct: a.coneTotal > 0 ? Math.round((a.coneYes / a.coneTotal) * 1000) / 10 : 0,
       rightFoot: a.rightFoot,
       leftFoot: a.leftFoot,
       header: a.header,
@@ -665,6 +676,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     squadMax.goals = Math.max(squadMax.goals, m.goals);
     squadMax.assists = Math.max(squadMax.assists, m.assists);
     squadMax.firstTouchPct = Math.max(squadMax.firstTouchPct, m.firstTouchPct);
+    squadMax.conePct = Math.max(squadMax.conePct, m.conePct);
     squadMax.rightFoot = Math.max(squadMax.rightFoot, m.rightFoot);
     squadMax.leftFoot = Math.max(squadMax.leftFoot, m.leftFoot);
     squadMax.header = Math.max(squadMax.header, m.header);
@@ -706,6 +718,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     if (scored && mins >= MIN_MINS_FOR_RATE_MAX) { avgSum.goalsPer90 += m.goalsPer90; avgCnt.goalsPer90++; }
     if (assisted && mins >= MIN_MINS_FOR_RATE_MAX) { avgSum.assistsPer90 += m.assistsPer90; avgCnt.assistsPer90++; }
     if ((a?.ftTotal ?? 0) > 0) { avgSum.firstTouchPct += m.firstTouchPct; avgCnt.firstTouchPct++; }
+    if ((a?.coneTotal ?? 0) > 0) { avgSum.conePct += m.conePct; avgCnt.conePct++; }
   }
   const avgOf = (key: keyof typeof emptyMetrics, dp: number) =>
     avgCnt[key] > 0 ? Math.round((avgSum[key] / avgCnt[key]) * 10 ** dp) / 10 ** dp : 0;
@@ -715,6 +728,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     assists: avgOf("assists", 1),
     assistsPer90: avgOf("assistsPer90", 2),
     firstTouchPct: avgOf("firstTouchPct", 1),
+    conePct: avgOf("conePct", 1),
     rightFoot: avgOf("rightFoot", 1),
     leftFoot: avgOf("leftFoot", 1),
     header: avgOf("header", 1),
@@ -724,6 +738,8 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const selAgg = agg.get(player);
   const firstTouchYes = selAgg?.ftYes ?? 0;
   const firstTouchTotal = selAgg?.ftTotal ?? 0;
+  const coneYes = selAgg?.coneYes ?? 0;
+  const coneTotal = selAgg?.coneTotal ?? 0;
 
   // Best-of callouts (from the selected player's scored goals only).
   const oppCount = new Map<string, number>();
@@ -752,6 +768,8 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     squadAvg,
     firstTouchYes,
     firstTouchTotal,
+    coneYes,
+    coneTotal,
     favouriteOpponent: topOf(oppCount),
     topAssistPartner: topOf(partnerCount),
   }));

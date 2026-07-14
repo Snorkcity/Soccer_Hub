@@ -21,4 +21,4 @@
 - [Combo threat chart](combo-threat-chart.md) — assist→scorer partnership chart shared by Team + Opponent tabs; /analytics/goal-combos (team, roster attrib) + /analytics/opponent-goal-combos (league tables); buildCombos() excludes OG/unassisted/self-assist.
 - [Player Scoring DNA radar](player-dna-chart.md) — /analytics/player-dna + 8-spoke radar (Team tab only, BUFC players); finish_type/first_time_finish mapping, per-90 squad-max floor, OG-scorer assist exclusion.
 - [Recharts radar radius-domain](recharts-radius-domain.md) — v2 gotcha: PolarRadiusAxis `domain` is ignored when tick={false}; render ticks (angle+tickCount+visible tick) or a 0–100 series collapses to a tiny centre blob.
-- [Goal-map coordinates & zones](goal-map-coordinates.md) — goalX 0–100 width (centre 50), goalY = yards from goal line (goal at TOP, not sideways); six-yard/penalty-area/outside zone split for "Scoring Zones by Player".
+- [Goal-map coordinates & scoring cone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); user prefers the 45° scoring-cone inside/outside model over box zones; test gx within 45−1.25·gy … 55+1.25·gy.

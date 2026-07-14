@@ -725,25 +725,42 @@ function GoalLocationMap({ scored, conceded }: { scored: ScoredGoalRecord[]; con
   );
 }
 
-// ── Scoring Zones by Player (where each scorer finishes from) ─────────────────
-// Zone boundaries follow the real pitch markings drawn on the Goal Location Map:
-//   goalX 0–100 (goal centre = 50); goalY = yards from the goal line.
-//   Six-yard box  : gy ≤ 6  and gx in 37.5–62.5
-//   Penalty area  : gy ≤ 18 and gx in 22.5–77.5 (outside the six-yard box)
-//   Outside the box: everything beyond
-type GoalZone = "six" | "box" | "outside";
+// ── Scoring Cone by Player (inside vs outside the scoring cone) ───────────────
+// The "scoring cone": lines drawn from each goalpost flaring outward at 45°, so
+// they pass exactly through the corners of the penalty area 18 yds out. Central
+// finishes (inside the cone) are the high-percentage chances; wide-angle finishes
+// sit outside it. Coordinate contract: goalX 0–100 across the pitch width (posts
+// at 45 & 55, centre 50); goalY = yards from the goal line. 1 yd = 1.25 goalX
+// units (80-yd width mapped to 0–100), hence the 1.25 slope.
+type GoalZone = "inCone" | "outCone";
 const ZONE_META: { key: GoalZone; label: string; color: string }[] = [
-  { key: "six",     label: "Six-yard box",    color: "#22c55e" },
-  { key: "box",     label: "Penalty area",    color: "#3b82f6" },
-  { key: "outside", label: "Outside the box", color: "#f59e0b" },
+  { key: "inCone",  label: "Inside the cone",  color: "#22c55e" },
+  { key: "outCone", label: "Outside the cone", color: "#f59e0b" },
 ];
 function goalZone(gx: number, gy: number): GoalZone {
-  if (gy <= 6 && gx >= 37.5 && gx <= 62.5) return "six";
-  if (gy <= 18 && gx >= 22.5 && gx <= 77.5) return "box";
-  return "outside";
+  return gx >= 45 - 1.25 * gy && gx <= 55 + 1.25 * gy ? "inCone" : "outCone";
 }
 
-interface ZoneRow { scorer: string; six: number; box: number; outside: number; total: number }
+// Mini pitch diagram with the scoring cone shaded — shown wherever the cone needs
+// visual context (chart header, DNA tooltip). Drawn in yards, goal at top.
+function ConeDiagram({ className }: { className?: string }) {
+  const L = "rgba(255,255,255,0.45)";
+  return (
+    <svg viewBox="-2 -3.5 84 33" className={className} aria-label="Scoring cone diagram">
+      <rect x="-2" y="-3.5" width="84" height="33" rx="2" fill="#0B1B2B" />
+      <g fill="none" stroke={L} strokeWidth={0.5}>
+        <line x1="0" y1="0" x2="80" y2="0" />
+        <rect x="36" y="-2" width="8" height="2" />
+        <path d="M 18 0 L 18 18 L 62 18 L 62 0" />
+        <path d="M 30 0 L 30 6 L 50 6 L 50 0" />
+      </g>
+      {/* cone: posts (36 & 44 yd) flaring at 45° through the penalty-area corners */}
+      <polygon points="36,0 8,28 72,28 44,0" fill="#22c55e" fillOpacity={0.28} stroke="#22c55e" strokeWidth={0.6} strokeDasharray="2 1.5" />
+    </svg>
+  );
+}
+
+interface ZoneRow { scorer: string; inCone: number; outCone: number; total: number }
 
 function ZoneTooltip({ active, payload }: {
   active?: boolean;
@@ -776,7 +793,7 @@ function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]
 
   const { rows, totals, mapped, noCoords } = useMemo(() => {
     const m = new Map<string, ZoneRow>();
-    const totals = { six: 0, box: 0, outside: 0, total: 0 };
+    const totals = { inCone: 0, outCone: 0, total: 0 };
     let noCoords = 0;
     for (const g of scored) {
       const scorer = g.scorer?.trim();
@@ -785,7 +802,7 @@ function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]
       const gy = g.goalY;
       if (gx == null || gy == null || !Number.isFinite(gx) || !Number.isFinite(gy)) { noCoords++; continue; }
       const z = goalZone(gx, gy);
-      const row = m.get(scorer) ?? { scorer, six: 0, box: 0, outside: 0, total: 0 };
+      const row = m.get(scorer) ?? { scorer, inCone: 0, outCone: 0, total: 0 };
       row[z] += 1;
       row.total += 1;
       m.set(scorer, row);
@@ -796,14 +813,14 @@ function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]
     return { rows, totals, mapped: totals.total, noCoords };
   }, [scored]);
 
-  const insidePct = totals.total ? Math.round(((totals.six + totals.box) / totals.total) * 100) : 0;
+  const insidePct = totals.total ? Math.round((totals.inCone / totals.total) * 100) : 0;
 
   return (
     <ChartCard
       tall
-      title="Scoring Zones by Player"
-      description="Where each player finishes from — six-yard box, penalty area, or outside the box"
-      tooltip="Every mapped goal is bucketed by where it was finished, using the real pitch lines from the Goal Location Map: the six-yard box, the rest of the penalty area, or outside the box. Bars are stacked per scorer and ranked by total goals. Own goals and goals without mapped coordinates are excluded."
+      title="Scoring Cone by Player"
+      description="Who finishes inside the scoring cone — the central channel flaring out from the goalposts"
+      tooltip="Every mapped goal is classified as inside or outside the scoring cone — the shaded channel formed by lines from each goalpost flaring out through the corners of the penalty area (see the diagram). Central, high-percentage finishes fall inside; wide-angle finishes fall outside. Bars are stacked per scorer and ranked by total goals. Own goals and goals without mapped coordinates are excluded."
       controls={<Last3Toggle active={lastN} onToggle={() => setLastN(v => !v)} />}
     >
       {rows.length === 0 ? (
@@ -812,10 +829,13 @@ function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]
         </div>
       ) : (
         <div className="flex h-full flex-col">
-          <div className="mb-2 text-center text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{insidePct}%</span> of mapped goals came from inside the box
-            {" "}({totals.six + totals.box} of {mapped})
-            {noCoords > 0 && <span className="opacity-70"> · {noCoords} unmapped</span>}
+          <div className="mb-2 flex items-center justify-center gap-3">
+            <ConeDiagram className="h-12 w-auto shrink-0 rounded" />
+            <div className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{insidePct}%</span> of mapped goals came from inside the scoring cone
+              {" "}({totals.inCone} of {mapped})
+              {noCoords > 0 && <span className="opacity-70"> · {noCoords} unmapped</span>}
+            </div>
           </div>
           <div className="min-h-0 flex-1">
             <ResponsiveContainer width="100%" height="100%">
@@ -2043,7 +2063,7 @@ export default function SeasonStats() {
             <GoalLocationMap scored={goalBreakdownFull?.goals ?? []} conceded={goalBreakdownFull?.conceded ?? []} />
           </ChartCard>
 
-          {/* Scoring Zones by Player — where each scorer finishes from (client-side from mapped coords) */}
+          {/* Scoring Cone by Player — inside vs outside the scoring cone (client-side from mapped coords) */}
           <ScoringZones scoredFull={goalBreakdownFull?.goals ?? []} scoredL3={goalBreakdownL3?.goals ?? []} />
 
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
@@ -3049,13 +3069,14 @@ function ComboThreatChart({
 
 // ─── Player Scoring DNA (radar) ────────────────────────────────────────────────
 type DnaMetricKey = keyof PlayerDnaResponse["metrics"];
-type DnaAxisKind = "goals" | "goalsPer90" | "assists" | "assistsPer90" | "firstTouch" | "foot";
+type DnaAxisKind = "goals" | "goalsPer90" | "assists" | "assistsPer90" | "firstTouch" | "cone" | "foot";
 const DNA_AXES: { key: DnaMetricKey; label: string; kind: DnaAxisKind }[] = [
   { key: "goals",         label: "Goals",       kind: "goals" },
   { key: "goalsPer90",    label: "Goals /90",   kind: "goalsPer90" },
   { key: "assists",       label: "Assists",     kind: "assists" },
   { key: "assistsPer90",  label: "Assists /90", kind: "assistsPer90" },
   { key: "firstTouchPct", label: "1st-touch %", kind: "firstTouch" },
+  { key: "conePct",       label: "Cone %",      kind: "cone" },
   { key: "rightFoot",     label: "Right foot",  kind: "foot" },
   { key: "leftFoot",      label: "Left foot",   kind: "foot" },
   { key: "header",        label: "Header",      kind: "foot" },
@@ -3064,7 +3085,7 @@ const DNA_AXES: { key: DnaMetricKey; label: string; kind: DnaAxisKind }[] = [
 // Format a value for a given axis: rates → 2dp, percentages → "n%", counts/averages → int or 1dp.
 function fmtDnaVal(key: DnaMetricKey, v: number): string {
   if (key === "goalsPer90" || key === "assistsPer90") return v.toFixed(2);
-  if (key === "firstTouchPct") return `${v}%`;
+  if (key === "firstTouchPct" || key === "conePct") return `${v}%`;
   return Number.isInteger(v) ? `${v}` : v.toFixed(1);
 }
 
@@ -3081,6 +3102,9 @@ function dnaContext(kind: DnaAxisKind, key: DnaMetricKey, src: PlayerDnaResponse
     case "firstTouch":  return src.firstTouchTotal > 0
       ? `${src.firstTouchYes} of ${plural(src.firstTouchTotal, "goal")} finished first-time`
       : "no finish data recorded";
+    case "cone":        return src.coneTotal > 0
+      ? `${src.coneYes} of ${plural(src.coneTotal, "mapped goal")} inside the scoring cone`
+      : "no goal locations mapped";
     case "foot": {
       const n = m[key] as number;
       const share = m.goals > 0 ? Math.round((n / m.goals) * 100) : 0;
@@ -3091,7 +3115,7 @@ function dnaContext(kind: DnaAxisKind, key: DnaMetricKey, src: PlayerDnaResponse
 
 function DnaTooltip({ active, payload }: {
   active?: boolean;
-  payload?: Array<{ payload: { metric: string; raw: string; squadAvg: string; squadBest: string; context: string | null } }>;
+  payload?: Array<{ payload: { metric: string; raw: string; squadAvg: string; squadBest: string; context: string | null; isCone?: boolean } }>;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -3111,6 +3135,7 @@ function DnaTooltip({ active, payload }: {
         <span className="tabular-nums">{d.squadBest}</span>
       </div>
       {d.context && <div className="border-t pt-1.5 text-muted-foreground">{d.context}</div>}
+      {d.isCone && <ConeDiagram className="mt-1.5 w-full rounded" />}
     </div>
   );
 }
@@ -3152,6 +3177,7 @@ function PlayerDnaChart({
         squadAvg: fmtDnaVal(a.key, avg),
         squadBest: fmtDnaVal(a.key, max),
         context: dnaContext(a.kind, a.key, src),
+        isCone: a.kind === "cone",
       };
     });
   }, [src]);
