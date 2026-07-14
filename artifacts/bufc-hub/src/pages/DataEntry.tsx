@@ -514,6 +514,22 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
     reader.readAsDataURL(file);
   };
 
+  // Paste a screenshot straight from the clipboard (Ctrl/Cmd+V anywhere on the page)
+  const canPaste = Boolean(fixture && club) && !extract.isPending;
+  useEffect(() => {
+    if (!canPaste) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const item = Array.from(e.clipboardData?.items ?? []).find(it => it.type.startsWith("image/"));
+      const file = item?.getAsFile();
+      if (file) { e.preventDefault(); onFile(file); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPaste, club]);
+
   return (
     <Card>
       <CardHeader>
@@ -558,6 +574,7 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
               {extract.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ScanText className="h-4 w-4 mr-2" />}
               {extract.isPending ? "Reading screenshot…" : "Read a Dribl screenshot"}
             </Button>
+            <span className="text-xs text-muted-foreground">or paste a copied screenshot (Ctrl/Cmd+V)</span>
             <Button
               variant="outline"
               onClick={() => setRows(rs => [...rs, { playerName: "", minsPlayed: 90, position: null, discipline: null, started: true, appearance: true }])}
