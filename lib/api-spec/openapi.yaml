@@ -1670,6 +1670,20 @@ components:
         header:        { type: integer }
       required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, rightFoot, leftFoot, header]
 
+    # Squad averages — same axes as PlayerDnaMetrics but every field is fractional.
+    PlayerDnaAverages:
+      type: object
+      properties:
+        goals:         { type: number }
+        goalsPer90:    { type: number }
+        assists:       { type: number }
+        assistsPer90:  { type: number }
+        firstTouchPct: { type: number }
+        rightFoot:     { type: number }
+        leftFoot:      { type: number }
+        header:        { type: number }
+      required: [goals, goalsPer90, assists, assistsPer90, firstTouchPct, rightFoot, leftFoot, header]
+
     PlayerDnaBest:
       type: object
       properties:
@@ -1686,9 +1700,12 @@ components:
         minsPerGoal:       { type: ["integer", "null"] }
         metrics:           { $ref: "#/components/schemas/PlayerDnaMetrics" }
         squadMax:          { $ref: "#/components/schemas/PlayerDnaMetrics" }
+        squadAvg:          { $ref: "#/components/schemas/PlayerDnaAverages" }
+        firstTouchYes:     { type: integer }
+        firstTouchTotal:   { type: integer }
         favouriteOpponent: { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
         topAssistPartner:  { oneOf: [{ $ref: "#/components/schemas/PlayerDnaBest" }, { type: "null" }] }
-      required: [player, minsPlayed, appearances, minsPerGoal, metrics, squadMax, favouriteOpponent, topAssistPartner]
+      required: [player, minsPlayed, appearances, minsPerGoal, metrics, squadMax, squadAvg, firstTouchYes, firstTouchTotal, favouriteOpponent, topAssistPartner]
 
     # ── Opponent Goal Breakdown ────────────────────────────────────────────────
 

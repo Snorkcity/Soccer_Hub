@@ -784,6 +784,17 @@ export interface PlayerDnaMetrics {
   header: number;
 }
 
+export interface PlayerDnaAverages {
+  goals: number;
+  goalsPer90: number;
+  assists: number;
+  assistsPer90: number;
+  firstTouchPct: number;
+  rightFoot: number;
+  leftFoot: number;
+  header: number;
+}
+
 export interface PlayerDnaBest {
   label: string;
   count: number;
@@ -797,6 +808,9 @@ export interface PlayerDnaResponse {
   minsPerGoal: number | null;
   metrics: PlayerDnaMetrics;
   squadMax: PlayerDnaMetrics;
+  squadAvg: PlayerDnaAverages;
+  firstTouchYes: number;
+  firstTouchTotal: number;
   favouriteOpponent: PlayerDnaBest | null;
   topAssistPartner: PlayerDnaBest | null;
 }

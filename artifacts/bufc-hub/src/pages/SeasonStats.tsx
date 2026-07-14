@@ -2923,34 +2923,68 @@ function ComboThreatChart({
 
 // ─── Player Scoring DNA (radar) ────────────────────────────────────────────────
 type DnaMetricKey = keyof PlayerDnaResponse["metrics"];
-const DNA_AXES: { key: DnaMetricKey; label: string; fmt: (v: number) => string }[] = [
-  { key: "goals",         label: "Goals",       fmt: v => `${v}` },
-  { key: "goalsPer90",    label: "Goals /90",   fmt: v => v.toFixed(2) },
-  { key: "assists",       label: "Assists",     fmt: v => `${v}` },
-  { key: "assistsPer90",  label: "Assists /90", fmt: v => v.toFixed(2) },
-  { key: "firstTouchPct", label: "1st-touch %", fmt: v => `${v}%` },
-  { key: "rightFoot",     label: "Right foot",  fmt: v => `${v}` },
-  { key: "leftFoot",      label: "Left foot",   fmt: v => `${v}` },
-  { key: "header",        label: "Header",      fmt: v => `${v}` },
+type DnaAxisKind = "goals" | "goalsPer90" | "assists" | "assistsPer90" | "firstTouch" | "foot";
+const DNA_AXES: { key: DnaMetricKey; label: string; kind: DnaAxisKind }[] = [
+  { key: "goals",         label: "Goals",       kind: "goals" },
+  { key: "goalsPer90",    label: "Goals /90",   kind: "goalsPer90" },
+  { key: "assists",       label: "Assists",     kind: "assists" },
+  { key: "assistsPer90",  label: "Assists /90", kind: "assistsPer90" },
+  { key: "firstTouchPct", label: "1st-touch %", kind: "firstTouch" },
+  { key: "rightFoot",     label: "Right foot",  kind: "foot" },
+  { key: "leftFoot",      label: "Left foot",   kind: "foot" },
+  { key: "header",        label: "Header",      kind: "foot" },
 ];
+
+// Format a value for a given axis: rates → 2dp, percentages → "n%", counts/averages → int or 1dp.
+function fmtDnaVal(key: DnaMetricKey, v: number): string {
+  if (key === "goalsPer90" || key === "assistsPer90") return v.toFixed(2);
+  if (key === "firstTouchPct") return `${v}%`;
+  return Number.isInteger(v) ? `${v}` : v.toFixed(1);
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+// A one-line context string beneath the value comparison — "8 of 19 goals (42%)" etc.
+function dnaContext(kind: DnaAxisKind, key: DnaMetricKey, src: PlayerDnaResponse): string | null {
+  const m = src.metrics;
+  switch (kind) {
+    case "goals":       return m.goals > 0 ? `${m.goalsPer90.toFixed(2)} per 90 mins` : null;
+    case "assists":     return m.assists > 0 ? `${m.assistsPer90.toFixed(2)} per 90 mins` : null;
+    case "goalsPer90":  return src.minsPlayed > 0 ? `from ${plural(m.goals, "goal")} in ${src.minsPlayed}'` : null;
+    case "assistsPer90":return src.minsPlayed > 0 ? `from ${plural(m.assists, "assist")} in ${src.minsPlayed}'` : null;
+    case "firstTouch":  return src.firstTouchTotal > 0
+      ? `${src.firstTouchYes} of ${plural(src.firstTouchTotal, "goal")} finished first-time`
+      : "no finish data recorded";
+    case "foot": {
+      const n = m[key] as number;
+      const share = m.goals > 0 ? Math.round((n / m.goals) * 100) : 0;
+      return `${n} of ${plural(m.goals, "goal")} (${share}%)`;
+    }
+  }
+}
 
 function DnaTooltip({ active, payload }: {
   active?: boolean;
-  payload?: Array<{ payload: { metric: string; raw: string; squadBest: string } }>;
+  payload?: Array<{ payload: { metric: string; raw: string; squadAvg: string; squadBest: string; context: string | null } }>;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[170px] space-y-2">
-      <div className="font-semibold text-sm">{d.metric}</div>
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[200px] space-y-1.5">
+      <div className="font-semibold text-sm mb-1">{d.metric}</div>
       <div className="flex justify-between gap-6">
         <span className="text-muted-foreground">This player</span>
-        <span className="font-medium tabular-nums">{d.raw}</span>
+        <span className="font-semibold tabular-nums">{d.raw}</span>
       </div>
-      <div className="flex justify-between gap-6 border-t pt-1.5">
+      <div className="flex justify-between gap-6">
+        <span className="text-muted-foreground">Squad avg</span>
+        <span className="tabular-nums">{d.squadAvg}</span>
+      </div>
+      <div className="flex justify-between gap-6">
         <span className="text-muted-foreground">Squad best</span>
         <span className="tabular-nums">{d.squadBest}</span>
       </div>
+      {d.context && <div className="border-t pt-1.5 text-muted-foreground">{d.context}</div>}
     </div>
   );
 }
@@ -2984,11 +3018,14 @@ function PlayerDnaChart({
     return DNA_AXES.map(a => {
       const raw = src.metrics[a.key];
       const max = src.squadMax[a.key];
+      const avg = src.squadAvg[a.key];
       return {
         metric: a.label,
         value: max > 0 ? Math.min(100, Math.round((raw / max) * 1000) / 10) : 0,
-        raw: a.fmt(raw),
-        squadBest: a.fmt(max),
+        raw: fmtDnaVal(a.key, raw),
+        squadAvg: fmtDnaVal(a.key, avg),
+        squadBest: fmtDnaVal(a.key, max),
+        context: dnaContext(a.kind, a.key, src),
       };
     });
   }, [src]);
@@ -3002,7 +3039,7 @@ function PlayerDnaChart({
       tall
       title={title}
       description="Attacking profile — each spoke is scaled against the squad's best on that metric"
-      tooltip="One player's scoring shape. Each spoke shows the player relative to the squad's best on that metric (hover for the real numbers). Per-90 rates use total minutes. First-touch % is the share of their goals finished first-time."
+      tooltip="One player's scoring shape. Each spoke is scaled against the squad's best on that metric — hover any spoke to compare this player vs the squad average and best, with the underlying counts (e.g. left-footed goals out of their total). Per-90 rates use total minutes; squad averages count only players who do that thing, so non-scorers don't drag them down."
       controls={
         <div className="flex flex-wrap items-center gap-3">
           <Select value={player} onValueChange={onPlayer}>

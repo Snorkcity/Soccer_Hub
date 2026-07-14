@@ -21,6 +21,19 @@ favourite opponent, top assist partner, minutes-per-goal, game time.
 - Per-90 minutes: sum of `player_stats.mins_played` for the roster player.
 - Opponent per goal: `matches.opponent` via `matchId`.
 
+## Tooltip context (squadAvg + first-touch)
+The radar tooltip shows **This player / Squad avg / Squad best** plus a context subline
+("8 of 19 goals (42%)" for foot/header, "11 of 18 goals finished first-time", "1.50 per 90 mins").
+Response carries `squadAvg` (schema `PlayerDnaAverages` — same axes but all fractional, NOT the
+integer `PlayerDnaMetrics`), plus `firstTouchYes` / `firstTouchTotal` for the selected player.
+
+**squadAvg population is deliberate, not strict per-axis contributors:**
+- goals / foot / header → averaged over ALL scorers (goals>0). **Why:** averaging headers only over
+  header-scorers inflates the baseline and makes a genuine aerial threat look ordinary; "avg per
+  scorer" is the useful comparison. A code reviewer will flag this as inconsistent — it's intentional.
+- assists → over assisters; per-90 → contributors that clear MIN_MINS floor; first-touch % → players
+  with first-touch-eligible goals. Non-contributors (zeros) always excluded so they don't drag it down.
+
 ## Two non-obvious decisions
 - **Per-90 squad-max floor:** rate maxima (goals/90, assists/90) only include players with
   ≥ `MIN_MINS_FOR_RATE_MAX` minutes, so a low-minute cameo can't blow out the scale. Then bump the

@@ -573,7 +573,8 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const emptyMetrics = { goals: 0, goalsPer90: 0, assists: 0, assistsPer90: 0, firstTouchPct: 0, rightFoot: 0, leftFoot: 0, header: 0 };
   const emptyResponse = {
     player, minsPlayed: 0, appearances: 0, minsPerGoal: null,
-    metrics: { ...emptyMetrics }, squadMax: { ...emptyMetrics },
+    metrics: { ...emptyMetrics }, squadMax: { ...emptyMetrics }, squadAvg: { ...emptyMetrics },
+    firstTouchYes: 0, firstTouchTotal: 0,
     favouriteOpponent: null, topAssistPartner: null,
   };
 
@@ -678,6 +679,52 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   squadMax.goalsPer90 = Math.max(squadMax.goalsPer90, metrics.goalsPer90);
   squadMax.assistsPer90 = Math.max(squadMax.assistsPer90, metrics.assistsPer90);
 
+  // Squad averages per metric. Population is chosen for a meaningful baseline, not a
+  // strict per-axis contributor set:
+  //   - goals / foot / header  → averaged over all SCORERS (goals > 0). Deliberate:
+  //     averaging headers only over header-scorers would inflate the baseline and make a
+  //     genuine aerial threat look ordinary; "avg headers per scorer" is the useful signal.
+  //   - assists                → averaged over assisters (assists > 0).
+  //   - goals/90, assists/90   → over contributors that also clear the MIN_MINS floor.
+  //   - first-touch %          → over players with first-touch-eligible goals.
+  // Non-contributors (zeros) are excluded so they don't drag the "typical" figure down.
+  const avgSum = { ...emptyMetrics };
+  const avgCnt = { ...emptyMetrics };
+  for (const name of roster) {
+    const m = metricsFor(name);
+    const a = agg.get(name);
+    const mins = minsMap.get(name) ?? 0;
+    const scored = m.goals > 0;
+    const assisted = m.assists > 0;
+    if (scored) {
+      avgSum.goals += m.goals; avgCnt.goals++;
+      avgSum.rightFoot += m.rightFoot; avgCnt.rightFoot++;
+      avgSum.leftFoot += m.leftFoot; avgCnt.leftFoot++;
+      avgSum.header += m.header; avgCnt.header++;
+    }
+    if (assisted) { avgSum.assists += m.assists; avgCnt.assists++; }
+    if (scored && mins >= MIN_MINS_FOR_RATE_MAX) { avgSum.goalsPer90 += m.goalsPer90; avgCnt.goalsPer90++; }
+    if (assisted && mins >= MIN_MINS_FOR_RATE_MAX) { avgSum.assistsPer90 += m.assistsPer90; avgCnt.assistsPer90++; }
+    if ((a?.ftTotal ?? 0) > 0) { avgSum.firstTouchPct += m.firstTouchPct; avgCnt.firstTouchPct++; }
+  }
+  const avgOf = (key: keyof typeof emptyMetrics, dp: number) =>
+    avgCnt[key] > 0 ? Math.round((avgSum[key] / avgCnt[key]) * 10 ** dp) / 10 ** dp : 0;
+  const squadAvg = {
+    goals: avgOf("goals", 1),
+    goalsPer90: avgOf("goalsPer90", 2),
+    assists: avgOf("assists", 1),
+    assistsPer90: avgOf("assistsPer90", 2),
+    firstTouchPct: avgOf("firstTouchPct", 1),
+    rightFoot: avgOf("rightFoot", 1),
+    leftFoot: avgOf("leftFoot", 1),
+    header: avgOf("header", 1),
+  };
+
+  // First-touch context for the selected player (goals finished first-time / eligible goals).
+  const selAgg = agg.get(player);
+  const firstTouchYes = selAgg?.ftYes ?? 0;
+  const firstTouchTotal = selAgg?.ftTotal ?? 0;
+
   // Best-of callouts (from the selected player's scored goals only).
   const oppCount = new Map<string, number>();
   const partnerCount = new Map<string, number>();
@@ -702,6 +749,9 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     minsPerGoal: metrics.goals > 0 ? Math.round(minsPlayed / metrics.goals) : null,
     metrics,
     squadMax,
+    squadAvg,
+    firstTouchYes,
+    firstTouchTotal,
     favouriteOpponent: topOf(oppCount),
     topAssistPartner: topOf(partnerCount),
   }));

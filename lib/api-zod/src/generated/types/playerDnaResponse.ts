@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlayerDnaAverages } from './playerDnaAverages';
 import type { PlayerDnaBest } from './playerDnaBest';
 import type { PlayerDnaMetrics } from './playerDnaMetrics';
 
@@ -16,6 +17,9 @@ export interface PlayerDnaResponse {
   minsPerGoal: number | null;
   metrics: PlayerDnaMetrics;
   squadMax: PlayerDnaMetrics;
+  squadAvg: PlayerDnaAverages;
+  firstTouchYes: number;
+  firstTouchTotal: number;
   favouriteOpponent: PlayerDnaBest | null;
   topAssistPartner: PlayerDnaBest | null;
 }

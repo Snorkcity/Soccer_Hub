@@ -75,6 +75,7 @@ export * from './opponentProfileRecord';
 export * from './opponentProfileResponse';
 export * from './opponentProfileScorer';
 export * from './player';
+export * from './playerDnaAverages';
 export * from './playerDnaBest';
 export * from './playerDnaMetrics';
 export * from './playerDnaResponse';

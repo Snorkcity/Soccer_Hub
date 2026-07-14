@@ -1221,6 +1221,18 @@ export const GetPlayerDnaResponse = zod.object({
   "leftFoot": zod.number(),
   "header": zod.number()
 }),
+  "squadAvg": zod.object({
+  "goals": zod.number(),
+  "goalsPer90": zod.number(),
+  "assists": zod.number(),
+  "assistsPer90": zod.number(),
+  "firstTouchPct": zod.number(),
+  "rightFoot": zod.number(),
+  "leftFoot": zod.number(),
+  "header": zod.number()
+}),
+  "firstTouchYes": zod.number(),
+  "firstTouchTotal": zod.number(),
   "favouriteOpponent": zod.union([zod.object({
   "label": zod.string(),
   "count": zod.number()
