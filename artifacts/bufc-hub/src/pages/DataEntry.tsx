@@ -15,6 +15,9 @@ import {
   useCreateEntryGoal,
   useGetGoalTally,
   getGetGoalTallyQueryKey,
+  useListEntryGoals,
+  getListEntryGoalsQueryKey,
+  useDeleteEntryGoal,
   useSaveEntryPlayerStats,
   useExtractPlayersFromImage,
   useListLeagues,
@@ -347,9 +350,26 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
     { query: { enabled: !!matchId, queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) } },
   );
 
+  const { data: loggedGoals } = useListEntryGoals(
+    { seasonId, matchId },
+    { query: { enabled: !!matchId, queryKey: getListEntryGoalsQueryKey({ seasonId, matchId }) } },
+  );
+
+  // Prefix invalidation (no params) so caches for EVERY fixture refresh — safe even
+  // if the coach switches match while a save/delete is still in flight
+  const invalidateGoalQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: getGetGoalTallyQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListEntryGoalsQueryKey() });
+  };
+
+  const removeGoal = useDeleteEntryGoal({ mutation: {
+    onSuccess: () => { invalidateGoalQueries(); setOk("Goal removed"); },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
   const create = useCreateEntryGoal({ mutation: {
     onSuccess: (res) => {
-      void queryClient.invalidateQueries({ queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) });
+      invalidateGoalQueries();
       setOk(`Goal saved${res.belconnenGoalId != null ? " (Belconnen copy written too)" : ""} — ready for the next one`);
       // keep match + scorer team selected for rapid entry; clear the goal detail
       setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
@@ -408,6 +428,29 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
                 </Badge>
               );
             })}
+          </div>
+        )}
+
+        {loggedGoals && loggedGoals.goals.length > 0 && (
+          <div className="rounded-md border border-border/60 divide-y divide-border/40">
+            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Goals logged so far — bin one to fix a mistake, then re-enter it</p>
+            {loggedGoals.goals.map(g => (
+              <div key={g.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                <span className="w-10 text-muted-foreground">{g.minuteScored != null ? `${g.minuteScored}'` : "—"}</span>
+                <span className="font-medium">{g.scorer ?? "Unknown"}</span>
+                <span className="text-muted-foreground">({g.scorerTeam ?? "?"})</span>
+                {g.assist && <span className="text-xs text-muted-foreground">assist: {g.assist}</span>}
+                {g.goalType && <Badge variant="outline" className="text-xs">{g.goalType}</Badge>}
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 ml-auto text-muted-foreground"
+                  disabled={removeGoal.isPending}
+                  onClick={() => { setOk(null); setErr(null); removeGoal.mutate({ goalId: g.id }); }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
 

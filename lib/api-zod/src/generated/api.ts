@@ -1527,6 +1527,39 @@ export const GetGoalTallyResponse = zod.object({
 
 
 /**
+ * @summary List the goals logged so far for a fixture (for review/editing)
+ */
+export const ListEntryGoalsQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "matchId": zod.coerce.string()
+})
+
+export const ListEntryGoalsResponse = zod.object({
+  "goals": zod.array(zod.object({
+  "id": zod.number(),
+  "scorerTeam": zod.string().nullable(),
+  "minuteScored": zod.number().nullable(),
+  "scorer": zod.string().nullable(),
+  "assist": zod.string().nullable(),
+  "goalType": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Delete a logged goal (removes the Belconnen copy too when applicable)
+ */
+export const DeleteEntryGoalParams = zod.object({
+  "goalId": zod.coerce.number()
+})
+
+export const DeleteEntryGoalResponse = zod.object({
+  "deleted": zod.boolean(),
+  "belconnenDeleted": zod.boolean()
+})
+
+
+/**
  * @summary Record a league fixture (also creates the Belconnen match row when Belconnen is playing)
  */
 

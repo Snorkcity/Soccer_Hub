@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull, inArray, type AnyColumn } from "drizzle-orm";
 import {
   db,
   leagueMatchesTable,
@@ -17,6 +17,9 @@ import {
   GetGoalOptionsResponse,
   GetGoalTallyQueryParams,
   GetGoalTallyResponse,
+  ListEntryGoalsQueryParams,
+  ListEntryGoalsResponse,
+  DeleteEntryGoalResponse,
   CreateEntryMatchBody,
   CreateEntryMatchResponse,
   CreateEntryGoalBody,
@@ -83,6 +86,86 @@ router.get("/entry/goal-tally", async (req, res): Promise<void> => {
 });
 
 // ── Dropdown vocabulary (keeps spellings consistent with existing data) ──────
+router.get("/entry/goals", async (req, res): Promise<void> => {
+  const query = ListEntryGoalsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, matchId } = query.data;
+  const rows = await db
+    .select({
+      id: leagueGoalsTable.id,
+      scorerTeam: leagueGoalsTable.scorerTeam,
+      minuteScored: leagueGoalsTable.minuteScored,
+      scorer: leagueGoalsTable.scorer,
+      assist: leagueGoalsTable.assist,
+      goalType: leagueGoalsTable.goalType,
+    })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), eq(leagueGoalsTable.matchId, matchId)))
+    .orderBy(leagueGoalsTable.minuteScored, leagueGoalsTable.id);
+  res.json(ListEntryGoalsResponse.parse({ goals: rows }));
+});
+
+router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.goalId);
+  if (!Number.isInteger(goalId)) {
+    res.status(400).json({ error: "Invalid goal id" });
+    return;
+  }
+  const [goal] = await db.select().from(leagueGoalsTable).where(eq(leagueGoalsTable.id, goalId));
+  if (!goal) {
+    res.status(404).json({ error: "That goal is already gone" });
+    return;
+  }
+
+  // Single transaction: remove league goal + its Belconnen copy together
+  const belconnenDeleted = await db.transaction(async (tx) => {
+    await tx.delete(leagueGoalsTable).where(eq(leagueGoalsTable.id, goalId));
+
+    if (goal.homeTeam !== FOCUS_CLUB && goal.awayTeam !== FOCUS_CLUB) return false;
+    // A fixture may exist under several team contexts; consider every mirror partition
+    const matchRows = await tx
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .where(and(eq(matchesTable.matchId, goal.matchId), eq(matchesTable.seasonId, goal.seasonId)));
+    if (matchRows.length === 0) return false;
+
+    // Match the legacy copy on EVERY mirrored field (null-safe) so we can only
+    // ever hit exact duplicates of the deleted league goal — never a different goal.
+    const nullSafe = <T extends AnyColumn>(col: T, val: unknown) =>
+      val == null ? isNull(col) : eq(col, val as never);
+    const candidates = await tx
+      .select({ id: goalsTable.id })
+      .from(goalsTable)
+      .where(and(
+        inArray(goalsTable.matchId, matchRows.map(m => m.id)),
+        eq(goalsTable.seasonId, goal.seasonId),
+        nullSafe(goalsTable.scorerTeam, goal.scorerTeam),
+        nullSafe(goalsTable.minuteScored, goal.minuteScored),
+        nullSafe(goalsTable.scorer, goal.scorer),
+        nullSafe(goalsTable.assist, goal.assist),
+        nullSafe(goalsTable.goalType, goal.goalType),
+        nullSafe(goalsTable.assistType, goal.assistType),
+        nullSafe(goalsTable.howPenetrated, goal.howPenetrated),
+        nullSafe(goalsTable.buildupLane, goal.buildupLane),
+        nullSafe(goalsTable.firstTimeFinish, goal.firstTimeFinish),
+        nullSafe(goalsTable.finishType, goal.finishType),
+        nullSafe(goalsTable.passString, goal.passString),
+      ));
+    if (candidates.length === 0) {
+      logger.warn({ leagueGoalId: goalId, matchId: goal.matchId }, "No matching Belconnen goal copy found to delete");
+      return false;
+    }
+    // Exact-duplicate copies are interchangeable — deleting any one of them is correct
+    await tx.delete(goalsTable).where(eq(goalsTable.id, candidates[0].id));
+    return true;
+  });
+
+  res.json(DeleteEntryGoalResponse.parse({ deleted: true, belconnenDeleted }));
+});
+
 router.get("/entry/goal-options", async (req, res): Promise<void> => {
   const query = GetGoalOptionsQueryParams.safeParse(req.query);
   if (!query.success) {

@@ -1192,6 +1192,29 @@ export interface GoalTallyResponse {
   awayLogged: number;
 }
 
+export interface EntryGoalListItem {
+  id: number;
+  /** @nullable */
+  scorerTeam: string | null;
+  /** @nullable */
+  minuteScored: number | null;
+  /** @nullable */
+  scorer: string | null;
+  /** @nullable */
+  assist: string | null;
+  /** @nullable */
+  goalType: string | null;
+}
+
+export interface EntryGoalListResponse {
+  goals: EntryGoalListItem[];
+}
+
+export interface EntryGoalDeleteResponse {
+  deleted: boolean;
+  belconnenDeleted: boolean;
+}
+
 export interface EntryPlayerRow {
   /** @minLength 1 */
   playerName: string;
@@ -1402,6 +1425,11 @@ seasonId: number;
 };
 
 export type GetGoalTallyParams = {
+seasonId: number;
+matchId: string;
+};
+
+export type ListEntryGoalsParams = {
 seasonId: number;
 matchId: string;
 };

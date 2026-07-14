@@ -28,6 +28,8 @@ import type {
   ClubInfo,
   ClubInput,
   EntryGoalBody,
+  EntryGoalDeleteResponse,
+  EntryGoalListResponse,
   EntryGoalResponse,
   EntryMatchBody,
   EntryMatchResponse,
@@ -75,6 +77,7 @@ import type {
   LeagueInput,
   LeagueMatchInfo,
   ListAthleticTestsParams,
+  ListEntryGoalsParams,
   ListGoalsParams,
   ListGpsSessionsParams,
   ListLeagueMatchesParams,
@@ -4241,6 +4244,161 @@ export function useGetGoalTally<TData = Awaited<ReturnType<typeof getGoalTally>>
 
 
 
+
+export const getListEntryGoalsUrl = (params: ListEntryGoalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/goals?${stringifiedParams}` : `/api/entry/goals`
+}
+
+/**
+ * @summary List the goals logged so far for a fixture (for review/editing)
+ */
+export const listEntryGoals = async (params: ListEntryGoalsParams, options?: RequestInit): Promise<EntryGoalListResponse> => {
+
+  return customFetch<EntryGoalListResponse>(getListEntryGoalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEntryGoalsQueryKey = (params?: ListEntryGoalsParams,) => {
+    return [
+    `/api/entry/goals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEntryGoalsQueryOptions = <TData = Awaited<ReturnType<typeof listEntryGoals>>, TError = ErrorType<unknown>>(params: ListEntryGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEntryGoalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEntryGoals>>> = ({ signal }) => listEntryGoals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEntryGoals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEntryGoalsQueryResult = NonNullable<Awaited<ReturnType<typeof listEntryGoals>>>
+export type ListEntryGoalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the goals logged so far for a fixture (for review/editing)
+ */
+
+export function useListEntryGoals<TData = Awaited<ReturnType<typeof listEntryGoals>>, TError = ErrorType<unknown>>(
+ params: ListEntryGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEntryGoalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteEntryGoalUrl = (goalId: number,) => {
+
+
+
+
+  return `/api/entry/goal/${goalId}`
+}
+
+/**
+ * @summary Delete a logged goal (removes the Belconnen copy too when applicable)
+ */
+export const deleteEntryGoal = async (goalId: number, options?: RequestInit): Promise<EntryGoalDeleteResponse> => {
+
+  return customFetch<EntryGoalDeleteResponse>(getDeleteEntryGoalUrl(goalId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEntryGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGoal>>, TError,{goalId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGoal>>, TError,{goalId: number}, TContext> => {
+
+const mutationKey = ['deleteEntryGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEntryGoal>>, {goalId: number}> = (props) => {
+          const {goalId} = props ?? {};
+
+          return  deleteEntryGoal(goalId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEntryGoalMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEntryGoal>>>
+
+    export type DeleteEntryGoalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a logged goal (removes the Belconnen copy too when applicable)
+ */
+export const useDeleteEntryGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGoal>>, TError,{goalId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEntryGoal>>,
+        TError,
+        {goalId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteEntryGoalMutationOptions(options));
+    }
 
 export const getCreateEntryMatchUrl = () => {
 

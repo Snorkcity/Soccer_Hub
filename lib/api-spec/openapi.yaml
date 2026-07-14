@@ -1177,6 +1177,44 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/GoalTallyResponse" }
 
+  /entry/goals:
+    get:
+      operationId: listEntryGoals
+      tags: [entry]
+      summary: List the goals logged so far for a fixture (for review/editing)
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Goals logged for the fixture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGoalListResponse" }
+
+  /entry/goal/{goalId}:
+    delete:
+      operationId: deleteEntryGoal
+      tags: [entry]
+      summary: Delete a logged goal (removes the Belconnen copy too when applicable)
+      parameters:
+        - name: goalId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Goal deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGoalDeleteResponse" }
+
   /entry/match:
     post:
       operationId: createEntryMatch
@@ -2319,6 +2357,32 @@ components:
         homeLogged:   { type: integer }
         awayLogged:   { type: integer }
       required: [homeTeam, awayTeam, homeExpected, awayExpected, homeLogged, awayLogged]
+
+    EntryGoalListItem:
+      type: object
+      properties:
+        id:           { type: integer }
+        scorerTeam:   { type: ["string", "null"] }
+        minuteScored: { type: ["integer", "null"] }
+        scorer:       { type: ["string", "null"] }
+        assist:       { type: ["string", "null"] }
+        goalType:     { type: ["string", "null"] }
+      required: [id, scorerTeam, minuteScored, scorer, assist, goalType]
+
+    EntryGoalListResponse:
+      type: object
+      properties:
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/EntryGoalListItem" }
+      required: [goals]
+
+    EntryGoalDeleteResponse:
+      type: object
+      properties:
+        deleted:          { type: boolean }
+        belconnenDeleted: { type: boolean }
+      required: [deleted, belconnenDeleted]
 
     EntryPlayerRow:
       type: object
