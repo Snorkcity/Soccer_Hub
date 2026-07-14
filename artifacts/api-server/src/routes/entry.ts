@@ -129,6 +129,7 @@ router.post("/entry/match", async (req, res): Promise<void> => {
       homeTeam: b.homeTeam.trim(),
       awayTeam: b.awayTeam.trim(),
       fullScore,
+      halfScore: b.halfScore ?? null,
       homeGoals: b.homeGoals,
       awayGoals: b.awayGoals,
       seasonId: b.seasonId,

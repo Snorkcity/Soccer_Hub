@@ -40,6 +40,14 @@ export async function runStartupMigrations(): Promise<void> {
   // At most one active season per league, enforced by the database
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS seasons_one_active_per_league ON seasons (league_id) WHERE is_active`);
 
+  // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table
+  await db.execute(sql`ALTER TABLE league_matches ADD COLUMN IF NOT EXISTS half_score text`);
+  await db.execute(sql`
+    UPDATE league_matches lm SET half_score = m.half_score
+    FROM matches m
+    WHERE lm.match_id = m.match_id AND lm.half_score IS NULL AND m.half_score IS NOT NULL
+  `);
+
   // Teams are referred to by their in-league club name (2026-07 rename)
   await db.execute(sql`UPDATE teams SET name = 'Belconnen' WHERE name = 'BUFC NPLW 1sts'`);
 

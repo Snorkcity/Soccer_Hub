@@ -11,6 +11,7 @@ export const leagueMatchesTable = pgTable("league_matches", {
   homeTeam: text("home_team").notNull(),
   awayTeam: text("away_team").notNull(),
   fullScore: text("full_score"),
+  halfScore: text("half_score"),
   homeGoals: integer("home_goals"),
   awayGoals: integer("away_goals"),
   seasonId: integer("season_id").notNull(),

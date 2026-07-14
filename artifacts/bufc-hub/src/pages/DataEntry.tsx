@@ -182,6 +182,9 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
           <Field label="Match ID (fills in automatically)" className="col-span-2">
             <Input value={matchId} onChange={e => { setMatchId(e.target.value); setMatchIdEdited(true); }} placeholder="R14-MAJ-CRO" />
           </Field>
+          <Field label="Half-time score">
+            <Input value={halfScore} onChange={e => setHalfScore(e.target.value)} placeholder="e.g. 1-0" />
+          </Field>
         </div>
 
         {isBelconnen && (
@@ -189,9 +192,6 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
             <p className="text-sm font-medium">Belconnen match details <span className="text-muted-foreground font-normal">(all optional — add Veo numbers later if you like)</span></p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <VocabInput label="Venue" value={venue} onChange={setVenue} options={options?.venues ?? []} listId="dl-venues" />
-              <Field label="Half-time score">
-                <Input value={halfScore} onChange={e => setHalfScore(e.target.value)} placeholder="e.g. 1-0" />
-              </Field>
               <VocabInput label="Conditions" value={conditions} onChange={setConditions} options={options?.conditions ?? []} listId="dl-conditions" />
               <VocabInput label="Our formation" value={formation} onChange={setFormation} options={options?.formations ?? []} listId="dl-formations" />
               <VocabInput label="Their formation" value={oppFormation} onChange={setOppFormation} options={options?.formations ?? []} listId="dl-formations2" />
@@ -225,9 +225,9 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
                 matchDate: toDbDate(matchDate),
                 homeTeam, awayTeam,
                 homeGoals: Number(homeGoals), awayGoals: Number(awayGoals),
+                halfScore: halfScore.trim() || null,
                 ...(isBelconnen ? {
                   venue: venue.trim() || null,
-                  halfScore: halfScore.trim() || null,
                   conditions: conditions.trim() || null,
                   formation: formation.trim() || null,
                   oppFormation: oppFormation.trim() || null,
