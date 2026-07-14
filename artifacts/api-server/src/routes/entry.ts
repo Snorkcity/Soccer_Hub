@@ -28,6 +28,9 @@ import {
   CreateEntryGoalResponse,
   SaveEntryPlayerStatsBody,
   SaveEntryPlayerStatsResponse,
+  ListEntryPlayerStatsQueryParams,
+  ListEntryPlayerStatsResponse,
+  DeleteEntryPlayerStatResponse,
   ExtractPlayersFromImageBody,
   ExtractPlayersFromImageResponse,
 } from "@workspace/api-zod";
@@ -521,6 +524,98 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
     replaced,
     belconnenCopies,
   }));
+});
+
+// ── Saved player rows for one club in a fixture (review/removal) ─────────────
+router.get("/entry/player-stats", async (req, res): Promise<void> => {
+  const query = ListEntryPlayerStatsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, matchId, club } = query.data;
+  const rows = await db
+    .select({
+      id: leaguePlayerStatsTable.id,
+      playerName: leaguePlayerStatsTable.playerName,
+      minsPlayed: leaguePlayerStatsTable.minsPlayed,
+      position: leaguePlayerStatsTable.position,
+      discipline: leaguePlayerStatsTable.discipline,
+      started: leaguePlayerStatsTable.started,
+      appearance: leaguePlayerStatsTable.appearance,
+    })
+    .from(leaguePlayerStatsTable)
+    .where(and(
+      eq(leaguePlayerStatsTable.seasonId, seasonId),
+      eq(leaguePlayerStatsTable.matchId, matchId),
+      eq(leaguePlayerStatsTable.club, club),
+    ))
+    .orderBy(leaguePlayerStatsTable.playerName);
+  res.json(ListEntryPlayerStatsResponse.parse({ rows }));
+});
+
+// ── Delete one saved player row (league row + Belconnen mirror copy) ─────────
+router.delete("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
+  const rowId = Number(req.params.rowId);
+  if (!Number.isInteger(rowId)) {
+    res.status(400).json({ error: "Invalid row id" });
+    return;
+  }
+  const [row] = await db.select().from(leaguePlayerStatsTable).where(eq(leaguePlayerStatsTable.id, rowId));
+  if (!row) {
+    res.status(404).json({ error: "That player row is already gone" });
+    return;
+  }
+  if (row.seasonId == null) {
+    res.status(400).json({ error: "Row has no season — cannot safely mirror-delete" });
+    return;
+  }
+
+  // Single transaction: remove the league row + its legacy Belconnen mirror together.
+  // The mirror is keyed by playerName+club within the fixture's matches partitions —
+  // player names are unique per club per match (enforced on save), so this is exact.
+  const belconnenDeleted = await db.transaction(async (tx) => {
+    await tx.delete(leaguePlayerStatsTable).where(eq(leaguePlayerStatsTable.id, rowId));
+
+    const [fixture] = await tx
+      .select()
+      .from(leagueMatchesTable)
+      .where(and(eq(leagueMatchesTable.matchId, row.matchId), eq(leagueMatchesTable.seasonId, row.seasonId!)));
+    if (!fixture || (fixture.homeTeam !== FOCUS_CLUB && fixture.awayTeam !== FOCUS_CLUB)) return false;
+
+    const matchRows = await tx
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .where(and(eq(matchesTable.matchId, row.matchId), eq(matchesTable.seasonId, row.seasonId!)));
+    if (matchRows.length === 0) return false;
+
+    // Match the legacy copy on EVERY mirrored field (null-safe) so we can only
+    // ever hit exact duplicates of the deleted league row — never a different one.
+    const nullSafe = <T extends AnyColumn>(col: T, val: unknown) =>
+      val == null ? isNull(col) : eq(col, val as never);
+    const candidates = await tx
+      .select({ id: playerStatsTable.id })
+      .from(playerStatsTable)
+      .where(and(
+        inArray(playerStatsTable.matchId, matchRows.map(m => m.id)),
+        eq(playerStatsTable.playerName, row.playerName),
+        nullSafe(playerStatsTable.club, row.club),
+        nullSafe(playerStatsTable.minsPlayed, row.minsPlayed),
+        nullSafe(playerStatsTable.position, row.position),
+        nullSafe(playerStatsTable.discipline, row.discipline),
+        nullSafe(playerStatsTable.started, row.started),
+        nullSafe(playerStatsTable.appearance, row.appearance),
+      ));
+    if (candidates.length === 0) {
+      logger.warn({ leagueRowId: rowId, matchId: row.matchId }, "No matching Belconnen player-stats copy found to delete");
+      return false;
+    }
+    // Exact-duplicate copies are interchangeable — deleting any one of them is correct
+    await tx.delete(playerStatsTable).where(eq(playerStatsTable.id, candidates[0].id));
+    return true;
+  });
+
+  res.json(DeleteEntryPlayerStatResponse.parse({ deleted: true, belconnenDeleted }));
 });
 
 // ── AI screenshot reader ──────────────────────────────────────────────────────

@@ -21,6 +21,9 @@ import {
   useGetPlayerTally,
   getGetPlayerTallyQueryKey,
   useSaveEntryPlayerStats,
+  useListEntryPlayerStats,
+  getListEntryPlayerStatsQueryKey,
+  useDeleteEntryPlayerStat,
   useExtractPlayersFromImage,
   useListLeagues,
   useCreateLeague,
@@ -542,6 +545,26 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
     { query: { enabled: !!matchId, queryKey: getGetPlayerTallyQueryKey({ seasonId, matchId }) } },
   );
 
+  const { data: savedPlayers } = useListEntryPlayerStats(
+    { seasonId, matchId, club },
+    { query: { enabled: !!matchId && !!club, queryKey: getListEntryPlayerStatsQueryKey({ seasonId, matchId, club }) } },
+  );
+
+  // Prefix invalidation (no params) so caches for EVERY fixture refresh — safe even
+  // if the coach switches match while a save/delete is still in flight
+  const invalidatePlayerQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: getGetPlayerTallyQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListEntryPlayerStatsQueryKey() });
+  };
+
+  const removeSaved = useDeleteEntryPlayerStat({ mutation: {
+    onSuccess: (res) => {
+      invalidatePlayerQueries();
+      setOk(`Player removed${res.belconnenDeleted ? " (Belconnen copy removed too)" : ""}`);
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
   const extract = useExtractPlayersFromImage({ mutation: {
     onSuccess: (res) => {
       setRows(res.rows);
@@ -555,7 +578,7 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
     onSuccess: (res) => {
       setOk(`Saved ${res.saved} players${res.replaced > 0 ? ` (replaced ${res.replaced} previous rows)` : ""}${res.belconnenCopies > 0 ? ` — mirrored into Belconnen tables` : ""}`);
       // Prefix invalidation so every fixture's tally refreshes, even mid-flight
-      void queryClient.invalidateQueries({ queryKey: getGetPlayerTallyQueryKey() });
+      invalidatePlayerQueries();
       // Reset back to the default look, ready for the next team sheet
       setRows([]); setWarnings([]); setClub("");
     },
@@ -635,6 +658,33 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
                 {saved > 0 && <CheckCircle2 className="h-3 w-3 mr-1" />}
                 {team}: {saved > 0 ? `${saved} players saved` : "not done yet"}
               </Badge>
+            ))}
+          </div>
+        )}
+
+        {fixture && club && savedPlayers && savedPlayers.rows.length > 0 && (
+          <div className="rounded-md border border-border/60 divide-y divide-border/40">
+            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {club} players already saved for this match — bin one if it shouldn't be there
+            </p>
+            {savedPlayers.rows.map(p => (
+              <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                <span className="font-medium">{p.playerName}</span>
+                <span className="text-xs text-muted-foreground">
+                  {p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
+                  {p.minsPlayed != null ? ` · ${p.minsPlayed} mins` : ""}
+                  {p.position ? ` · ${p.position}` : ""}
+                </span>
+                {p.discipline && <Badge variant="outline" className="text-xs">{p.discipline}</Badge>}
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 ml-auto text-muted-foreground"
+                  disabled={removeSaved.isPending}
+                  onClick={() => { setOk(null); setErr(null); removeSaved.mutate({ rowId: p.id }); }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             ))}
           </div>
         )}

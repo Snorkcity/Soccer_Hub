@@ -33,8 +33,10 @@ import type {
   EntryGoalResponse,
   EntryMatchBody,
   EntryMatchResponse,
+  EntryPlayerStatDeleteResponse,
   EntryPlayerStatsBody,
   EntryPlayerStatsResponse,
+  EntrySavedPlayersResponse,
   ExtractPlayersBody,
   ExtractPlayersResponse,
   FirstSubResponse,
@@ -80,6 +82,7 @@ import type {
   LeagueMatchInfo,
   ListAthleticTestsParams,
   ListEntryGoalsParams,
+  ListEntryPlayerStatsParams,
   ListGoalsParams,
   ListGpsSessionsParams,
   ListLeagueMatchesParams,
@@ -4714,6 +4717,90 @@ export const useCreateEntryGoal = <TError = ErrorType<unknown>,
       return useMutation(getCreateEntryGoalMutationOptions(options));
     }
 
+export const getListEntryPlayerStatsUrl = (params: ListEntryPlayerStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/player-stats?${stringifiedParams}` : `/api/entry/player-stats`
+}
+
+/**
+ * @summary List the player rows saved so far for one club in a fixture (for review/removal)
+ */
+export const listEntryPlayerStats = async (params: ListEntryPlayerStatsParams, options?: RequestInit): Promise<EntrySavedPlayersResponse> => {
+
+  return customFetch<EntrySavedPlayersResponse>(getListEntryPlayerStatsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEntryPlayerStatsQueryKey = (params?: ListEntryPlayerStatsParams,) => {
+    return [
+    `/api/entry/player-stats`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEntryPlayerStatsQueryOptions = <TData = Awaited<ReturnType<typeof listEntryPlayerStats>>, TError = ErrorType<unknown>>(params: ListEntryPlayerStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryPlayerStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEntryPlayerStatsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEntryPlayerStats>>> = ({ signal }) => listEntryPlayerStats(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEntryPlayerStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEntryPlayerStatsQueryResult = NonNullable<Awaited<ReturnType<typeof listEntryPlayerStats>>>
+export type ListEntryPlayerStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the player rows saved so far for one club in a fixture (for review/removal)
+ */
+
+export function useListEntryPlayerStats<TData = Awaited<ReturnType<typeof listEntryPlayerStats>>, TError = ErrorType<unknown>>(
+ params: ListEntryPlayerStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryPlayerStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEntryPlayerStatsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getSaveEntryPlayerStatsUrl = () => {
 
 
@@ -4783,6 +4870,77 @@ export const useSaveEntryPlayerStats = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveEntryPlayerStatsMutationOptions(options));
+    }
+
+export const getDeleteEntryPlayerStatUrl = (rowId: number,) => {
+
+
+
+
+  return `/api/entry/player-stat/${rowId}`
+}
+
+/**
+ * @summary Delete one saved player row (removes the Belconnen mirror copy too when applicable)
+ */
+export const deleteEntryPlayerStat = async (rowId: number, options?: RequestInit): Promise<EntryPlayerStatDeleteResponse> => {
+
+  return customFetch<EntryPlayerStatDeleteResponse>(getDeleteEntryPlayerStatUrl(rowId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEntryPlayerStatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStat>>, TError,{rowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStat>>, TError,{rowId: number}, TContext> => {
+
+const mutationKey = ['deleteEntryPlayerStat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEntryPlayerStat>>, {rowId: number}> = (props) => {
+          const {rowId} = props ?? {};
+
+          return  deleteEntryPlayerStat(rowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEntryPlayerStatMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEntryPlayerStat>>>
+
+    export type DeleteEntryPlayerStatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete one saved player row (removes the Belconnen mirror copy too when applicable)
+ */
+export const useDeleteEntryPlayerStat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryPlayerStat>>, TError,{rowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEntryPlayerStat>>,
+        TError,
+        {rowId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteEntryPlayerStatMutationOptions(options));
     }
 
 export const getExtractPlayersFromImageUrl = () => {

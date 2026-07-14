@@ -1690,6 +1690,28 @@ export const CreateEntryGoalResponse = zod.object({
 
 
 /**
+ * @summary List the player rows saved so far for one club in a fixture (for review/removal)
+ */
+export const ListEntryPlayerStatsQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "matchId": zod.coerce.string(),
+  "club": zod.coerce.string()
+})
+
+export const ListEntryPlayerStatsResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "playerName": zod.string(),
+  "minsPlayed": zod.number().nullable(),
+  "position": zod.string().nullable(),
+  "discipline": zod.string().nullable(),
+  "started": zod.boolean(),
+  "appearance": zod.boolean()
+}))
+})
+
+
+/**
  * @summary Save one club's player rows for a match (replaces any previous rows for that match+club)
  */
 
@@ -1720,6 +1742,19 @@ export const SaveEntryPlayerStatsResponse = zod.object({
   "saved": zod.number(),
   "replaced": zod.number(),
   "belconnenCopies": zod.number()
+})
+
+
+/**
+ * @summary Delete one saved player row (removes the Belconnen mirror copy too when applicable)
+ */
+export const DeleteEntryPlayerStatParams = zod.object({
+  "rowId": zod.coerce.number()
+})
+
+export const DeleteEntryPlayerStatResponse = zod.object({
+  "deleted": zod.boolean(),
+  "belconnenDeleted": zod.boolean()
 })
 
 

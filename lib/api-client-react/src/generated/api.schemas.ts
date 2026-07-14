@@ -1282,6 +1282,28 @@ export interface EntryPlayerStatsResponse {
   belconnenCopies: number;
 }
 
+export interface EntrySavedPlayerRow {
+  id: number;
+  playerName: string;
+  /** @nullable */
+  minsPlayed: number | null;
+  /** @nullable */
+  position: string | null;
+  /** @nullable */
+  discipline: string | null;
+  started: boolean;
+  appearance: boolean;
+}
+
+export interface EntrySavedPlayersResponse {
+  rows: EntrySavedPlayerRow[];
+}
+
+export interface EntryPlayerStatDeleteResponse {
+  deleted: boolean;
+  belconnenDeleted: boolean;
+}
+
 export interface ExtractPlayersBody {
   /** @minLength 1 */
   imageBase64: string;
@@ -1475,5 +1497,11 @@ matchId: string;
 export type ListEntryGoalsParams = {
 seasonId: number;
 matchId: string;
+};
+
+export type ListEntryPlayerStatsParams = {
+seasonId: number;
+matchId: string;
+club: string;
 };
 

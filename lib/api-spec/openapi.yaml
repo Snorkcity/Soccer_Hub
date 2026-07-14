@@ -1297,6 +1297,29 @@ paths:
               schema: { $ref: "#/components/schemas/EntryGoalResponse" }
 
   /entry/player-stats:
+    get:
+      operationId: listEntryPlayerStats
+      tags: [entry]
+      summary: List the player rows saved so far for one club in a fixture (for review/removal)
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Saved player rows for the club in this fixture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntrySavedPlayersResponse" }
     post:
       operationId: saveEntryPlayerStats
       tags: [entry]
@@ -1312,6 +1335,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EntryPlayerStatsResponse" }
+
+  /entry/player-stat/{rowId}:
+    delete:
+      operationId: deleteEntryPlayerStat
+      tags: [entry]
+      summary: Delete one saved player row (removes the Belconnen mirror copy too when applicable)
+      parameters:
+        - name: rowId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Player row deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryPlayerStatDeleteResponse" }
 
   /entry/extract-players:
     post:
@@ -2492,6 +2532,33 @@ components:
         replaced:        { type: integer }
         belconnenCopies: { type: integer }
       required: [saved, replaced, belconnenCopies]
+
+    EntrySavedPlayerRow:
+      type: object
+      properties:
+        id:         { type: integer }
+        playerName: { type: string }
+        minsPlayed: { type: ["integer", "null"] }
+        position:   { type: ["string", "null"] }
+        discipline: { type: ["string", "null"] }
+        started:    { type: boolean }
+        appearance: { type: boolean }
+      required: [id, playerName, minsPlayed, position, discipline, started, appearance]
+
+    EntrySavedPlayersResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EntrySavedPlayerRow" }
+      required: [rows]
+
+    EntryPlayerStatDeleteResponse:
+      type: object
+      properties:
+        deleted:          { type: boolean }
+        belconnenDeleted: { type: boolean }
+      required: [deleted, belconnenDeleted]
 
     ExtractPlayersBody:
       type: object
