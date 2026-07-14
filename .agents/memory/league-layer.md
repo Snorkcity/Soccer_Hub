@@ -11,6 +11,6 @@ description: Multi-league (competition) support — schema shape, invariants, an
 
 **How to apply**: new features must scope by seasonId (which implies the league); club dropdowns/colour maps should filter clubs by the selected season's leagueId once a second league exists. GET /leagues and Season.leagueId/leagueName are in the API.
 
-**Pending — prod migration**: Railway prod DB does NOT have this yet (work unpushed). On next deploy run the equivalent SQL: create `leagues`, insert 'ACT NPLW', add `league_id` to seasons+clubs, backfill, SET NOT NULL. Seed.ts handles fresh databases.
+**Prod migration is automatic**: api-server runs idempotent startup migrations (`startupMigrations.ts`) before listening — creates `leagues`, backfills league_id on seasons/clubs. Safe to re-run every boot; add future schema upgrades there so Railway deploys self-migrate. Server exits if migrations fail.
 
 **Gotcha**: seed deletes clubs+seasons before leagues (FK order); re-seeds still change all IDs (never hardcode league/season/team IDs).

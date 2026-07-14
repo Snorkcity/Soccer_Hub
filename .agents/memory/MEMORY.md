@@ -3,7 +3,7 @@
 - [Orval v8 queryKey pattern](orval-v8-query-key.md) — TanStack v5 UseQueryOptions requires explicit queryKey; always pass getXxxQueryKey(params) alongside enabled.
 - [Goal attribution pattern](goal-attribution.md) — never filter goals by scorerTeam hardcoded strings; use player roster from player_stats as the natural filter (scorer name in roster set).
 - [Clubs table and colours](clubs-colours.md) — clubs table seeded with 7 clubs + hex colours; GET /clubs returns ClubInfo[]; colours drive stacked chart segments.
-- [League layer](league-layer.md) — leagues table (ACT NPLW today; NSW/VIC NPL later); seasons+clubs carry league_id NOT NULL; season = one league's year. Prod DB needs the same migration SQL on next deploy.
+- [League layer](league-layer.md) — leagues table (ACT NPLW today; NSW/VIC NPL later); seasons+clubs carry league_id NOT NULL; season = one league's year. Prod self-migrates via idempotent startup migrations in api-server.
 - [Opponent leaderboard empty-state](opp-leaderboard-empty.md) — all early-return branches in opponent-leaderboard MUST include matches:[] in the parsed response; the Zod schema requires it.
 - [Player stats club column](player-stats-club.md) — playerStatsTable.club maps to DB column `country`; query as eq(playerStatsTable.club, "Belconnen") for BUFC players, or opponent club name for their players.
 - [Stacked-by-club chart pattern](stacked-chart-pattern.md) — Goals/Assists stacked charts inject per-opponent counts as dynamic keys on the row object for Recharts; build with ContribEntry/AssistEntry/MpgEntry interfaces + useMemo reacting to hiddenOpponents set and sort state.

@@ -29,7 +29,7 @@ _Populate as you build — short repo map plus pointers to the source-of-truth f
 - App-wide auth: single club password (`ADMIN_PASSWORD` env) → stateless HMAC-signed cookie session carrying a role (`admin` today; `viewer` reserved). One API gate: any session reads, only admin writes. Designed so future per-club coach logins and a second admin slot in at the login step with no rework.
 - Data Entry writes are transactional dual-writes: league-wide tables always, mirrored into legacy Belconnen tables for Belconnen fixtures — enter once, feeds all charts.
 - Railway prod needs `ADMIN_PASSWORD` (and `OPENAI_API_KEY` for the screenshot reader) set in its environment.
-- Multi-league structure: leagues (ACT NPLW today; NSW NPL, VIC NPL later) → seasons (a season = one league's year) → all data. Clubs also belong to a league. Adding a new competition is data entry, not code changes. Prod DB still needs the league migration on next deploy.
+- Multi-league structure: leagues (ACT NPLW today; NSW NPL, VIC NPL later) → seasons (a season = one league's year) → all data. Clubs also belong to a league. Adding a new competition is data entry, not code changes. The API server runs safe, re-runnable startup migrations on boot, so deploying new code upgrades the production database automatically.
 
 ## Product
 
