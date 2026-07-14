@@ -725,6 +725,129 @@ function GoalLocationMap({ scored, conceded }: { scored: ScoredGoalRecord[]; con
   );
 }
 
+// ── Scoring Zones by Player (where each scorer finishes from) ─────────────────
+// Zone boundaries follow the real pitch markings drawn on the Goal Location Map:
+//   goalX 0–100 (goal centre = 50); goalY = yards from the goal line.
+//   Six-yard box  : gy ≤ 6  and gx in 37.5–62.5
+//   Penalty area  : gy ≤ 18 and gx in 22.5–77.5 (outside the six-yard box)
+//   Outside the box: everything beyond
+type GoalZone = "six" | "box" | "outside";
+const ZONE_META: { key: GoalZone; label: string; color: string }[] = [
+  { key: "six",     label: "Six-yard box",    color: "#22c55e" },
+  { key: "box",     label: "Penalty area",    color: "#3b82f6" },
+  { key: "outside", label: "Outside the box", color: "#f59e0b" },
+];
+function goalZone(gx: number, gy: number): GoalZone {
+  if (gy <= 6 && gx >= 37.5 && gx <= 62.5) return "six";
+  if (gy <= 18 && gx >= 22.5 && gx <= 77.5) return "box";
+  return "outside";
+}
+
+interface ZoneRow { scorer: string; six: number; box: number; outside: number; total: number }
+
+function ZoneTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ payload: ZoneRow }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-1.5">
+      <div className="font-semibold text-sm mb-1">{row.scorer} · {row.total} goal{row.total === 1 ? "" : "s"}</div>
+      {ZONE_META.map(z => {
+        const n = row[z.key];
+        const pct = row.total ? Math.round((n / row.total) * 100) : 0;
+        return (
+          <div key={z.key} className="flex justify-between gap-6">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: z.color }} />{z.label}
+            </span>
+            <span className="tabular-nums">{n} ({pct}%)</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScoringZones({ scoredFull, scoredL3 }: { scoredFull: ScoredGoalRecord[]; scoredL3: ScoredGoalRecord[] }) {
+  const [lastN, setLastN] = useState(false);
+  const scored = lastN ? scoredL3 : scoredFull;
+
+  const { rows, totals, mapped, noCoords } = useMemo(() => {
+    const m = new Map<string, ZoneRow>();
+    const totals = { six: 0, box: 0, outside: 0, total: 0 };
+    let noCoords = 0;
+    for (const g of scored) {
+      const scorer = g.scorer?.trim();
+      if (!scorer || scorer.toUpperCase() === "OG") continue; // own goals for us have no BUFC scorer
+      const gx = g.goalX;
+      const gy = g.goalY;
+      if (gx == null || gy == null || !Number.isFinite(gx) || !Number.isFinite(gy)) { noCoords++; continue; }
+      const z = goalZone(gx, gy);
+      const row = m.get(scorer) ?? { scorer, six: 0, box: 0, outside: 0, total: 0 };
+      row[z] += 1;
+      row.total += 1;
+      m.set(scorer, row);
+      totals[z] += 1;
+      totals.total += 1;
+    }
+    const rows = Array.from(m.values()).sort((a, b) => b.total - a.total || a.scorer.localeCompare(b.scorer));
+    return { rows, totals, mapped: totals.total, noCoords };
+  }, [scored]);
+
+  const insidePct = totals.total ? Math.round(((totals.six + totals.box) / totals.total) * 100) : 0;
+
+  return (
+    <ChartCard
+      tall
+      title="Scoring Zones by Player"
+      description="Where each player finishes from — six-yard box, penalty area, or outside the box"
+      tooltip="Every mapped goal is bucketed by where it was finished, using the real pitch lines from the Goal Location Map: the six-yard box, the rest of the penalty area, or outside the box. Bars are stacked per scorer and ranked by total goals. Own goals and goals without mapped coordinates are excluded."
+      controls={<Last3Toggle active={lastN} onToggle={() => setLastN(v => !v)} />}
+    >
+      {rows.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          No mapped goals for this selection.
+        </div>
+      ) : (
+        <div className="flex h-full flex-col">
+          <div className="mb-2 text-center text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{insidePct}%</span> of mapped goals came from inside the box
+            {" "}({totals.six + totals.box} of {mapped})
+            {noCoords > 0 && <span className="opacity-70"> · {noCoords} unmapped</span>}
+          </div>
+          <div className="min-h-0 flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 32, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" {...AXIS_STYLE} allowDecimals={false} />
+                <YAxis type="category" dataKey="scorer" {...AXIS_STYLE} width={110} interval={0} />
+                <Tooltip content={<ZoneTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {ZONE_META.map((z, i) => (
+                  <Bar
+                    key={z.key}
+                    dataKey={z.key}
+                    name={z.label}
+                    stackId="z"
+                    fill={z.color}
+                    radius={i === ZONE_META.length - 1 ? [0, 4, 4, 0] : undefined}
+                  >
+                    {i === ZONE_META.length - 1 && (
+                      <LabelList dataKey="total" position="right" fontSize={11} fill="hsl(var(--foreground))" />
+                    )}
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
 // ── First Goal Value Index ────────────────────────────────────────────────────
 interface FgSplit { w: number; d: number; l: number; n: number }
 // One row per match: which side scored first, the final result, opponent + match code.
@@ -1919,6 +2042,9 @@ export default function SeasonStats() {
           >
             <GoalLocationMap scored={goalBreakdownFull?.goals ?? []} conceded={goalBreakdownFull?.conceded ?? []} />
           </ChartCard>
+
+          {/* Scoring Zones by Player — where each scorer finishes from (client-side from mapped coords) */}
+          <ScoringZones scoredFull={goalBreakdownFull?.goals ?? []} scoredL3={goalBreakdownL3?.goals ?? []} />
 
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
           <OpponentStackChart
