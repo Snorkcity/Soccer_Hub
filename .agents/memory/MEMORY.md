@@ -29,5 +29,6 @@
 - [GPS player identity merging](player-identities.md) — duplicate GPS names pool via gps_player_aliases at READ time (never rewrite raw rows); positions keyed by canonical; season-stats link table.
 - [Multi-club module provisioning](multi-club-provisioning.md) — future clubs won't have GPS/testing; modules are per-club flags chosen at club creation. Don't assume GPS is universal.
 - [Session planning app](session-planning.md) — next major module: 500-slide library → builder → canvas → AI; 4-part sessions, naming codes (D/A/T + P/CB/MB), cycle periodisation; slices agreed.
+- [Practice library](practice-library.md) — slice 1 DONE: pptx→JSON→practices table→SVG renderer; seed preserves needs_review; no tsx runner (esbuild-bundle seeds); SVG markers/word-wrap gotchas.
 - [Test email accounts](test-email-accounts.md) — coach has catch-all *@gameinsights.com.au → hello@; unlimited instant test addresses for future auth work; roles hint: admin/coach/manager/parent/player.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.

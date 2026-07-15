@@ -12,6 +12,7 @@ import SeasonStats from '@/pages/SeasonStats';
 import GpsInsights from '@/pages/GpsInsights';
 import Testing from '@/pages/Testing';
 import DataEntry from '@/pages/DataEntry';
+import SessionLibrary from '@/pages/SessionLibrary';
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ function Router() {
         <Route path="/season-stats" component={SeasonStats} />
         <Route path="/gps" component={GpsInsights} />
         <Route path="/testing" component={Testing} />
+        <Route path="/library" component={SessionLibrary} />
         <Route path="/data-entry" component={DataEntry} />
         <Route component={NotFound} />
       </Switch>

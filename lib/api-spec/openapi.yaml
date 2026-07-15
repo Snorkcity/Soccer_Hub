@@ -32,6 +32,8 @@ tags:
     description: Data-entry authentication
   - name: entry
     description: Data entry (composite writes across league + Belconnen tables)
+  - name: library
+    description: Session-practice library extracted from the coaching slide deck
 
 paths:
   /healthz:
@@ -1469,6 +1471,55 @@ paths:
               schema: { $ref: "#/components/schemas/EntryGpsSessionsSaveResponse" }
 
 
+  # ─── PRACTICE LIBRARY ───────────────────────────────────────────────────────
+
+  /library/practices:
+    get:
+      operationId: listLibraryPractices
+      tags: [library]
+      summary: List practice-library slides (defaults to kind=practice)
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string }
+        - name: chapter
+          in: query
+          schema: { type: string }
+        - name: sectionCode
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Practice library slides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibraryPracticeList"
+
+  /library/practices/{id}/flag:
+    patch:
+      operationId: flagLibraryPractice
+      tags: [library]
+      summary: Mark a practice as needing review (or clear the flag)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LibraryFlagRequest"
+      responses:
+        "200":
+          description: Updated flag state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibraryFlagResult"
+
 components:
   schemas:
     HealthStatus:
@@ -2797,3 +2848,49 @@ components:
           type: array
           items: { type: string }
       required: [rows, warnings]
+
+    LibraryPara:
+      type: object
+      properties:
+        text:  { type: string }
+        size:  { type: ["number", "null"] }
+        bold:  { type: boolean }
+        color: { type: ["string", "null"] }
+      required: [text]
+
+    LibraryPractice:
+      type: object
+      properties:
+        id:          { type: integer }
+        ordinal:     { type: integer }
+        kind:        { type: string }
+        chapter:     { type: ["string", "null"] }
+        sectionCode: { type: ["string", "null"] }
+        sectionName: { type: ["string", "null"] }
+        title:       { type: ["string", "null"] }
+        paras:
+          type: array
+          items: { $ref: "#/components/schemas/LibraryPara" }
+        diagram:
+          type: object
+          description: Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
+          additionalProperties: true
+        needsReview: { type: boolean }
+      required: [id, ordinal, kind, paras, diagram, needsReview]
+
+    LibraryPracticeList:
+      type: array
+      items: { $ref: "#/components/schemas/LibraryPractice" }
+
+    LibraryFlagRequest:
+      type: object
+      properties:
+        needsReview: { type: boolean }
+      required: [needsReview]
+
+    LibraryFlagResult:
+      type: object
+      properties:
+        id:          { type: integer }
+        needsReview: { type: boolean }
+      required: [id, needsReview]

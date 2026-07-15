@@ -1920,3 +1920,49 @@ export const SaveEntryGpsSessionsResponse = zod.object({
 })
 
 
+/**
+ * @summary List practice-library slides (defaults to kind=practice)
+ */
+export const ListLibraryPracticesQueryParams = zod.object({
+  "kind": zod.coerce.string().optional(),
+  "chapter": zod.coerce.string().optional(),
+  "sectionCode": zod.coerce.string().optional()
+})
+
+export const ListLibraryPracticesResponseItem = zod.object({
+  "id": zod.number(),
+  "ordinal": zod.number(),
+  "kind": zod.string(),
+  "chapter": zod.string().nullish(),
+  "sectionCode": zod.string().nullish(),
+  "sectionName": zod.string().nullish(),
+  "title": zod.string().nullish(),
+  "paras": zod.array(zod.object({
+  "text": zod.string(),
+  "size": zod.number().nullish(),
+  "bold": zod.boolean().optional(),
+  "color": zod.string().nullish()
+})),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
+  "needsReview": zod.boolean()
+})
+export const ListLibraryPracticesResponse = zod.array(ListLibraryPracticesResponseItem)
+
+
+/**
+ * @summary Mark a practice as needing review (or clear the flag)
+ */
+export const FlagLibraryPracticeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const FlagLibraryPracticeBody = zod.object({
+  "needsReview": zod.boolean()
+})
+
+export const FlagLibraryPracticeResponse = zod.object({
+  "id": zod.number(),
+  "needsReview": zod.boolean()
+})
+
+

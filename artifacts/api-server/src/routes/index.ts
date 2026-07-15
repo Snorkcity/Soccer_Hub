@@ -13,6 +13,7 @@ import analyticsRouter from "./analytics";
 import clubsRouter from "./clubs";
 import authRouter from "./auth";
 import entryRouter from "./entry";
+import libraryRouter from "./library";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(analyticsRouter);
 router.use(clubsRouter);
 router.use(authRouter);
 router.use(entryRouter);
+router.use(libraryRouter);
 
 export default router;

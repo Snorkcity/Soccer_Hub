@@ -128,5 +128,24 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE a.alias = p.player_name
   `);
 
+  // Session-practice library (2026-07) — slides extracted from the coach's
+  // master PowerPoint; content is loaded by lib/db/src/seedPractices.ts
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS practices (
+      id serial PRIMARY KEY,
+      ordinal integer NOT NULL UNIQUE,
+      kind text NOT NULL,
+      chapter text,
+      section_code text,
+      section_name text,
+      title text,
+      paras jsonb NOT NULL DEFAULT '[]'::jsonb,
+      diagram jsonb NOT NULL,
+      needs_review boolean NOT NULL DEFAULT false,
+      source_file text,
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
   logger.info("Startup migrations applied");
 }

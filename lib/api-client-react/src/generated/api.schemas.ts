@@ -1487,6 +1487,49 @@ export interface ExtractPlayersResponse {
   warnings: string[];
 }
 
+export interface LibraryPara {
+  text: string;
+  /** @nullable */
+  size?: number | null;
+  bold?: boolean;
+  /** @nullable */
+  color?: string | null;
+}
+
+/**
+ * Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
+ */
+export type LibraryPracticeDiagram = { [key: string]: unknown };
+
+export interface LibraryPractice {
+  id: number;
+  ordinal: number;
+  kind: string;
+  /** @nullable */
+  chapter?: string | null;
+  /** @nullable */
+  sectionCode?: string | null;
+  /** @nullable */
+  sectionName?: string | null;
+  /** @nullable */
+  title?: string | null;
+  paras: LibraryPara[];
+  /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
+  diagram: LibraryPracticeDiagram;
+  needsReview: boolean;
+}
+
+export type LibraryPracticeList = LibraryPractice[];
+
+export interface LibraryFlagRequest {
+  needsReview: boolean;
+}
+
+export interface LibraryFlagResult {
+  id: number;
+  needsReview: boolean;
+}
+
 export type ListPlayersParams = {
 teamId?: number;
 seasonId?: number;
@@ -1685,5 +1728,11 @@ export type DeleteEntryPlayerStatsParams = {
 seasonId: number;
 matchId: string;
 club: string;
+};
+
+export type ListLibraryPracticesParams = {
+kind?: string;
+chapter?: string;
+sectionCode?: string;
 };
 

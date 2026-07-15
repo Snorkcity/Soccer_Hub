@@ -89,12 +89,16 @@ import type {
   LeagueInfo,
   LeagueInput,
   LeagueMatchInfo,
+  LibraryFlagRequest,
+  LibraryFlagResult,
+  LibraryPracticeList,
   ListAthleticTestsParams,
   ListEntryGoalsParams,
   ListEntryPlayerStatsParams,
   ListGoalsParams,
   ListGpsSessionsParams,
   ListLeagueMatchesParams,
+  ListLibraryPracticesParams,
   ListMatchesParams,
   ListPlayerStatsParams,
   ListPlayersParams,
@@ -5389,5 +5393,161 @@ export const useSaveEntryGpsSessions = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveEntryGpsSessionsMutationOptions(options));
+    }
+
+export const getListLibraryPracticesUrl = (params?: ListLibraryPracticesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/library/practices?${stringifiedParams}` : `/api/library/practices`
+}
+
+/**
+ * @summary List practice-library slides (defaults to kind=practice)
+ */
+export const listLibraryPractices = async (params?: ListLibraryPracticesParams, options?: RequestInit): Promise<LibraryPracticeList> => {
+
+  return customFetch<LibraryPracticeList>(getListLibraryPracticesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLibraryPracticesQueryKey = (params?: ListLibraryPracticesParams,) => {
+    return [
+    `/api/library/practices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLibraryPracticesQueryOptions = <TData = Awaited<ReturnType<typeof listLibraryPractices>>, TError = ErrorType<unknown>>(params?: ListLibraryPracticesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLibraryPractices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLibraryPracticesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLibraryPractices>>> = ({ signal }) => listLibraryPractices(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLibraryPractices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLibraryPracticesQueryResult = NonNullable<Awaited<ReturnType<typeof listLibraryPractices>>>
+export type ListLibraryPracticesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List practice-library slides (defaults to kind=practice)
+ */
+
+export function useListLibraryPractices<TData = Awaited<ReturnType<typeof listLibraryPractices>>, TError = ErrorType<unknown>>(
+ params?: ListLibraryPracticesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLibraryPractices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLibraryPracticesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getFlagLibraryPracticeUrl = (id: number,) => {
+
+
+
+
+  return `/api/library/practices/${id}/flag`
+}
+
+/**
+ * @summary Mark a practice as needing review (or clear the flag)
+ */
+export const flagLibraryPractice = async (id: number,
+    libraryFlagRequest: LibraryFlagRequest, options?: RequestInit): Promise<LibraryFlagResult> => {
+
+  return customFetch<LibraryFlagResult>(getFlagLibraryPracticeUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(libraryFlagRequest)
+  }
+);}
+
+
+
+
+
+export const getFlagLibraryPracticeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof flagLibraryPractice>>, TError,{id: number;data: BodyType<LibraryFlagRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof flagLibraryPractice>>, TError,{id: number;data: BodyType<LibraryFlagRequest>}, TContext> => {
+
+const mutationKey = ['flagLibraryPractice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof flagLibraryPractice>>, {id: number;data: BodyType<LibraryFlagRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  flagLibraryPractice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FlagLibraryPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof flagLibraryPractice>>>
+    export type FlagLibraryPracticeMutationBody = BodyType<LibraryFlagRequest>
+    export type FlagLibraryPracticeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark a practice as needing review (or clear the flag)
+ */
+export const useFlagLibraryPractice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof flagLibraryPractice>>, TError,{id: number;data: BodyType<LibraryFlagRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof flagLibraryPractice>>,
+        TError,
+        {id: number;data: BodyType<LibraryFlagRequest>},
+        TContext
+      > => {
+      return useMutation(getFlagLibraryPracticeMutationOptions(options));
     }
 
