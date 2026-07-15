@@ -67,7 +67,7 @@ const W = 13.33;
 const H = 7.5;
 
 /** Line colours for comparison averages (player's own season average stays purple). */
-const COMP_COLORS = ["ED8936", "2A9D8F", "D64570", "5E548E"];
+const COMP_COLORS = ["ED8936", "2A9D8F", "D64570", "5E548E", "3A86FF", "B5838D"];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

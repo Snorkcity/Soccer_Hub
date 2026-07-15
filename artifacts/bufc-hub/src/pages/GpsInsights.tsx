@@ -330,12 +330,18 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
       const bs = allBundles.filter(e => e.squad === squad).map(e => e.bundle);
       if (bs.length) out.push({ key: squad, title: `${squad} average`, comparison: groupAverages(`${squad} average`, bs) });
     }
+    // One position group per squad (e.g. "1sts Midfielders"), so a player can
+    // see where she sits against her position at each grade.
     const pos = posOf.get(player);
     if (pos) {
-      const bs = allBundles.filter(e => posOf.get(e.player) === pos).map(e => e.bundle);
-      if (bs.length) {
-        const title = `${plural(pos)} average (all squads)`;
-        out.push({ key: "pos", title, comparison: groupAverages(title, bs) });
+      for (const squad of SQUAD_LADDER) {
+        const bs = allBundles
+          .filter(e => e.squad === squad && posOf.get(e.player) === pos)
+          .map(e => e.bundle);
+        if (bs.length) {
+          const title = `${squad} ${plural(pos)} average`;
+          out.push({ key: `pos:${squad}`, title, comparison: groupAverages(title, bs) });
+        }
       }
     }
     return out;
@@ -358,8 +364,8 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
     const fromRung = SQUAD_LADDER.indexOf(playerSquad);
     const defaults = new Set<string>();
     for (const g of groups) {
-      if (g.key === "pos") defaults.add(g.key);
-      else if (SQUAD_LADDER.indexOf(g.key) >= fromRung) defaults.add(g.key);
+      const squad = g.key.startsWith("pos:") ? g.key.slice(4) : g.key;
+      if (SQUAD_LADDER.indexOf(squad) >= fromRung) defaults.add(g.key);
     }
     setSelected(defaults);
     setDefaultsSet(true);
