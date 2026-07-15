@@ -1340,36 +1340,57 @@ const SQUAD_OPTIONS = [
 
 const SPLIT_ORDER: Record<string, number> = { game: 0, "1st.half": 1, "2nd.half": 2 };
 
+/** One parsed file row plus any match details the file itself provided (coach's weekly sheet). */
+interface GpsEntry {
+  row: GpsRow;
+  fileRound: string | null;
+  fileOpponent: string | null;
+  fileTitle: string | null;
+  fileDateDmy: string | null;
+}
+
+/** Turn an Excel date (serial number, dd/mm/yyyy or ISO string) into DD/MM/YYYY, or null. */
+function excelDateToDmy(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "number" && v > 20000 && v < 60000) {
+    const dt = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+    return `${String(dt.getUTCDate()).padStart(2, "0")}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
+  }
+  const s = String(v).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const dmy = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (dmy) {
+    const yr = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3];
+    return `${dmy[1].padStart(2, "0")}/${dmy[2].padStart(2, "0")}/${yr}`;
+  }
+  return null;
+}
+
 function GpsUploadForm({ teamId }: { teamId: number }) {
   const [matchDate, setMatchDate] = useState("");
   const [roundCode, setRoundCode] = useState("");
   const [squad, setSquad] = useState<string>("1sts");
   const [opponent, setOpponent] = useState("");
-  const [rows, setRows] = useState<GpsRow[]>([]);
+  const [entries, setEntries] = useState<GpsEntry[]>([]);
   const [ignoredSplits, setIgnoredSplits] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const round = roundCode.trim() ? `${roundCode.trim()}-${squad}` : "";
-  const year = matchDate ? matchDate.slice(0, 4) : "";
+  const formRound = roundCode.trim() ? `${roundCode.trim()}-${squad}` : "";
+  // Coach's weekly sheet carries Round/Opponent/Date columns — when present the
+  // file drives the match details (and can hold several matches at once).
+  const fileMode = entries.length > 0 && entries[0].fileRound != null;
 
-  const save = useSaveEntryGpsSessions({ mutation: {
-    onSuccess: (res) => {
-      setOk(res.replaced > 0
-        ? `Saved ${res.saved} rows for ${round} (replaced the ${res.replaced} previously saved for that round). New player names? Set their position in the Positions tab.`
-        : `Saved ${res.saved} rows for ${round}. New player names? Set their position in the Positions tab.`);
-      setRows([]); setIgnoredSplits(0); setFileName(null);
-      if (fileRef.current) fileRef.current.value = "";
-    },
-    onError: (e) => setErr(errMsg(e)),
-  }});
+  const save = useSaveEntryGpsSessions();
 
   async function handleFile(file: File) {
     setParsing(true); setOk(null); setErr(null);
-    setRows([]); setIgnoredSplits(0); setFileName(file.name);
+    setEntries([]); setIgnoredSplits(0); setFileName(file.name);
     try {
       const XLSX = await import("xlsx");
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
@@ -1382,12 +1403,20 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
       const mapping = new Map<string, keyof GpsRow>();
       let durationHeader: string | null = null;
       let tagsHeader: string | null = null;
+      let roundHeader: string | null = null;
+      let opponentHeader: string | null = null;
+      let titleHeader: string | null = null;
+      let dateHeader: string | null = null;
       for (const h of headers) {
         const norm = normHeader(h);
         const field = GPS_HEADER_MAP[norm];
         if (field && ![...mapping.values()].includes(field)) mapping.set(h, field);
         if (norm === "duration") durationHeader = h;
         if (norm === "tags") tagsHeader = h;
+        if (norm === "round") roundHeader = h;
+        if (norm === "opponent") opponentHeader = h;
+        if (norm === "sessiontitle") titleHeader = h;
+        if (norm === "date") dateHeader = h;
       }
       if (![...mapping.values()].includes("playerName")) {
         throw new Error("Couldn't find a \"Player Name\" column in this file — is it the Catapult export?");
@@ -1396,7 +1425,7 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
         throw new Error("Couldn't find a \"Distance (km)\" column in this file — is it the Catapult export?");
       }
 
-      const parsed: GpsRow[] = [];
+      const parsed: GpsEntry[] = [];
       let ignored = 0;
       for (const r of raw) {
         const row: GpsRow = { playerName: "", splitName: null, ...EMPTY_GPS_ROW };
@@ -1417,18 +1446,30 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
         const split = (row.splitName ?? "game").toLowerCase();
         if (!(split === "game" || split === "1st.half" || split === "2nd.half")) { ignored++; continue; }
         row.splitName = split;
-        // Coach adds minutes by hand today — pre-fill from the Duration column (secs) when present
+        // Pre-fill minutes from the Duration column (secs) when the sheet has no Mins column
         if (row.minsPlayed == null && durationHeader != null) {
           const dur = toNum(r[durationHeader]);
           if (dur != null && dur > 0) row.minsPlayed = Math.round((dur / 60) * 100) / 100;
         }
-        parsed.push(row);
+        const fileRound = roundHeader != null && r[roundHeader] != null && String(r[roundHeader]).trim() !== ""
+          ? String(r[roundHeader]).trim() : null;
+        if (roundHeader != null && fileRound == null) { ignored++; continue; } // sheet has rounds but this row is blank
+        parsed.push({
+          row,
+          fileRound,
+          fileOpponent: opponentHeader != null && r[opponentHeader] != null && String(r[opponentHeader]).trim() !== ""
+            ? String(r[opponentHeader]).trim() : null,
+          fileTitle: titleHeader != null && r[titleHeader] != null && String(r[titleHeader]).trim() !== ""
+            ? String(r[titleHeader]).trim() : null,
+          fileDateDmy: dateHeader != null ? excelDateToDmy(r[dateHeader]) : null,
+        });
       }
       if (parsed.length === 0) throw new Error("No usable game rows found in the file");
       parsed.sort((a, b) =>
-        a.playerName.localeCompare(b.playerName) ||
-        (SPLIT_ORDER[a.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.splitName ?? "game"] ?? 9));
-      setRows(parsed);
+        (a.fileRound ?? "").localeCompare(b.fileRound ?? "") ||
+        a.row.playerName.localeCompare(b.row.playerName) ||
+        (SPLIT_ORDER[a.row.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.row.splitName ?? "game"] ?? 9));
+      setEntries(parsed);
       setIgnoredSplits(ignored);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't read that file");
@@ -1438,25 +1479,66 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
     }
   }
 
-  const playerCount = useMemo(() => new Set(rows.map(r => r.playerName)).size, [rows]);
-  const readyToSave = rows.length > 0 && round !== "" && /^\d{4}-\d{2}-\d{2}$/.test(matchDate);
+  const groups = useMemo(() => {
+    const m = new Map<string, GpsEntry[]>();
+    for (const e of entries) {
+      const key = e.fileRound ?? formRound;
+      const arr = m.get(key);
+      if (arr) arr.push(e); else m.set(key, [e]);
+    }
+    return m;
+  }, [entries, formRound]);
+
+  const playerCount = useMemo(() => new Set(entries.map(e => e.row.playerName)).size, [entries]);
+  const needsFormDate = !fileMode || entries.some(e => e.fileDateDmy == null);
+  const formDateOk = /^\d{4}-\d{2}-\d{2}$/.test(matchDate);
+  const readyToSave = entries.length > 0
+    && (fileMode || formRound !== "")
+    && (!needsFormDate || formDateOk);
 
   const setMins = (i: number, v: string) => {
-    setRows(prev => prev.map((r, j) => j === i ? { ...r, minsPlayed: v.trim() === "" ? null : toNum(v) } : r));
+    setEntries(prev => prev.map((e, j) => j === i ? { ...e, row: { ...e.row, minsPlayed: v.trim() === "" ? null : toNum(v) } } : e));
   };
 
-  const onSave = () => {
-    setOk(null); setErr(null);
-    const [y, m, d] = matchDate.split("-");
-    const sessionDate = `${d}/${m}/${y}`;
-    const squadLabel = SQUAD_OPTIONS.find(s => s.value === squad)?.label ?? squad;
-    const sessionTitle = `${y}${m}${d}-${roundCode.trim()}-${squadLabel}-${opponent.trim() || "match"}`;
-    save.mutate({ data: {
-      year, teamId, round,
-      opponent: opponent.trim() || null,
-      sessionDate, sessionTitle,
-      rows,
-    }});
+  const onSave = async () => {
+    setOk(null); setErr(null); setSaving(true);
+    const roundsSaved: string[] = [];
+    try {
+      const [y, m, d] = formDateOk ? matchDate.split("-") : ["", "", ""];
+      const formDmy = formDateOk ? `${d}/${m}/${y}` : null;
+      let totalSaved = 0, totalReplaced = 0;
+      for (const [round, group] of groups) {
+        const dmy = group.find(g => g.fileDateDmy)?.fileDateDmy ?? formDmy;
+        if (!dmy) throw new Error(`No match date for ${round} — fill in the date above`);
+        const opp = fileMode
+          ? group.find(g => g.fileOpponent)?.fileOpponent ?? null
+          : opponent.trim() || null;
+        const squadLabel = SQUAD_OPTIONS.find(s => s.value === squad)?.label ?? squad;
+        const sessionTitle = group.find(g => g.fileTitle)?.fileTitle
+          ?? (fileMode
+            ? `${dmy.split("/").reverse().join("")}-${round}-${opp ?? "match"}`
+            : `${y}${m}${d}-${roundCode.trim()}-${squadLabel}-${opp ?? "match"}`);
+        const res = await save.mutateAsync({ data: {
+          year: dmy.slice(6), teamId, round, opponent: opp,
+          sessionDate: dmy, sessionTitle,
+          rows: group.map(g => g.row),
+        }});
+        totalSaved += res.saved; totalReplaced += res.replaced;
+        roundsSaved.push(round);
+      }
+      setOk(`Saved ${totalSaved} rows for ${roundsSaved.join(" and ")}`
+        + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
+        + ". New player names? Set their position in the Positions tab.");
+      setEntries([]); setIgnoredSplits(0); setFileName(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (e) {
+      // Saves run one round at a time — tell the coach exactly what did and didn't go in
+      setErr(roundsSaved.length > 0
+        ? `${roundsSaved.join(" and ")} saved fine, but the next one failed — ${errMsg(e)}. Fix the issue and re-upload; already-saved rounds are replaced cleanly.`
+        : errMsg(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const fmtN = (v: number | null, d = 1) => (v == null ? "—" : v.toFixed(d));
@@ -1467,21 +1549,40 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
         <CardHeader>
           <CardTitle>Upload a match's GPS data</CardTitle>
           <CardDescription>
-            Drop in the Catapult export (csv or xlsx) exactly as it comes — the app picks out the columns the
-            charts use and ignores the rest. Fill in the match details, check the preview, then save.
-            Re-uploading the same round replaces it cleanly.
+            Drop in your weekly GPS sheet or the raw Catapult export (csv or xlsx) — the app picks out the
+            columns the charts use and ignores the rest. If the file has your Round / Opponent / Date columns
+            it reads the match details straight from them (both squads at once is fine); otherwise fill them
+            in below. Re-uploading the same round replaces it cleanly.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Field label="GPS file (weekly sheet or raw Catapult export)">
+            <Input
+              ref={fileRef} type="file" accept=".csv,.xlsx,.xls"
+              className="cursor-pointer file:mr-3 file:cursor-pointer"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+            />
+          </Field>
+          {fileMode ? (
+            <div className="text-sm text-muted-foreground">
+              Match details read from the file:{" "}
+              <span className="text-foreground font-medium">
+                {[...groups.entries()].map(([r, g]) =>
+                  `${r} v ${g.find(x => x.fileOpponent)?.fileOpponent ?? "?"}${g.find(x => x.fileDateDmy)?.fileDateDmy ? ` (${g.find(x => x.fileDateDmy)?.fileDateDmy})` : ""}`
+                ).join(" · ")}
+              </span>
+              {needsFormDate && " — the file has no date, so set the match date below."}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Match date">
-              <Input type="date" value={matchDate} onChange={e => setMatchDate(e.target.value)} />
+              <Input type="date" value={matchDate} onChange={e => setMatchDate(e.target.value)} disabled={fileMode && !needsFormDate} />
             </Field>
             <Field label="Round (e.g. R13, GF)">
-              <Input value={roundCode} onChange={e => setRoundCode(e.target.value)} placeholder="R13" />
+              <Input value={roundCode} onChange={e => setRoundCode(e.target.value)} placeholder="R13" disabled={fileMode} />
             </Field>
             <Field label="Squad">
-              <Select value={squad} onValueChange={setSquad}>
+              <Select value={squad} onValueChange={setSquad} disabled={fileMode}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SQUAD_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -1489,45 +1590,43 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
               </Select>
             </Field>
             <Field label="Opponent">
-              <Input value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Majura" />
+              <Input value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Majura" disabled={fileMode} />
             </Field>
           </div>
-          <Field label="Catapult export">
-            <Input
-              ref={fileRef} type="file" accept=".csv,.xlsx,.xls"
-              className="cursor-pointer file:mr-3 file:cursor-pointer"
-              onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-            />
-          </Field>
           {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}
           <StatusLine ok={ok} err={err} />
         </CardContent>
       </Card>
 
-      {rows.length > 0 && (
+      {entries.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div className="space-y-1.5">
-              <CardTitle>Check what was read — {playerCount} players, {rows.length} rows</CardTitle>
+              <CardTitle>Check what was read — {playerCount} players, {entries.length} rows</CardTitle>
               <CardDescription>
                 {fileName}
                 {ignoredSplits > 0 && ` · ignored ${ignoredSplits} non-game rows (training / thirds / extra time)`}
-                {" · minutes are pre-filled from the GPS duration — adjust any you track differently"}
+                {" · minutes are pre-filled from the file — adjust any you track differently"}
               </CardDescription>
             </div>
-            <Button disabled={save.isPending || !readyToSave} onClick={onSave}>
-              {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
-              Save to {round || "…"}
+            <Button disabled={saving || !readyToSave} onClick={() => void onSave()}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+              {fileMode
+                ? `Save ${groups.size} ${groups.size === 1 ? "match" : "matches"}`
+                : `Save to ${formRound || "…"}`}
             </Button>
           </CardHeader>
           <CardContent>
             {!readyToSave && (
-              <p className="mb-3 text-sm text-muted-foreground">Fill in the match date and round above to enable saving.</p>
+              <p className="mb-3 text-sm text-muted-foreground">
+                {fileMode ? "Set the match date above to enable saving." : "Fill in the match date and round above to enable saving."}
+              </p>
             )}
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b bg-muted/50 text-muted-foreground">
+                    {fileMode && <th className="px-2 py-1.5 text-left font-medium">Round</th>}
                     <th className="px-2 py-1.5 text-left font-medium">Player</th>
                     <th className="px-2 py-1.5 text-left font-medium">Split</th>
                     <th className="px-2 py-1.5 text-right font-medium">Mins</th>
@@ -1541,8 +1640,9 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => (
+                  {entries.map(({ row: r, fileRound }, i) => (
                     <tr key={i} className={`border-b last:border-0 ${r.splitName === "game" ? "" : "text-muted-foreground"}`}>
+                      {fileMode && <td className="px-2 py-1.5 whitespace-nowrap">{r.splitName === "game" ? fileRound : ""}</td>}
                       <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.splitName === "game" ? r.playerName : ""}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.splitName}</td>
                       <td className="px-2 py-1">

@@ -13,7 +13,7 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - **Backfill gotcha:** ~280 training rows have blank player/date/round keys — a blank-key CSV tuple matches ALL of them and sprays its values; the backfill script filters those out. Prod DB still needs the backfill run at next deploy.
 
 ## GPS match upload (Data Entry tab 6)
-- Catapult CSV parsed client-side; header map verified against the real 109-column export (29 columns used, rest ignored). Raw Catapult export lacks Round/Opponent/Score/Mins — coach adds those by hand, so the form collects date/round-code/squad/opponent and builds `round` as `${code}-${squad}` (2025+ suffix convention).
+- Catapult CSV parsed client-side; header map verified against the real 109-column export (29 columns used, rest ignored). Two file modes: coach's weekly sheet has her own Round/Opponent/Date/Session Title/Mins columns and holds BOTH squads in one file — upload auto-groups by Round column and saves one request per round with form disabled. Raw exports without a Round column fall back to the form (date/round-code/squad/opponent, `round` = `${code}-${squad}`, 2025+ suffix convention). Her I–M columns (Score/Formations/Conditions/Venue) are ignored by design.
 - Mins played pre-filled from Duration secs ÷ 60 (matches her sheet values exactly), editable per row before save.
 - splitName MUST be canonicalised to lowercase literals (`game`/`1st.half`/`2nd.half`) before save — charts match exactly; thirds/extra-time and non-game tag rows are dropped at parse. tags always saved as "game".
 - Replace-semantics per (year, round, teamId); POST /entry/gps-sessions.
