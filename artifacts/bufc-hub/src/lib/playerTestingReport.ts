@@ -104,34 +104,60 @@ function buildTrustNotes(metrics: TestingMetricValue[]): string[] {
   return out;
 }
 
-function buildAwareNotes(metrics: TestingMetricValue[]): string[] {
+export interface AwareNote {
+  note: string;
+  /** Safe, mainstream training pointer — the kind of thing any physio or S&C
+   *  trainer would suggest. Always ends by pointing the player to the trainer
+   *  for technique; never anything obscure or clinical. */
+  workOn: string;
+}
+
+function buildAwareNotes(metrics: TestingMetricValue[]): AwareNote[] {
   const p = (id: string) => pctOf(metrics, id);
-  const out: string[] = [];
+  const out: AwareNote[] = [];
 
   const s010 = p("split010");
   if (s010 != null && s010 <= LOW)
-    out.push("Quick starters will try to bring the 1v1 to a standstill and beat you from a standing start — stay touch-tight and don't let the duel stop.");
+    out.push({
+      note: "Quick starters will try to bring the 1v1 to a standstill and beat you from a standing start — stay touch-tight and don't let the duel stop.",
+      workOn: "First-step power grows with short hill sprints or 10m starts from different positions (lying, kneeling, side-on), 2–3 sets at training. In the gym: squats, lunges and step-ups.",
+    });
 
   const s1020 = p("split1020");
   if (s1020 != null && s1020 <= LOW)
-    out.push("In a longer race opponents can pull away through the middle metres — make your move early and keep duels short, sharp and close to the ball.");
+    out.push({
+      note: "In a longer race opponents can pull away through the middle metres — make your move early and keep duels short, sharp and close to the ball.",
+      workOn: "Build the middle of your sprint with 'flying' runs — jog 10m in, then run hard through 20m. Hamstring strength matters here too: single-leg Romanian deadlifts or hamstring bridges.",
+    });
 
   const s2030 = p("split2030");
   if (s2030 != null && s2030 <= LOW)
-    out.push("Fast opponents will look to knock the ball past you and run — win the duel early with body position and anticipation, before it becomes a straight footrace.");
+    out.push({
+      note: "Fast opponents will look to knock the ball past you and run — win the duel early with body position and anticipation, before it becomes a straight footrace.",
+      workOn: "Top speed responds to a small dose done well: 2–3 flying 20s with a full walk-back recovery, once or twice a week, fresh — never at the end of a session. Sprint drills like A-skips and high knees sharpen the mechanics.",
+    });
 
   const vert = Math.max(p("verticalM") ?? -1, p("verticalStart") ?? -1, p("verticalTotal") ?? -1);
   const hasVert = [p("verticalM"), p("verticalStart"), p("verticalTotal")].some(v => v != null);
   if (hasVert && vert !== -1 && vert <= LOW)
-    out.push("Taller opponents will target you in the air at set pieces — take the ground job: edge of the box, the short option, or a smaller marker. That's a role, not a demotion.");
+    out.push({
+      note: "Taller opponents will target you in the air at set pieces — take the ground job: edge of the box, the short option, or a smaller marker. That's a role, not a demotion.",
+      workOn: "Jump height comes from leg power: box jumps, pogo hops and calf raises little and often, plus squats in the gym. Land soft, quality over quantity — 3 sets of 5 good jumps beats 50 tired ones.",
+    });
 
   const bals = p("balsomS");
   if (bals != null && bals <= LOW)
-    out.push("Tricky, twisting attackers will try to keep turning you — show them into a straight race on your terms instead of a spin contest on theirs.");
+    out.push({
+      note: "Tricky, twisting attackers will try to keep turning you — show them into a straight race on your terms instead of a spin contest on theirs.",
+      workOn: "Change of direction is strength plus footwork: lateral bounds and 5–10–5 shuttle runs at training, side lunges and single-leg balance work for the hips and ankles that do the turning.",
+    });
 
   const horiz = p("horizontalM");
   if (horiz != null && horiz <= LOW)
-    out.push("Physical opponents will try to make every duel a shoving contest — beat them with timing and positioning. Arrive first and the shove never happens.");
+    out.push({
+      note: "Physical opponents will try to make every duel a shoving contest — beat them with timing and positioning. Arrive first and the shove never happens.",
+      workOn: "Horizontal power lives in the hips: broad jumps, glute bridges and lunges are the staples. Add push-ups and pallof-style core holds so you're strong through contact, not just fast into it.",
+    });
 
   return out;
 }
@@ -349,12 +375,16 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
 
     s.addText("BE AWARE OF", { x: xR, y: yTop, w: colW, h: 0.35, fontSize: 13, bold: true, color: ORANGE, charSpacing: 3 });
     s.addText(
-      (aware.length ? aware : ["Nothing in this testing gives an opponent an obvious plan against you. Keep it that way."])
-        .map(t => ({ text: t, options: { bullet: { code: "2022", indent: 12 }, breakLine: true, paraSpaceAfter: 8 } })),
-      { x: xR, y: yTop + 0.4, w: colW, h: 4.3, fontSize: 12.5, color: INK, lineSpacing: 17, valign: "top" },
+      aware.length
+        ? aware.flatMap(a => [
+            { text: a.note, options: { bullet: { code: "2022", indent: 12 }, breakLine: true, paraSpaceAfter: 3 } },
+            { text: `Work on it: ${a.workOn}`, options: { bullet: false, indentLevel: 1, breakLine: true, paraSpaceAfter: 9, fontSize: 10.5, italic: true, color: GREY } },
+          ])
+        : [{ text: "Nothing in this testing gives an opponent an obvious plan against you. Keep it that way.", options: { bullet: { code: "2022", indent: 12 }, breakLine: true, paraSpaceAfter: 8 } }],
+      { x: xR, y: yTop + 0.4, w: colW, h: 4.3, fontSize: 12.5, color: INK, lineSpacing: 15, valign: "top", fit: "shrink" },
     );
 
-    addInsightBar(s, "None of this is fixed — testing is a photo of one day, and every line here can move by next year's testing.");
+    addInsightBar(s, "None of this is fixed — testing is a photo of one day. Chase any of these with the trainer first so technique comes before load.");
     addFooter(s, input);
   }
 
