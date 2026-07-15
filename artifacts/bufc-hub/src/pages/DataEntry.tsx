@@ -27,6 +27,7 @@ import {
   useDeleteEntryPlayerStats,
   useExtractPlayersFromImage,
   useSaveEntryAthleticTests,
+  useSaveEntryGpsSessions,
   useListGpsSessions,
   getListGpsSessionsQueryKey,
   useListGpsPlayerPositions,
@@ -1255,6 +1256,322 @@ function TestingUploadForm({ teamId }: { teamId: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GPS match upload (Catapult CSV)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface GpsRow {
+  playerName: string;
+  splitName: string | null;
+  minsPlayed: number | null;
+  distanceKm: number | null;
+  sprintDistanceM: number | null;
+  powerPlays: number | null;
+  energyKcal: number | null;
+  impacts: number | null;
+  hrLoad: number | null;
+  timeInRedZoneMin: number | null;
+  playerLoad: number | null;
+  topSpeedMs: number | null;
+  distancePerMinMm: number | null;
+  powerScoreWkg: number | null;
+  workRatio: number | null;
+  hrMaxBpm: number | null;
+  maxDecelerationMss: number | null;
+  maxAccelerationMss: number | null;
+  distanceZone1Km: number | null;
+  distanceZone2Km: number | null;
+  distanceZone3Km: number | null;
+  distanceZone4Km: number | null;
+  distanceZone5Km: number | null;
+  accelCount34: number | null;
+  accelCountOver4: number | null;
+  decelCount34: number | null;
+  decelCountOver4: number | null;
+}
+
+const EMPTY_GPS_ROW: Omit<GpsRow, "playerName" | "splitName"> = {
+  minsPlayed: null, distanceKm: null, sprintDistanceM: null, powerPlays: null,
+  energyKcal: null, impacts: null, hrLoad: null, timeInRedZoneMin: null,
+  playerLoad: null, topSpeedMs: null, distancePerMinMm: null, powerScoreWkg: null,
+  workRatio: null, hrMaxBpm: null, maxDecelerationMss: null, maxAccelerationMss: null,
+  distanceZone1Km: null, distanceZone2Km: null, distanceZone3Km: null,
+  distanceZone4Km: null, distanceZone5Km: null,
+  accelCount34: null, accelCountOver4: null, decelCount34: null, decelCountOver4: null,
+};
+
+// Catapult export header → row field, keyed by normalised header. The export
+// has ~109 columns; everything not listed here is simply ignored.
+const GPS_HEADER_MAP: Record<string, keyof GpsRow> = {
+  playername: "playerName", player: "playerName", athlete: "playerName", athletename: "playerName",
+  splitname: "splitName", split: "splitName",
+  minsplayed: "minsPlayed", minutesplayed: "minsPlayed",
+  distancekm: "distanceKm", totaldistancekm: "distanceKm",
+  sprintdistancem: "sprintDistanceM",
+  powerplays: "powerPlays",
+  energykcal: "energyKcal",
+  impacts: "impacts",
+  hrload: "hrLoad",
+  timeinredzonemin: "timeInRedZoneMin",
+  playerload: "playerLoad",
+  topspeedms: "topSpeedMs",
+  distanceperminmmin: "distancePerMinMm",
+  powerscorewkg: "powerScoreWkg",
+  workratio: "workRatio",
+  hrmaxbpm: "hrMaxBpm",
+  maxdecelerationmss: "maxDecelerationMss",
+  maxaccelerationmss: "maxAccelerationMss",
+  distanceinspeedzone1km: "distanceZone1Km",
+  distanceinspeedzone2km: "distanceZone2Km",
+  distanceinspeedzone3km: "distanceZone3Km",
+  distanceinspeedzone4km: "distanceZone4Km",
+  distanceinspeedzone5km: "distanceZone5Km",
+  accelerationszonecount34mss: "accelCount34",
+  accelerationszonecount4mss: "accelCountOver4",
+  decelerationzonecount34mss: "decelCount34",
+  decelerationzonecount4mss: "decelCountOver4",
+};
+
+const SQUAD_OPTIONS = [
+  { value: "1sts", label: "1sts" },
+  { value: "res", label: "Reserves" },
+  { value: "18s", label: "U18s" },
+  { value: "17s", label: "U17s" },
+] as const;
+
+const SPLIT_ORDER: Record<string, number> = { game: 0, "1st.half": 1, "2nd.half": 2 };
+
+function GpsUploadForm({ teamId }: { teamId: number }) {
+  const [matchDate, setMatchDate] = useState("");
+  const [roundCode, setRoundCode] = useState("");
+  const [squad, setSquad] = useState<string>("1sts");
+  const [opponent, setOpponent] = useState("");
+  const [rows, setRows] = useState<GpsRow[]>([]);
+  const [ignoredSplits, setIgnoredSplits] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const round = roundCode.trim() ? `${roundCode.trim()}-${squad}` : "";
+  const year = matchDate ? matchDate.slice(0, 4) : "";
+
+  const save = useSaveEntryGpsSessions({ mutation: {
+    onSuccess: (res) => {
+      setOk(res.replaced > 0
+        ? `Saved ${res.saved} rows for ${round} (replaced the ${res.replaced} previously saved for that round). New player names? Set their position in the Positions tab.`
+        : `Saved ${res.saved} rows for ${round}. New player names? Set their position in the Positions tab.`);
+      setRows([]); setIgnoredSplits(0); setFileName(null);
+      if (fileRef.current) fileRef.current.value = "";
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  async function handleFile(file: File) {
+    setParsing(true); setOk(null); setErr(null);
+    setRows([]); setIgnoredSplits(0); setFileName(file.name);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      if (!sheet) throw new Error("The file has no sheets in it");
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+      if (raw.length === 0) throw new Error("No rows found in the file");
+
+      const headers = Object.keys(raw[0]);
+      const mapping = new Map<string, keyof GpsRow>();
+      let durationHeader: string | null = null;
+      let tagsHeader: string | null = null;
+      for (const h of headers) {
+        const norm = normHeader(h);
+        const field = GPS_HEADER_MAP[norm];
+        if (field && ![...mapping.values()].includes(field)) mapping.set(h, field);
+        if (norm === "duration") durationHeader = h;
+        if (norm === "tags") tagsHeader = h;
+      }
+      if (![...mapping.values()].includes("playerName")) {
+        throw new Error("Couldn't find a \"Player Name\" column in this file — is it the Catapult export?");
+      }
+      if (![...mapping.values()].includes("distanceKm")) {
+        throw new Error("Couldn't find a \"Distance (km)\" column in this file — is it the Catapult export?");
+      }
+
+      const parsed: GpsRow[] = [];
+      let ignored = 0;
+      for (const r of raw) {
+        const row: GpsRow = { playerName: "", splitName: null, ...EMPTY_GPS_ROW };
+        for (const [header, field] of mapping) {
+          const v = r[header];
+          if (field === "playerName") row.playerName = v == null ? "" : String(v).trim();
+          else if (field === "splitName") row.splitName = v == null || String(v).trim() === "" ? null : String(v).trim();
+          else row[field] = toNum(v);
+        }
+        if (!row.playerName) continue;
+        // Skip non-game rows (e.g. training sessions mixed into an export)
+        if (tagsHeader != null) {
+          const tag = r[tagsHeader] == null ? "" : String(r[tagsHeader]).trim().toLowerCase();
+          if (tag !== "" && tag !== "game") { ignored++; continue; }
+        }
+        // Keep whole-game and half rows; drop thirds/extra-time splits the charts ignore.
+        // Store the canonical lowercase literal — downstream chart logic matches exactly.
+        const split = (row.splitName ?? "game").toLowerCase();
+        if (!(split === "game" || split === "1st.half" || split === "2nd.half")) { ignored++; continue; }
+        row.splitName = split;
+        // Coach adds minutes by hand today — pre-fill from the Duration column (secs) when present
+        if (row.minsPlayed == null && durationHeader != null) {
+          const dur = toNum(r[durationHeader]);
+          if (dur != null && dur > 0) row.minsPlayed = Math.round((dur / 60) * 100) / 100;
+        }
+        parsed.push(row);
+      }
+      if (parsed.length === 0) throw new Error("No usable game rows found in the file");
+      parsed.sort((a, b) =>
+        a.playerName.localeCompare(b.playerName) ||
+        (SPLIT_ORDER[a.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.splitName ?? "game"] ?? 9));
+      setRows(parsed);
+      setIgnoredSplits(ignored);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't read that file");
+      setFileName(null);
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const playerCount = useMemo(() => new Set(rows.map(r => r.playerName)).size, [rows]);
+  const readyToSave = rows.length > 0 && round !== "" && /^\d{4}-\d{2}-\d{2}$/.test(matchDate);
+
+  const setMins = (i: number, v: string) => {
+    setRows(prev => prev.map((r, j) => j === i ? { ...r, minsPlayed: v.trim() === "" ? null : toNum(v) } : r));
+  };
+
+  const onSave = () => {
+    setOk(null); setErr(null);
+    const [y, m, d] = matchDate.split("-");
+    const sessionDate = `${d}/${m}/${y}`;
+    const squadLabel = SQUAD_OPTIONS.find(s => s.value === squad)?.label ?? squad;
+    const sessionTitle = `${y}${m}${d}-${roundCode.trim()}-${squadLabel}-${opponent.trim() || "match"}`;
+    save.mutate({ data: {
+      year, teamId, round,
+      opponent: opponent.trim() || null,
+      sessionDate, sessionTitle,
+      rows,
+    }});
+  };
+
+  const fmtN = (v: number | null, d = 1) => (v == null ? "—" : v.toFixed(d));
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload a match's GPS data</CardTitle>
+          <CardDescription>
+            Drop in the Catapult export (csv or xlsx) exactly as it comes — the app picks out the columns the
+            charts use and ignores the rest. Fill in the match details, check the preview, then save.
+            Re-uploading the same round replaces it cleanly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Match date">
+              <Input type="date" value={matchDate} onChange={e => setMatchDate(e.target.value)} />
+            </Field>
+            <Field label="Round (e.g. R13, GF)">
+              <Input value={roundCode} onChange={e => setRoundCode(e.target.value)} placeholder="R13" />
+            </Field>
+            <Field label="Squad">
+              <Select value={squad} onValueChange={setSquad}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SQUAD_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Opponent">
+              <Input value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Majura" />
+            </Field>
+          </div>
+          <Field label="Catapult export">
+            <Input
+              ref={fileRef} type="file" accept=".csv,.xlsx,.xls"
+              className="cursor-pointer file:mr-3 file:cursor-pointer"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+            />
+          </Field>
+          {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}
+          <StatusLine ok={ok} err={err} />
+        </CardContent>
+      </Card>
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div className="space-y-1.5">
+              <CardTitle>Check what was read — {playerCount} players, {rows.length} rows</CardTitle>
+              <CardDescription>
+                {fileName}
+                {ignoredSplits > 0 && ` · ignored ${ignoredSplits} non-game rows (training / thirds / extra time)`}
+                {" · minutes are pre-filled from the GPS duration — adjust any you track differently"}
+              </CardDescription>
+            </div>
+            <Button disabled={save.isPending || !readyToSave} onClick={onSave}>
+              {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+              Save to {round || "…"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {!readyToSave && (
+              <p className="mb-3 text-sm text-muted-foreground">Fill in the match date and round above to enable saving.</p>
+            )}
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-muted-foreground">
+                    <th className="px-2 py-1.5 text-left font-medium">Player</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Split</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Mins</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Dist (km)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">HSM (m)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">VHS (m)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Top speed (km/h)</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Load</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Acc &gt;3</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Dec &gt;3</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className={`border-b last:border-0 ${r.splitName === "game" ? "" : "text-muted-foreground"}`}>
+                      <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.splitName === "game" ? r.playerName : ""}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.splitName}</td>
+                      <td className="px-2 py-1">
+                        <Input
+                          value={r.minsPlayed ?? ""} type="number" step="1" min="0"
+                          onChange={e => setMins(i, e.target.value)}
+                          className="h-7 w-16 text-right text-xs ml-auto"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtN(r.distanceKm, 2)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtN(r.sprintDistanceM, 0)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{r.distanceZone5Km == null ? "—" : (r.distanceZone5Km * 1000).toFixed(0)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{r.topSpeedMs == null ? "—" : (r.topSpeedMs * 3.6).toFixed(1)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtN(r.playerLoad, 0)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{r.accelCount34 == null && r.accelCountOver4 == null ? "—" : (r.accelCount34 ?? 0) + (r.accelCountOver4 ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{r.decelCount34 == null && r.decelCountOver4 == null ? "—" : (r.decelCount34 ?? 0) + (r.decelCountOver4 ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1319,13 +1636,14 @@ function EntryWorkspace() {
       </div>
 
       <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto md:h-10">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 h-auto md:h-10">
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
           <TabsTrigger value="league">4 · League Setup</TabsTrigger>
           <TabsTrigger value="testing">5 · Testing</TabsTrigger>
-          <TabsTrigger value="positions">6 · Positions</TabsTrigger>
+          <TabsTrigger value="gps">6 · GPS</TabsTrigger>
+          <TabsTrigger value="positions">7 · Positions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="match" className="mt-6">
@@ -1345,6 +1663,9 @@ function EntryWorkspace() {
         </TabsContent>
         <TabsContent value="testing" className="mt-6">
           <TestingUploadForm teamId={teamId} />
+        </TabsContent>
+        <TabsContent value="gps" className="mt-6">
+          <GpsUploadForm teamId={teamId} />
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
           <PositionsForm />

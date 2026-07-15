@@ -10,6 +10,7 @@ import {
   playerStatsTable,
   playersTable,
   athleticTestsTable,
+  gpsSessionsTable,
 } from "@workspace/db";
 import {
   ListLeagueMatchesQueryParams,
@@ -38,6 +39,8 @@ import {
   ExtractPlayersFromImageResponse,
   SaveEntryAthleticTestsBody,
   SaveEntryAthleticTestsResponse,
+  SaveEntryGpsSessionsBody,
+  SaveEntryGpsSessionsResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
@@ -838,6 +841,80 @@ router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
   });
 
   res.json(SaveEntryAthleticTestsResponse.parse({ saved, replaced }));
+});
+
+// ── GPS match upload (Catapult CSV) ──────────────────────────────────────────
+// Replace-semantics per (year, round): re-uploading a corrected CSV for a
+// round cleanly replaces every row previously saved for that round.
+router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
+  const parsed = SaveEntryGpsSessionsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { year, teamId, round, opponent, sessionDate, sessionTitle, rows } = parsed.data;
+
+  const cleanRows = rows
+    .map(r => ({ ...r, playerName: r.playerName.trim() }))
+    .filter(r => r.playerName.length > 0);
+  if (cleanRows.length === 0) {
+    res.status(400).json({ error: "No player rows to save" });
+    return;
+  }
+
+  const { saved, replaced } = await db.transaction(async (tx) => {
+    const replaced = (await tx
+      .delete(gpsSessionsTable)
+      .where(and(
+        eq(gpsSessionsTable.year, year),
+        eq(gpsSessionsTable.round, round),
+        eq(gpsSessionsTable.teamId, teamId),
+      ))
+      .returning({ id: gpsSessionsTable.id })).length;
+
+    const inserted = await tx.insert(gpsSessionsTable).values(cleanRows.map(r => ({
+      playerName: r.playerName,
+      playerId: null,
+      teamId,
+      year,
+      round,
+      opponent: opponent ?? null,
+      sessionDate: sessionDate ?? null,
+      sessionTitle: sessionTitle ?? null,
+      splitName: r.splitName ?? null,
+      tags: "game", // match uploads are always game rows — charts filter on this
+      minsPlayed: n2s(r.minsPlayed),
+      distanceKm: n2s(r.distanceKm),
+      sprintDistanceM: n2s(r.sprintDistanceM),
+      powerPlays: n2s(r.powerPlays),
+      energyKcal: n2s(r.energyKcal),
+      impacts: n2s(r.impacts),
+      hrLoad: n2s(r.hrLoad),
+      timeInRedZoneMin: n2s(r.timeInRedZoneMin),
+      playerLoad: n2s(r.playerLoad),
+      topSpeedMs: n2s(r.topSpeedMs),
+      distancePerMinMm: n2s(r.distancePerMinMm),
+      powerScoreWkg: n2s(r.powerScoreWkg),
+      workRatio: n2s(r.workRatio),
+      hrMaxBpm: n2s(r.hrMaxBpm),
+      maxDecelerationMss: n2s(r.maxDecelerationMss),
+      maxAccelerationMss: n2s(r.maxAccelerationMss),
+      distanceZone1Km: n2s(r.distanceZone1Km),
+      distanceZone2Km: n2s(r.distanceZone2Km),
+      distanceZone3Km: n2s(r.distanceZone3Km),
+      distanceZone4Km: n2s(r.distanceZone4Km),
+      distanceZone5Km: n2s(r.distanceZone5Km),
+      accelCount34: n2s(r.accelCount34),
+      accelCountOver4: n2s(r.accelCountOver4),
+      decelCount34: n2s(r.decelCount34),
+      decelCountOver4: n2s(r.decelCountOver4),
+    }))).returning({ id: gpsSessionsTable.id });
+
+    return { saved: inserted.length, replaced };
+  });
+
+  logger.info({ year, round, saved, replaced }, "gps sessions saved");
+  res.json(SaveEntryGpsSessionsResponse.parse({ saved, replaced }));
 });
 
 export default router;

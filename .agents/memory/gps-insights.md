@@ -12,6 +12,12 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - **Player PPTX report:** client-side via pptxgenjs (lazy dynamic import) in `src/lib/playerGpsReport.ts`; input is plain mapped data (no app imports → no cycles). pptxgenjs combo charts use runtime `(typesArray, options)` signature — TS typings only know `(type, data, opts)`, so cast. Pass `null` (not 0) for missing games so charts show gaps, not fake zero bars; nulls verified fine in generated XML.
 - **Backfill gotcha:** ~280 training rows have blank player/date/round keys — a blank-key CSV tuple matches ALL of them and sprays its values; the backfill script filters those out. Prod DB still needs the backfill run at next deploy.
 
+## GPS match upload (Data Entry tab 6)
+- Catapult CSV parsed client-side; header map verified against the real 109-column export (29 columns used, rest ignored). Raw Catapult export lacks Round/Opponent/Score/Mins — coach adds those by hand, so the form collects date/round-code/squad/opponent and builds `round` as `${code}-${squad}` (2025+ suffix convention).
+- Mins played pre-filled from Duration secs ÷ 60 (matches her sheet values exactly), editable per row before save.
+- splitName MUST be canonicalised to lowercase literals (`game`/`1st.half`/`2nd.half`) before save — charts match exactly; thirds/extra-time and non-game tag rows are dropped at parse. tags always saved as "game".
+- Replace-semantics per (year, round, teamId); POST /entry/gps-sessions.
+
 ## Round codes & squads
 - `round` encodes the squad: 2024 uses bare codes (`R2`, `GF`, `FCQ`) for 1sts and `-r` for reserves; 2025+ uses `-1sts`/`-res`/`-18s` (also `-17s`, `R1-V2-17s`). `squadOf()` regex: `-(res|r)$` → Reserves, `-1[78]s$` → 17s/18s, else 1sts. team_id is always 1 — squad selection MUST come from round suffix, not teams table.
 - `player_id` is null in gps_sessions; everything keys off `player_name` (first names). GET /gps-sessions supports `playerName` and `split` query params for this.

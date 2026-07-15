@@ -34,6 +34,8 @@ import type {
   EntryGoalDeleteResponse,
   EntryGoalListResponse,
   EntryGoalResponse,
+  EntryGpsSessionsSaveRequest,
+  EntryGpsSessionsSaveResponse,
   EntryMatchBody,
   EntryMatchResponse,
   EntryPlayerStatDeleteResponse,
@@ -5316,5 +5318,76 @@ export const useSaveEntryAthleticTests = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveEntryAthleticTestsMutationOptions(options));
+    }
+
+export const getSaveEntryGpsSessionsUrl = () => {
+
+
+
+
+  return `/api/entry/gps-sessions`
+}
+
+/**
+ * @summary Replace one match's GPS rows (all players & splits) with rows read from the Catapult CSV
+ */
+export const saveEntryGpsSessions = async (entryGpsSessionsSaveRequest: EntryGpsSessionsSaveRequest, options?: RequestInit): Promise<EntryGpsSessionsSaveResponse> => {
+
+  return customFetch<EntryGpsSessionsSaveResponse>(getSaveEntryGpsSessionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryGpsSessionsSaveRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveEntryGpsSessionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryGpsSessions>>, TError,{data: BodyType<EntryGpsSessionsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveEntryGpsSessions>>, TError,{data: BodyType<EntryGpsSessionsSaveRequest>}, TContext> => {
+
+const mutationKey = ['saveEntryGpsSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveEntryGpsSessions>>, {data: BodyType<EntryGpsSessionsSaveRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveEntryGpsSessions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveEntryGpsSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof saveEntryGpsSessions>>>
+    export type SaveEntryGpsSessionsMutationBody = BodyType<EntryGpsSessionsSaveRequest>
+    export type SaveEntryGpsSessionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Replace one match's GPS rows (all players & splits) with rows read from the Catapult CSV
+ */
+export const useSaveEntryGpsSessions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEntryGpsSessions>>, TError,{data: BodyType<EntryGpsSessionsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveEntryGpsSessions>>,
+        TError,
+        {data: BodyType<EntryGpsSessionsSaveRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveEntryGpsSessionsMutationOptions(options));
     }
 

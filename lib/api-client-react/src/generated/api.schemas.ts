@@ -1399,6 +1399,82 @@ export interface EntryAthleticTestsSaveResponse {
   replaced: number;
 }
 
+export interface EntryGpsSessionRow {
+  /** @minLength 1 */
+  playerName: string;
+  /** @nullable */
+  splitName?: string | null;
+  /** @nullable */
+  minsPlayed?: number | null;
+  /** @nullable */
+  distanceKm?: number | null;
+  /** @nullable */
+  sprintDistanceM?: number | null;
+  /** @nullable */
+  powerPlays?: number | null;
+  /** @nullable */
+  energyKcal?: number | null;
+  /** @nullable */
+  impacts?: number | null;
+  /** @nullable */
+  hrLoad?: number | null;
+  /** @nullable */
+  timeInRedZoneMin?: number | null;
+  /** @nullable */
+  playerLoad?: number | null;
+  /** @nullable */
+  topSpeedMs?: number | null;
+  /** @nullable */
+  distancePerMinMm?: number | null;
+  /** @nullable */
+  powerScoreWkg?: number | null;
+  /** @nullable */
+  workRatio?: number | null;
+  /** @nullable */
+  hrMaxBpm?: number | null;
+  /** @nullable */
+  maxDecelerationMss?: number | null;
+  /** @nullable */
+  maxAccelerationMss?: number | null;
+  /** @nullable */
+  distanceZone1Km?: number | null;
+  /** @nullable */
+  distanceZone2Km?: number | null;
+  /** @nullable */
+  distanceZone3Km?: number | null;
+  /** @nullable */
+  distanceZone4Km?: number | null;
+  /** @nullable */
+  distanceZone5Km?: number | null;
+  /** @nullable */
+  accelCount34?: number | null;
+  /** @nullable */
+  accelCountOver4?: number | null;
+  /** @nullable */
+  decelCount34?: number | null;
+  /** @nullable */
+  decelCountOver4?: number | null;
+}
+
+export interface EntryGpsSessionsSaveRequest {
+  year: string;
+  teamId: number;
+  /** @minLength 1 */
+  round: string;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  sessionDate?: string | null;
+  /** @nullable */
+  sessionTitle?: string | null;
+  rows: EntryGpsSessionRow[];
+}
+
+export interface EntryGpsSessionsSaveResponse {
+  saved: number;
+  replaced: number;
+}
+
 export interface ExtractPlayersBody {
   /** @minLength 1 */
   imageBase64: string;

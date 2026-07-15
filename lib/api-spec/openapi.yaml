@@ -1451,6 +1451,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EntryAthleticTestsSaveResponse" }
 
+  /entry/gps-sessions:
+    post:
+      operationId: saveEntryGpsSessions
+      tags: [entry]
+      summary: Replace one match's GPS rows (all players & splits) with rows read from the Catapult CSV
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryGpsSessionsSaveRequest" }
+      responses:
+        "200":
+          description: Match's GPS rows replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGpsSessionsSaveResponse" }
+
 
 components:
   schemas:
@@ -2704,6 +2721,59 @@ components:
       required: [year, teamId, rows]
 
     EntryAthleticTestsSaveResponse:
+      type: object
+      properties:
+        saved:    { type: integer }
+        replaced: { type: integer }
+      required: [saved, replaced]
+
+    EntryGpsSessionRow:
+      type: object
+      properties:
+        playerName:        { type: string, minLength: 1 }
+        splitName:         { type: ["string", "null"] }
+        minsPlayed:        { type: ["number", "null"] }
+        distanceKm:        { type: ["number", "null"] }
+        sprintDistanceM:   { type: ["number", "null"] }
+        powerPlays:        { type: ["number", "null"] }
+        energyKcal:        { type: ["number", "null"] }
+        impacts:           { type: ["number", "null"] }
+        hrLoad:            { type: ["number", "null"] }
+        timeInRedZoneMin:  { type: ["number", "null"] }
+        playerLoad:        { type: ["number", "null"] }
+        topSpeedMs:        { type: ["number", "null"] }
+        distancePerMinMm:  { type: ["number", "null"] }
+        powerScoreWkg:     { type: ["number", "null"] }
+        workRatio:         { type: ["number", "null"] }
+        hrMaxBpm:          { type: ["number", "null"] }
+        maxDecelerationMss: { type: ["number", "null"] }
+        maxAccelerationMss: { type: ["number", "null"] }
+        distanceZone1Km:   { type: ["number", "null"] }
+        distanceZone2Km:   { type: ["number", "null"] }
+        distanceZone3Km:   { type: ["number", "null"] }
+        distanceZone4Km:   { type: ["number", "null"] }
+        distanceZone5Km:   { type: ["number", "null"] }
+        accelCount34:      { type: ["number", "null"] }
+        accelCountOver4:   { type: ["number", "null"] }
+        decelCount34:      { type: ["number", "null"] }
+        decelCountOver4:   { type: ["number", "null"] }
+      required: [playerName]
+
+    EntryGpsSessionsSaveRequest:
+      type: object
+      properties:
+        year:         { type: string }
+        teamId:       { type: integer }
+        round:        { type: string, minLength: 1 }
+        opponent:     { type: ["string", "null"] }
+        sessionDate:  { type: ["string", "null"] }
+        sessionTitle: { type: ["string", "null"] }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EntryGpsSessionRow" }
+      required: [year, teamId, round, rows]
+
+    EntryGpsSessionsSaveResponse:
       type: object
       properties:
         saved:    { type: integer }

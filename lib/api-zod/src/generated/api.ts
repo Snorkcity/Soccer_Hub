@@ -1869,3 +1869,54 @@ export const SaveEntryAthleticTestsResponse = zod.object({
 })
 
 
+/**
+ * @summary Replace one match's GPS rows (all players & splits) with rows read from the Catapult CSV
+ */
+
+
+
+
+export const SaveEntryGpsSessionsBody = zod.object({
+  "year": zod.string(),
+  "teamId": zod.number(),
+  "round": zod.string().min(1),
+  "opponent": zod.string().nullish(),
+  "sessionDate": zod.string().nullish(),
+  "sessionTitle": zod.string().nullish(),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string().min(1),
+  "splitName": zod.string().nullish(),
+  "minsPlayed": zod.number().nullish(),
+  "distanceKm": zod.number().nullish(),
+  "sprintDistanceM": zod.number().nullish(),
+  "powerPlays": zod.number().nullish(),
+  "energyKcal": zod.number().nullish(),
+  "impacts": zod.number().nullish(),
+  "hrLoad": zod.number().nullish(),
+  "timeInRedZoneMin": zod.number().nullish(),
+  "playerLoad": zod.number().nullish(),
+  "topSpeedMs": zod.number().nullish(),
+  "distancePerMinMm": zod.number().nullish(),
+  "powerScoreWkg": zod.number().nullish(),
+  "workRatio": zod.number().nullish(),
+  "hrMaxBpm": zod.number().nullish(),
+  "maxDecelerationMss": zod.number().nullish(),
+  "maxAccelerationMss": zod.number().nullish(),
+  "distanceZone1Km": zod.number().nullish(),
+  "distanceZone2Km": zod.number().nullish(),
+  "distanceZone3Km": zod.number().nullish(),
+  "distanceZone4Km": zod.number().nullish(),
+  "distanceZone5Km": zod.number().nullish(),
+  "accelCount34": zod.number().nullish(),
+  "accelCountOver4": zod.number().nullish(),
+  "decelCount34": zod.number().nullish(),
+  "decelCountOver4": zod.number().nullish()
+}))
+})
+
+export const SaveEntryGpsSessionsResponse = zod.object({
+  "saved": zod.number(),
+  "replaced": zod.number()
+})
+
+
