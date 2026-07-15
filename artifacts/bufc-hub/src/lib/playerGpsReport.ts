@@ -41,6 +41,8 @@ export interface ReportComparison {
 
 export interface ReportInput {
   playerName: string;
+  /** Player's position (e.g. "Midfielder") — shown on the cover so it's clear averages are position-based. */
+  position?: string | null;
   seasonLabel: string;
   teamLabel: string;
   coachNote?: string;
@@ -135,7 +137,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     s.addText(input.playerName, {
       x: 0.9, y: 2.1, w: 11.5, h: 1.4, fontSize: 54, color: PAPER, bold: true,
     });
-    s.addText(`${input.teamLabel}  •  ${input.seasonLabel}`, {
+    s.addText([input.position, input.teamLabel, input.seasonLabel].filter(Boolean).join("  •  "), {
       x: 0.9, y: 3.6, w: 11, h: 0.5, fontSize: 20, color: "C9E4F2",
     });
     s.addText(

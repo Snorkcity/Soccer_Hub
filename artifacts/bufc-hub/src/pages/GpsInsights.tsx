@@ -373,6 +373,7 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
       const today = new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
       await generatePlayerGpsReport({
         playerName: name.trim() || player,
+        position: posOf.get(player) ?? null,
         seasonLabel: season.trim() || `${year} Season`,
         teamLabel: team.trim() || "Belconnen United FC",
         coachNote: note,
