@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "rkO38yAVOwvgiNFc4DL4Y"
+uri = "file://deliverables/GPS-Match-Upload-How-To.docx"
+type = "word_document"
+title = "GPS Match Upload — How To"
