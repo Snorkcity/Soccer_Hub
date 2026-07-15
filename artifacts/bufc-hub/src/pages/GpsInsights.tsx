@@ -267,6 +267,7 @@ function groupAverages(label: string, bs: Bundle[]): ReportComparison {
   return {
     label,
     games: bs.length,
+    mins: mean(bs.map(b => bundleMins(b))),
     values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, mean(bs.map(b => bundleTotal(b, m)))])),
     accel: mean(bs.map(b => bundleCount(b, "accel"))),
     decel: mean(bs.map(b => bundleCount(b, "decel"))),
@@ -573,7 +574,8 @@ function PlayerTooltip({ active, payload, metric, avg }: {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const vsAvg = d.total != null && avg ? ((d.total / avg - 1) * 100) : null;
-  const perMin = metric.additive && d.total != null && d.mins ? d.total / d.mins : null;
+  // Per-90 normalises for time on the pitch — a 30-minute shift can be compared with a full game.
+  const per90 = metric.additive && d.total != null && d.mins ? (d.total / d.mins) * 90 : null;
   return (
     <div style={TOOLTIP_BOX}>
       <p className="font-semibold">{d.round}{d.opponent ? ` — vs ${d.opponent}` : ""}</p>
@@ -582,7 +584,7 @@ function PlayerTooltip({ active, payload, metric, avg }: {
         {d.h1 != null && <p><span style={{ color: C_H1 }}>●</span> 1st half: {fmtV(d.h1, metric.decimals, metric.unit)}{d.m1 ? ` (${Math.round(d.m1)} min)` : ""}</p>}
         {d.h2 != null && <p><span style={{ color: C_H2 }}>●</span> 2nd half: {fmtV(d.h2, metric.decimals, metric.unit)}{d.m2 ? ` (${Math.round(d.m2)} min)` : ""}</p>}
         <p className="font-medium">Game: {fmtV(d.total, metric.decimals, metric.unit)}</p>
-        {perMin != null && <p className="text-muted-foreground">{perMin.toFixed(metric.decimals > 0 ? metric.decimals : 1)} {metric.unit || "units"}/min</p>}
+        {per90 != null && <p className="text-muted-foreground">≈ {fmtV(per90, metric.decimals, metric.unit)} per 90 mins</p>}
         {vsAvg != null && (
           <p className="text-muted-foreground">{vsAvg >= 0 ? "▲" : "▼"} {Math.abs(vsAvg).toFixed(0)}% vs her season average</p>
         )}
@@ -910,7 +912,7 @@ function TeamTooltip({ active, payload, metric, view, avg }: {
       {d.mins != null && <p className="text-muted-foreground">{Math.round(d.mins)} mins played</p>}
       <div className="mt-1 space-y-0.5">
         <p className="font-medium">Game: {fmtV(d.total, metric.decimals, metric.unit)}</p>
-        {d.per10 != null && metric.additive && <p className="text-muted-foreground">{fmtV(d.per10, metric.decimals, metric.unit)} per 10 min</p>}
+        {d.per10 != null && metric.additive && <p className="text-muted-foreground">{fmtV(d.per10, metric.decimals, metric.unit)} per 10 min  ·  ≈ {fmtV(d.per10 * 9, metric.decimals, metric.unit)} per 90</p>}
         {d.h1 != null && <p><span style={{ color: C_H1 }}>●</span> 1st half: {fmtV(d.h1, metric.decimals, metric.unit)}{d.m1 ? ` (${Math.round(d.m1)} min)` : ""}</p>}
         {d.h2 != null && <p><span style={{ color: C_H2 }}>●</span> 2nd half: {fmtV(d.h2, metric.decimals, metric.unit)}{d.m2 ? ` (${Math.round(d.m2)} min)` : ""}</p>}
         {fade != null && metric.additive && (

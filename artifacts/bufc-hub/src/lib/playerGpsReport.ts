@@ -30,8 +30,9 @@ export interface ReportGame {
 
 /** A benchmark group (squad or position) whose per-game averages appear alongside the player. */
 export interface ReportComparison {
-  label: string; // e.g. "1sts average", "Forwards average (all squads)"
+  label: string; // e.g. "1sts average", "1sts Midfielders average"
   games: number; // player-games the average is built from
+  mins: number | null; // average minutes per player-game — lets the report scale the group to per-90
   values: Record<string, number | null>; // metricId -> average per game
   accel: number | null; // average accel count per game
   decel: number | null;
@@ -241,7 +242,63 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
       valign: "middle",
     });
-    addInsightBar(s, `Group averages are per game, built from every tracked player-game this season (${comps.map(c => `${c.label.replace(/ average/i, "")}: ${c.games}`).join(", ")}). Sky-blue means you're at or above that group.`);
+    addInsightBar(s, `Group averages are per game, built from every tracked player-game this season (${comps.map(c => `${c.label.replace(/ average/i, "")}: ${c.games}`).join(", ")}). Sky-blue means you're at or above that group. The next page shows the same comparison scaled to 90 minutes.`);
+    addFooter(s, input);
+  }
+
+  // ── Per-90 comparison slide ───────────────────────────────────────────────
+  // Raw per-game numbers favour whoever plays the most minutes; scaling both
+  // sides to a full 90 makes a 30-minute shift honestly comparable.
+  if (comps.length) {
+    const s = pptx.addSlide();
+    s.background = { color: PAPER };
+    addHeader(s, "Per 90 minutes — levelling the playing field",
+      "Someone playing 30 minutes can't match full-game totals. These numbers are scaled to 90 minutes of pitch time, for you and for every group.");
+
+    const per90Of = (vals: (number | null)[], mins: (number | null)[]): number | null => {
+      let tv = 0, tm = 0;
+      vals.forEach((v, i) => { const m = mins[i]; if (v != null && m != null && m > 0) { tv += v; tm += m; } });
+      return tm > 0 ? (tv / tm) * 90 : null;
+    };
+    const compPer90 = (v: number | null | undefined, c: ReportComparison): number | null =>
+      v != null && c.mins ? (v / c.mins) * 90 : null;
+
+    type Cell = { text: string; options?: Record<string, unknown> };
+    const headRow: Cell[] = [
+      { text: "Per 90 min", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
+      { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
+      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" as const } })),
+    ];
+    const rows: Cell[][] = [headRow];
+    const pushRow = (label: string, you: number | null, compVals: (number | null)[], d: number, unit: string) => {
+      if (you == null && compVals.every(v => v == null)) return;
+      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      rows.push([
+        { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
+        { text: fmt(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        ...compVals.map(v => ({
+          text: fmt(v, d, unit),
+          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
+        })),
+      ]);
+    };
+
+    const gMins = games.map(g => g.mins);
+    for (const m of input.metrics) {
+      if (!m.summable) continue; // speed/rate metrics don't grow with minutes — scaling them would mislead
+      pushRow(m.title, per90Of(games.map(g => g.values[m.id] ?? null), gMins), comps.map(c => compPer90(c.values[m.id], c)), m.decimals, m.unit);
+    }
+    pushRow("Accelerations >3 m/s²", per90Of(games.map(g => g.accel), gMins), comps.map(c => compPer90(c.accel, c)), 0, "");
+    pushRow("Decelerations >3 m/s²", per90Of(games.map(g => g.decel), gMins), comps.map(c => compPer90(c.decel, c)), 0, "");
+
+    if (rows.length > 1) {
+      s.addTable(rows as never, {
+        x: 0.75, y: 1.6, w: 11.8, colW: [4.2, ...Array(comps.length + 1).fill((11.8 - 4.2) / (comps.length + 1))],
+        fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+        valign: "middle",
+      });
+    }
+    addInsightBar(s, "Top speed and max acceleration aren't shown here — they don't grow with time on the pitch, so the per-game page is the fair place to compare them.");
     addFooter(s, input);
   }
 
@@ -365,7 +422,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       s.addText(input.coachNote.trim(), { x: 0.9, y: 2.2, w: 11.4, h: 3.4, fontSize: 20, color: PAPER, lineSpacing: 30 });
     } else {
       s.addText(`Keep it going, ${input.playerName.split(" ")[0]}.`, { x: 0.9, y: 2.6, w: 11.4, h: 1, fontSize: 36, bold: true, color: PAPER });
-      s.addText("The numbers only tell part of the story — but they show the work you're putting in every week.", {
+      s.addText("Every number in this report comes from the GPS unit you wore in games this season.", {
         x: 0.9, y: 3.7, w: 10.5, h: 0.8, fontSize: 16, color: "C9E4F2" },
       );
     }
