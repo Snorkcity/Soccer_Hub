@@ -384,7 +384,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
       { x: xR, y: yTop + 0.4, w: colW, h: 4.3, fontSize: 12.5, color: INK, lineSpacing: 15, valign: "top", fit: "shrink" },
     );
 
-    addInsightBar(s, "None of this is fixed — testing is a photo of one day. Chase any of these with the trainer first so technique comes before load.");
+    addInsightBar(s, "None of this is fixed — testing is a photo of one day. Check with your trainer or the S&C coach first so technique comes before load.");
     addFooter(s, input);
   }
 
