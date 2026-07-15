@@ -10,7 +10,7 @@ description: Testing page (6 tabs) + trainer-xlsx upload in Data Entry; conventi
 
 ## Conventions (be consistent with these)
 - Rows named "Averages"/"Unknown" are excluded from all charts client-side (`isRealPlayer`).
-- Percentile convention: 100 = best; ties count ("at least as good as X% of the rest"), joint-best all score 100.
+- Percentile convention: 100 = best; ties count ("at least as good as X% of the rest"), joint-best all score 100. A sole recorded result = 100 (nobody beat it), not 50.
 - Positions in testing data are full words ("Defender", "Goalkeeper") — `getPosGroup` handles both words and codes (CB/DM/…). Don't regress to codes-only.
 - Time metrics (Balsom, splits, 30m) are lower-is-better; improvement deltas are normalised so positive always = got better.
 - Testing page fetches ALL years for the team once and filters client-side; year list is derived from data, never hardcoded.
@@ -19,3 +19,6 @@ description: Testing page (6 tabs) + trainer-xlsx upload in Data Entry; conventi
 Player profile tab generates plain-language game notes from squad-percentile thresholds (top third = strength, bottom third = caution), using the coach's own football correlations: explosive 0-10 → trust in stop-start 1v1s; fast 20-30 → push ball past and outrun; high vertical → key set-piece areas; Balsom → tight-turning duels. Keep this coach voice if editing.
 
 **Why:** the coach uses these outputs verbatim with players (Feedback Mode is intentionally anonymous — grey bars, no names, selected player green).
+
+## Player testing report (PPTX)
+Generated from the Player Profile tab; same brand furniture as the GPS report (navy/sky, header/insight bar/footer) — coach values this cross-report consistency for branding. Slides: snapshot tiles, percentile standing chart, sprint-splits chart, numbers table (squad/pos avg + squad best), "What you can trust / Be aware of", you-vs-you year-on-year (nearest earlier year with data), coach-note closing. Commentary rules: addressed to the player ("you"); cautions framed as what OPPONENTS will try, never as a weakness — coach explicitly asked for this framing.

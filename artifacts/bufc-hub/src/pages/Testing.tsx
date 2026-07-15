@@ -9,7 +9,12 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
   ScatterChart, Scatter, LabelList, LineChart, Line,
 } from "recharts";
-import { Zap, ShieldAlert } from "lucide-react";
+import { Zap, ShieldAlert, FileDown, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { generatePlayerTestingReport, type TestingMetricValue } from "@/lib/playerTestingReport";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metric metadata
@@ -68,7 +73,7 @@ const isRealPlayer = (t: AthleticTest) => !/^(averages?|unknown)$/i.test(t.playe
  * so joint-best players all score 100.
  */
 function pct(values: number[], v: number, lowerIsBetter: boolean): number {
-  if (values.length <= 1) return 50;
+  if (values.length <= 1) return 100; // sole result — nobody beat it
   const notWorse = values.filter(o => (lowerIsBetter ? v <= o : v >= o)).length - 1; // -1 excludes self
   return Math.round((notWorse / (values.length - 1)) * 100);
 }
@@ -159,7 +164,13 @@ export default function Testing() {
             <HeadToHead allTests={(allTests ?? []).filter(isRealPlayer)} years={years} defaultYear={year} />
           </TabsContent>
           <TabsContent value="profile" className="mt-6">
-            <PlayerProfile tests={tests} year={year} />
+            <PlayerProfile
+              tests={tests}
+              year={year}
+              years={years}
+              allTests={(allTests ?? []).filter(isRealPlayer)}
+              teamLabel={teams?.find(t => t.id === teamId)?.name ?? ""}
+            />
           </TabsContent>
           <TabsContent value="improvement" className="mt-6">
             <Improvement allTests={(allTests ?? []).filter(isRealPlayer)} years={years} />
@@ -431,7 +442,9 @@ function buildGameNotes(t: AthleticTest, squad: AthleticTest[]): { strengths: st
   return { strengths, cautions };
 }
 
-function PlayerProfile({ tests, year }: { tests: AthleticTest[]; year: string }) {
+function PlayerProfile({ tests, year, years, allTests, teamLabel }: {
+  tests: AthleticTest[]; year: string; years: string[]; allTests: AthleticTest[]; teamLabel: string;
+}) {
   const names = useMemo(() => tests.map(t => t.playerName).sort(), [tests]);
   const [player, setPlayer] = useState<string>("");
   useEffect(() => {
@@ -457,6 +470,64 @@ function PlayerProfile({ tests, year }: { tests: AthleticTest[]; year: string })
 
   const notes = useMemo(() => (t ? buildGameNotes(t, tests) : { strengths: [], cautions: [] }), [t, tests]);
 
+  // ── Report generation ──────────────────────────────────────────────────
+  const [reportOpen, setReportOpen] = useState(false);
+  const [coachNote, setCoachNote] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!t) return;
+    setGenerating(true);
+    setReportError(null);
+    try {
+      const posGroup = getPosGroup(t.position);
+      // Previous year in which THIS player actually has results
+      const prevYears = years.filter(y => y < year).reverse();
+      let prevYear: string | null = null;
+      let prevT: AthleticTest | undefined;
+      for (const py of prevYears) {
+        const found = allTests.find(x => x.year === py && x.playerName === player);
+        if (found) { prevYear = py; prevT = found; break; }
+      }
+      const metrics: TestingMetricValue[] = METRICS.map(m => {
+        const you = t[m.id] ?? null;
+        const vals = tests.map(s => s[m.id]).filter((x): x is number => x != null);
+        const posVals = posGroup === "Unknown" ? [] :
+          tests.filter(s => getPosGroup(s.position) === posGroup)
+            .map(s => s[m.id]).filter((x): x is number => x != null);
+        return {
+          id: m.id,
+          label: m.label,
+          decimals: m.decimals,
+          lowerIsBetter: m.lowerIsBetter,
+          you,
+          percentile: you != null && vals.length ? pct(vals, you, m.lowerIsBetter) : null,
+          squadAvg: vals.length ? avg(vals) : null,
+          posAvg: posVals.length ? avg(posVals) : null,
+          squadBest: vals.length ? (m.lowerIsBetter ? Math.min(...vals) : Math.max(...vals)) : null,
+          prevYou: prevT?.[m.id] ?? null,
+        };
+      });
+      await generatePlayerTestingReport({
+        playerName: player,
+        position: posGroup === "Unknown" ? null : posGroup,
+        teamLabel,
+        year,
+        prevYear,
+        squadSize: tests.length,
+        coachNote: coachNote.trim() || undefined,
+        generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
+        metrics,
+      });
+      setReportOpen(false);
+    } catch {
+      setReportError("Something went wrong building the report — try again, and if it keeps happening let me know.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
@@ -465,10 +536,45 @@ function PlayerProfile({ tests, year }: { tests: AthleticTest[]; year: string })
             <CardTitle>Testing profile — {player || "…"}</CardTitle>
             <CardDescription>Each spoke is her standing in the {year} squad (100 = best). Dashed ring = squad middle.</CardDescription>
           </div>
-          <Select value={player} onValueChange={setPlayer}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Player" /></SelectTrigger>
-            <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={player} onValueChange={setPlayer}>
+              <SelectTrigger className="w-[170px]"><SelectValue placeholder="Player" /></SelectTrigger>
+              <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+            </Select>
+            <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={!t}>
+                  <FileDown className="h-4 w-4 mr-2" />Report
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Testing report — {player}</DialogTitle>
+                  <DialogDescription>
+                    A branded PowerPoint for the player: her results, where she sits in the squad,
+                    what to trust on the pitch and what to be aware of{" "}
+                    — plus a you-vs-you page if she tested in an earlier year.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <Label htmlFor="testing-coach-note">A note from you (optional — closes the report)</Label>
+                  <Textarea
+                    id="testing-coach-note"
+                    value={coachNote}
+                    onChange={e => setCoachNote(e.target.value)}
+                    placeholder="e.g. Your first step is a real weapon — I want to see you trusting it in 1v1s this season."
+                    rows={4}
+                  />
+                </div>
+                {reportError && <p className="text-sm text-destructive">{reportError}</p>}
+                <DialogFooter>
+                  <Button onClick={generate} disabled={generating || !t}>
+                    {generating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Building…</> : <><FileDown className="h-4 w-4 mr-2" />Download report</>}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
