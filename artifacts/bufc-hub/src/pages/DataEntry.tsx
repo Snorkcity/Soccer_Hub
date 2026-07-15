@@ -1736,7 +1736,7 @@ function EntryWorkspace() {
       </div>
 
       <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 h-auto md:h-10">
+        <TabsList className="flex w-full flex-wrap h-auto gap-1">
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
