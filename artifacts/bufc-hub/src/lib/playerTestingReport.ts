@@ -112,6 +112,10 @@ function buildAwareNotes(metrics: TestingMetricValue[]): string[] {
   if (s010 != null && s010 <= LOW)
     out.push("Quick starters will try to bring the 1v1 to a standstill and beat you from a standing start — stay touch-tight and don't let the duel stop.");
 
+  const s1020 = p("split1020");
+  if (s1020 != null && s1020 <= LOW)
+    out.push("In a longer race opponents can pull away through the middle metres — make your move early and keep duels short, sharp and close to the ball.");
+
   const s2030 = p("split2030");
   if (s2030 != null && s2030 <= LOW)
     out.push("Fast opponents will look to knock the ball past you and run — win the duel early with body position and anticipation, before it becomes a straight footrace.");
@@ -124,6 +128,10 @@ function buildAwareNotes(metrics: TestingMetricValue[]): string[] {
   const bals = p("balsomS");
   if (bals != null && bals <= LOW)
     out.push("Tricky, twisting attackers will try to keep turning you — show them into a straight race on your terms instead of a spin contest on theirs.");
+
+  const horiz = p("horizontalM");
+  if (horiz != null && horiz <= LOW)
+    out.push("Physical opponents will try to make every duel a shoving contest — beat them with timing and positioning. Arrive first and the shove never happens.");
 
   return out;
 }
