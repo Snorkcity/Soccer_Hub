@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720"><rect width="960" height="720" fill="#4a7c3f"/>
+<defs><marker id="arw" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="276.8955380577428" y="98.3753280839895" width="503.65322834645673" height="493.51958005249344" fill="#FFFFFF" fill-opacity="0.35" stroke="#FFFFFF" stroke-width="1.5"/>
+<rect x="448.93931758530186" y="93.78918635170604" width="146.56587926509187" height="54.448923884514436" fill="#FFFFFF" fill-opacity="0.35" stroke="#FFFFFF" stroke-width="1.5"/>
+<rect x="349.4911286089239" y="93.29417322834647" width="345.46225721784776" height="148.40671916010498" fill="#FFFFFF" fill-opacity="0.35" stroke="#FFFFFF" stroke-width="1.5"/>
+<path d="M 525.6325984251969 241.70083989501313 L 525.6325984251969 209.3482414698163 A 64.73475065616798 32.35259842519685 0 0 1 590.3673490813649 241.70083989501313 Z" fill="#ffffff" fill-opacity="0.4" stroke="#fff"/>
+<path d="M 525.6324409448819 596.1636745406825 L 525.6324409448819 524.5539107611548 A 73.20503937007874 71.60976377952757 0 0 1 598.8374803149607 596.1636745406825 Z" fill="#ffffff" fill-opacity="0.4" stroke="#fff"/>
+<rect x="488.76892388451444" y="75.15223097112862" width="68.1007874015748" height="18.463517060367455" fill="#FFFFFF" fill-opacity="0.35" stroke="#FFFFFF" stroke-width="1.5"/>
+<ellipse cx="523.5715485564305" cy="111.4548031496063" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="655.9707086614173" cy="562.4732808398951" rx="9.448818897637796" ry="9.448818897637796" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<text x="655.9707086614173" y="566.4732808398951" font-size="11" text-anchor="middle" font-family="sans-serif" fill="#000">C</text>
+<ellipse cx="653.0459842519685" cy="415.20671916010497" rx="7.559055118110236" ry="7.559055118110236" fill="#FFFF00" stroke="#222" stroke-width="1"/>
+<ellipse cx="623.7886614173228" cy="453.4640419947507" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="685.7674540682415" cy="517.8726509186353" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="565.674435695538" cy="565.46687664042" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="638.7934908136483" cy="518.5866666666667" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="707.6356955380578" cy="409.70792650918634" rx="7.559055118110236" ry="7.559055118110236" fill="#E7DB02" stroke="#222" stroke-width="1"/>
+<ellipse cx="738.993595800525" cy="448.6944881889764" rx="7.559055118110236" ry="7.559055118110236" fill="#E7DB02" stroke="#222" stroke-width="1"/>
+<ellipse cx="748.4424146981628" cy="524.9912860892389" rx="7.559055118110236" ry="7.559055118110236" fill="#E7DB02" stroke="#222" stroke-width="1"/>
+<ellipse cx="681.3924409448819" cy="393.7111811023622" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="341.5943307086614" cy="378.9380577427822" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="519.0384251968504" cy="434.1043569553806" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<ellipse cx="707.6356955380578" cy="478.3633595800525" rx="7.559055118110236" ry="7.559055118110236" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<rect x="29.88146981627297" y="43.31391076115486" width="207.99884514435698" height="575.1625196850393" fill="#ffffff" stroke="#999" rx="4"/><text x="37.88146981627297" y="65.31391076115486" font-size="13" font-family="sans-serif" fill="#333">SWITCHING PLAYRULES3 teams, …</text>
+<rect x="607.4861942257218" y="383.04587926509186" width="155.4914435695538" height="165.91202099737532" fill="none" fill-opacity="0" stroke="#333" stroke-width="1.5"/>
+<polygon points="682.1138267716535,549.0230971128609 697.7620787401574,549.0230971128609 702.9781627296588,563.6228871391077 676.8977427821522,563.6228871391077" fill="#eee" stroke="#333"/>
+<ellipse cx="458.3881364829397" cy="72.82152230971128" rx="9.448818897637796" ry="9.448818897637796" fill="#dddddd" stroke="#222" stroke-width="1"/>
+<text x="458.3881364829397" y="76.82152230971128" font-size="11" text-anchor="middle" font-family="sans-serif" fill="#000">C</text>
+<line x1="321.2592125984252" y1="547.9067716535434" x2="321.2592125984252" y2="97.91821522309712" stroke="#333" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="683.1399475065617" y1="414.601469816273" x2="733.648503937008" y2="454.0395800524935" stroke="#333" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="740.8833595800526" y1="524.9912860892389" x2="573.2334908136484" y2="565.46687664042" stroke="#FFFF00" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="560.3293438320211" y1="560.1217847769029" x2="349.1533858267717" y2="378.9380577427822" stroke="#333" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="618.4435695538058" y1="448.11895013123365" x2="422.99496062992125" y2="388.7500262467192" stroke="#333" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+<line x1="676.0473490813649" y1="388.3660892388451" x2="490.8567979002625" y2="374.14635170603674" stroke="#333" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+<line x1="644.1385826771653" y1="513.2415748031497" x2="473.95055118110236" y2="434.574908136483" stroke="#333" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+<line x1="607.691968503937" y1="549.0030446194227" x2="324.60818897637796" y2="546.552125984252" stroke="#333" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="738.993595800525" y1="456.25354330708666" x2="748.4424146981628" y2="517.4322309711287" stroke="#FFFF00" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="341.5943307086614" y1="371.3790026246719" x2="420.5714435695538" y2="241.70078740157481" stroke="#333" stroke-width="2.5"  marker-end="url(#arw)"/>
+<line x1="519.0384251968504" y1="426.54530183727036" x2="533.4017847769029" y2="306.53984251968507" stroke="#333" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+<line x1="707.6356955380578" y1="470.80430446194225" x2="642.7503412073492" y2="324.96682414698165" stroke="#333" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+<circle cx="683.1399475065616" cy="408.980157480315" r="5.669291338582678" fill="#f5a623" stroke="#222"/>
+<circle cx="589.1697637795276" cy="587.4339107611548" r="5.717690288713911" fill="#f5a623" stroke="#222"/>
+<circle cx="610.2728608923885" cy="585.7671391076116" r="5.717690288713911" fill="#f5a623" stroke="#222"/>
+<circle cx="598.8374803149607" cy="600.7668241469817" r="5.717690288713911" fill="#f5a623" stroke="#222"/>
+</svg>

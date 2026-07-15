@@ -6,3 +6,9 @@ id = "rkO38yAVOwvgiNFc4DL4Y"
 uri = "file://deliverables/GPS-Match-Upload-How-To.docx"
 type = "word_document"
 title = "GPS Match Upload — How To (updated)"
+
+[[outputs]]
+id = "4V1qhIPDijb34EtQjHwZ1"
+uri = "file://.agents/outputs/session-pdfs/slide201_reconstructed.png"
+type = "image"
+title = "Proof: 'Switching Play' rebuilt from extracted data"
