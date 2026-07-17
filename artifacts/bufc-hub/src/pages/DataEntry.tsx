@@ -1848,7 +1848,7 @@ function PositionsForm() {
                 <div key={n} className="flex items-center justify-between gap-2 border-b py-1.5">
                   <span className="text-sm truncate">{n}</span>
                   <Select value={valueOf(n) || "none"} onValueChange={v => setEdits(prev => ({ ...prev, [n]: v === "none" ? "" : v }))}>
-                    <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[130px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">—</SelectItem>
                       {GPS_POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}

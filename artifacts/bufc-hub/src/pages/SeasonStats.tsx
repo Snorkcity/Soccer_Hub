@@ -619,21 +619,21 @@ function GoalLocationMap({ scored, conceded }: { scored: ScoredGoalRecord[]; con
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Select value={club} onValueChange={setClub}>
-          <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all">All clubs</SelectItem>
             {clubOpts.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={gtype} onValueChange={setGtype}>
-          <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all">All goals</SelectItem>
             {typeOpts.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={scorer} onValueChange={setScorer}>
-          <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all">All scorers</SelectItem>
             {scorerOpts.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -1754,13 +1754,13 @@ export default function SeasonStats() {
         <div className="flex flex-col sm:flex-row gap-2">
           {teams && (
             <Select value={selectedTeamId.toString()} onValueChange={v => setSelectedTeamId(Number(v))}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Select Team" /></SelectTrigger>
+              <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Select Team" /></SelectTrigger>
               <SelectContent>{teams.filter(t => t.analyticsEnabled).map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
           {seasons && (
             <Select value={selectedSeasonId.toString()} onValueChange={v => setSelectedSeasonId(Number(v))}>
-              <SelectTrigger className="w-[220px]"><SelectValue placeholder="Select Season" /></SelectTrigger>
+              <SelectTrigger className="w-[220px] max-w-full"><SelectValue placeholder="Select Season" /></SelectTrigger>
               <SelectContent>{seasons.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.leagueName} · {s.label}</SelectItem>)}</SelectContent>
             </Select>
           )}
@@ -1866,7 +1866,7 @@ export default function SeasonStats() {
             controls={
               <div className="flex flex-wrap items-center gap-3">
                 <Select value={goalDetailDim} onValueChange={v => setGoalDetailDim(v as GoalDetailDim)}>
-                  <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[160px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="assist">Assist Type</SelectItem>
                     <SelectItem value="buildup">Buildup Lane</SelectItem>
@@ -1904,7 +1904,7 @@ export default function SeasonStats() {
                 </CardDescription>
               </div>
               <Select value={pieOpponent || "__all"} onValueChange={v => setPieOpponent(v === "__all" ? "" : v)}>
-                <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all">All opponents</SelectItem>
                   {(oppClubs ?? []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -2004,7 +2004,7 @@ export default function SeasonStats() {
             controls={
               <div className="flex flex-wrap items-center gap-3">
                 <Select value={concededDim} onValueChange={v => setConcededDim(v as GoalDetailDim)}>
-                  <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[160px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="assist">Assist Type</SelectItem>
                     <SelectItem value="buildup">Buildup Lane</SelectItem>
@@ -2031,7 +2031,7 @@ export default function SeasonStats() {
                 </CardDescription>
               </div>
               <Select value={pieOppConceded || "__all"} onValueChange={v => setPieOppConceded(v === "__all" ? "" : v)}>
-                <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all">All opponents</SelectItem>
                   {(oppClubs ?? []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -2649,7 +2649,7 @@ export default function SeasonStats() {
                 <div className="flex items-center justify-end gap-2">
                   <span className="text-xs text-muted-foreground">{isAll ? "Scoring club" : "Scored against"}</span>
                   <Select value={scPieOpp} onValueChange={setScPieOpp}>
-                    <SelectTrigger className="w-[190px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[190px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all">{isAll ? "All clubs" : "All opponents"}</SelectItem>
                       {profileOpponents.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -2675,7 +2675,7 @@ export default function SeasonStats() {
                 angledLabels
                 controls={
                   <Select value={profileScDetDim} onValueChange={v => setProfileScDetDim(v as GoalDetailDim)}>
-                    <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[160px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="assist">Assist Type</SelectItem>
                       <SelectItem value="buildup">Buildup Lane</SelectItem>
@@ -2723,7 +2723,7 @@ export default function SeasonStats() {
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-xs text-muted-foreground">Conceded against</span>
                       <Select value={gcPieOpp} onValueChange={setGcPieOpp}>
-                        <SelectTrigger className="w-[190px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-[190px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__all">All opponents</SelectItem>
                           {profileOpponents.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -2749,7 +2749,7 @@ export default function SeasonStats() {
                     angledLabels
                     controls={
                       <Select value={profileGcDetDim} onValueChange={v => setProfileGcDetDim(v as GoalDetailDim)}>
-                        <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-[160px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="assist">Assist Type</SelectItem>
                           <SelectItem value="buildup">Buildup Lane</SelectItem>
@@ -3338,7 +3338,7 @@ function PlayerDnaChart({
       controls={
         <div className="flex flex-wrap items-center gap-3">
           <Select value={player} onValueChange={onPlayer}>
-            <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Select player" /></SelectTrigger>
+            <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue placeholder="Select player" /></SelectTrigger>
             <SelectContent>
               {players.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>

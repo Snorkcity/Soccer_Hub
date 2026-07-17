@@ -167,7 +167,7 @@ export default function GpsInsights() {
           <p className="text-muted-foreground text-sm mt-1">Running output from the wearable units — by player across the season, or the whole squad for one round.</p>
         </div>
         <Select value={year} onValueChange={setYear}>
-          <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[110px] max-w-full"><SelectValue /></SelectTrigger>
           <SelectContent>{YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
       </div>
@@ -223,7 +223,7 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Select value={player} onValueChange={setPlayer}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Player" /></SelectTrigger>
+          <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Player" /></SelectTrigger>
           <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">{bundles.length} games with GPS in {year}</p>
@@ -786,11 +786,11 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={squad} onValueChange={setSquad}>
-          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[140px] max-w-full"><SelectValue /></SelectTrigger>
           <SelectContent>{availableSquads.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={round} onValueChange={setRound}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Round" /></SelectTrigger>
+          <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Round" /></SelectTrigger>
           <SelectContent>
             {rounds.map(r => <SelectItem key={r.round} value={r.round}>{r.round}{r.opponent ? ` — ${r.opponent}` : ""}</SelectItem>)}
           </SelectContent>

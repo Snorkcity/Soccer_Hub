@@ -125,12 +125,12 @@ export default function Testing() {
         <div className="flex gap-2">
           {teams && (
             <Select value={teamId.toString()} onValueChange={v => setTeamId(Number(v))}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Team" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] max-w-full"><SelectValue placeholder="Team" /></SelectTrigger>
               <SelectContent>{teams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
           <Select value={year} onValueChange={setYear}>
-            <SelectTrigger className="w-[110px]"><SelectValue placeholder="Year" /></SelectTrigger>
+            <SelectTrigger className="w-[110px] max-w-full"><SelectValue placeholder="Year" /></SelectTrigger>
             <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
         </div>
@@ -316,7 +316,7 @@ function SprintBreakdown({ tests }: { tests: AthleticTest[] }) {
           <CardDescription>Each player's 0-10, 10-20 and 20-30 metre times. Sorted fastest-first on the highlighted split.</CardDescription>
         </div>
         <Select value={sortBy} onValueChange={v => setSortBy(v as MetricKey)}>
-          <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[170px] max-w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="split010">Sort by 0-10m</SelectItem>
             <SelectItem value="split1020">Sort by 10-20m</SelectItem>
@@ -538,7 +538,7 @@ function PlayerProfile({ tests, year, years, allTests, teamLabel }: {
           </div>
           <div className="flex gap-2">
             <Select value={player} onValueChange={setPlayer}>
-              <SelectTrigger className="w-[170px]"><SelectValue placeholder="Player" /></SelectTrigger>
+              <SelectTrigger className="w-[170px] max-w-full"><SelectValue placeholder="Player" /></SelectTrigger>
               <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
             </Select>
             <Dialog open={reportOpen} onOpenChange={setReportOpen}>
@@ -994,7 +994,7 @@ function FeedbackMode({ tests }: { tests: AthleticTest[] }) {
         <div className="flex gap-2">
           <MetricSelect value={metric} onChange={setMetric} />
           <Select value={player} onValueChange={setPlayer}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Pick a player…" /></SelectTrigger>
+            <SelectTrigger className="w-[160px] max-w-full"><SelectValue placeholder="Pick a player…" /></SelectTrigger>
             <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
           </Select>
         </div>
@@ -1031,7 +1031,7 @@ function FeedbackMode({ tests }: { tests: AthleticTest[] }) {
 function MetricSelect({ value, onChange }: { value: MetricKey; onChange: (m: MetricKey) => void }) {
   return (
     <Select value={value} onValueChange={v => onChange(v as MetricKey)}>
-      <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
+      <SelectTrigger className="w-[190px] max-w-full"><SelectValue /></SelectTrigger>
       <SelectContent>
         {METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
       </SelectContent>
