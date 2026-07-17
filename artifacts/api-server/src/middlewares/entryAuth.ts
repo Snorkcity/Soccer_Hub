@@ -89,6 +89,7 @@ export function getSessionRole(req: Request): SessionRole | null {
 export function requireSession(req: Request, res: Response, next: NextFunction): void {
   if (req.method === "OPTIONS") return next();
   if (req.path === "/auth/login" || req.path === "/auth/logout" || req.path === "/auth/me") return next();
+  if (req.path === "/healthz") return next(); // deploy health check must stay open
   const role = getSessionRole(req);
   if (!role) {
     res.status(401).json({ error: "Not authenticated — log in first" });
