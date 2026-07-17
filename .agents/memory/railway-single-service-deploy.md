@@ -20,3 +20,9 @@ This app is normally hosted on Replit, where the platform router serves the Vite
 - Live app → Postgres-Prod via **internal** ref `${{Postgres-Prod.DATABASE_URL}}` (private, free egress). App also needs `PORT` set (it hard-throws without it; Railway magic-port detection alone is unreliable).
 - Dev & prod are **separate** Railway Postgres instances; each must be seeded independently — data never flows between them.
 - Seeding prod from Replit is a one-off using its **public** URL (`DATABASE_PUBLIC_URL`), passed inline as `DEV_DATABASE_URL=<prod-public-url>` to `drizzle-kit push` + the seed script (shell is non-production, so the lib picks up `DEV_DATABASE_URL`). Rotate the prod password afterward.
+
+## Deploy gotchas learned Jul 2026 push
+- Railway health check hits /api/healthz UNAUTHENTICATED — the requireSession gate must whitelist it (a 401 fails the deploy with "service unavailable" retries even though the server is up).
+- Server only listens AFTER startup migrations: any slow data sync before listen eats into the healthcheck window (now 300s). Batch inserts (jsonb_to_recordset) — row-at-a-time over the network blew the 120s window.
+- Practice-library data reaches prod via committed snapshot lib/db/src/data/library-sync.json + one-shot startup sync gated by seed_markers key (bump SYNC_VERSION after regenerating snapshot from dev). No prod DB URL needed anymore.
+- Prod service vars: DATABASE_URL, PORT, ADMIN_PASSWORD, SESSION_SECRET (coach manages these himself in Railway; changing SESSION_SECRET logs everyone out — useful kill-switch). OPENAI_API_KEY still NOT set — screenshot reader inactive in prod until added.
