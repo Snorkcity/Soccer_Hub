@@ -1944,9 +1944,37 @@ export const ListLibraryPracticesResponseItem = zod.object({
   "color": zod.string().nullish()
 })),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "needsReview": zod.boolean()
+  "needsReview": zod.boolean(),
+  "variationCount": zod.number().describe('Number of imported wording variations available'),
+  "variationParts": zod.array(zod.string()).describe('Distinct session parts (warmup\/activation\/introduction\/main\/endgame) this practice\'s past write-ups came from')
 })
 export const ListLibraryPracticesResponse = zod.array(ListLibraryPracticesResponseItem)
+
+
+/**
+ * @summary Historical wording variations for a practice (from imported old session plans)
+ */
+export const ListPracticeVariationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListPracticeVariationsResponseItem = zod.object({
+  "id": zod.number(),
+  "practiceId": zod.number(),
+  "sourceFile": zod.string(),
+  "sessionDate": zod.string().nullable(),
+  "part": zod.string(),
+  "rules": zod.string().nullable(),
+  "tasks": zod.string().nullable(),
+  "progressions": zod.string().nullable(),
+  "coachingPoints": zod.string().nullable(),
+  "players": zod.string().nullable(),
+  "size": zod.string().nullable(),
+  "timing": zod.string().nullable(),
+  "scoring": zod.string().nullable(),
+  "intensity": zod.string().nullable()
+})
+export const ListPracticeVariationsResponse = zod.array(ListPracticeVariationsResponseItem)
 
 
 /**
@@ -1963,6 +1991,262 @@ export const FlagLibraryPracticeBody = zod.object({
 export const FlagLibraryPracticeResponse = zod.object({
   "id": zod.number(),
   "needsReview": zod.boolean()
+})
+
+
+/**
+ * @summary List training sessions (newest first)
+ */
+export const ListSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "partCount": zod.number()
+})
+export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
+
+
+/**
+ * @summary Create a new training session
+ */
+export const CreateSessionBody = zod.object({
+  "title": zod.string().optional()
+})
+
+export const CreateSessionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Get a session with its part slots and embedded practice diagrams
+ */
+export const GetSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSessionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Update session header fields, comments or squad list
+ */
+export const UpdateSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSessionBody = zod.object({
+  "title": zod.string().optional(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish()
+})
+
+export const UpdateSessionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Delete a session
+ */
+export const DeleteSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteSessionResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary Create or update one part slot (warmup/activation/introduction/main/endgame)
+ */
+export const UpsertSessionPartParams = zod.object({
+  "id": zod.coerce.number(),
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame'])
+})
+
+export const UpsertSessionPartBody = zod.object({
+  "practiceId": zod.number().nullish(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+})
+
+export const UpsertSessionPartResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Remove a part slot from a session
+ */
+export const ClearSessionPartParams = zod.object({
+  "id": zod.coerce.number(),
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame'])
+})
+
+export const ClearSessionPartResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
 })
 
 

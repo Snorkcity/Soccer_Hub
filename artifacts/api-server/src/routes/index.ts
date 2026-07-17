@@ -14,6 +14,7 @@ import clubsRouter from "./clubs";
 import authRouter from "./auth";
 import entryRouter from "./entry";
 import libraryRouter from "./library";
+import sessionsRouter from "./sessions";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(clubsRouter);
 router.use(authRouter);
 router.use(entryRouter);
 router.use(libraryRouter);
+router.use(sessionsRouter);
 
 export default router;

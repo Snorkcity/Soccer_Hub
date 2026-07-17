@@ -147,5 +147,171 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // Session builder (2026-07, slice 2): sessions assembled from the library
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id serial PRIMARY KEY,
+      title text NOT NULL DEFAULT '',
+      session_date text,
+      team text,
+      session_number text,
+      theme text,
+      cycle_code text,
+      location text,
+      time_slot text,
+      comments text,
+      squad_text text,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS session_practices (
+      id serial PRIMARY KEY,
+      session_id integer NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      part text NOT NULL,
+      practice_id integer REFERENCES practices(id) ON DELETE SET NULL,
+      rules text,
+      tasks text,
+      progressions text,
+      coaching_points text,
+      players text,
+      size text,
+      timing text,
+      scoring text,
+      intensity text,
+      updated_at timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT session_practices_session_part_uq UNIQUE (session_id, part)
+    )
+  `);
+
+  // Practice wording variations imported from old finished session plans (2026-07)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS practice_variations (
+      id serial PRIMARY KEY,
+      practice_id integer NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+      source_file text NOT NULL,
+      session_date date,
+      part text NOT NULL,
+      rules text,
+      tasks text,
+      progressions text,
+      coaching_points text,
+      players text,
+      size text,
+      timing text,
+      scoring text,
+      intensity text,
+      created_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
+  await syncPracticeLibrary();
+
   logger.info("Startup migrations applied");
+}
+
+/**
+ * One-shot data sync: loads the practice-library snapshot (all practices,
+ * incl. the ones created from imported old plans, plus all past write-up
+ * variations) into the database. Gated by a marker so it runs exactly once
+ * per snapshot version; bump SYNC_VERSION after regenerating the snapshot.
+ *
+ * Regenerate the snapshot from the dev DB (see .agents/memory/plan-import.md):
+ * it lives at lib/db/src/data/library-sync.json.
+ */
+const SYNC_VERSION = "library-sync-v1";
+
+async function syncPracticeLibrary(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS seed_markers (
+      key text PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  const marker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = ${SYNC_VERSION}`,
+  );
+  if (marker.rows.length > 0) return;
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const candidates = [
+    path.resolve(process.cwd(), "lib/db/src/data/library-sync.json"),
+    path.resolve(process.cwd(), "../../lib/db/src/data/library-sync.json"),
+  ];
+  const file = candidates.find((c) => fs.existsSync(c));
+  if (!file) {
+    logger.warn({ candidates }, "library-sync.json not found — skipping practice-library sync");
+    return;
+  }
+
+  logger.info({ file }, "Syncing practice library from snapshot...");
+  const snap = JSON.parse(fs.readFileSync(file, "utf8")) as {
+    practices: Array<{
+      ordinal: number;
+      kind: string;
+      chapter: string | null;
+      sectionCode: string | null;
+      sectionName: string | null;
+      title: string | null;
+      paras: unknown;
+      diagram: unknown;
+      sourceFile: string | null;
+    }>;
+    variations: Array<{
+      practiceOrdinal: number;
+      sourceFile: string;
+      sessionDate: string | null;
+      part: string;
+      rules: string | null;
+      tasks: string | null;
+      progressions: string | null;
+      coachingPoints: string | null;
+      players: string | null;
+      size: string | null;
+      timing: string | null;
+      scoring: string | null;
+      intensity: string | null;
+    }>;
+  };
+
+  // Upsert practices by ordinal; content updates but coach-set needs_review is preserved.
+  for (const p of snap.practices) {
+    await db.execute(sql`
+      INSERT INTO practices (ordinal, kind, chapter, section_code, section_name, title, paras, diagram, source_file)
+      VALUES (${p.ordinal}, ${p.kind}, ${p.chapter}, ${p.sectionCode}, ${p.sectionName}, ${p.title},
+              ${JSON.stringify(p.paras)}::jsonb, ${JSON.stringify(p.diagram)}::jsonb, ${p.sourceFile})
+      ON CONFLICT (ordinal) DO UPDATE SET
+        kind = EXCLUDED.kind,
+        chapter = EXCLUDED.chapter,
+        section_code = EXCLUDED.section_code,
+        section_name = EXCLUDED.section_name,
+        title = EXCLUDED.title,
+        paras = EXCLUDED.paras,
+        diagram = EXCLUDED.diagram,
+        source_file = EXCLUDED.source_file,
+        updated_at = now()
+    `);
+  }
+
+  // Variations: full replace (snapshot is the source of truth for imports).
+  await db.execute(sql`DELETE FROM practice_variations`);
+  for (const v of snap.variations) {
+    await db.execute(sql`
+      INSERT INTO practice_variations
+        (practice_id, source_file, session_date, part, rules, tasks, progressions,
+         coaching_points, players, size, timing, scoring, intensity)
+      SELECT id, ${v.sourceFile}, ${v.sessionDate}::date, ${v.part}, ${v.rules}, ${v.tasks},
+             ${v.progressions}, ${v.coachingPoints}, ${v.players}, ${v.size}, ${v.timing},
+             ${v.scoring}, ${v.intensity}
+      FROM practices WHERE ordinal = ${v.practiceOrdinal}
+    `);
+  }
+
+  await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${SYNC_VERSION}) ON CONFLICT DO NOTHING`);
+  logger.info(
+    { practices: snap.practices.length, variations: snap.variations.length },
+    "Practice library sync complete",
+  );
 }

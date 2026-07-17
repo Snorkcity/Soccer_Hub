@@ -1,0 +1,1 @@
+{"name":"plan-import","private":true,"type":"module","dependencies":{"@resvg/resvg-js":"^2.6.2","pg":"^8.22.0","react":"^19.2.7","react-dom":"^19.2.7"}}

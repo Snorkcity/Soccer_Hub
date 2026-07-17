@@ -24,4 +24,8 @@ export interface LibraryPractice {
   /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
   diagram: LibraryPracticeDiagram;
   needsReview: boolean;
+  /** Number of imported wording variations available */
+  variationCount: number;
+  /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
+  variationParts: string[];
 }

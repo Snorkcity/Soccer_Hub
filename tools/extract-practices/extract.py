@@ -186,6 +186,8 @@ class Deck:
 
     def slide_rels(self, slide_file):
         rels_name = slide_file.replace("slides/", "slides/_rels/") + ".rels"
+        if not rels_name.startswith("ppt/"):
+            rels_name = "ppt/" + rels_name
         out = {}
         try:
             rels = self.read_xml(rels_name)
@@ -427,6 +429,25 @@ def walk(deck, node, xf, scale_px, rels, out, warn):
             geom = sp_pr.find(q(A, "prstGeom")) if sp_pr is not None else None
             if geom is not None:
                 rec["geom"] = geom.get("prst")
+                # preset adjust values: pie/arc angles, trapezoid slant
+                adjs = {}
+                av = geom.find(q(A, "avLst"))
+                if av is not None:
+                    for gd in av:
+                        fmla = gd.get("fmla", "")
+                        if fmla.startswith("val "):
+                            try:
+                                adjs[gd.get("name")] = int(fmla.split()[1])
+                            except ValueError:
+                                pass
+                if rec["geom"] in ("pie", "chord"):
+                    rec["startDeg"] = round(adjs.get("adj1", 0) / 60000.0, 1)
+                    rec["endDeg"] = round(adjs.get("adj2", 16200000) / 60000.0, 1)
+                elif rec["geom"] == "arc":
+                    rec["startDeg"] = round(adjs.get("adj1", 16200000) / 60000.0, 1)
+                    rec["endDeg"] = round(adjs.get("adj2", 0) / 60000.0, 1)
+                elif rec["geom"] == "trapezoid" and "adj" in adjs:
+                    rec["adj"] = round(adjs["adj"] / 100000.0, 3)
             else:
                 path = custgeom_path(sp_pr, frame, xf, scale_px) if sp_pr is not None else None
                 if path:

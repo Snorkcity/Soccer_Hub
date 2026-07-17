@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, asc, type SQL } from "drizzle-orm";
-import { db, practicesTable } from "@workspace/db";
+import { eq, and, asc, desc, sql, type SQL } from "drizzle-orm";
+import { db, practicesTable, practiceVariationsTable } from "@workspace/db";
 import {
   ListLibraryPracticesResponse,
+  ListPracticeVariationsResponse,
   FlagLibraryPracticeBody,
   FlagLibraryPracticeResponse,
 } from "@workspace/api-zod";
@@ -20,11 +21,31 @@ router.get("/library/practices", async (req, res): Promise<void> => {
   if (chapter) filters.push(eq(practicesTable.chapter, chapter));
   if (sectionCode) filters.push(eq(practicesTable.sectionCode, sectionCode));
 
-  const rows = await db
-    .select()
-    .from(practicesTable)
-    .where(filters.length ? and(...filters) : undefined)
-    .orderBy(asc(practicesTable.ordinal));
+  const [rows, countRows] = await Promise.all([
+    db
+      .select()
+      .from(practicesTable)
+      .where(filters.length ? and(...filters) : undefined)
+      .orderBy(asc(practicesTable.ordinal)),
+    db
+      .select({
+        practiceId: practiceVariationsTable.practiceId,
+        part: practiceVariationsTable.part,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(practiceVariationsTable)
+      .groupBy(practiceVariationsTable.practiceId, practiceVariationsTable.part),
+  ]);
+  const counts = new Map<number, number>();
+  const parts = new Map<number, string[]>();
+  for (const c of countRows) {
+    counts.set(c.practiceId, (counts.get(c.practiceId) ?? 0) + c.n);
+    if (c.part) {
+      const list = parts.get(c.practiceId) ?? [];
+      list.push(c.part);
+      parts.set(c.practiceId, list);
+    }
+  }
 
   res.json(ListLibraryPracticesResponse.parse(rows.map((r) => ({
     id: r.id,
@@ -37,7 +58,23 @@ router.get("/library/practices", async (req, res): Promise<void> => {
     paras: r.paras,
     diagram: r.diagram,
     needsReview: r.needsReview,
+    variationCount: counts.get(r.id) ?? 0,
+    variationParts: parts.get(r.id) ?? [],
   }))));
+});
+
+router.get("/library/practices/:id/variations", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid practice id" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(practiceVariationsTable)
+    .where(eq(practiceVariationsTable.practiceId, id))
+    .orderBy(desc(practiceVariationsTable.sessionDate), desc(practiceVariationsTable.id));
+  res.json(ListPracticeVariationsResponse.parse(rows));
 });
 
 router.patch("/library/practices/:id/flag", async (req, res): Promise<void> => {

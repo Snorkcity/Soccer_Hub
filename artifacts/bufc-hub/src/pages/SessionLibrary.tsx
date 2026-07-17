@@ -6,8 +6,10 @@ import {
   useFlagLibraryPractice,
   useGetAuthStatus,
   getGetAuthStatusQueryKey,
+  useListPracticeVariations,
+  getListPracticeVariationsQueryKey,
 } from "@workspace/api-client-react";
-import type { LibraryPractice } from "@workspace/api-client-react";
+import type { LibraryPractice, PracticeVariation } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,86 @@ const CHAPTER_ORDER = [
 
 function practiceTitle(p: LibraryPractice): string {
   return p.title ?? `Variation (slide ${p.ordinal})`;
+}
+
+const PART_LABELS: Record<string, string> = {
+  warmup: "Warmup",
+  activation: "Passing activation / ball mastery",
+  introduction: "Introduction",
+  main: "Main part",
+  endgame: "End game",
+};
+
+const VARIATION_FIELDS: Array<[keyof PracticeVariation, string]> = [
+  ["rules", "Rules"],
+  ["tasks", "Coaching messages"],
+  ["progressions", "Progressions"],
+  ["coachingPoints", "Coaching points"],
+  ["players", "Players"],
+  ["size", "Size"],
+  ["timing", "Timing"],
+  ["scoring", "Scoring"],
+  ["intensity", "Intensity"],
+];
+
+/** Past write-ups (imported from old session plans) shown inside the
+ *  practice detail dialog on the Library page. */
+function PastWriteUps({ practice }: { practice: LibraryPractice }) {
+  const { data: variations } = useListPracticeVariations(practice.id, {
+    query: {
+      queryKey: getListPracticeVariationsQueryKey(practice.id),
+      enabled: practice.variationCount > 0,
+    },
+  });
+  const [openId, setOpenId] = useState<number | null>(null);
+  if (practice.variationCount === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {practice.variationCount} past write-up{practice.variationCount === 1 ? "" : "s"} from old
+        session plans
+      </p>
+      <div className="space-y-1">
+        {(variations ?? []).map((v) => {
+          const open = openId === v.id;
+          return (
+            <div key={v.id} className="border rounded-md">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between gap-2 p-2 text-left hover:bg-muted/50"
+                onClick={() => setOpenId(open ? null : v.id)}
+              >
+                <span className="text-sm font-medium">
+                  {v.sessionDate ?? "Undated"}
+                  <span className="text-xs text-muted-foreground font-normal ml-2">
+                    {PART_LABELS[v.part] ?? v.part}
+                  </span>
+                </span>
+                <span className="text-xs text-muted-foreground">{open ? "Hide" : "Show"}</span>
+              </button>
+              {open && (
+                <div className="p-3 pt-1 space-y-2">
+                  {VARIATION_FIELDS.map(([key, label]) => {
+                    const val = v[key];
+                    if (!val || typeof val !== "string") return null;
+                    return (
+                      <div key={key}>
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          {label}
+                        </p>
+                        <p className="text-sm whitespace-pre-wrap">{val}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function searchBlob(p: LibraryPractice): string {
@@ -197,6 +279,11 @@ export default function SessionLibrary() {
                       {p.sectionName}
                     </Badge>
                   )}
+                  {p.variationCount > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {p.variationCount} past write-up{p.variationCount === 1 ? "" : "s"}
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -218,6 +305,7 @@ export default function SessionLibrary() {
               <div className="rounded-md overflow-hidden border">
                 <PracticeDiagram diagram={selected.diagram as DiagramData} className="w-full h-auto" />
               </div>
+              <PastWriteUps practice={selected} />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                   Slide {selected.ordinal} · {selected.chapter}

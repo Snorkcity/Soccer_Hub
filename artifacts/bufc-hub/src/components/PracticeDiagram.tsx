@@ -26,6 +26,9 @@ export interface DiagramShape {
   rot?: number;
   fh?: boolean;
   fv?: boolean;
+  startDeg?: number;
+  endDeg?: number;
+  adj?: number;
   fill?: string;
   fillAlpha?: number;
   stroke?: string;
@@ -41,6 +44,8 @@ export interface DiagramData {
   bg?: string;
   canvas?: { w: number; h: number };
   shapes?: DiagramShape[];
+  /** Image-based diagram (imported from old session plans): data URI or URL. */
+  img?: string;
 }
 
 function transformAttr(sh: DiagramShape): string | undefined {
@@ -82,11 +87,24 @@ function ShapeEl({ sh, i }: { sh: DiagramShape; i: number }) {
       );
     }
     if (sh.icon === "ball") {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
       const r = Math.min(w, h) / 2;
+      // Classic football: central black pentagon + seam lines to the edge
+      const vertex = (k: number, rad: number) => {
+        const a = ((-90 + k * 72) * Math.PI) / 180;
+        return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)] as const;
+      };
+      const pentagon = [0, 1, 2, 3, 4].map((k) => vertex(k, r * 0.38).join(",")).join(" ");
       return (
         <g>
-          <circle cx={x + w / 2} cy={y + h / 2} r={r} fill="#FFFFFF" stroke="#222" strokeWidth={1} />
-          <circle cx={x + w / 2} cy={y + h / 2} r={r * 0.45} fill="#222" />
+          <circle cx={cx} cy={cy} r={r} fill="#FFFFFF" stroke="#111" strokeWidth={Math.max(r * 0.09, 0.8)} />
+          <polygon points={pentagon} fill="#111" />
+          {[0, 1, 2, 3, 4].map((k) => {
+            const [ix, iy] = vertex(k, r * 0.38);
+            const [ox, oy] = vertex(k, r * 0.92);
+            return <line key={k} x1={ix} y1={iy} x2={ox} y2={oy} stroke="#111" strokeWidth={Math.max(r * 0.08, 0.7)} />;
+          })}
         </g>
       );
     }
@@ -167,21 +185,65 @@ function ShapeEl({ sh, i }: { sh: DiagramShape; i: number }) {
   } else if (sh.geom === "triangle") {
     el = <polygon points={`${x + w / 2},${y} ${x + w},${y + h} ${x},${y + h}`} {...common} />;
   } else if (sh.geom === "trapezoid") {
-    el = <polygon points={`${x + w * 0.25},${y} ${x + w * 0.75},${y} ${x + w},${y + h} ${x},${y + h}`} {...common} />;
+    // PowerPoint slants trapezoid sides by adj (default 25%) of the SHORTEST side
+    const inset = (sh.adj ?? 0.25) * Math.min(w, h);
+    el = <polygon points={`${x + inset},${y} ${x + w - inset},${y} ${x + w},${y + h} ${x},${y + h}`} {...common} />;
   } else if (sh.geom === "diamond") {
     el = <polygon points={`${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`} {...common} />;
-  } else if (sh.geom === "pie") {
-    el = <path d={`M ${x + w / 2} ${y + h / 2} L ${x + w / 2} ${y} A ${w / 2} ${h / 2} 0 0 1 ${x + w} ${y + h / 2} Z`} {...common} />;
-  } else if (sh.geom === "arc") {
-    el = (
-      <path
-        d={`M ${x + w / 2} ${y} A ${w / 2} ${h / 2} 0 0 1 ${x + w} ${y + h / 2}`}
-        fill="none"
-        stroke={sh.stroke ?? "#333333"}
-        strokeWidth={sw}
-        transform={tr}
-      />
-    );
+  } else if (sh.geom === "pie" || sh.geom === "chord" || sh.geom === "arc") {
+    // OOXML angles: 0° = 3 o'clock, positive = clockwise (matches SVG's y-down)
+    const start = sh.startDeg ?? (sh.geom === "arc" ? 270 : 0);
+    const end = sh.endDeg ?? (sh.geom === "arc" ? 0 : 270);
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const rx = w / 2;
+    const ry = h / 2;
+    const pt = (deg: number) => {
+      const rad = (deg * Math.PI) / 180;
+      return `${cx + rx * Math.cos(rad)} ${cy + ry * Math.sin(rad)}`;
+    };
+    const delta = ((end - start) % 360 + 360) % 360;
+    // delta 0 means a full 360° sweep (e.g. adj1 === adj2); a single SVG arc
+    // command with identical endpoints renders nothing, so use an ellipse.
+    if (delta === 0) {
+      el =
+        sh.geom === "arc" ? (
+          <ellipse
+            cx={cx} cy={cy} rx={rx} ry={ry}
+            fill="none"
+            stroke={sh.stroke ?? "#333333"}
+            strokeWidth={sw}
+            strokeDasharray={dash}
+            transform={tr}
+          />
+        ) : (
+          <ellipse cx={cx} cy={cy} rx={rx} ry={ry} {...common} />
+        );
+      return (
+        <g key={i}>
+          {el}
+          {texts}
+        </g>
+      );
+    }
+    const largeArc = delta > 180 ? 1 : 0;
+    const arcPart = `M ${pt(start)} A ${rx} ${ry} 0 ${largeArc} 1 ${pt(end)}`;
+    if (sh.geom === "arc") {
+      el = (
+        <path
+          d={arcPart}
+          fill="none"
+          stroke={sh.stroke ?? "#333333"}
+          strokeWidth={sw}
+          strokeDasharray={dash}
+          transform={tr}
+        />
+      );
+    } else if (sh.geom === "chord") {
+      el = <path d={`${arcPart} Z`} {...common} />;
+    } else {
+      el = <path d={`M ${cx} ${cy} L ${pt(start)} A ${rx} ${ry} 0 ${largeArc} 1 ${pt(end)} Z`} {...common} />;
+    }
   } else {
     const rounded = sh.geom === "roundRect" || sh.geom === "snip2SameRect" || sh.geom === "can" || sh.geom === "hexagon";
     el = <rect x={x} y={y} width={w} height={h} rx={rounded ? 4 : 0} {...common} />;
@@ -199,6 +261,15 @@ export function PracticeDiagram({ diagram, className }: { diagram: DiagramData; 
   const shapes = diagram.shapes ?? [];
   const W = diagram.canvas?.w ?? 960;
   const H = diagram.canvas?.h ?? 720;
+
+  if (diagram.img) {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="xMidYMid meet">
+        <rect width={W} height={H} fill={diagram.bg ?? "#FFFFFF"} />
+        <image href={diagram.img} width={W} height={H} preserveAspectRatio="xMidYMid meet" />
+      </svg>
+    );
+  }
 
   const arrowColors = useMemo(() => {
     const colors = new Set<string>();

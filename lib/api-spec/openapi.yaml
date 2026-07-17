@@ -34,6 +34,8 @@ tags:
     description: Data entry (composite writes across league + Belconnen tables)
   - name: library
     description: Session-practice library extracted from the coaching slide deck
+  - name: sessions
+    description: Training-session builder (assembled from library practices)
 
 paths:
   /healthz:
@@ -1496,6 +1498,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/LibraryPracticeList"
 
+  /library/practices/{id}/variations:
+    get:
+      operationId: listPracticeVariations
+      tags: [library]
+      summary: Historical wording variations for a practice (from imported old session plans)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Variations, newest session first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PracticeVariationList"
+
   /library/practices/{id}/flag:
     patch:
       operationId: flagLibraryPractice
@@ -1519,6 +1539,140 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LibraryFlagResult"
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List training sessions (newest first)
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionSummaryList"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new training session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreateRequest"
+      responses:
+        "200":
+          description: Created session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a session with its part slots and embedded practice diagrams
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+    patch:
+      operationId: updateSession
+      tags: [sessions]
+      summary: Update session header fields, comments or squad list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionUpdateRequest"
+      responses:
+        "200":
+          description: Updated session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+    delete:
+      operationId: deleteSession
+      tags: [sessions]
+      summary: Delete a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDeleteResult"
+
+  /sessions/{id}/parts/{part}:
+    put:
+      operationId: upsertSessionPart
+      tags: [sessions]
+      summary: Create or update one part slot (warmup/activation/introduction/main/endgame)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: part
+          in: path
+          required: true
+          schema: { type: string, enum: [warmup, activation, introduction, main, endgame] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionPartUpsert"
+      responses:
+        "200":
+          description: Updated session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+    delete:
+      operationId: clearSessionPart
+      tags: [sessions]
+      summary: Remove a part slot from a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: part
+          in: path
+          required: true
+          schema: { type: string, enum: [warmup, activation, introduction, main, endgame] }
+      responses:
+        "200":
+          description: Updated session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
 
 components:
   schemas:
@@ -2876,7 +3030,35 @@ components:
           description: Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
           additionalProperties: true
         needsReview: { type: boolean }
-      required: [id, ordinal, kind, paras, diagram, needsReview]
+        variationCount: { type: integer, description: "Number of imported wording variations available" }
+        variationParts:
+          type: array
+          items: { type: string }
+          description: "Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from"
+      required: [id, ordinal, kind, paras, diagram, needsReview, variationCount, variationParts]
+
+    PracticeVariation:
+      type: object
+      properties:
+        id:             { type: integer }
+        practiceId:     { type: integer }
+        sourceFile:     { type: string }
+        sessionDate:    { type: ["string", "null"] }
+        part:           { type: string }
+        rules:          { type: ["string", "null"] }
+        tasks:          { type: ["string", "null"] }
+        progressions:   { type: ["string", "null"] }
+        coachingPoints: { type: ["string", "null"] }
+        players:        { type: ["string", "null"] }
+        size:           { type: ["string", "null"] }
+        timing:         { type: ["string", "null"] }
+        scoring:        { type: ["string", "null"] }
+        intensity:      { type: ["string", "null"] }
+      required: [id, practiceId, sourceFile, sessionDate, part, rules, tasks, progressions, coachingPoints, players, size, timing, scoring, intensity]
+
+    PracticeVariationList:
+      type: array
+      items: { $ref: "#/components/schemas/PracticeVariation" }
 
     LibraryPracticeList:
       type: array
@@ -2894,3 +3076,109 @@ components:
         id:          { type: integer }
         needsReview: { type: boolean }
       required: [id, needsReview]
+
+    SessionSummary:
+      type: object
+      properties:
+        id:            { type: integer }
+        title:         { type: string }
+        sessionDate:   { type: ["string", "null"] }
+        team:          { type: ["string", "null"] }
+        sessionNumber: { type: ["string", "null"] }
+        theme:         { type: ["string", "null"] }
+        updatedAt:     { type: string }
+        partCount:     { type: integer }
+      required: [id, title, updatedAt, partCount]
+
+    SessionSummaryList:
+      type: array
+      items: { $ref: "#/components/schemas/SessionSummary" }
+
+    SessionCreateRequest:
+      type: object
+      properties:
+        title: { type: string }
+
+    SessionUpdateRequest:
+      type: object
+      properties:
+        title:         { type: string }
+        sessionDate:   { type: ["string", "null"] }
+        team:          { type: ["string", "null"] }
+        sessionNumber: { type: ["string", "null"] }
+        theme:         { type: ["string", "null"] }
+        cycleCode:     { type: ["string", "null"] }
+        location:      { type: ["string", "null"] }
+        timeSlot:      { type: ["string", "null"] }
+        comments:      { type: ["string", "null"] }
+        squadText:     { type: ["string", "null"] }
+
+    SessionPartUpsert:
+      type: object
+      properties:
+        practiceId:     { type: ["integer", "null"] }
+        rules:          { type: ["string", "null"] }
+        tasks:          { type: ["string", "null"] }
+        progressions:   { type: ["string", "null"] }
+        coachingPoints: { type: ["string", "null"] }
+        players:        { type: ["string", "null"] }
+        size:           { type: ["string", "null"] }
+        timing:         { type: ["string", "null"] }
+        scoring:        { type: ["string", "null"] }
+        intensity:      { type: ["string", "null"] }
+
+    SessionPartPractice:
+      type: object
+      properties:
+        id:    { type: integer }
+        title: { type: ["string", "null"] }
+        diagram:
+          type: object
+          description: Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
+          additionalProperties: true
+      required: [id, diagram]
+
+    SessionPartDetail:
+      type: object
+      properties:
+        part:           { type: string, enum: [warmup, activation, introduction, main, endgame] }
+        practice:
+          oneOf:
+            - $ref: "#/components/schemas/SessionPartPractice"
+            - type: "null"
+        rules:          { type: ["string", "null"] }
+        tasks:          { type: ["string", "null"] }
+        progressions:   { type: ["string", "null"] }
+        coachingPoints: { type: ["string", "null"] }
+        players:        { type: ["string", "null"] }
+        size:           { type: ["string", "null"] }
+        timing:         { type: ["string", "null"] }
+        scoring:        { type: ["string", "null"] }
+        intensity:      { type: ["string", "null"] }
+      required: [part]
+
+    SessionDetail:
+      type: object
+      properties:
+        id:            { type: integer }
+        title:         { type: string }
+        sessionDate:   { type: ["string", "null"] }
+        team:          { type: ["string", "null"] }
+        sessionNumber: { type: ["string", "null"] }
+        theme:         { type: ["string", "null"] }
+        cycleCode:     { type: ["string", "null"] }
+        location:      { type: ["string", "null"] }
+        timeSlot:      { type: ["string", "null"] }
+        comments:      { type: ["string", "null"] }
+        squadText:     { type: ["string", "null"] }
+        updatedAt:     { type: string }
+        parts:
+          type: array
+          items: { $ref: "#/components/schemas/SessionPartDetail" }
+      required: [id, title, updatedAt, parts]
+
+    SessionDeleteResult:
+      type: object
+      properties:
+        deleted: { type: boolean }
+      required: [deleted]

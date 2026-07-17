@@ -27,5 +27,16 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 - Filename: `260709-NPLW-S30-D-P` = date(YYMMDD)-team-S30(S=season/P=preseason/O=offseason + session#)-moment-focus. Moment: D defensive, A attacking, T transition. Focus: P pressing, CB cover/balance, MB midblock, many more.
 - Cycle code `4-11-S3` = cycle 4, 11th session of cycle, S3 = periodisation ref (3rd small-sided session). 12 sessions/cycle: 4 big-game, 4 medium-game, 4 small-sided. Periodisation micro/macro underneath.
 
+## Canvas editor shape palette (coach request, Jul 2026)
+- Palette when building/editing practices: plain circles (numbered) for generic markers, plus top-down "player" shapes — circle with number + shoulder wings showing facing direction — that must ROTATE ("swivel") to communicate body position. Reference screenshot: attached_assets/image_1784163843232.png. Store rotation as data per shape.
+
+## Multi-coach direction (decided Jul 2026 — parked, revisit later)
+- The detailed "Session details" header (session#, cycle code, squad list, etc.) is HER personal workflow — keep it for her login only.
+- Other coaches in the club get a SIMPLER session-details form: date, theme, and a couple of other basics. Design generic form first when session planner work resumes; don't extend her bespoke fields further for now.
+- **Why:** app's purpose is club-wide — every coach plans sessions; most won't fill her level of detail.
+
 ## Status
-Waiting on the 500-slide file: it's a **.pptm** her upload form rejected — she's renaming to .pptx. Word template + 3 sample PDFs already in attached_assets.
+- Slice 1 (Import & Library) DONE — see practice-library.md.
+- Slice 2 (Session Builder + print) DONE Jul 2026: /sessions list + editor + /sessions/:id/print (browser print = PDF export, A4 landscape, 2 pages matching her format; print route renders OUTSIDE the app Shell). Parts stored one row per part (unique session_id+part), part slot = practiceId + 9 free-text fields; squad list is free text "num | pos | name | note" per line (later: pull from player data). PUT part is a partial upsert — only provided keys update.
+- Editor draft lesson: per-section drafts must (a) re-sync from server whenever not dirty, and (b) picking a practice while text is dirty must save the dirty text together with practiceId — otherwise edits are silently lost. Both handled; keep this invariant in slice 3.
+- Pitch-layout diagram on print p2 deferred; ~102 untitled "Variation" slides grouping deferred.

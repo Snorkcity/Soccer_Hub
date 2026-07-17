@@ -1517,7 +1517,40 @@ export interface LibraryPractice {
   /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
   diagram: LibraryPracticeDiagram;
   needsReview: boolean;
+  /** Number of imported wording variations available */
+  variationCount: number;
+  /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
+  variationParts: string[];
 }
+
+export interface PracticeVariation {
+  id: number;
+  practiceId: number;
+  sourceFile: string;
+  /** @nullable */
+  sessionDate: string | null;
+  part: string;
+  /** @nullable */
+  rules: string | null;
+  /** @nullable */
+  tasks: string | null;
+  /** @nullable */
+  progressions: string | null;
+  /** @nullable */
+  coachingPoints: string | null;
+  /** @nullable */
+  players: string | null;
+  /** @nullable */
+  size: string | null;
+  /** @nullable */
+  timing: string | null;
+  /** @nullable */
+  scoring: string | null;
+  /** @nullable */
+  intensity: string | null;
+}
+
+export type PracticeVariationList = PracticeVariation[];
 
 export type LibraryPracticeList = LibraryPractice[];
 
@@ -1528,6 +1561,148 @@ export interface LibraryFlagRequest {
 export interface LibraryFlagResult {
   id: number;
   needsReview: boolean;
+}
+
+export interface SessionSummary {
+  id: number;
+  title: string;
+  /** @nullable */
+  sessionDate?: string | null;
+  /** @nullable */
+  team?: string | null;
+  /** @nullable */
+  sessionNumber?: string | null;
+  /** @nullable */
+  theme?: string | null;
+  updatedAt: string;
+  partCount: number;
+}
+
+export type SessionSummaryList = SessionSummary[];
+
+export interface SessionCreateRequest {
+  title?: string;
+}
+
+export interface SessionUpdateRequest {
+  title?: string;
+  /** @nullable */
+  sessionDate?: string | null;
+  /** @nullable */
+  team?: string | null;
+  /** @nullable */
+  sessionNumber?: string | null;
+  /** @nullable */
+  theme?: string | null;
+  /** @nullable */
+  cycleCode?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  timeSlot?: string | null;
+  /** @nullable */
+  comments?: string | null;
+  /** @nullable */
+  squadText?: string | null;
+}
+
+export interface SessionPartUpsert {
+  /** @nullable */
+  practiceId?: number | null;
+  /** @nullable */
+  rules?: string | null;
+  /** @nullable */
+  tasks?: string | null;
+  /** @nullable */
+  progressions?: string | null;
+  /** @nullable */
+  coachingPoints?: string | null;
+  /** @nullable */
+  players?: string | null;
+  /** @nullable */
+  size?: string | null;
+  /** @nullable */
+  timing?: string | null;
+  /** @nullable */
+  scoring?: string | null;
+  /** @nullable */
+  intensity?: string | null;
+}
+
+/**
+ * Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
+ */
+export type SessionPartPracticeDiagram = { [key: string]: unknown };
+
+export interface SessionPartPractice {
+  id: number;
+  /** @nullable */
+  title?: string | null;
+  /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
+  diagram: SessionPartPracticeDiagram;
+}
+
+export type SessionPartDetailPart = typeof SessionPartDetailPart[keyof typeof SessionPartDetailPart];
+
+
+export const SessionPartDetailPart = {
+  warmup: 'warmup',
+  activation: 'activation',
+  introduction: 'introduction',
+  main: 'main',
+  endgame: 'endgame',
+} as const;
+
+export interface SessionPartDetail {
+  part: SessionPartDetailPart;
+  practice?: SessionPartPractice | null;
+  /** @nullable */
+  rules?: string | null;
+  /** @nullable */
+  tasks?: string | null;
+  /** @nullable */
+  progressions?: string | null;
+  /** @nullable */
+  coachingPoints?: string | null;
+  /** @nullable */
+  players?: string | null;
+  /** @nullable */
+  size?: string | null;
+  /** @nullable */
+  timing?: string | null;
+  /** @nullable */
+  scoring?: string | null;
+  /** @nullable */
+  intensity?: string | null;
+}
+
+export interface SessionDetail {
+  id: number;
+  title: string;
+  /** @nullable */
+  sessionDate?: string | null;
+  /** @nullable */
+  team?: string | null;
+  /** @nullable */
+  sessionNumber?: string | null;
+  /** @nullable */
+  theme?: string | null;
+  /** @nullable */
+  cycleCode?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  timeSlot?: string | null;
+  /** @nullable */
+  comments?: string | null;
+  /** @nullable */
+  squadText?: string | null;
+  updatedAt: string;
+  parts: SessionPartDetail[];
+}
+
+export interface SessionDeleteResult {
+  deleted: boolean;
 }
 
 export type ListPlayersParams = {
