@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 import { useListTeams, useListSeasons, useGetSeasonSummary, getGetSeasonSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
-import { ArrowRight, BarChart3, Navigation2, Activity, Calendar } from "lucide-react";
+import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookOpen, ClipboardList, PenLine, Bot } from "lucide-react";
 
 export default function Home() {
   const { data: teams } = useListTeams();
@@ -43,6 +43,30 @@ export default function Home() {
       stat: "Performance Baselines",
       color: "text-chart-3"
     },
+    {
+      title: "Session Library",
+      description: "The full practice library — activations, main parts, end games, and past write-ups.",
+      icon: BookOpen,
+      href: "/library",
+      stat: "580+ Practices",
+      color: "text-chart-4"
+    },
+    {
+      title: "Session Planner",
+      description: "Plan training sessions, pick practices for each part, and print session sheets.",
+      icon: ClipboardList,
+      href: "/sessions",
+      stat: "4-Part Sessions",
+      color: "text-chart-5"
+    },
+    {
+      title: "Data Entry",
+      description: "Enter match results, goals, and player stats — with AI screenshot reading.",
+      icon: PenLine,
+      href: "/data-entry",
+      stat: "Admin Only",
+      color: "text-chart-1"
+    },
   ];
 
   return (
@@ -82,6 +106,22 @@ export default function Home() {
               </Card>
             </Link>
           ))}
+          <Card className="h-full border-dashed opacity-80">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <Bot className="h-8 w-8 text-chart-2" />
+              </div>
+              <CardTitle className="mt-4">Coach Assistant</CardTitle>
+              <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+                Ask questions of the full football development curriculum, right here in the hub.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs font-medium text-muted-foreground bg-muted inline-flex items-center px-2.5 py-0.5 rounded-full">
+                Coming Soon
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
