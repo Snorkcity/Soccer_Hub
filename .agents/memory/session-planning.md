@@ -40,3 +40,8 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 - Slice 2 (Session Builder + print) DONE Jul 2026: /sessions list + editor + /sessions/:id/print (browser print = PDF export, A4 landscape, 2 pages matching her format; print route renders OUTSIDE the app Shell). Parts stored one row per part (unique session_id+part), part slot = practiceId + 9 free-text fields; squad list is free text "num | pos | name | note" per line (later: pull from player data). PUT part is a partial upsert — only provided keys update.
 - Editor draft lesson: per-section drafts must (a) re-sync from server whenever not dirty, and (b) picking a practice while text is dirty must save the dirty text together with practiceId — otherwise edits are silently lost. Both handled; keep this invariant in slice 3.
 - Pitch-layout diagram on print p2 deferred; ~102 untitled "Variation" slides grouping deferred.
+
+## Coach-assistant GPT (idea noted Jul 2026 — not started)
+- Coach has a custom ChatGPT GPT: a complete football development curriculum (series of documents) used for the Belconnen female program; intended for every club that uses this product.
+- Goal: interact with it INSIDE the app (behind club login) instead of the public ChatGPT URL, which she wants to stop sharing — access only for product users.
+- Approach when built: can't embed a custom GPT directly; re-implement as in-app chat with her curriculum docs as the knowledge base (RAG or system-prompt docs) using the OpenAI API key that prod will get for the screenshot reader.

@@ -276,12 +276,18 @@ async function syncPracticeLibrary(): Promise<void> {
     }>;
   };
 
-  // Upsert practices by ordinal; content updates but coach-set needs_review is preserved.
-  for (const p of snap.practices) {
+  // Upsert practices by ordinal; content updates but coach-set needs_review is
+  // preserved. Batched via jsonb_to_recordset — row-at-a-time was too slow and
+  // blew the deploy health check (the server only listens after migrations).
+  const PRACTICE_BATCH = 50;
+  for (let i = 0; i < snap.practices.length; i += PRACTICE_BATCH) {
+    const chunk = snap.practices.slice(i, i + PRACTICE_BATCH);
     await db.execute(sql`
       INSERT INTO practices (ordinal, kind, chapter, section_code, section_name, title, paras, diagram, source_file)
-      VALUES (${p.ordinal}, ${p.kind}, ${p.chapter}, ${p.sectionCode}, ${p.sectionName}, ${p.title},
-              ${JSON.stringify(p.paras)}::jsonb, ${JSON.stringify(p.diagram)}::jsonb, ${p.sourceFile})
+      SELECT r.ordinal, r.kind, r.chapter, r."sectionCode", r."sectionName", r.title, r.paras, r.diagram, r."sourceFile"
+      FROM jsonb_to_recordset(${JSON.stringify(chunk)}::jsonb) AS r(
+        ordinal integer, kind text, chapter text, "sectionCode" text, "sectionName" text,
+        title text, paras jsonb, diagram jsonb, "sourceFile" text)
       ON CONFLICT (ordinal) DO UPDATE SET
         kind = EXCLUDED.kind,
         chapter = EXCLUDED.chapter,
@@ -297,15 +303,20 @@ async function syncPracticeLibrary(): Promise<void> {
 
   // Variations: full replace (snapshot is the source of truth for imports).
   await db.execute(sql`DELETE FROM practice_variations`);
-  for (const v of snap.variations) {
+  const VARIATION_BATCH = 200;
+  for (let i = 0; i < snap.variations.length; i += VARIATION_BATCH) {
+    const chunk = snap.variations.slice(i, i + VARIATION_BATCH);
     await db.execute(sql`
       INSERT INTO practice_variations
         (practice_id, source_file, session_date, part, rules, tasks, progressions,
          coaching_points, players, size, timing, scoring, intensity)
-      SELECT id, ${v.sourceFile}, ${v.sessionDate}::date, ${v.part}, ${v.rules}, ${v.tasks},
-             ${v.progressions}, ${v.coachingPoints}, ${v.players}, ${v.size}, ${v.timing},
-             ${v.scoring}, ${v.intensity}
-      FROM practices WHERE ordinal = ${v.practiceOrdinal}
+      SELECT p.id, r."sourceFile", r."sessionDate"::date, r.part, r.rules, r.tasks, r.progressions,
+             r."coachingPoints", r.players, r.size, r.timing, r.scoring, r.intensity
+      FROM jsonb_to_recordset(${JSON.stringify(chunk)}::jsonb) AS r(
+        "practiceOrdinal" integer, "sourceFile" text, "sessionDate" text, part text,
+        rules text, tasks text, progressions text, "coachingPoints" text,
+        players text, size text, timing text, scoring text, intensity text)
+      JOIN practices p ON p.ordinal = r."practiceOrdinal"
     `);
   }
 
