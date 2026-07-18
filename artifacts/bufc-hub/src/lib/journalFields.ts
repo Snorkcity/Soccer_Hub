@@ -45,7 +45,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
       {
         id: "phaseCode",
         label: "Periodisation code",
-        hint: "e.g. 03-01-B2 (cycle-session-phase). Phases run B1–B4, M1–M4, S1–S4 — big/medium/small game fortnights (Verheijen-style).",
+        hint: "e.g. 03-01-B2 (cycle-session-phase). Belco U16+ Dutch rhythm (Verheijen-inspired): big → medium → small game fortnights, phases B1–B4, M1–M4, S1–S4. The field is the fitness.",
         short: true,
       },
       { id: "trainingOutcomes", label: "Training Outcomes" },
@@ -69,7 +69,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
       {
         id: "periodisationReflection",
         label: "Periodisation — is the cycle tracking as planned?",
-        hint: "Where are we in the phase (B/M/S fortnight), and did the training load and game demands match the plan?",
+        hint: "Where are we in the phase (B/M/S fortnight)? Did load and game-size rhythm match the plan — and is principle transfer becoming automatic (end-of-block review)?",
       },
     ],
   },
