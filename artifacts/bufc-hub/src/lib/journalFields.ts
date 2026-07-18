@@ -28,6 +28,11 @@ export interface JournalKindDef {
   title: string;
   blurb: string;
   fields: JournalField[];
+  /**
+   * Quick voice-interview mode: recording stops itself after a pause, and the
+   * interviewer never probes — just the move-on check between questions.
+   */
+  quickInterview?: boolean;
 }
 
 export const CYCLE_KIND_ORDER: JournalCycleKind[] = [
@@ -46,10 +51,10 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     fields: [
       {
         id: "phaseCode",
-        label: "Periodisation code",
-        hint: "e.g. 03-01-B2 (cycle-session-phase). Belco U16+ Dutch rhythm (Verheijen-inspired): big → medium → small game fortnights, phases B1–B4, M1–M4, S1–S4. The field is the fitness.",
-        short: true,
-        question: "Which part of the cycle are you in this week?",
+        label: "Periodisation & conditioning",
+        hint: "Where in the cycle (big/medium/small game fortnight, e.g. 03-01-B2) and what the football conditioning time should deliver. Belco U16+ Dutch rhythm (Verheijen-inspired). The field is the fitness.",
+        question:
+          "Which part of the cycle are you in this week, and what football outcomes would you like to get out of the conditioning time?",
       },
       { id: "trainingOutcomes", label: "Training Outcomes", question: "What training outcomes are you after this week?" },
       { id: "prepRecovery", label: "Preparation & Recovery Outcomes", question: "What's the plan for preparation and recovery this week?" },
@@ -121,6 +126,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     kind: "session_reflection",
     title: "Training Reflection",
     blurb: "Quick reflection after a training session.",
+    quickInterview: true,
     fields: [
       { id: "wentWell", label: "What went well?" },
       { id: "challenges", label: "What was challenging?" },

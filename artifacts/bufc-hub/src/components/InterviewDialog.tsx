@@ -151,7 +151,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
 
   async function start() {
     setPhase("answer");
-    setProbeUsed(false);
+    setProbeUsed(!!def.quickInterview); // quick mode: never probe
     await say(questionText(0));
   }
 
@@ -163,10 +163,51 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       const token = sessionRef.current;
+
+      // Quick mode: stop by itself after a pause, so the interview is
+      // one tap per question. Only kicks in once he has actually spoken.
+      let cleanupSilence: (() => void) | undefined;
+      if (def.quickInterview && typeof AudioContext !== "undefined") {
+        try {
+          const ctx = new AudioContext();
+          const src = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 2048;
+          src.connect(analyser);
+          const buf = new Float32Array(analyser.fftSize);
+          let hasSpoken = false;
+          let quietSince = 0;
+          const iv = window.setInterval(() => {
+            analyser.getFloatTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+            const rms = Math.sqrt(sum / buf.length);
+            const now = performance.now();
+            if (rms > 0.015) {
+              hasSpoken = true;
+              quietSince = 0;
+            } else if (hasSpoken) {
+              if (!quietSince) quietSince = now;
+              else if (now - quietSince > 2800 && rec.state === "recording") rec.stop();
+            }
+          }, 200);
+          cleanupSilence = () => {
+            window.clearInterval(iv);
+            void ctx.close().catch(() => undefined);
+          };
+        } catch {
+          // silence detection unavailable — fall back to tap-to-stop
+        }
+      }
+
       rec.onstop = () => {
+        cleanupSilence?.();
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
         stream.getTracks().forEach((t) => t.stop());
-        if (!stale(token)) void handleRecording(blob);
+        if (!stale(token)) {
+          setStage("thinking");
+          void handleRecording(blob);
+        }
       };
       recorderRef.current = rec;
       rec.start();
@@ -257,7 +298,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     }
     setFieldIdx(next);
     setPhase("answer");
-    setProbeUsed(false);
+    setProbeUsed(!!def.quickInterview); // quick mode: never probe
     await say(questionText(next));
   }
 
@@ -273,7 +314,9 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     try {
       const qa = fields.map((f) => ({
         fieldId: f.id,
-        label: f.label,
+        // Give the write-up the question actually asked, so a rich spoken
+        // answer isn't collapsed to fit a terse box label.
+        label: f.question ?? f.label,
         hint: f.hint,
         answers: answersRef.current[f.id] ?? [],
       }));
@@ -364,7 +407,14 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
                 <Button onClick={() => void finish()}>Try the write-up again</Button>
               )}
               {stage === "ready" && (
-                <p className="text-xs text-muted-foreground">Tap to talk, tap again when you're done.</p>
+                <p className="text-xs text-muted-foreground">
+                  {def.quickInterview
+                    ? "Tap to talk — it stops by itself when you pause."
+                    : "Tap to talk, tap again when you're done."}
+                </p>
+              )}
+              {stage === "recording" && def.quickInterview && (
+                <p className="text-xs text-muted-foreground">Just talk — I'll stop when you pause.</p>
               )}
             </div>
 
