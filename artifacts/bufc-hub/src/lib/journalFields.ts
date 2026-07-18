@@ -49,7 +49,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
         label: "Periodisation code",
         hint: "e.g. 03-01-B2 (cycle-session-phase). Belco U16+ Dutch rhythm (Verheijen-inspired): big → medium → small game fortnights, phases B1–B4, M1–M4, S1–S4. The field is the fitness.",
         short: true,
-        question: "What's the periodisation code for this week?",
+        question: "Which part of the cycle are you in this week?",
       },
       { id: "trainingOutcomes", label: "Training Outcomes", question: "What training outcomes are you after this week?" },
       { id: "prepRecovery", label: "Preparation & Recovery Outcomes", question: "What's the plan for preparation and recovery this week?" },

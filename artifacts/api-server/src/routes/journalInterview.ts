@@ -105,7 +105,7 @@ router.post("/journal/interview/speak", async (req, res, next) => {
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
-        voice: "ash",
+        voice: "nova",
         input: parsed.data.text,
         instructions:
           "Speak like a sharp, friendly sports radio interviewer talking to a football coach. Brisk, energetic pace — keep it moving, don't drag words out. Warm but efficient.",
