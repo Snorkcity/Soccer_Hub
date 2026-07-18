@@ -108,9 +108,9 @@ router.post("/journal/interview/speak", async (req, res, next) => {
         voice: "nova",
         input: parsed.data.text,
         instructions:
-          "Speak like a sharp, friendly sports radio interviewer talking to a football coach. Fast, punchy, energetic delivery — noticeably quicker than normal speech, keep it zipping along, don't drag words out. A bit quirky and playful in tone. Warm but efficient.",
+          "Speak like a sharp, friendly sports radio interviewer talking to a football coach. Lively, punchy delivery — a touch quicker than normal speech, but let personality come through. Quirky, playful, and characterful — lean into the charm. Warm but efficient, never flat or rushed.",
         response_format: "mp3",
-        speed: 1.15,
+        speed: 1.1,
       }),
     });
     if (!r.ok) {
