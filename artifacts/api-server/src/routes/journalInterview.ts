@@ -108,7 +108,7 @@ router.post("/journal/interview/speak", async (req, res, next) => {
         voice: "ash",
         input: parsed.data.text,
         instructions:
-          "Speak like a friendly, unhurried sports interviewer talking to a football coach. Natural, warm, conversational pace.",
+          "Speak like a sharp, friendly sports radio interviewer talking to a football coach. Brisk, energetic pace — keep it moving, don't drag words out. Warm but efficient.",
         response_format: "mp3",
       }),
     });

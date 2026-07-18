@@ -46,6 +46,10 @@ interface Props {
 
 const CONFIRM_PROMPT = "Anything to add, or shall we move to the next question?";
 
+// Cache TTS audio by text so repeated prompts (especially the confirm
+// question, asked between every field) play instantly with no API round-trip.
+const ttsCache = new Map<string, string>(); // text → data URI
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -119,9 +123,14 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     setPrompt(text);
     setStage("speaking");
     try {
-      const res = await speak.mutateAsync({ data: { text } });
+      let uri = ttsCache.get(text);
+      if (!uri) {
+        const res = await speak.mutateAsync({ data: { text } });
+        uri = `data:${res.mimeType};base64,${res.audioBase64}`;
+        ttsCache.set(text, uri);
+      }
       if (stale(token)) return;
-      const audio = new Audio(`data:${res.mimeType};base64,${res.audioBase64}`);
+      const audio = new Audio(uri);
       audioRef.current = audio;
       await audio.play().catch(() => undefined); // autoplay block → text still shown
       audio.onended = () => {
@@ -137,7 +146,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
   function questionText(idx: number) {
     const f = fields[idx];
     const lead = idx === 0 ? `Let's start. ` : "";
-    return `${lead}${f.label}`;
+    return `${lead}${f.question ?? f.label}`;
   }
 
   async function start() {
@@ -184,7 +193,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       const res = await turn.mutateAsync({
         data: {
           phase,
-          question: f.label,
+          question: f.question ?? f.label,
           hint: f.hint,
           priorAnswer: (answersRef.current[f.id] ?? []).join(" ") || undefined,
           probeUsed,
