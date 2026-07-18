@@ -128,6 +128,8 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     blurb: "Quick reflection after a training session.",
     quickInterview: true,
     fields: [
+      { id: "theme", label: "What was the theme?" },
+      { id: "rhythm", label: "Did the session have rhythm?" },
       { id: "wentWell", label: "What went well?" },
       { id: "challenges", label: "What was challenging?" },
       { id: "learnings", label: "What did I learn about the players or myself?" },

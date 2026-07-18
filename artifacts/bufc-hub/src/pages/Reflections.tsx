@@ -82,7 +82,11 @@ export default function Reflections() {
     setReflId(null);
     setReflKind(kind);
     setReflTitle("");
-    setReflDate("");
+    // Default to today — most reflections are written on the day.
+    const now = new Date();
+    setReflDate(
+      `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`,
+    );
     setReflContent({});
     setFromInterview(false);
     setReflOpen(true);
