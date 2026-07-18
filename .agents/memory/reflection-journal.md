@@ -3,12 +3,13 @@ name: Reflection journal module
 description: A-diploma reality-journal cycles + standalone coach reflections; pptx export; voice interviews planned
 ---
 
-## Friday pre-match report (NEXT, parked Jul 2026 — resume ~before Mar season)
-- Coach will share previous pre-match prep presentations as the content template; scaffold slide suggestions first, then build.
-- Slides include starting lineup, set-piece players, etc.; shared with players the night before a game.
-- Same navy/badge visual style as Monday Week Ahead deck.
-- Print mode: colour-free slimmed version, only selected pages print.
-- Club logos: fetch from web for the 6 NPLW clubs, store in app, show coach for approval; he can supply better files if web versions are poor.
+## Friday pre-match report (IN PROGRESS Jul 2026)
+- Analysed coach's 5 sample decks (attached_assets *match_prep*/prep pptx). Agreed v1 scaffold: Cover → Lineup (pitch XI + subs) → Our shape (2 slides: BP pitch, BPO pitch) → Their shape (1 slide, BP+BPO pitches side by side) → Key objectives BP → Key objectives BPO (theme line + GK/Def/Mid/Att bullets, AI-drafted, coach-editable) → Corners for / Corners against / Free kicks.
+- One lineup per game (no halves). Set-piece slide design pending: coach will share his current weekly set-piece print file — design from that.
+- Coach persona for AI voice: Pep-style — passionate but calm, detail-specific, controlled positional play. Punchy dot points, never overload players (A-licence feedback).
+- Builder UX: pick opponent + formation, place XI on pitch from roster, subs, set-piece roles, free-text game-plan notes; AI drafts objectives from notes + opponent scout data; all bullets editable before generating pptx.
+- Same navy/badge style as Monday deck. Print mode: B&W slim, coach ticks pages.
+- Club logos: fetch from web for the 6 NPLW clubs, store in app, show coach for approval; he can supply better files if poor.
 - Monday report considered done at "8/10" — don't polish further unless asked.
 
 ## Week Ahead report (BUILT Jul 2026)
