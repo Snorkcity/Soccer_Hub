@@ -32,4 +32,5 @@
 - [Old session-plan import](plan-import.md) — 328 docx → practice_variations + picture practices; colour-agnostic image matching, sha overrides, per-file idempotent; Drizzle subquery-count gotcha.
 - [Practice library](practice-library.md) — slice 1 DONE: pptx→JSON→practices table→SVG renderer; seed preserves needs_review; no tsx runner (esbuild-bundle seeds); SVG markers/word-wrap gotchas.
 - [Test email accounts](test-email-accounts.md) — coach has catch-all *@gameinsights.com.au → hello@; unlimited instant test addresses for future auth work; roles hint: admin/coach/manager/parent/player.
+- [Reflection journal](reflection-journal.md) — cycles+entries jsonb content (field ids client-side only!), atomic upsert needs targetWhere; voice interviews stage 2 via gpt-audio (no Realtime in dev proxy).
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
