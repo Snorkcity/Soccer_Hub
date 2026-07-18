@@ -14,4 +14,5 @@ description: A-diploma reality-journal cycles + standalone coach reflections; pp
 - Coach's core want: voice-to-voice AI reflection interview after training (→ weekly/session reflection) and after matches (→ match report), usable driving home. Questions to be designed WITH coach.
 - **Why**: coach's identified block-1 weakness is insufficient reflection; interviews are the habit fix, journal submission is the by-product.
 - Dev AI proxy does NOT support OpenAI Realtime API; supported path is turn-based `gpt-audio` via voice-messages SSE + `useVoiceStream` (webm→wav conversion, raised Express body limit). Prod (coach's own OpenAI key) could upgrade to Realtime later.
-- Session Planner integration ("pull sessions into journal") agreed as future work, manual for now.
+- Session Planner integration deferred to OFF-SEASON at coach's request (he needs time to conceptualise the planning modules); he'll build session plans manually and drop them into the journal pptx himself for now.
+- Coach confirmed he wants AI write-ups "in a language like mine": use his Journal-1 example pptx (attached_assets 0_2026-Scott_Conlon-*) as the writing-style reference for the summarisation prompt — direct, practical coach voice, not corporate.
