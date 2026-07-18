@@ -129,7 +129,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     quickInterview: true,
     fields: [
       { id: "theme", label: "What was the theme?" },
-      { id: "rhythm", label: "Did the session have rhythm?" },
+      { id: "rhythm", label: "Did the session flow well between each part?" },
       { id: "wentWell", label: "What went well?" },
       { id: "challenges", label: "What was challenging?" },
       { id: "learnings", label: "What did I learn about the players or myself?" },
