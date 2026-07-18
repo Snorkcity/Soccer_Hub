@@ -10,6 +10,10 @@ description: A-diploma reality-journal cycles + standalone coach reflections; pp
 - pptx export is client-side (pptxgenjs, same brand constants as GPS/testing reports); template pptx & coach's block-1 example live in attached_assets (0_Reflections_*, 0_2026-Scott_Conlon-*). Course template is generic Office theme — club branding is deliberate ("content is marked, style is ours").
 - Cycle-entry upsert MUST stay atomic ON CONFLICT with `targetWhere: cycle_id IS NOT NULL` (partial index requires targetWhere or the upsert misses).
 
+## Periodisation
+- Coach's codes: `cycle-session-phase` e.g. 03-01-B2; phases B1–B4, M1–M4, S1–S4 = big/medium/small game fortnights (Raymond Verheijen philosophy, adapted to amateur env). 6-week cycle = 12 sessions = 3 fortnights.
+- Captured as jsonb fields in weekly_planner (`phaseCode`, shown as badge on week card) + weekly_review (`periodisationReflection`). Voice interview should ask about phase tracking.
+
 ## Voice interviews (stage 2 — NOT built)
 - Coach's core want: voice-to-voice AI reflection interview after training (→ weekly/session reflection) and after matches (→ match report), usable driving home. Questions to be designed WITH coach.
 - **Why**: coach's identified block-1 weakness is insufficient reflection; interviews are the habit fix, journal submission is the by-product.
