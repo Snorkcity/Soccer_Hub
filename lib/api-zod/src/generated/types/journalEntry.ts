@@ -20,5 +20,6 @@ export interface JournalEntry {
   entryDate?: string | null;
   source: string;
   content: JournalEntryContent;
+  createdAt: string;
   updatedAt: string;
 }

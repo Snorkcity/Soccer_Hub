@@ -2296,6 +2296,7 @@ export const CreateJournalCycleResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 }))
 })
@@ -2324,6 +2325,7 @@ export const GetJournalCycleResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 }))
 })
@@ -2364,6 +2366,7 @@ export const UpdateJournalCycleResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 }))
 })
@@ -2405,6 +2408,7 @@ export const UpsertJournalEntryResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
 
@@ -2421,6 +2425,7 @@ export const ListJournalReflectionsResponseItem = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
 export const ListJournalReflectionsResponse = zod.array(ListJournalReflectionsResponseItem)
@@ -2446,6 +2451,7 @@ export const CreateJournalReflectionResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
 
@@ -2472,6 +2478,7 @@ export const UpdateJournalReflectionResponse = zod.object({
   "entryDate": zod.string().nullish(),
   "source": zod.string(),
   "content": zod.record(zod.string(), zod.string()),
+  "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
 
@@ -2519,13 +2526,15 @@ export const JournalInterviewTurnBody = zod.object({
   "priorAnswer": zod.string().optional(),
   "probeUsed": zod.boolean().optional(),
   "audioBase64": zod.string().min(1),
-  "audioMimeType": zod.string().optional()
+  "audioMimeType": zod.string().optional(),
+  "mode": zod.enum(['date']).optional()
 })
 
 export const JournalInterviewTurnResponse = zod.object({
   "transcript": zod.string(),
   "action": zod.enum(['probe', 'confirm', 'next', 'continue']),
-  "say": zod.string().nullish()
+  "say": zod.string().nullish(),
+  "dateResolved": zod.string().nullish()
 })
 
 

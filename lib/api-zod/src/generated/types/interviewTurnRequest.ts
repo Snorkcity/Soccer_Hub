@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { InterviewTurnRequestMode } from './interviewTurnRequestMode';
 import type { InterviewTurnRequestPhase } from './interviewTurnRequestPhase';
 
 export interface InterviewTurnRequest {
@@ -17,4 +18,5 @@ export interface InterviewTurnRequest {
   /** @minLength 1 */
   audioBase64: string;
   audioMimeType?: string;
+  mode?: InterviewTurnRequestMode;
 }

@@ -3463,8 +3463,9 @@ components:
         content:
           type: object
           additionalProperties: { type: string }
+        createdAt: { type: string }
         updatedAt: { type: string }
-      required: [id, kind, source, content, updatedAt]
+      required: [id, kind, source, content, createdAt, updatedAt]
 
     JournalEntryList:
       type: array
@@ -3565,6 +3566,8 @@ components:
         probeUsed:   { type: boolean }
         audioBase64: { type: string, minLength: 1 }
         audioMimeType: { type: string }
+        # "date": the answer is a spoken date/day reference; resolve it to dd.mm.yyyy
+        mode: { type: string, enum: [date] }
       required: [phase, question, audioBase64]
 
     InterviewTurnResponse:
@@ -3575,6 +3578,8 @@ components:
           type: string
           enum: [probe, confirm, next, continue]
         say: { type: ["string", "null"] }
+        # dd.mm.yyyy when mode=date and the reply could be resolved
+        dateResolved: { type: ["string", "null"] }
       required: [transcript, action]
 
     InterviewWriteupRequest:

@@ -131,7 +131,7 @@ router.post("/journal/interview/turn", async (req, res, next) => {
     if (!key) return noKey(res);
     const parsed = JournalInterviewTurnBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-    const { phase, question, hint, priorAnswer, probeUsed, audioBase64, audioMimeType } =
+    const { phase, question, hint, priorAnswer, probeUsed, audioBase64, audioMimeType, mode } =
       parsed.data;
 
     const transcript = await transcribe(audioBase64, audioMimeType ?? "audio/webm", key);
@@ -141,6 +141,42 @@ router.post("/journal/interview/turn", async (req, res, next) => {
         action: phase === "confirm" ? "continue" : "confirm",
         say: "Sorry, I didn't catch that — could you say it again?",
       });
+    }
+
+    if (mode === "date") {
+      // The coach said when the session/game was ("today", "last Tuesday",
+      // "the 15th"...). Resolve it to dd.mm.yyyy against today's date in
+      // Canberra. If unclear, dateResolved is null and the client keeps today.
+      const todayLong = new Date().toLocaleDateString("en-AU", {
+        timeZone: "Australia/Canberra",
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      const judge = await openaiJson(
+        "/chat/completions",
+        {
+          model: "gpt-4o-mini",
+          temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: `Today is ${todayLong} (Canberra, Australia). A football coach was asked when a training session or game took place. Resolve his spoken reply to a calendar date IN THE PAST OR TODAY (day references like "Tuesday" mean the most recent such day, today included).
+Return JSON: {"date": "dd.mm.yyyy" | null}. Use null only if the reply gives no usable day/date.`,
+            },
+            { role: "user", content: transcript },
+          ],
+        },
+        key,
+      );
+      const out = safeJsonParse(judge?.choices?.[0]?.message?.content);
+      const dateResolved =
+        typeof out.date === "string" && /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(out.date.trim())
+          ? out.date.trim()
+          : null;
+      return res.json({ transcript, action: "next", say: null, dateResolved });
     }
 
     if (phase === "confirm") {

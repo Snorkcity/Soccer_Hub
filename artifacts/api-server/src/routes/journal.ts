@@ -34,6 +34,7 @@ function entryJson(e: EntryRow) {
     entryDate: e.entryDate,
     source: e.source,
     content: e.content ?? {},
+    createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
   };
 }

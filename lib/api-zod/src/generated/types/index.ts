@@ -96,6 +96,7 @@ export * from './healthStatus';
 export * from './interviewSpeakRequest';
 export * from './interviewSpeakResponse';
 export * from './interviewTurnRequest';
+export * from './interviewTurnRequestMode';
 export * from './interviewTurnRequestPhase';
 export * from './interviewTurnResponse';
 export * from './interviewTurnResponseAction';

@@ -1734,6 +1734,7 @@ export interface JournalEntry {
   entryDate?: string | null;
   source: string;
   content: JournalEntryContent;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -1854,6 +1855,13 @@ export const InterviewTurnRequestPhase = {
   confirm: 'confirm',
 } as const;
 
+export type InterviewTurnRequestMode = typeof InterviewTurnRequestMode[keyof typeof InterviewTurnRequestMode];
+
+
+export const InterviewTurnRequestMode = {
+  date: 'date',
+} as const;
+
 export interface InterviewTurnRequest {
   phase: InterviewTurnRequestPhase;
   /** @minLength 1 */
@@ -1864,6 +1872,7 @@ export interface InterviewTurnRequest {
   /** @minLength 1 */
   audioBase64: string;
   audioMimeType?: string;
+  mode?: InterviewTurnRequestMode;
 }
 
 export type InterviewTurnResponseAction = typeof InterviewTurnResponseAction[keyof typeof InterviewTurnResponseAction];
@@ -1881,6 +1890,8 @@ export interface InterviewTurnResponse {
   action: InterviewTurnResponseAction;
   /** @nullable */
   say?: string | null;
+  /** @nullable */
+  dateResolved?: string | null;
 }
 
 export type InterviewWriteupRequestQaItem = {

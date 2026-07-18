@@ -30,6 +30,27 @@ import { KIND_DEFS, filledCount, type JournalStandaloneKind } from "@/lib/journa
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
 
+/** Parse the coach's dd.mm.yyyy entry date; null if it doesn't parse. */
+function parseEntryDate(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return null;
+  const t = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function formatCaptured(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-AU", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function Reflections() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -230,36 +251,52 @@ export default function Reflections() {
             No quick reflections yet. Do one after each training and game — small, honest notes add up.
           </CardContent></Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {reflections.map((r) => {
-              const def = KIND_DEFS[r.kind as JournalStandaloneKind] ?? KIND_DEFS.session_reflection;
-              const filled = filledCount(def.kind, r.content);
-              return (
-                <Card key={r.id} className="cursor-pointer hover:border-primary/60 transition-colors" onClick={() => openExisting(r)}>
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold leading-tight">{r.title || def.title}</div>
-                      {canWrite && (
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Delete this reflection?")) deleteRefl.mutate({ id: r.id });
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="flex gap-2 flex-wrap text-xs">
-                      <Badge variant="secondary">{def.title}</Badge>
-                      {r.entryDate && <Badge variant="outline">{r.entryDate}</Badge>}
-                      <Badge variant="outline">{filled}/{def.fields.length} answered</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="rounded-lg border divide-y">
+            {[...reflections]
+              .sort((a, b) => {
+                // Newest at the top — by session date, falling back to capture time.
+                const da = parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime();
+                const db = parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime();
+                return db - da || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+              })
+              .map((r) => {
+                const def = KIND_DEFS[r.kind as JournalStandaloneKind] ?? KIND_DEFS.session_reflection;
+                const filled = filledCount(def.kind, r.content);
+                return (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => openExisting(r)}
+                  >
+                    <Badge variant="secondary" className="shrink-0">
+                      {r.kind === "match_reflection" ? "Match" : "Training"}
+                    </Badge>
+                    <span className="text-sm font-medium truncate min-w-0 flex-1">
+                      {r.title || def.title}
+                    </span>
+                    {r.entryDate && (
+                      <span className="text-xs text-muted-foreground shrink-0">{r.entryDate}</span>
+                    )}
+                    <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                      {filled}/{def.fields.length}
+                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0 hidden md:inline">
+                      captured {formatCaptured(r.createdAt)}
+                    </span>
+                    {canWrite && (
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Delete this reflection?")) deleteRefl.mutate({ id: r.id });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
       </section>
@@ -362,7 +399,7 @@ export default function Reflections() {
           if (!o) setReflOpen(true); // back to the editor either way
         }}
         def={reflDef}
-        onComplete={(content) => {
+        onComplete={(content, entryDate) => {
           setReflContent((c) => {
             const merged = { ...c };
             for (const [k, v] of Object.entries(content)) {
@@ -370,6 +407,7 @@ export default function Reflections() {
             }
             return merged;
           });
+          if (entryDate) setReflDate(entryDate);
           setFromInterview(true);
         }}
       />

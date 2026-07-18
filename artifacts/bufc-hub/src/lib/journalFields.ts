@@ -33,6 +33,11 @@ export interface JournalKindDef {
    * interviewer never probes — just the move-on check between questions.
    */
   quickInterview?: boolean;
+  /**
+   * Spoken opener asking which day the session/game was; the answer is
+   * resolved server-side to dd.mm.yyyy and returned as the entry date.
+   */
+  dateQuestion?: string;
 }
 
 export const CYCLE_KIND_ORDER: JournalCycleKind[] = [
@@ -127,6 +132,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     title: "Training Reflection",
     blurb: "Quick reflection after a training session.",
     quickInterview: true,
+    dateQuestion: "First up — when was the session? Today, or another day?",
     fields: [
       { id: "theme", label: "What was the theme?" },
       { id: "rhythm", label: "Did the session flow well between each part?" },
@@ -140,6 +146,8 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     kind: "match_reflection",
     title: "Match Reflection",
     blurb: "Quick reflection after a game.",
+    quickInterview: true,
+    dateQuestion: "First up — when was the game? Today, or another day?",
     fields: [
       { id: "result", label: "Result & scoreline", short: true, question: "What was the result and scoreline?" },
       { id: "teamStrengths", label: "Team strengths on the day", question: "What were the team's strengths on the day?" },

@@ -12,4 +12,6 @@ export interface InterviewTurnResponse {
   action: InterviewTurnResponseAction;
   /** @nullable */
   say?: string | null;
+  /** @nullable */
+  dateResolved?: string | null;
 }

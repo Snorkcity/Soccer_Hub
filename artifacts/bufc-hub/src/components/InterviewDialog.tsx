@@ -34,14 +34,14 @@ type Stage =
   | "writing"      // final write-up
   | "error";
 
-type Phase = "answer" | "confirm";
+type Phase = "date" | "answer" | "confirm";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   def: JournalKindDef;
   /** Called with the drafted content; parent shows it in the editor for review. */
-  onComplete: (content: Record<string, string>) => void;
+  onComplete: (content: Record<string, string>, entryDate?: string) => void;
 }
 
 const CONFIRM_PROMPT = "Anything to add?";
@@ -71,6 +71,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
   const [prompt, setPrompt] = useState("");   // what's being asked right now
   const [lastHeard, setLastHeard] = useState(""); // last transcript shown to coach
   const answersRef = useRef<Record<string, string[]>>({});
+  const entryDateRef = useRef<string | undefined>(undefined);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -91,6 +92,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     sessionRef.current += 1;
     if (open) {
       answersRef.current = {};
+      entryDateRef.current = undefined;
       setFieldIdx(0);
       setPhase("answer");
       setProbeUsed(false);
@@ -192,9 +194,14 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
   }
 
   async function start() {
-    setPhase("answer");
     setProbeUsed(!!def.quickInterview); // quick mode: never probe
-    await say(questionText(0));
+    if (def.dateQuestion) {
+      setPhase("date");
+      await say(def.dateQuestion);
+    } else {
+      setPhase("answer");
+      await say(questionText(0));
+    }
   }
 
   async function startRecording() {
@@ -258,7 +265,8 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       // While he talks, warm up the audio we'll likely need next — kills the
       // dead air between his answer and the next thing the interviewer says.
       prefetch(CONFIRM_PROMPT);
-      if (fieldIdx + 1 < fields.length) prefetch(questionText(fieldIdx + 1));
+      if (phase === "date") prefetch(questionText(0));
+      else if (fieldIdx + 1 < fields.length) prefetch(questionText(fieldIdx + 1));
     } catch {
       toast({
         title: "Microphone blocked",
@@ -278,9 +286,27 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     const token = sessionRef.current;
     try {
       const audioBase64 = await blobToBase64(blob);
+
+      if (phase === "date") {
+        const res = await turn.mutateAsync({
+          data: {
+            phase: "answer",
+            mode: "date",
+            question: def.dateQuestion ?? "When was it?",
+            audioBase64,
+            audioMimeType: blob.type || "audio/webm",
+          },
+        });
+        if (stale(token)) return;
+        if (res.dateResolved) entryDateRef.current = res.dateResolved;
+        setPhase("answer");
+        await say(questionText(0));
+        return;
+      }
+
       const res = await turn.mutateAsync({
         data: {
-          phase,
+          phase: phase === "confirm" ? "confirm" : "answer",
           question: f.question ?? f.label,
           hint: f.hint,
           priorAnswer: (answersRef.current[f.id] ?? []).join(" ") || undefined,
@@ -351,6 +377,12 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
 
   async function skipField() {
     stopPlayback();
+    if (phase === "date") {
+      // Skip the date question — the editor keeps today's date.
+      setPhase("answer");
+      await say(questionText(0));
+      return;
+    }
     await nextField();
   }
 
@@ -371,7 +403,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       }));
       const res = await writeup.mutateAsync({ data: { kind: def.kind, title: def.title, qa } });
       if (stale(token)) return;
-      onComplete(res.content);
+      onComplete(res.content, entryDateRef.current);
       onOpenChange(false);
     } catch {
       if (!stale(token)) {
