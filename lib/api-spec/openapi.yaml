@@ -36,6 +36,8 @@ tags:
     description: Session-practice library extracted from the coaching slide deck
   - name: sessions
     description: Training-session builder (assembled from library practices)
+  - name: journal
+    description: Reflection journal (A-diploma cycles + standalone coach reflections)
 
 paths:
   /healthz:
@@ -1674,6 +1676,196 @@ paths:
               schema:
                 $ref: "#/components/schemas/SessionDetail"
 
+  /journal/cycles:
+    get:
+      operationId: listJournalCycles
+      tags: [journal]
+      summary: List reflection-journal cycles (newest first)
+      responses:
+        "200":
+          description: Cycles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalCycleList"
+    post:
+      operationId: createJournalCycle
+      tags: [journal]
+      summary: Create a reflection-journal cycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalCycleCreateRequest"
+      responses:
+        "200":
+          description: Created cycle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalCycleDetail"
+
+  /journal/cycles/{id}:
+    get:
+      operationId: getJournalCycle
+      tags: [journal]
+      summary: Get a cycle with all its entries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cycle detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalCycleDetail"
+    patch:
+      operationId: updateJournalCycle
+      tags: [journal]
+      summary: Update cycle header fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalCycleUpdateRequest"
+      responses:
+        "200":
+          description: Updated cycle detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalCycleDetail"
+    delete:
+      operationId: deleteJournalCycle
+      tags: [journal]
+      summary: Delete a cycle and all its entries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalDeleteResult"
+
+  /journal/cycles/{id}/entries/{week}/{kind}:
+    put:
+      operationId: upsertJournalEntry
+      tags: [journal]
+      summary: Create or update one weekly block of a cycle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: week
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [weekly_planner, weekly_review, game_preview, game_tactics, game_analysis]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalEntryUpsertRequest"
+      responses:
+        "200":
+          description: Upserted entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+
+  /journal/reflections:
+    get:
+      operationId: listJournalReflections
+      tags: [journal]
+      summary: List standalone reflections (newest first)
+      responses:
+        "200":
+          description: Reflections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntryList"
+    post:
+      operationId: createJournalReflection
+      tags: [journal]
+      summary: Create a standalone post-training / post-match reflection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalReflectionCreateRequest"
+      responses:
+        "200":
+          description: Created reflection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+
+  /journal/reflections/{id}:
+    patch:
+      operationId: updateJournalReflection
+      tags: [journal]
+      summary: Update a standalone reflection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalReflectionUpdateRequest"
+      responses:
+        "200":
+          description: Updated reflection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+    delete:
+      operationId: deleteJournalReflection
+      tags: [journal]
+      summary: Delete a standalone reflection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalDeleteResult"
+
 components:
   schemas:
     HealthStatus:
@@ -3178,6 +3370,112 @@ components:
       required: [id, title, updatedAt, parts]
 
     SessionDeleteResult:
+      type: object
+      properties:
+        deleted: { type: boolean }
+      required: [deleted]
+
+    # ── Reflection journal ───────────────────────────────────────────────────
+
+    JournalCycle:
+      type: object
+      properties:
+        id:         { type: integer }
+        title:      { type: string }
+        weeksCount: { type: integer }
+        startDate:  { type: ["string", "null"] }
+        notes:      { type: ["string", "null"] }
+        entryCount: { type: integer }
+        updatedAt:  { type: string }
+      required: [id, title, weeksCount, entryCount, updatedAt]
+
+    JournalCycleList:
+      type: array
+      items: { $ref: "#/components/schemas/JournalCycle" }
+
+    JournalEntry:
+      type: object
+      properties:
+        id:        { type: integer }
+        cycleId:   { type: ["integer", "null"] }
+        weekNo:    { type: ["integer", "null"] }
+        kind:      { type: string }
+        title:     { type: ["string", "null"] }
+        entryDate: { type: ["string", "null"] }
+        source:    { type: string }
+        content:
+          type: object
+          additionalProperties: { type: string }
+        updatedAt: { type: string }
+      required: [id, kind, source, content, updatedAt]
+
+    JournalEntryList:
+      type: array
+      items: { $ref: "#/components/schemas/JournalEntry" }
+
+    JournalCycleDetail:
+      type: object
+      properties:
+        id:         { type: integer }
+        title:      { type: string }
+        weeksCount: { type: integer }
+        startDate:  { type: ["string", "null"] }
+        notes:      { type: ["string", "null"] }
+        updatedAt:  { type: string }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/JournalEntry" }
+      required: [id, title, weeksCount, updatedAt, entries]
+
+    JournalCycleCreateRequest:
+      type: object
+      properties:
+        title:      { type: string, minLength: 1 }
+        weeksCount: { type: integer, minimum: 1, maximum: 12 }
+        startDate:  { type: string }
+        notes:      { type: string }
+      required: [title, weeksCount]
+
+    JournalCycleUpdateRequest:
+      type: object
+      properties:
+        title:      { type: string, minLength: 1 }
+        weeksCount: { type: integer, minimum: 1, maximum: 12 }
+        startDate:  { type: ["string", "null"] }
+        notes:      { type: ["string", "null"] }
+
+    JournalEntryUpsertRequest:
+      type: object
+      properties:
+        content:
+          type: object
+          additionalProperties: { type: string }
+        entryDate: { type: string }
+        source:    { type: string, enum: [manual, voice] }
+      required: [content]
+
+    JournalReflectionCreateRequest:
+      type: object
+      properties:
+        kind:      { type: string, enum: [session_reflection, match_reflection] }
+        title:     { type: string }
+        entryDate: { type: string }
+        source:    { type: string, enum: [manual, voice] }
+        content:
+          type: object
+          additionalProperties: { type: string }
+      required: [kind, content]
+
+    JournalReflectionUpdateRequest:
+      type: object
+      properties:
+        title:     { type: ["string", "null"] }
+        entryDate: { type: ["string", "null"] }
+        content:
+          type: object
+          additionalProperties: { type: string }
+
+    JournalDeleteResult:
       type: object
       properties:
         deleted: { type: boolean }

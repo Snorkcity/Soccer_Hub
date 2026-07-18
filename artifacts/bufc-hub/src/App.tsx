@@ -16,6 +16,8 @@ import SessionLibrary from '@/pages/SessionLibrary';
 import Sessions from '@/pages/Sessions';
 import SessionEditor from '@/pages/SessionEditor';
 import SessionPrint from '@/pages/SessionPrint';
+import Reflections from '@/pages/Reflections';
+import ReflectionCycle from '@/pages/ReflectionCycle';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +36,8 @@ function Router() {
             <Route path="/library" component={SessionLibrary} />
             <Route path="/sessions" component={Sessions} />
             <Route path="/sessions/:id" component={SessionEditor} />
+            <Route path="/reflections" component={Reflections} />
+            <Route path="/reflections/:id" component={ReflectionCycle} />
             <Route path="/data-entry" component={DataEntry} />
             <Route component={NotFound} />
           </Switch>

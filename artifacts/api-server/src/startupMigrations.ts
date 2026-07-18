@@ -206,6 +206,38 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // Reflection journal (2026-07): cycles + entries (cycle blocks & standalone reflections)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS journal_cycles (
+      id serial PRIMARY KEY,
+      title text NOT NULL,
+      weeks_count integer NOT NULL DEFAULT 6,
+      start_date text,
+      notes text,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id serial PRIMARY KEY,
+      cycle_id integer REFERENCES journal_cycles(id) ON DELETE CASCADE,
+      week_no integer,
+      kind text NOT NULL,
+      title text,
+      entry_date text,
+      source text NOT NULL DEFAULT 'manual',
+      content jsonb NOT NULL DEFAULT '{}',
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS journal_entries_cycle_week_kind_uq
+      ON journal_entries (cycle_id, week_no, kind)
+      WHERE cycle_id IS NOT NULL
+  `);
+
   await syncPracticeLibrary();
 
   logger.info("Startup migrations applied");

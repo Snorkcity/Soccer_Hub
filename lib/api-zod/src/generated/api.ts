@@ -2250,3 +2250,241 @@ export const ClearSessionPartResponse = zod.object({
 })
 
 
+/**
+ * @summary List reflection-journal cycles (newest first)
+ */
+export const ListJournalCyclesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "weeksCount": zod.number(),
+  "startDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "entryCount": zod.number(),
+  "updatedAt": zod.string()
+})
+export const ListJournalCyclesResponse = zod.array(ListJournalCyclesResponseItem)
+
+
+/**
+ * @summary Create a reflection-journal cycle
+ */
+
+export const createJournalCycleBodyWeeksCountMax = 12;
+
+
+
+export const CreateJournalCycleBody = zod.object({
+  "title": zod.string().min(1),
+  "weeksCount": zod.number().min(1).max(createJournalCycleBodyWeeksCountMax),
+  "startDate": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateJournalCycleResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "weeksCount": zod.number(),
+  "startDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Get a cycle with all its entries
+ */
+export const GetJournalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJournalCycleResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "weeksCount": zod.number(),
+  "startDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Update cycle header fields
+ */
+export const UpdateJournalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const updateJournalCycleBodyWeeksCountMax = 12;
+
+
+
+export const UpdateJournalCycleBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "weeksCount": zod.number().min(1).max(updateJournalCycleBodyWeeksCountMax).optional(),
+  "startDate": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateJournalCycleResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "weeksCount": zod.number(),
+  "startDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Delete a cycle and all its entries
+ */
+export const DeleteJournalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteJournalCycleResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary Create or update one weekly block of a cycle
+ */
+export const UpsertJournalEntryParams = zod.object({
+  "id": zod.coerce.number(),
+  "week": zod.coerce.number(),
+  "kind": zod.enum(['weekly_planner', 'weekly_review', 'game_preview', 'game_tactics', 'game_analysis'])
+})
+
+export const UpsertJournalEntryBody = zod.object({
+  "content": zod.record(zod.string(), zod.string()),
+  "entryDate": zod.string().optional(),
+  "source": zod.enum(['manual', 'voice']).optional()
+})
+
+export const UpsertJournalEntryResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List standalone reflections (newest first)
+ */
+export const ListJournalReflectionsResponseItem = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+})
+export const ListJournalReflectionsResponse = zod.array(ListJournalReflectionsResponseItem)
+
+
+/**
+ * @summary Create a standalone post-training / post-match reflection
+ */
+export const CreateJournalReflectionBody = zod.object({
+  "kind": zod.enum(['session_reflection', 'match_reflection']),
+  "title": zod.string().optional(),
+  "entryDate": zod.string().optional(),
+  "source": zod.enum(['manual', 'voice']).optional(),
+  "content": zod.record(zod.string(), zod.string())
+})
+
+export const CreateJournalReflectionResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a standalone reflection
+ */
+export const UpdateJournalReflectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJournalReflectionBody = zod.object({
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "content": zod.record(zod.string(), zod.string()).optional()
+})
+
+export const UpdateJournalReflectionResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number().nullish(),
+  "weekNo": zod.number().nullish(),
+  "kind": zod.string(),
+  "title": zod.string().nullish(),
+  "entryDate": zod.string().nullish(),
+  "source": zod.string(),
+  "content": zod.record(zod.string(), zod.string()),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a standalone reflection
+ */
+export const DeleteJournalReflectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteJournalReflectionResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+

@@ -15,6 +15,7 @@ import authRouter from "./auth";
 import entryRouter from "./entry";
 import libraryRouter from "./library";
 import sessionsRouter from "./sessions";
+import journalRouter from "./journal";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(authRouter);
 router.use(entryRouter);
 router.use(libraryRouter);
 router.use(sessionsRouter);
+router.use(journalRouter);
 
 export default router;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, BookOpen, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { Activity, BarChart3, BookHeart, BookOpen, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/testing", label: "Testing", icon: Activity },
   { href: "/library", label: "Session Library", icon: BookOpen },
   { href: "/sessions", label: "Session Planner", icon: ClipboardList },
+  { href: "/reflections", label: "Reflections", icon: BookHeart },
   { href: "/data-entry", label: "Data Entry", icon: Edit3 },
 ];
 

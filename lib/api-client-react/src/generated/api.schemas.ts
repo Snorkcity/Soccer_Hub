@@ -1705,6 +1705,134 @@ export interface SessionDeleteResult {
   deleted: boolean;
 }
 
+export interface JournalCycle {
+  id: number;
+  title: string;
+  weeksCount: number;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  entryCount: number;
+  updatedAt: string;
+}
+
+export type JournalCycleList = JournalCycle[];
+
+export type JournalEntryContent = {[key: string]: string};
+
+export interface JournalEntry {
+  id: number;
+  /** @nullable */
+  cycleId?: number | null;
+  /** @nullable */
+  weekNo?: number | null;
+  kind: string;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  entryDate?: string | null;
+  source: string;
+  content: JournalEntryContent;
+  updatedAt: string;
+}
+
+export type JournalEntryList = JournalEntry[];
+
+export interface JournalCycleDetail {
+  id: number;
+  title: string;
+  weeksCount: number;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  updatedAt: string;
+  entries: JournalEntry[];
+}
+
+export interface JournalCycleCreateRequest {
+  /** @minLength 1 */
+  title: string;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  weeksCount: number;
+  startDate?: string;
+  notes?: string;
+}
+
+export interface JournalCycleUpdateRequest {
+  /** @minLength 1 */
+  title?: string;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  weeksCount?: number;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type JournalEntryUpsertRequestContent = {[key: string]: string};
+
+export type JournalEntryUpsertRequestSource = typeof JournalEntryUpsertRequestSource[keyof typeof JournalEntryUpsertRequestSource];
+
+
+export const JournalEntryUpsertRequestSource = {
+  manual: 'manual',
+  voice: 'voice',
+} as const;
+
+export interface JournalEntryUpsertRequest {
+  content: JournalEntryUpsertRequestContent;
+  entryDate?: string;
+  source?: JournalEntryUpsertRequestSource;
+}
+
+export type JournalReflectionCreateRequestKind = typeof JournalReflectionCreateRequestKind[keyof typeof JournalReflectionCreateRequestKind];
+
+
+export const JournalReflectionCreateRequestKind = {
+  session_reflection: 'session_reflection',
+  match_reflection: 'match_reflection',
+} as const;
+
+export type JournalReflectionCreateRequestSource = typeof JournalReflectionCreateRequestSource[keyof typeof JournalReflectionCreateRequestSource];
+
+
+export const JournalReflectionCreateRequestSource = {
+  manual: 'manual',
+  voice: 'voice',
+} as const;
+
+export type JournalReflectionCreateRequestContent = {[key: string]: string};
+
+export interface JournalReflectionCreateRequest {
+  kind: JournalReflectionCreateRequestKind;
+  title?: string;
+  entryDate?: string;
+  source?: JournalReflectionCreateRequestSource;
+  content: JournalReflectionCreateRequestContent;
+}
+
+export type JournalReflectionUpdateRequestContent = {[key: string]: string};
+
+export interface JournalReflectionUpdateRequest {
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  entryDate?: string | null;
+  content?: JournalReflectionUpdateRequestContent;
+}
+
+export interface JournalDeleteResult {
+  deleted: boolean;
+}
+
 export type ListPlayersParams = {
 teamId?: number;
 seasonId?: number;

@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 import { useListTeams, useListSeasons, useGetSeasonSummary, getGetSeasonSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
-import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookOpen, ClipboardList, PenLine, Bot } from "lucide-react";
+import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookHeart, BookOpen, ClipboardList, PenLine, Bot } from "lucide-react";
 
 export default function Home() {
   const { data: teams } = useListTeams();
@@ -58,6 +58,14 @@ export default function Home() {
       href: "/sessions",
       stat: "4-Part Sessions",
       color: "text-chart-5"
+    },
+    {
+      title: "Reflections",
+      description: "Journal cycles, post-training and post-match reflections — export your journal as a pptx.",
+      icon: BookHeart,
+      href: "/reflections",
+      stat: "New",
+      color: "text-chart-2"
     },
     {
       title: "Data Entry",
