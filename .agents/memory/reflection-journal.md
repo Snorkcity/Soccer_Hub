@@ -13,6 +13,7 @@ description: A-diploma reality-journal cycles + standalone coach reflections; pp
 ## Periodisation
 - Coach's codes: `cycle-session-phase` e.g. 03-01-B2; phases B1–B4, M1–M4, S1–S4 = big/medium/small game fortnights (Raymond Verheijen philosophy, adapted to amateur env). 6-week cycle = 12 sessions = 3 fortnights.
 - Captured as jsonb fields in weekly_planner (`phaseCode`, shown as badge on week card) + weekly_review (`periodisationReflection`). Voice interview should ask about phase tracking.
+- Club curriculum ch.5 ("belconnen-player_devlopment_curriculum" docx in attached_assets) is the source language: U16+ = "Dutch Rhythm (Verheijen-Inspired)", 6-week blocks big→medium→small game rotation, "the field is the fitness"; U10–15 = Croatian rhythm (3–5wk cycles); end-of-block review checks principle transfer + adjusts game-type ratios not ideas. Journal hints quote this. Full doc suite (framework, coach packs, session plans) is the future Coach Assistant library.
 
 ## Voice interviews (stage 2 — NOT built)
 - Coach's core want: voice-to-voice AI reflection interview after training (→ weekly/session reflection) and after matches (→ match report), usable driving home. Questions to be designed WITH coach.
