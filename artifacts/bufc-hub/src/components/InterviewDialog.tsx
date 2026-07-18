@@ -44,7 +44,10 @@ interface Props {
   onComplete: (content: Record<string, string>) => void;
 }
 
-const CONFIRM_PROMPT = "Anything to add, or shall we move to the next question?";
+const CONFIRM_PROMPT = "Anything to add?";
+
+// Short conversational lead-ins so the interviewer doesn't sound robotic.
+const LEAD_INS = ["Righto — ", "Okay. ", "Good stuff. ", "Alright — ", "Next one. "];
 
 // Cache TTS audio by text so repeated prompts (especially the confirm
 // question, asked between every field) play instantly with no API round-trip.
@@ -154,8 +157,38 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
 
   function questionText(idx: number) {
     const f = fields[idx];
-    const lead = idx === 0 ? `Let's start. ` : "";
+    const lead = idx === 0 ? `Let's start. ` : LEAD_INS[idx % LEAD_INS.length];
     return `${lead}${f.question ?? f.label}`;
+  }
+
+  /** Fetch TTS into the cache ahead of time (fire-and-forget). */
+  function prefetch(text: string) {
+    if (ttsCache.has(text)) return;
+    speak
+      .mutateAsync({ data: { text } })
+      .then((res) => ttsCache.set(text, `data:${res.mimeType};base64,${res.audioBase64}`))
+      .catch(() => undefined);
+  }
+
+  /** Play a line without touching the stage machine (e.g. over the write-up). */
+  function speakOnly(text: string) {
+    const token = sessionRef.current;
+    const cached = ttsCache.get(text);
+    const play = (uri: string) => {
+      if (stale(token)) return;
+      const audio = new Audio(uri);
+      audioRef.current = audio;
+      void audio.play().catch(() => undefined);
+    };
+    if (cached) return play(cached);
+    speak
+      .mutateAsync({ data: { text } })
+      .then((res) => {
+        const uri = `data:${res.mimeType};base64,${res.audioBase64}`;
+        ttsCache.set(text, uri);
+        play(uri);
+      })
+      .catch(() => undefined);
   }
 
   async function start() {
@@ -221,6 +254,11 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       recorderRef.current = rec;
       rec.start();
       setStage("recording");
+
+      // While he talks, warm up the audio we'll likely need next — kills the
+      // dead air between his answer and the next thing the interviewer says.
+      prefetch(CONFIRM_PROMPT);
+      if (fieldIdx + 1 < fields.length) prefetch(questionText(fieldIdx + 1));
     } catch {
       toast({
         title: "Microphone blocked",
@@ -319,7 +357,9 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
   async function finish() {
     const token = sessionRef.current;
     setStage("writing");
-    setPrompt("That's everything — writing it up now.");
+    const doneLine = `That's the lot — nice work, coach. Writing it up now.`;
+    setPrompt(doneLine);
+    speakOnly(doneLine); // spoken over the top while the write-up runs
     try {
       const qa = fields.map((f) => ({
         fieldId: f.id,

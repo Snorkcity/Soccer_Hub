@@ -153,7 +153,7 @@ router.post("/journal/interview/turn", async (req, res, next) => {
           messages: [
             {
               role: "system",
-              content: `A football coach was just asked: "Anything to add, or shall we move to the next question?" after answering an interview question. Classify his spoken reply.
+              content: `A football coach was just asked: "Anything to add?" (meaning: add more, or move to the next question) after answering an interview question. Classify his spoken reply.
 Return JSON: {"decision": "next" | "continue", "hasSubstance": boolean}.
 "next" = he is happy to move on (e.g. "no that's it", "next", "move on", "all good").
 "continue" = he wants to add more or is already adding more content.
