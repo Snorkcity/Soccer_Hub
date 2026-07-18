@@ -33,6 +33,9 @@ export interface WeekAheadReflection {
   rows: Array<[string, string]>;
 }
 
+/** Label/value rows for one club's scout-snapshot column. */
+export type WeekAheadSnapshot = Array<[string, string]>;
+
 export interface WeekAheadInput {
   weekOf: string;
   opponent: string;
@@ -43,6 +46,8 @@ export interface WeekAheadInput {
   lastVsOpponent: WeekAheadReflection | null;
   theirGames: WeekAheadGame[];
   ourGames: WeekAheadGame[];
+  ourSnapshot: WeekAheadSnapshot;
+  theirSnapshot: WeekAheadSnapshot;
 }
 
 function darkSlide(pptx: PptxGenJS, kicker: string, title: string): PptxGenJS.Slide {
@@ -178,7 +183,7 @@ export function buildWeekAheadPptx(input: WeekAheadInput): PptxGenJS {
 
   // ── Last week in review ──
   if (input.review.length) {
-    const s = darkSlide(pptx, "Last week", "The week in review");
+    const s = darkSlide(pptx, "Last week", "Last week in review");
     bulletCards(s, input.review);
     footer(s, foot);
   }
@@ -226,6 +231,40 @@ export function buildWeekAheadPptx(input: WeekAheadInput): PptxGenJS {
     const colW = (W - 2 * MX - 0.5) / 2;
     formColumn(s, "Belconnen United", input.ourGames, MX, colW);
     formColumn(s, input.opponent, input.theirGames, MX + colW + 0.5, colW);
+    footer(s, foot);
+  }
+
+  // ── Scout snapshot — players & danger windows ──
+  if (input.ourSnapshot.length || input.theirSnapshot.length) {
+    const s = darkSlide(pptx, "This coming week", "Scout snapshot");
+    const colW = (W - 2 * MX - 0.5) / 2;
+    const col = (heading: string, rows: WeekAheadSnapshot, x: number) => {
+      s.addText(heading.toUpperCase(), {
+        x, y: 1.72, w: colW, h: 0.32,
+        fontSize: 13, color: SKY, bold: true, charSpacing: 2,
+      });
+      const top = 2.12;
+      const gap = 0.16;
+      const n = Math.max(rows.length, 1);
+      const cardH = Math.min(1.15, (H - top - 0.55 - gap * (n - 1)) / n);
+      rows.forEach(([label, value], i) => {
+        const y = top + i * (cardH + gap);
+        s.addShape("roundRect", {
+          x, y, w: colW, h: cardH,
+          fill: { color: CARD }, line: { color: CARD_LINE, width: 1 }, rectRadius: 0.06,
+        });
+        s.addText(label.toUpperCase(), {
+          x: x + 0.22, y: y + 0.09, w: colW - 0.44, h: 0.24,
+          fontSize: 9, color: SKY, bold: true, charSpacing: 2,
+        });
+        s.addText(value, {
+          x: x + 0.22, y: y + 0.32, w: colW - 0.44, h: cardH - 0.4,
+          fontSize: 12, color: PAPER, valign: "top",
+        });
+      });
+    };
+    col("Belconnen United", input.ourSnapshot, MX);
+    col(input.opponent, input.theirSnapshot, MX + colW + 0.5);
     footer(s, foot);
   }
 

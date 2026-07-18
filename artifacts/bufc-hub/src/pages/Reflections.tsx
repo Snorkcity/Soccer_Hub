@@ -88,6 +88,66 @@ function lastGames(profile: OpponentProfileResponse, n: number) {
     }));
 }
 
+/** Scout-snapshot rows for one club: watch list, minutes, danger windows. */
+function clubSnapshot(profile: OpponentProfileResponse, n: number): Array<[string, string]> {
+  const ids = new Set(
+    [...profile.matches]
+      .sort((a, b) => parseMatchDate(b.matchDate) - parseMatchDate(a.matchDate))
+      .slice(0, n)
+      .map((m) => m.matchId),
+  );
+
+  // Players to watch — top goal involvements across those games.
+  const contrib = new Map<string, { g: number; a: number }>();
+  const bump = (name: string | null, key: "g" | "a") => {
+    const clean = (name ?? "").trim();
+    if (!clean) return;
+    const c = contrib.get(clean) ?? { g: 0, a: 0 };
+    c[key] += 1;
+    contrib.set(clean, c);
+  };
+  for (const goal of profile.goals) {
+    if (!ids.has(goal.matchId) || goal.side !== "scored") continue;
+    bump(goal.scorer, "g");
+    bump(goal.assist, "a");
+  }
+  const toWatch = [...contrib.entries()]
+    .sort((a, b) => b[1].g + b[1].a - (a[1].g + a[1].a) || b[1].g - a[1].g)
+    .slice(0, 3)
+    .map(([name, c]) => `${name} (${[c.g ? `${c.g}G` : "", c.a ? `${c.a}A` : ""].filter(Boolean).join(" ")})`)
+    .join(", ");
+
+  // Most minutes — season aggregate.
+  const minutes = [...profile.players]
+    .sort((a, b) => b.minsPlayed - a.minsPlayed)
+    .slice(0, 3)
+    .map((p) => `${p.playerName} (${p.minsPlayed.toLocaleString()}')`)
+    .join(", ");
+
+  // Danger windows — busiest 15-min interval scored / conceded in those games.
+  const labels = ["1–15'", "16–30'", "31–45'", "46–60'", "61–75'", "76–90+'"];
+  const window = (side: string): string => {
+    const buckets = [0, 0, 0, 0, 0, 0];
+    for (const goal of profile.goals) {
+      if (!ids.has(goal.matchId) || goal.side !== side || goal.minuteScored == null) continue;
+      buckets[Math.min(Math.floor((goal.minuteScored - 1) / 15), 5)] += 1;
+    }
+    const max = Math.max(...buckets);
+    if (!max) return "—";
+    return buckets
+      .map((v, i) => (v === max ? `${labels[i]} (${v})` : null))
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  return [
+    ["Players to watch (last 3)", toWatch || "—"],
+    ["Most minutes (season)", minutes || "—"],
+    ["Scores most in", window("scored")],
+    ["Concedes most in", window("conceded")],
+  ];
+}
+
 function gamesText(games: ReturnType<typeof lastGames>): string {
   return games
     .map((g) => `${g.date} vs ${g.opponent}: ${g.result}${g.scorers ? ` (${g.scorers})` : ""}`)
@@ -312,6 +372,8 @@ export default function Reflections() {
           : null,
         theirGames,
         ourGames,
+        ourSnapshot: clubSnapshot(ours, 3),
+        theirSnapshot: clubSnapshot(theirs, 3),
       });
       await pptx.writeFile({ fileName: `Week Ahead — vs ${weekOpp}.pptx` });
     } catch {
