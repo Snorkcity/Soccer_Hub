@@ -254,14 +254,11 @@ export default function Reflections() {
           <div className="rounded-lg border divide-y">
             {[...reflections]
               .sort((a, b) => {
-                // Newest capture at the top; session date breaks ties for
-                // anything captured at the same moment (imports etc.).
-                const ca = new Date(a.createdAt).getTime();
-                const cb = new Date(b.createdAt).getTime();
-                return (
-                  cb - ca ||
-                  (parseEntryDate(b.entryDate) ?? 0) - (parseEntryDate(a.entryDate) ?? 0)
-                );
+                // Newest at the top — by training/game date, with capture time
+                // breaking ties on the same day.
+                const da = parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime();
+                const db = parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime();
+                return db - da || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
               })
               .map((r) => {
                 const def = KIND_DEFS[r.kind as JournalStandaloneKind] ?? KIND_DEFS.session_reflection;
@@ -364,7 +361,7 @@ export default function Reflections() {
                 <Input value={reflTitle} onChange={(e) => setReflTitle(e.target.value)} placeholder="e.g. U17 Tuesday session" />
               </div>
               <div className="space-y-1.5">
-                <Label>Date (optional)</Label>
+                <Label>{reflKind === "match_reflection" ? "Date of game" : "Date of training"}</Label>
                 <Input value={reflDate} onChange={(e) => setReflDate(e.target.value)} placeholder="e.g. 21.07.2026" />
               </div>
             </div>
