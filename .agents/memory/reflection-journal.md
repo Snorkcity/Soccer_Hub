@@ -15,7 +15,12 @@ description: A-diploma reality-journal cycles + standalone coach reflections; pp
 - Captured as jsonb fields in weekly_planner (`phaseCode`, shown as badge on week card) + weekly_review (`periodisationReflection`). Voice interview should ask about phase tracking.
 - Club curriculum ch.5 ("belconnen-player_devlopment_curriculum" docx in attached_assets) is the source language: U16+ = "Dutch Rhythm (Verheijen-Inspired)", 6-week blocks big→medium→small game rotation, "the field is the fitness"; U10–15 = Croatian rhythm (3–5wk cycles); end-of-block review checks principle transfer + adjusts game-type ratios not ideas. Journal hints quote this. Full doc suite (framework, coach packs, session plans) is the future Coach Assistant library.
 
-## Voice interviews (stage 2 — NOT built)
+## Voice interviews (BUILT)
+- Coach's chosen UX: fixed questions only (no free-form), spoken aloud (TTS), at most ONE gentle probe per question, ALWAYS an "anything to add, or move on?" confirm gate between questions (protects vs sneezes/noise ending an answer early). Draft lands in the normal editor for review — nothing saves unapproved; saved with source=voice.
+- ALL interview OpenAI calls use the coach's own OPENAI_API_KEY direct to api.openai.com (his explicit request) — never the Replit AI proxy. Turn-based: gpt-4o-mini-transcribe → gpt-4o-mini judge (probe/next-vs-continue) → gpt-4o write-up → gpt-4o-mini-tts (voice "ash").
+- Client state machine gotchas: monotonic session token (not a boolean) to kill stale async results on close/reopen; confirm-reply containing substance loops back to the confirm gate; model JSON drift handled server-side with safe-parse fallbacks (never 500).
+
+## Voice interviews (original stage-2 notes)
 - Coach's core want: voice-to-voice AI reflection interview after training (→ weekly/session reflection) and after matches (→ match report), usable driving home. Questions to be designed WITH coach.
 - **Why**: coach's identified block-1 weakness is insufficient reflection; interviews are the habit fix, journal submission is the by-product.
 - Dev AI proxy does NOT support OpenAI Realtime API; supported path is turn-based `gpt-audio` via voice-messages SSE + `useVoiceStream` (webm→wav conversion, raised Express body limit). Prod (coach's own OpenAI key) could upgrade to Realtime later.
