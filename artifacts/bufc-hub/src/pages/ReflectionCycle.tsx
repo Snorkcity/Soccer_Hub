@@ -121,7 +121,14 @@ export default function ReflectionCycle() {
         {Array.from({ length: cycle.weeksCount }, (_, i) => i + 1).map((week) => (
           <Card key={week}>
             <CardContent className="p-4 space-y-3">
-              <div className="font-semibold">Week {week}</div>
+              <div className="flex items-center gap-2">
+                <div className="font-semibold">Week {week}</div>
+                {(entryMap.get(`${week}:weekly_planner`)?.phaseCode ?? "").trim() && (
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {entryMap.get(`${week}:weekly_planner`)!.phaseCode.trim()}
+                  </Badge>
+                )}
+              </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 {CYCLE_KIND_ORDER.map((kind) => {
                   const kd = KIND_DEFS[kind];
@@ -165,6 +172,7 @@ export default function ReflectionCycle() {
             {def.fields.map((f) => (
               <div key={f.id} className="space-y-1.5">
                 <Label>{f.label}</Label>
+                {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                 {f.short ? (
                   <Input
                     value={editContent[f.id] ?? ""}

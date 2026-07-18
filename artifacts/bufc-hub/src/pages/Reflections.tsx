@@ -312,6 +312,7 @@ export default function Reflections() {
             {reflDef.fields.map((f) => (
               <div key={f.id} className="space-y-1.5">
                 <Label>{f.label}</Label>
+                {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                 {f.short ? (
                   <Input
                     value={reflContent[f.id] ?? ""}

@@ -42,6 +42,12 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     title: "Weekly Planner",
     blurb: "What this week is trying to achieve, on and off the field.",
     fields: [
+      {
+        id: "phaseCode",
+        label: "Periodisation code",
+        hint: "e.g. 03-01-B2 (cycle-session-phase). Phases run B1–B4, M1–M4, S1–S4 — big/medium/small game fortnights (Verheijen-style).",
+        short: true,
+      },
       { id: "trainingOutcomes", label: "Training Outcomes" },
       { id: "prepRecovery", label: "Preparation & Recovery Outcomes" },
       { id: "ipp", label: "Individual Performance Plan" },
@@ -60,6 +66,11 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
       { id: "mostProud", label: "What am I most proud of this week and why?" },
       { id: "feelings", label: "What feelings/emotions did I experience this week? When and why?" },
       { id: "doBetter", label: "What can I do better next week?" },
+      {
+        id: "periodisationReflection",
+        label: "Periodisation — is the cycle tracking as planned?",
+        hint: "Where are we in the phase (B/M/S fortnight), and did the training load and game demands match the plan?",
+      },
     ],
   },
   game_preview: {
