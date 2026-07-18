@@ -12,3 +12,9 @@ id = "4V1qhIPDijb34EtQjHwZ1"
 uri = "file://.agents/outputs/session-pdfs/slide201_reconstructed.png"
 type = "image"
 title = "Proof: 'Switching Play' rebuilt from extracted data"
+
+[[outputs]]
+id = "XdFihweQV19kByIDtN_91"
+uri = "file://attached_assets/demo-journal-cycle03.pptx"
+type = "slides"
+title = "Demo Journal — Cycle 03 (Week 1 populated)"
