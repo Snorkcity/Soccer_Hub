@@ -3,6 +3,13 @@ name: Reflection journal module
 description: A-diploma reality-journal cycles + standalone coach reflections; pptx export; voice interviews planned
 ---
 
+## Week Ahead report (BUILT Jul 2026)
+- Monday pptx briefing built client-side (weekAheadPptx.ts, journalPptx branding): cover → "last week" (AI review bullets + latest training/match reflection tables) → "this coming week" (last match reflection vs chosen opponent, both clubs' last 3 games from /analytics/opponent-profile with scorers/assists, AI prep pointers).
+- Opponent picked manually from /analytics/opponent-clubs (coach chose manual over fixtures; fixtures + auto-Monday generation wanted later — "newspaper waiting Monday").
+- POST /journal/week-ahead-brief (coach's own OpenAI key, gpt-4o JSON) takes condensed client-composed text blocks, returns {review[], pointers[]}.
+- Last-vs-opponent match reflection found by opponent-name substring in title+content (no opponent field on reflections).
+- **Coming next:** Friday "match prep" pptx — coach will share an example of what to include.
+
 ## Shape
 - `journal_cycles` (flexible weeksCount 1–12; coach runs 6-week/12-session/6-game cycles; 3-contact coaches run 4-week) + `journal_entries` (cycle blocks keyed by (cycleId, weekNo, kind) partial-unique WHERE cycle_id IS NOT NULL; standalone reflections have cycleId NULL).
 - Content is jsonb field-id→text; field ids/labels defined ONLY client-side in `journalFields.ts` — renaming an id orphans stored data (needs migration).
