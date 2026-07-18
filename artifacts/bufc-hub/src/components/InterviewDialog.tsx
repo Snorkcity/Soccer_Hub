@@ -44,7 +44,14 @@ interface Props {
   onComplete: (content: Record<string, string>, entryDate?: string) => void;
 }
 
-const CONFIRM_PROMPT = "Anything to add?";
+// Rotating check-in prompts so she doesn't repeat herself between questions.
+const CONFIRM_PROMPTS = [
+  "Anything to add?",
+  "OK sure — anything else?",
+  "Sure, I see. Anything else?",
+  "Anything more on that one?",
+  "Got it — anything else?",
+];
 
 // Short conversational lead-ins so the interviewer doesn't sound robotic.
 const LEAD_INS = ["Righto — ", "Okay. ", "Good stuff. ", "Alright — ", "Next one. "];
@@ -72,6 +79,9 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
   const [lastHeard, setLastHeard] = useState(""); // last transcript shown to coach
   const answersRef = useRef<Record<string, string[]>>({});
   const entryDateRef = useRef<string | undefined>(undefined);
+  // "Anything else?" is asked at most ONCE per question — after the coach has
+  // added something, we move on rather than nagging him again.
+  const confirmAsksRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -157,6 +167,21 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     }
   }
 
+  function confirmPrompt(idx: number) {
+    return CONFIRM_PROMPTS[idx % CONFIRM_PROMPTS.length];
+  }
+
+  /** Go to the confirm gate — unless it's already been asked for this question. */
+  async function toConfirm(sayText?: string | null) {
+    if (confirmAsksRef.current >= 1) {
+      await nextField();
+      return;
+    }
+    confirmAsksRef.current += 1;
+    setPhase("confirm");
+    await say(sayText ?? confirmPrompt(fieldIdx));
+  }
+
   function questionText(idx: number) {
     const f = fields[idx];
     const lead = idx === 0 ? `Let's start. ` : LEAD_INS[idx % LEAD_INS.length];
@@ -195,6 +220,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
 
   async function start() {
     setProbeUsed(!!def.quickInterview); // quick mode: never probe
+    confirmAsksRef.current = 0;
     if (def.dateQuestion) {
       setPhase("date");
       await say(def.dateQuestion);
@@ -264,7 +290,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
 
       // While he talks, warm up the audio we'll likely need next — kills the
       // dead air between his answer and the next thing the interviewer says.
-      prefetch(CONFIRM_PROMPT);
+      prefetch(confirmPrompt(fieldIdx));
       if (phase === "date") prefetch(questionText(0));
       else if (fieldIdx + 1 < fields.length) prefetch(questionText(fieldIdx + 1));
     } catch {
@@ -329,8 +355,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
           await say(res.say ?? "Tell me a bit more about that.");
           break;
         case "confirm":
-          setPhase("confirm");
-          await say(res.say ?? CONFIRM_PROMPT);
+          await toConfirm(res.say);
           break;
         case "continue":
           if (res.say) {
@@ -341,9 +366,8 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
             await say(res.say);
           } else {
             // His reply already contained the extra content (appended above);
-            // go straight back to the mandatory move-on gate.
-            setPhase("confirm");
-            await say(CONFIRM_PROMPT);
+            // he's had his "anything else" — move straight on.
+            await nextField();
           }
           break;
         case "next":
@@ -372,6 +396,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     setFieldIdx(next);
     setPhase("answer");
     setProbeUsed(!!def.quickInterview); // quick mode: never probe
+    confirmAsksRef.current = 0;
     await say(questionText(next));
   }
 

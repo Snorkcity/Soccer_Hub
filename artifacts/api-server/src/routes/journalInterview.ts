@@ -190,7 +190,7 @@ Return JSON: {"date": "dd.mm.yyyy" | null}. Use null only if the reply gives no 
           messages: [
             {
               role: "system",
-              content: `A football coach was just asked: "Anything to add?" (meaning: add more, or move to the next question) after answering an interview question. Classify his spoken reply.
+              content: `A football coach was just asked a short check-in like "Anything to add?" or "Anything more on that one?" (meaning: add more, or move to the next question) after answering an interview question. Classify his spoken reply.
 Return JSON: {"decision": "next" | "continue", "hasSubstance": boolean}.
 "next" = he is happy to move on (e.g. "no that's it", "next", "move on", "all good").
 "continue" = he wants to add more or is already adding more content.

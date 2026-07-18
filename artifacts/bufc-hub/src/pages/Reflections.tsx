@@ -254,10 +254,14 @@ export default function Reflections() {
           <div className="rounded-lg border divide-y">
             {[...reflections]
               .sort((a, b) => {
-                // Newest at the top — by session date, falling back to capture time.
-                const da = parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime();
-                const db = parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime();
-                return db - da || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                // Newest capture at the top; session date breaks ties for
+                // anything captured at the same moment (imports etc.).
+                const ca = new Date(a.createdAt).getTime();
+                const cb = new Date(b.createdAt).getTime();
+                return (
+                  cb - ca ||
+                  (parseEntryDate(b.entryDate) ?? 0) - (parseEntryDate(a.entryDate) ?? 0)
+                );
               })
               .map((r) => {
                 const def = KIND_DEFS[r.kind as JournalStandaloneKind] ?? KIND_DEFS.session_reflection;
