@@ -268,8 +268,17 @@ export default function Reflections() {
           (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
           (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
       );
-      const latestTraining = sorted.find((r) => r.kind === "session_reflection");
       const latestMatch = sorted.find((r) => r.kind === "match_reflection");
+      // All training sessions since the last game (there are usually 1–2 per
+      // week); fall back to the single latest if none are newer than the game.
+      const matchTime = latestMatch
+        ? (parseEntryDate(latestMatch.entryDate) ?? new Date(latestMatch.createdAt).getTime())
+        : 0;
+      const trainings = sorted.filter((r) => r.kind === "session_reflection");
+      const sinceMatch = trainings.filter(
+        (r) => (parseEntryDate(r.entryDate) ?? new Date(r.createdAt).getTime()) >= matchTime,
+      );
+      const recentTrainings = (sinceMatch.length ? sinceMatch : trainings.slice(0, 1)).slice(0, 3);
       const oppNeedle = weekOpp.toLowerCase();
       const lastVsOpp = sorted.find(
         (r) =>
@@ -277,7 +286,7 @@ export default function Reflections() {
           `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
       );
 
-      const recent = [latestTraining, latestMatch].filter(
+      const recent = [...recentTrainings, latestMatch].filter(
         (r): r is NonNullable<typeof r> => r != null,
       );
       const brief = await createWeekAheadBrief({
