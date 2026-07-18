@@ -3,6 +3,14 @@ name: Reflection journal module
 description: A-diploma reality-journal cycles + standalone coach reflections; pptx export; voice interviews planned
 ---
 
+## Friday pre-match report (NEXT, parked Jul 2026 — resume ~before Mar season)
+- Coach will share previous pre-match prep presentations as the content template; scaffold slide suggestions first, then build.
+- Slides include starting lineup, set-piece players, etc.; shared with players the night before a game.
+- Same navy/badge visual style as Monday Week Ahead deck.
+- Print mode: colour-free slimmed version, only selected pages print.
+- Club logos: fetch from web for the 6 NPLW clubs, store in app, show coach for approval; he can supply better files if web versions are poor.
+- Monday report considered done at "8/10" — don't polish further unless asked.
+
 ## Week Ahead report (BUILT Jul 2026)
 - Monday pptx briefing built client-side (weekAheadPptx.ts, journalPptx branding): cover → "last week" (AI review bullets + latest training/match reflection tables) → "this coming week" (last match reflection vs chosen opponent, both clubs' last 3 games from /analytics/opponent-profile with scorers/assists, AI prep pointers).
 - Opponent picked manually from /analytics/opponent-clubs (coach chose manual over fixtures; fixtures + auto-Monday generation wanted later — "newspaper waiting Monday").
