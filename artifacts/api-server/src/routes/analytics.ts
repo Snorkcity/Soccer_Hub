@@ -1805,6 +1805,7 @@ router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
       topScorers: scorersAll,
       goals: allRawGoals,
       players: buildOpponentPlayers(lps, goals, null),
+      playersLast3: [], // club-relative window — meaningless league-wide
     }));
     return;
   }
@@ -1943,6 +1944,21 @@ router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
     topScorers: scorers,
     goals: rawGoals,
     players: buildOpponentPlayers(lps, goals, club),
+    playersLast3: (() => {
+      // Same aggregate, restricted to the club's 3 most-recent fixtures.
+      const last3 = new Set(
+        clubMatches
+          .slice()
+          .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""))
+          .slice(0, 3)
+          .map(m => m.matchId),
+      );
+      return buildOpponentPlayers(
+        lps.filter(r => last3.has(r.matchId)),
+        goals.filter(g => last3.has(g.matchId)),
+        club,
+      );
+    })(),
   }));
 });
 

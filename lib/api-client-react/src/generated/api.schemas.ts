@@ -1102,6 +1102,7 @@ export interface OpponentProfileResponse {
   topScorers: OpponentProfileScorer[];
   goals: OpponentProfileGoal[];
   players: OpponentProfilePlayer[];
+  playersLast3: OpponentProfilePlayer[];
 }
 
 export interface AdminLoginBody {

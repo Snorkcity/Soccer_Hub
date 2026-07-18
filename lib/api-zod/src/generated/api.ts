@@ -1183,6 +1183,15 @@ export const GetOpponentProfileResponse = zod.object({
   "appearances": zod.number(),
   "goals": zod.number(),
   "assists": zod.number()
+})),
+  "playersLast3": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string().nullable(),
+  "minsPlayed": zod.number(),
+  "starts": zod.number(),
+  "appearances": zod.number(),
+  "goals": zod.number(),
+  "assists": zod.number()
 }))
 })
 

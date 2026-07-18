@@ -2921,6 +2921,8 @@ components:
 
     OpponentProfileResponse:
       type: object
+      # NOTE: playersLast3 = same aggregate as players, but only over the
+      # club's 3 most-recent fixtures (empty for the __ALL__ view).
       properties:
         club:      { type: string }
         opponents:
@@ -2952,7 +2954,10 @@ components:
         players:
           type: array
           items: { $ref: "#/components/schemas/OpponentProfilePlayer" }
-      required: [club, opponents, record, matches, scoredByInterval, concededByInterval, scoredByType, concededByType, topScorers, goals, players]
+        playersLast3:
+          type: array
+          items: { $ref: "#/components/schemas/OpponentProfilePlayer" }
+      required: [club, opponents, record, matches, scoredByInterval, concededByInterval, scoredByType, concededByType, topScorers, goals, players, playersLast3]
 
     AdminLoginBody:
       type: object

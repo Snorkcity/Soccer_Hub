@@ -117,34 +117,54 @@ function clubSnapshot(profile: OpponentProfileResponse, n: number): Array<[strin
     .map(([name, c]) => `${name} (${[c.g ? `${c.g}G` : "", c.a ? `${c.a}A` : ""].filter(Boolean).join(" ")})`)
     .join(", ");
 
-  // Most minutes — season aggregate.
-  const minutes = [...profile.players]
-    .sort((a, b) => b.minsPlayed - a.minsPlayed)
-    .slice(0, 3)
-    .map((p) => `${p.playerName} (${p.minsPlayed.toLocaleString()}')`)
-    .join(", ");
+  // Most minutes — season aggregate and last-3-games window.
+  const topMins = (players: OpponentProfileResponse["players"]) =>
+    [...players]
+      .sort((a, b) => b.minsPlayed - a.minsPlayed)
+      .slice(0, 3)
+      .map((p) => `${p.playerName} (${p.minsPlayed.toLocaleString()}')`)
+      .join(", ");
+  const minutes = [
+    `Season – ${topMins(profile.players) || "—"}`,
+    `Last 3 – ${topMins(profile.playersLast3) || "—"}`,
+  ].join("\n");
 
-  // Danger windows — busiest 15-min interval scored / conceded in those games.
+  // Danger windows — busiest 15-min interval scored / conceded in those
+  // games, plus the dominant goal type on a second line.
   const labels = ["1–15'", "16–30'", "31–45'", "46–60'", "61–75'", "76–90+'"];
   const window = (side: string): string => {
     const buckets = [0, 0, 0, 0, 0, 0];
+    const types = new Map<string, number>();
     for (const goal of profile.goals) {
-      if (!ids.has(goal.matchId) || goal.side !== side || goal.minuteScored == null) continue;
-      buckets[Math.min(Math.floor((goal.minuteScored - 1) / 15), 5)] += 1;
+      if (!ids.has(goal.matchId) || goal.side !== side) continue;
+      if (goal.minuteScored != null) {
+        buckets[Math.min(Math.floor((goal.minuteScored - 1) / 15), 5)] += 1;
+      }
+      const t = (goal.goalType ?? "").trim();
+      if (t) types.set(t, (types.get(t) ?? 0) + 1);
     }
     const max = Math.max(...buckets);
-    if (!max) return "—";
-    return buckets
-      .map((v, i) => (v === max ? `${labels[i]} (${v})` : null))
+    if (!max && !types.size) return "—";
+    const interval = max
+      ? buckets
+          .map((v, i) => (v === max ? `${labels[i]} (${v})` : null))
+          .filter(Boolean)
+          .join(", ")
+      : "—";
+    const topType = [...types.entries()].sort((a, b) => b[1] - a[1])[0];
+    return [
+      `Interval – ${interval}`,
+      topType ? `Type – ${topType[0]} (${topType[1]})` : null,
+    ]
       .filter(Boolean)
-      .join(", ");
+      .join("\n");
   };
 
   return [
     ["Players to watch (last 3)", toWatch || "—"],
-    ["Most minutes (season)", minutes || "—"],
-    ["Scores most in", window("scored")],
-    ["Concedes most in", window("conceded")],
+    ["Most minutes", minutes],
+    ["Scores most in (last 3)", window("scored")],
+    ["Concedes most in (last 3)", window("conceded")],
   ];
 }
 
