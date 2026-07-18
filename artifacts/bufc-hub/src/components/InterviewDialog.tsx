@@ -106,6 +106,15 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     return token !== sessionRef.current;
   }
 
+  // Quick mode is fully hands-free: whenever we're waiting for an answer,
+  // open the mic automatically instead of waiting for a tap.
+  useEffect(() => {
+    if (open && def.quickInterview && stage === "ready") {
+      void startRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, open]);
+
   function stopPlayback() {
     if (audioRef.current) {
       audioRef.current.pause();
