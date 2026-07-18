@@ -298,16 +298,9 @@ export default function Reflections() {
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
         review: brief.review,
         pointers: brief.pointers,
-        reflections: recent.map((r) => ({
-          title: KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind,
-          date: r.entryDate ?? "",
-          rows: reflectionRows(r),
-        })),
-        // Skip if it's the same entry already shown in full above.
-        lastVsOpponent:
-          lastVsOpp && lastVsOpp.id !== latestMatch?.id
-            ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
-            : null,
+        lastVsOpponent: lastVsOpp
+          ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
+          : null,
         theirGames,
         ourGames,
       });
