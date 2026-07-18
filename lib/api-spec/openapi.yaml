@@ -1904,6 +1904,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/InterviewTurnResponse"
 
+  /journal/week-ahead-brief:
+    post:
+      operationId: createWeekAheadBrief
+      tags: [journal]
+      summary: AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeekAheadBriefRequest"
+      responses:
+        "200":
+          description: Review bullets and prep pointers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeekAheadBriefResponse"
+
   /journal/interview/writeup:
     post:
       operationId: journalInterviewWriteup
@@ -3600,6 +3619,28 @@ components:
                 items: { type: string }
             required: [fieldId, label, answers]
       required: [kind, qa]
+
+    WeekAheadBriefRequest:
+      type: object
+      properties:
+        opponent: { type: string, minLength: 1 }
+        # Condensed plain-text blocks assembled client-side
+        reflectionsText:    { type: string }
+        lastVsOpponentText: { type: string }
+        theirGamesText:     { type: string }
+        ourGamesText:       { type: string }
+      required: [opponent]
+
+    WeekAheadBriefResponse:
+      type: object
+      properties:
+        review:
+          type: array
+          items: { type: string }
+        pointers:
+          type: array
+          items: { type: string }
+      required: [review, pointers]
 
     InterviewWriteupResponse:
       type: object

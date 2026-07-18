@@ -2539,6 +2539,26 @@ export const JournalInterviewTurnResponse = zod.object({
 
 
 /**
+ * @summary AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+ */
+
+
+
+export const CreateWeekAheadBriefBody = zod.object({
+  "opponent": zod.string().min(1),
+  "reflectionsText": zod.string().optional(),
+  "lastVsOpponentText": zod.string().optional(),
+  "theirGamesText": zod.string().optional(),
+  "ourGamesText": zod.string().optional()
+})
+
+export const CreateWeekAheadBriefResponse = zod.object({
+  "review": zod.array(zod.string()),
+  "pointers": zod.array(zod.string())
+})
+
+
+/**
  * @summary Write up interview answers into journal fields in the coach's voice
  */
 export const JournalInterviewWriteupBody = zod.object({

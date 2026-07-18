@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  useListTeams,
+  useListSeasons,
+  useGetOpponentClubs,
+  getGetOpponentClubsQueryKey,
+  getOpponentProfile,
+  createWeekAheadBrief,
+  type OpponentProfileResponse,
   useListJournalCycles,
   getListJournalCyclesQueryKey,
   useCreateJournalCycle,
@@ -24,7 +31,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
+import { BookHeart, CalendarRange, FileDown, Loader2, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import InterviewDialog from "@/components/InterviewDialog";
 import { KIND_DEFS, filledCount, type JournalStandaloneKind } from "@/lib/journalFields";
 
@@ -37,6 +45,61 @@ function parseEntryDate(raw: string | null | undefined): number | null {
   if (!m) return null;
   const t = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
   return Number.isNaN(t) ? null : t;
+}
+
+/** Parse a match date that may be dd.mm.yyyy or ISO; NaN-safe. */
+function parseMatchDate(raw: string | null | undefined): number {
+  if (!raw) return 0;
+  const ddmm = parseEntryDate(raw);
+  if (ddmm != null) return ddmm;
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** "Smith ×2, Brown — assists: Jones" for one game's scored goals. */
+function scorersLine(goals: OpponentProfileResponse["goals"], matchId: string): string {
+  const scored = goals.filter((g) => g.matchId === matchId && g.side === "scored");
+  if (!scored.length) return "";
+  const byScorer = new Map<string, number>();
+  const byAssister = new Map<string, number>();
+  for (const g of scored) {
+    const s = (g.scorer ?? "").trim() || "Unknown";
+    byScorer.set(s, (byScorer.get(s) ?? 0) + 1);
+    const a = (g.assist ?? "").trim();
+    if (a) byAssister.set(a, (byAssister.get(a) ?? 0) + 1);
+  }
+  const fmt = (m: Map<string, number>) =>
+    [...m.entries()].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(", ");
+  const scorers = fmt(byScorer);
+  const assists = fmt(byAssister);
+  return assists ? `${scorers} — assists: ${assists}` : scorers;
+}
+
+/** Last N games of a club profile, newest first, as report rows. */
+function lastGames(profile: OpponentProfileResponse, n: number) {
+  return [...profile.matches]
+    .sort((a, b) => parseMatchDate(b.matchDate) - parseMatchDate(a.matchDate))
+    .slice(0, n)
+    .map((m) => ({
+      date: m.matchDate ?? "",
+      opponent: m.opponent,
+      result: `${m.result} ${m.scored}–${m.conceded}`,
+      scorers: scorersLine(profile.goals, m.matchId),
+    }));
+}
+
+function gamesText(games: ReturnType<typeof lastGames>): string {
+  return games
+    .map((g) => `${g.date} vs ${g.opponent}: ${g.result}${g.scorers ? ` (${g.scorers})` : ""}`)
+    .join("\n");
+}
+
+/** The Monday of the coming week (today if it's Monday). */
+function comingMonday(): string {
+  const d = new Date();
+  const add = (8 - d.getDay()) % 7; // Mon=1 → 0 when today is Monday
+  d.setDate(d.getDate() + add);
+  return d.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 function formatCaptured(iso: string): string {
@@ -161,6 +224,104 @@ export default function Reflections() {
   }
 
   const reflDef = KIND_DEFS[reflKind];
+
+  // ── Week Ahead report ──
+  const { data: teams } = useListTeams({ query: { queryKey: ["listTeams"] } });
+  const { data: seasons } = useListSeasons({ query: { queryKey: ["listSeasons"] } });
+  const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
+  const seasonId = (seasons?.find((s) => s.isActive) ?? seasons?.[0])?.id;
+  const clubsParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
+  const { data: oppClubs } = useGetOpponentClubs(clubsParams, {
+    query: {
+      queryKey: getGetOpponentClubsQueryKey(clubsParams),
+      enabled: teamId != null && seasonId != null,
+    },
+  });
+  const [weekOpp, setWeekOpp] = useState("");
+  const [building, setBuilding] = useState(false);
+
+  /** One reflection as [label, answer] rows, empty answers dropped. */
+  function reflectionRows(r: NonNullable<typeof reflections>[number]): Array<[string, string]> {
+    const def = KIND_DEFS[r.kind as JournalStandaloneKind] ?? KIND_DEFS.session_reflection;
+    return def.fields
+      .map((f): [string, string] => [f.label, (r.content[f.id] ?? "").trim()])
+      .filter(([, v]) => v);
+  }
+
+  function reflectionText(r: NonNullable<typeof reflections>[number]): string {
+    return reflectionRows(r).map(([q, a]) => `${q} ${a}`).join("\n");
+  }
+
+  async function buildWeekAhead() {
+    if (!weekOpp || teamId == null || seasonId == null) return;
+    setBuilding(true);
+    try {
+      const [theirs, ours] = await Promise.all([
+        getOpponentProfile({ teamId, seasonId, club: weekOpp }),
+        getOpponentProfile({ teamId, seasonId, club: "Belconnen" }),
+      ]);
+      const theirGames = lastGames(theirs, 3);
+      const ourGames = lastGames(ours, 3);
+
+      const sorted = [...(reflections ?? [])].sort(
+        (a, b) =>
+          (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
+          (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
+      );
+      const latestTraining = sorted.find((r) => r.kind === "session_reflection");
+      const latestMatch = sorted.find((r) => r.kind === "match_reflection");
+      const oppNeedle = weekOpp.toLowerCase();
+      const lastVsOpp = sorted.find(
+        (r) =>
+          r.kind === "match_reflection" &&
+          `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
+      );
+
+      const recent = [latestTraining, latestMatch].filter(
+        (r): r is NonNullable<typeof r> => r != null,
+      );
+      const brief = await createWeekAheadBrief({
+        opponent: weekOpp,
+        reflectionsText: recent
+          .map((r) => `${KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind} (${r.entryDate ?? ""}):\n${reflectionText(r)}`)
+          .join("\n\n") || undefined,
+        lastVsOpponentText: lastVsOpp ? reflectionText(lastVsOpp) : undefined,
+        theirGamesText: gamesText(theirGames) || undefined,
+        ourGamesText: gamesText(ourGames) || undefined,
+      });
+
+      const { buildWeekAheadPptx } = await import("@/lib/weekAheadPptx");
+      const pptx = buildWeekAheadPptx({
+        weekOf: comingMonday(),
+        opponent: weekOpp,
+        author: "Belconnen United FC",
+        generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
+        review: brief.review,
+        pointers: brief.pointers,
+        reflections: recent.map((r) => ({
+          title: KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind,
+          date: r.entryDate ?? "",
+          rows: reflectionRows(r),
+        })),
+        // Skip if it's the same entry already shown in full above.
+        lastVsOpponent:
+          lastVsOpp && lastVsOpp.id !== latestMatch?.id
+            ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
+            : null,
+        theirGames,
+        ourGames,
+      });
+      await pptx.writeFile({ fileName: `Week Ahead — vs ${weekOpp}.pptx` });
+    } catch {
+      toast({
+        title: "Couldn't build the report",
+        description: "Check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-8">
@@ -300,6 +461,41 @@ export default function Reflections() {
               })}
           </div>
         )}
+      </section>
+
+      {/* ── Week Ahead report ── */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileDown className="h-5 w-5 text-primary" /> Week Ahead report
+        </h2>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Your Monday briefing as a PowerPoint: last week's reflections reviewed, then the
+              coming opponent — their last 3 games, ours, and prep pointers for the week. Pick who
+              you play next and build it.
+            </p>
+            <div className="flex gap-2 flex-wrap items-center">
+              <Select value={weekOpp} onValueChange={setWeekOpp}>
+                <SelectTrigger className="w-[240px]">
+                  <SelectValue placeholder="This week's opponent…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(oppClubs ?? []).map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => void buildWeekAhead()} disabled={!weekOpp || building}>
+                {building ? (
+                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Building…</>
+                ) : (
+                  <><FileDown className="h-4 w-4 mr-1" /> Build report</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       {/* ── New cycle dialog ── */}

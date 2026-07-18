@@ -195,3 +195,5 @@ export * from './sessionSummaryList';
 export * from './sessionUpdateRequest';
 export * from './team';
 export * from './teamForm';
+export * from './weekAheadBriefRequest';
+export * from './weekAheadBriefResponse';

@@ -145,7 +145,9 @@ import type {
   SessionSummaryList,
   SessionUpdateRequest,
   Team,
-  TeamForm
+  TeamForm,
+  WeekAheadBriefRequest,
+  WeekAheadBriefResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -7041,6 +7043,77 @@ export const useJournalInterviewTurn = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getJournalInterviewTurnMutationOptions(options));
+    }
+
+export const getCreateWeekAheadBriefUrl = () => {
+
+
+
+
+  return `/api/journal/week-ahead-brief`
+}
+
+/**
+ * @summary AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+ */
+export const createWeekAheadBrief = async (weekAheadBriefRequest: WeekAheadBriefRequest, options?: RequestInit): Promise<WeekAheadBriefResponse> => {
+
+  return customFetch<WeekAheadBriefResponse>(getCreateWeekAheadBriefUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(weekAheadBriefRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateWeekAheadBriefMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWeekAheadBrief>>, TError,{data: BodyType<WeekAheadBriefRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWeekAheadBrief>>, TError,{data: BodyType<WeekAheadBriefRequest>}, TContext> => {
+
+const mutationKey = ['createWeekAheadBrief'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWeekAheadBrief>>, {data: BodyType<WeekAheadBriefRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWeekAheadBrief(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWeekAheadBriefMutationResult = NonNullable<Awaited<ReturnType<typeof createWeekAheadBrief>>>
+    export type CreateWeekAheadBriefMutationBody = BodyType<WeekAheadBriefRequest>
+    export type CreateWeekAheadBriefMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+ */
+export const useCreateWeekAheadBrief = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWeekAheadBrief>>, TError,{data: BodyType<WeekAheadBriefRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWeekAheadBrief>>,
+        TError,
+        {data: BodyType<WeekAheadBriefRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateWeekAheadBriefMutationOptions(options));
     }
 
 export const getJournalInterviewWriteupUrl = () => {

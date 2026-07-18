@@ -17,6 +17,7 @@ import {
   JournalInterviewSpeakBody,
   JournalInterviewTurnBody,
   JournalInterviewWriteupBody,
+  CreateWeekAheadBriefBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -307,6 +308,61 @@ Rules:
       return res.status(502).json({ error: "The write-up came back empty. Please try again." });
     }
     return res.json({ content });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// POST /journal/week-ahead-brief — review bullets + prep pointers for the Monday report
+router.post("/journal/week-ahead-brief", async (req, res, next) => {
+  try {
+    const key = apiKey();
+    if (!key) return noKey(res);
+    const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+    const { opponent, reflectionsText, lastVsOpponentText, theirGamesText, ourGamesText } =
+      parsed.data;
+
+    const sections = [
+      reflectionsText ? `## The coach's recent reflections\n${reflectionsText}` : "",
+      lastVsOpponentText
+        ? `## His match reflection from the last time we played ${opponent}\n${lastVsOpponentText}`
+        : "",
+      theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
+      ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const result = await openaiJson(
+      "/chat/completions",
+      {
+        model: "gpt-4o",
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
+Return JSON: {"review": string[], "pointers": string[]}.
+- "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+- Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
+          },
+          { role: "user", content: sections || "(no input provided)" },
+        ],
+      },
+      key,
+    );
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
+    const clean = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
+    const review = clean(out.review);
+    const pointers = clean(out.pointers);
+    if (!review.length && !pointers.length) {
+      return res.status(502).json({ error: "The briefing came back empty. Please try again." });
+    }
+    return res.json({ review, pointers });
   } catch (err) {
     return next(err);
   }

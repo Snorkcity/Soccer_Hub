@@ -1907,6 +1907,20 @@ export interface InterviewWriteupRequest {
   qa: InterviewWriteupRequestQaItem[];
 }
 
+export interface WeekAheadBriefRequest {
+  /** @minLength 1 */
+  opponent: string;
+  reflectionsText?: string;
+  lastVsOpponentText?: string;
+  theirGamesText?: string;
+  ourGamesText?: string;
+}
+
+export interface WeekAheadBriefResponse {
+  review: string[];
+  pointers: string[];
+}
+
 export type InterviewWriteupResponseContent = {[key: string]: string};
 
 export interface InterviewWriteupResponse {
