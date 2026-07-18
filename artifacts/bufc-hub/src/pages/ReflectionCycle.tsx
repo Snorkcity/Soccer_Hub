@@ -18,7 +18,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { ArrowLeft, CheckCircle2, Circle, CircleDot, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, CircleDot, Download, Mic } from "lucide-react";
+import InterviewDialog from "@/components/InterviewDialog";
 import {
   CYCLE_KIND_ORDER, KIND_DEFS, filledCount, type JournalCycleKind,
 } from "@/lib/journalFields";
@@ -50,11 +51,14 @@ export default function ReflectionCycle() {
   const [editWeek, setEditWeek] = useState(1);
   const [editKind, setEditKind] = useState<JournalCycleKind>("weekly_planner");
   const [editContent, setEditContent] = useState<Record<string, string>>({});
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [fromInterview, setFromInterview] = useState(false);
 
   function openEditor(week: number, kind: JournalCycleKind) {
     setEditWeek(week);
     setEditKind(kind);
     setEditContent({ ...(entryMap.get(`${week}:${kind}`) ?? {}) });
+    setFromInterview(false);
     setEditorOpen(true);
   }
 
@@ -168,6 +172,15 @@ export default function ReflectionCycle() {
             <DialogTitle>Week {editWeek} — {def.title}</DialogTitle>
             <DialogDescription>{def.blurb}</DialogDescription>
           </DialogHeader>
+          {canWrite && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => { setEditorOpen(false); setInterviewOpen(true); }}
+            >
+              <Mic className="h-4 w-4 mr-2" /> Interview me — speak instead of typing
+            </Button>
+          )}
           <div className="space-y-3">
             {def.fields.map((f) => (
               <div key={f.id} className="space-y-1.5">
@@ -191,13 +204,35 @@ export default function ReflectionCycle() {
           <DialogFooter>
             <Button
               disabled={upsert.isPending || !canWrite}
-              onClick={() => upsert.mutate({ id: cycleId, week: editWeek, kind: editKind, data: { content: editContent } })}
+              onClick={() => upsert.mutate({ id: cycleId, week: editWeek, kind: editKind, data: { content: editContent, ...(fromInterview ? { source: "voice" as const } : {}) } })}
             >
               Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Voice interview ── */}
+      <InterviewDialog
+        open={interviewOpen}
+        onOpenChange={(o) => {
+          setInterviewOpen(o);
+          if (!o) setEditorOpen(true); // back to the editor either way
+        }}
+        def={def}
+        onComplete={(content) => {
+          // Merge the drafted answers over what's there; keep typed text where
+          // the interview produced nothing for a field.
+          setEditContent((c) => {
+            const merged = { ...c };
+            for (const [k, v] of Object.entries(content)) {
+              if (v.trim()) merged[k] = v;
+            }
+            return merged;
+          });
+          setFromInterview(true);
+        }}
+      />
     </div>
   );
 }

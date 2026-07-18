@@ -1833,6 +1833,75 @@ export interface JournalDeleteResult {
   deleted: boolean;
 }
 
+export interface InterviewSpeakRequest {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  text: string;
+}
+
+export interface InterviewSpeakResponse {
+  audioBase64: string;
+  mimeType: string;
+}
+
+export type InterviewTurnRequestPhase = typeof InterviewTurnRequestPhase[keyof typeof InterviewTurnRequestPhase];
+
+
+export const InterviewTurnRequestPhase = {
+  answer: 'answer',
+  confirm: 'confirm',
+} as const;
+
+export interface InterviewTurnRequest {
+  phase: InterviewTurnRequestPhase;
+  /** @minLength 1 */
+  question: string;
+  hint?: string;
+  priorAnswer?: string;
+  probeUsed?: boolean;
+  /** @minLength 1 */
+  audioBase64: string;
+  audioMimeType?: string;
+}
+
+export type InterviewTurnResponseAction = typeof InterviewTurnResponseAction[keyof typeof InterviewTurnResponseAction];
+
+
+export const InterviewTurnResponseAction = {
+  probe: 'probe',
+  confirm: 'confirm',
+  next: 'next',
+  continue: 'continue',
+} as const;
+
+export interface InterviewTurnResponse {
+  transcript: string;
+  action: InterviewTurnResponseAction;
+  /** @nullable */
+  say?: string | null;
+}
+
+export type InterviewWriteupRequestQaItem = {
+  fieldId: string;
+  label: string;
+  hint?: string;
+  answers: string[];
+};
+
+export interface InterviewWriteupRequest {
+  kind: string;
+  title?: string;
+  qa: InterviewWriteupRequestQaItem[];
+}
+
+export type InterviewWriteupResponseContent = {[key: string]: string};
+
+export interface InterviewWriteupResponse {
+  content: InterviewWriteupResponseContent;
+}
+
 export type ListPlayersParams = {
 teamId?: number;
 seasonId?: number;

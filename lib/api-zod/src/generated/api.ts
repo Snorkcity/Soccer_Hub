@@ -2488,3 +2488,63 @@ export const DeleteJournalReflectionResponse = zod.object({
 })
 
 
+/**
+ * @summary Convert interview question text to spoken audio (coach's OpenAI key)
+ */
+export const journalInterviewSpeakBodyTextMax = 2000;
+
+
+
+export const JournalInterviewSpeakBody = zod.object({
+  "text": zod.string().min(1).max(journalInterviewSpeakBodyTextMax)
+})
+
+export const JournalInterviewSpeakResponse = zod.object({
+  "audioBase64": zod.string(),
+  "mimeType": zod.string()
+})
+
+
+/**
+ * @summary Transcribe one spoken interview turn and decide the next step
+ */
+
+
+
+
+export const JournalInterviewTurnBody = zod.object({
+  "phase": zod.enum(['answer', 'confirm']),
+  "question": zod.string().min(1),
+  "hint": zod.string().optional(),
+  "priorAnswer": zod.string().optional(),
+  "probeUsed": zod.boolean().optional(),
+  "audioBase64": zod.string().min(1),
+  "audioMimeType": zod.string().optional()
+})
+
+export const JournalInterviewTurnResponse = zod.object({
+  "transcript": zod.string(),
+  "action": zod.enum(['probe', 'confirm', 'next', 'continue']),
+  "say": zod.string().nullish()
+})
+
+
+/**
+ * @summary Write up interview answers into journal fields in the coach's voice
+ */
+export const JournalInterviewWriteupBody = zod.object({
+  "kind": zod.string(),
+  "title": zod.string().optional(),
+  "qa": zod.array(zod.object({
+  "fieldId": zod.string(),
+  "label": zod.string(),
+  "hint": zod.string().optional(),
+  "answers": zod.array(zod.string())
+}))
+})
+
+export const JournalInterviewWriteupResponse = zod.object({
+  "content": zod.record(zod.string(), zod.string())
+})
+
+

@@ -85,6 +85,12 @@ import type {
   GpsSession,
   GpsSessionInput,
   HealthStatus,
+  InterviewSpeakRequest,
+  InterviewSpeakResponse,
+  InterviewTurnRequest,
+  InterviewTurnResponse,
+  InterviewWriteupRequest,
+  InterviewWriteupResponse,
   JournalCycleCreateRequest,
   JournalCycleDetail,
   JournalCycleList,
@@ -6893,5 +6899,218 @@ export const useDeleteJournalReflection = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteJournalReflectionMutationOptions(options));
+    }
+
+export const getJournalInterviewSpeakUrl = () => {
+
+
+
+
+  return `/api/journal/interview/speak`
+}
+
+/**
+ * @summary Convert interview question text to spoken audio (coach's OpenAI key)
+ */
+export const journalInterviewSpeak = async (interviewSpeakRequest: InterviewSpeakRequest, options?: RequestInit): Promise<InterviewSpeakResponse> => {
+
+  return customFetch<InterviewSpeakResponse>(getJournalInterviewSpeakUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(interviewSpeakRequest)
+  }
+);}
+
+
+
+
+
+export const getJournalInterviewSpeakMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewSpeak>>, TError,{data: BodyType<InterviewSpeakRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof journalInterviewSpeak>>, TError,{data: BodyType<InterviewSpeakRequest>}, TContext> => {
+
+const mutationKey = ['journalInterviewSpeak'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof journalInterviewSpeak>>, {data: BodyType<InterviewSpeakRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  journalInterviewSpeak(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JournalInterviewSpeakMutationResult = NonNullable<Awaited<ReturnType<typeof journalInterviewSpeak>>>
+    export type JournalInterviewSpeakMutationBody = BodyType<InterviewSpeakRequest>
+    export type JournalInterviewSpeakMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Convert interview question text to spoken audio (coach's OpenAI key)
+ */
+export const useJournalInterviewSpeak = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewSpeak>>, TError,{data: BodyType<InterviewSpeakRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof journalInterviewSpeak>>,
+        TError,
+        {data: BodyType<InterviewSpeakRequest>},
+        TContext
+      > => {
+      return useMutation(getJournalInterviewSpeakMutationOptions(options));
+    }
+
+export const getJournalInterviewTurnUrl = () => {
+
+
+
+
+  return `/api/journal/interview/turn`
+}
+
+/**
+ * @summary Transcribe one spoken interview turn and decide the next step
+ */
+export const journalInterviewTurn = async (interviewTurnRequest: InterviewTurnRequest, options?: RequestInit): Promise<InterviewTurnResponse> => {
+
+  return customFetch<InterviewTurnResponse>(getJournalInterviewTurnUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(interviewTurnRequest)
+  }
+);}
+
+
+
+
+
+export const getJournalInterviewTurnMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewTurn>>, TError,{data: BodyType<InterviewTurnRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof journalInterviewTurn>>, TError,{data: BodyType<InterviewTurnRequest>}, TContext> => {
+
+const mutationKey = ['journalInterviewTurn'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof journalInterviewTurn>>, {data: BodyType<InterviewTurnRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  journalInterviewTurn(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JournalInterviewTurnMutationResult = NonNullable<Awaited<ReturnType<typeof journalInterviewTurn>>>
+    export type JournalInterviewTurnMutationBody = BodyType<InterviewTurnRequest>
+    export type JournalInterviewTurnMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Transcribe one spoken interview turn and decide the next step
+ */
+export const useJournalInterviewTurn = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewTurn>>, TError,{data: BodyType<InterviewTurnRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof journalInterviewTurn>>,
+        TError,
+        {data: BodyType<InterviewTurnRequest>},
+        TContext
+      > => {
+      return useMutation(getJournalInterviewTurnMutationOptions(options));
+    }
+
+export const getJournalInterviewWriteupUrl = () => {
+
+
+
+
+  return `/api/journal/interview/writeup`
+}
+
+/**
+ * @summary Write up interview answers into journal fields in the coach's voice
+ */
+export const journalInterviewWriteup = async (interviewWriteupRequest: InterviewWriteupRequest, options?: RequestInit): Promise<InterviewWriteupResponse> => {
+
+  return customFetch<InterviewWriteupResponse>(getJournalInterviewWriteupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(interviewWriteupRequest)
+  }
+);}
+
+
+
+
+
+export const getJournalInterviewWriteupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewWriteup>>, TError,{data: BodyType<InterviewWriteupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof journalInterviewWriteup>>, TError,{data: BodyType<InterviewWriteupRequest>}, TContext> => {
+
+const mutationKey = ['journalInterviewWriteup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof journalInterviewWriteup>>, {data: BodyType<InterviewWriteupRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  journalInterviewWriteup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JournalInterviewWriteupMutationResult = NonNullable<Awaited<ReturnType<typeof journalInterviewWriteup>>>
+    export type JournalInterviewWriteupMutationBody = BodyType<InterviewWriteupRequest>
+    export type JournalInterviewWriteupMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Write up interview answers into journal fields in the coach's voice
+ */
+export const useJournalInterviewWriteup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof journalInterviewWriteup>>, TError,{data: BodyType<InterviewWriteupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof journalInterviewWriteup>>,
+        TError,
+        {data: BodyType<InterviewWriteupRequest>},
+        TContext
+      > => {
+      return useMutation(getJournalInterviewWriteupMutationOptions(options));
     }
 

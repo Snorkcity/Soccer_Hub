@@ -1866,6 +1866,63 @@ paths:
               schema:
                 $ref: "#/components/schemas/JournalDeleteResult"
 
+  /journal/interview/speak:
+    post:
+      operationId: journalInterviewSpeak
+      tags: [journal]
+      summary: Convert interview question text to spoken audio (coach's OpenAI key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterviewSpeakRequest"
+      responses:
+        "200":
+          description: Spoken audio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSpeakResponse"
+
+  /journal/interview/turn:
+    post:
+      operationId: journalInterviewTurn
+      tags: [journal]
+      summary: Transcribe one spoken interview turn and decide the next step
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterviewTurnRequest"
+      responses:
+        "200":
+          description: Turn result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewTurnResponse"
+
+  /journal/interview/writeup:
+    post:
+      operationId: journalInterviewWriteup
+      tags: [journal]
+      summary: Write up interview answers into journal fields in the coach's voice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterviewWriteupRequest"
+      responses:
+        "200":
+          description: Drafted journal content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewWriteupResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -3480,3 +3537,69 @@ components:
       properties:
         deleted: { type: boolean }
       required: [deleted]
+
+    # ── Voice interview ──────────────────────────────────────────────────────
+
+    InterviewSpeakRequest:
+      type: object
+      properties:
+        text: { type: string, minLength: 1, maxLength: 2000 }
+      required: [text]
+
+    InterviewSpeakResponse:
+      type: object
+      properties:
+        audioBase64: { type: string }
+        mimeType:    { type: string }
+      required: [audioBase64, mimeType]
+
+    InterviewTurnRequest:
+      type: object
+      properties:
+        phase:
+          type: string
+          enum: [answer, confirm]
+        question: { type: string, minLength: 1 }
+        hint:     { type: string }
+        priorAnswer: { type: string }
+        probeUsed:   { type: boolean }
+        audioBase64: { type: string, minLength: 1 }
+        audioMimeType: { type: string }
+      required: [phase, question, audioBase64]
+
+    InterviewTurnResponse:
+      type: object
+      properties:
+        transcript: { type: string }
+        action:
+          type: string
+          enum: [probe, confirm, next, continue]
+        say: { type: ["string", "null"] }
+      required: [transcript, action]
+
+    InterviewWriteupRequest:
+      type: object
+      properties:
+        kind:  { type: string }
+        title: { type: string }
+        qa:
+          type: array
+          items:
+            type: object
+            properties:
+              fieldId:  { type: string }
+              label:    { type: string }
+              hint:     { type: string }
+              answers:
+                type: array
+                items: { type: string }
+            required: [fieldId, label, answers]
+      required: [kind, qa]
+
+    InterviewWriteupResponse:
+      type: object
+      properties:
+        content:
+          type: object
+          additionalProperties: { type: string }
+      required: [content]

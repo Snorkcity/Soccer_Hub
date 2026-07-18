@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
+import InterviewDialog from "@/components/InterviewDialog";
 import { KIND_DEFS, filledCount, type JournalStandaloneKind } from "@/lib/journalFields";
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
@@ -74,6 +75,8 @@ export default function Reflections() {
   const [reflTitle, setReflTitle] = useState("");
   const [reflDate, setReflDate] = useState("");
   const [reflContent, setReflContent] = useState<Record<string, string>>({});
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [fromInterview, setFromInterview] = useState(false);
 
   function openNewReflection(kind: JournalStandaloneKind) {
     setReflId(null);
@@ -81,6 +84,7 @@ export default function Reflections() {
     setReflTitle("");
     setReflDate("");
     setReflContent({});
+    setFromInterview(false);
     setReflOpen(true);
   }
   function openExisting(r: NonNullable<typeof reflections>[number]) {
@@ -93,6 +97,7 @@ export default function Reflections() {
     setReflTitle(r.title ?? "");
     setReflDate(r.entryDate ?? "");
     setReflContent({ ...r.content });
+    setFromInterview(false);
     setReflOpen(true);
   }
 
@@ -120,7 +125,7 @@ export default function Reflections() {
   function saveReflection() {
     if (reflId == null) {
       createRefl.mutate({
-        data: { kind: reflKind, title: reflTitle || undefined, entryDate: reflDate || undefined, content: reflContent },
+        data: { kind: reflKind, title: reflTitle || undefined, entryDate: reflDate || undefined, content: reflContent, ...(fromInterview ? { source: "voice" as const } : {}) },
       });
     } else {
       updateRefl.mutate({
@@ -212,7 +217,7 @@ export default function Reflections() {
           )}
         </div>
         <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <Mic className="h-3.5 w-3.5" /> Voice interviews coming next — for now, type your reflections.
+          <Mic className="h-3.5 w-3.5" /> Open a reflection and press “Interview me” to speak your answers instead of typing.
         </p>
         {reflLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -298,6 +303,15 @@ export default function Reflections() {
       <Dialog open={reflOpen} onOpenChange={setReflOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{reflDef.title}</DialogTitle></DialogHeader>
+          {canWrite && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => { setReflOpen(false); setInterviewOpen(true); }}
+            >
+              <Mic className="h-4 w-4 mr-2" /> Interview me — speak instead of typing
+            </Button>
+          )}
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -335,6 +349,26 @@ export default function Reflections() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Voice interview ── */}
+      <InterviewDialog
+        open={interviewOpen}
+        onOpenChange={(o) => {
+          setInterviewOpen(o);
+          if (!o) setReflOpen(true); // back to the editor either way
+        }}
+        def={reflDef}
+        onComplete={(content) => {
+          setReflContent((c) => {
+            const merged = { ...c };
+            for (const [k, v] of Object.entries(content)) {
+              if (v.trim()) merged[k] = v;
+            }
+            return merged;
+          });
+          setFromInterview(true);
+        }}
+      />
     </div>
   );
 }
