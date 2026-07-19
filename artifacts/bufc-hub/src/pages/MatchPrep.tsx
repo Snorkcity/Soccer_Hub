@@ -41,6 +41,19 @@ const FORMATIONS: Record<string, Slot[]> = {
     { id: "st", num: "9", role: "ST", px: 0.5, py: 0.15 },
     { id: "lw", num: "11", role: "LW", px: 0.15, py: 0.24 },
   ],
+  "451": [
+    { id: "gk", num: "1", role: "GK", px: 0.5, py: 0.93 },
+    { id: "rb", num: "2", role: "RB", px: 0.85, py: 0.72 },
+    { id: "rcb", num: "5", role: "CB", px: 0.63, py: 0.79 },
+    { id: "lcb", num: "4", role: "CB", px: 0.37, py: 0.79 },
+    { id: "lb", num: "3", role: "LB", px: 0.15, py: 0.72 },
+    { id: "dm", num: "6", role: "6", px: 0.5, py: 0.58 },
+    { id: "rcm", num: "8", role: "8", px: 0.68, py: 0.44 },
+    { id: "lcm", num: "10", role: "10", px: 0.32, py: 0.44 },
+    { id: "rw", num: "7", role: "RM", px: 0.85, py: 0.36 },
+    { id: "st", num: "9", role: "ST", px: 0.5, py: 0.15 },
+    { id: "lw", num: "11", role: "LM", px: 0.15, py: 0.36 },
+  ],
   "4231": [
     { id: "gk", num: "1", role: "GK", px: 0.5, py: 0.93 },
     { id: "rb", num: "2", role: "RB", px: 0.85, py: 0.72 },
@@ -135,6 +148,7 @@ interface Draft {
   bp: UnitObjectives;
   bpo: UnitObjectives;
   spFor: Record<string, string[]>;
+  spFor2: Record<string, string[]>;
   spAgainst: Record<string, string[]>;
   fkWide: string;
   fkCentral: string;
@@ -147,7 +161,7 @@ const blankDraft = (): Draft => ({
   xi: {}, subs: [],
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
-  spFor: {}, spAgainst: {}, fkWide: "", fkCentral: "",
+  spFor: {}, spFor2: {}, spAgainst: {}, fkWide: "", fkCentral: "",
 });
 
 function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -311,6 +325,12 @@ export default function MatchPrep() {
             (d.spFor["Taker"] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
           ),
         },
+        cornersFor2: {
+          groups: groups(d.spFor2, Object.keys(CORNERS_FOR_SPOTS)),
+          players: spPlayers(d.spFor2, CORNERS_FOR_SPOTS, ["Stay back", "Taker"]).concat(
+            (d.spFor2["Taker"] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
+          ),
+        },
         cornersAgainst: {
           groups: groups(d.spAgainst, Object.keys(CORNERS_AGAINST_SPOTS)),
           players: spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS),
@@ -343,10 +363,19 @@ export default function MatchPrep() {
     </Select>
   );
 
-  const MultiPick = ({ pool, value, onChange, max }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number }) => (
+  const MultiPick = ({ pool, value, onChange, max, starters }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number; starters?: Set<string> }) => (
     <div className="flex flex-wrap gap-1.5">
       {pool.map((n) => {
         const on = value.includes(n);
+        const starting = starters?.has(n) ?? false;
+        // Starters get a green chip so takers are easy to spot vs bench players.
+        const cls = on
+          ? starting
+            ? "bg-emerald-500 text-white border-emerald-500"
+            : "bg-primary text-primary-foreground border-primary"
+          : starting
+            ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/60 hover:border-emerald-400"
+            : "bg-background text-muted-foreground border-border hover:border-primary/50";
         return (
           <button
             key={n}
@@ -355,7 +384,7 @@ export default function MatchPrep() {
               if (on) onChange(value.filter((v) => v !== n));
               else if (!max || value.length < max) onChange([...value, n]);
             }}
-            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:border-primary/50"}`}
+            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${cls}`}
           >
             {n}
           </button>
@@ -364,10 +393,10 @@ export default function MatchPrep() {
     </div>
   );
 
-  const spRole = (store: "spFor" | "spAgainst", role: string, max?: number) => (
-    <div key={role} className="space-y-1.5">
+  const spRole = (store: "spFor" | "spFor2" | "spAgainst", role: string, max?: number) => (
+    <div key={`${store}-${role}`} className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
-      <MultiPick pool={squad} value={d[store][role] ?? []} onChange={(v) => set(store, { ...d[store], [role]: v })} max={max} />
+      <MultiPick pool={squad} value={d[store][role] ?? []} onChange={(v) => set(store, { ...d[store], [role]: v })} max={max} starters={new Set(xiNames)} />
     </div>
   );
 
@@ -417,6 +446,18 @@ export default function MatchPrep() {
           </Button>
         </div>
       </div>
+
+      {/* Week Ahead — Monday briefing first: it starts the week. */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileDown className="h-5 w-5 text-primary" /> Week Ahead report
+        </h2>
+        <WeekAheadCard />
+      </div>
+
+      <h2 className="text-lg font-semibold flex items-center gap-2 pt-2">
+        <FileDown className="h-5 w-5 text-primary" /> Friday pre-match deck
+      </h2>
 
       {/* Match details */}
       <Card>
@@ -496,25 +537,28 @@ export default function MatchPrep() {
         <CardHeader className="pb-3"><CardTitle className="text-base">3 · Shapes — one point per line</CardTitle></CardHeader>
         <CardContent className="grid md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Our shape — with the ball</Label>
+            <Label>Our shape — BP</Label>
             <Textarea rows={3} value={d.ourBpNotes} onChange={(e) => set("ourBpNotes", e.target.value)} placeholder={"8 plays a little deeper to help buildup\nWingers give width"} />
           </div>
           <div className="space-y-1.5">
-            <Label>Our shape — without the ball</Label>
+            <Label>Our shape — BPO</Label>
             <Textarea rows={3} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"We move from 433 to 442\nWingers tuck in to join midfield"} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label>Their shape — with the ball</Label>
-              <Select value={d.theirFormation} onValueChange={(v) => set("theirFormation", v)}>
-                <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>Their shape — BP</Label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Their formation</span>
+                <Select value={d.theirFormation} onValueChange={(v) => set("theirFormation", v)}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <Textarea rows={3} value={d.theirBpNotes} onChange={(e) => set("theirBpNotes", e.target.value)} placeholder={"Outside centre backs happy to advance\nBoth forwards run in behind"} />
           </div>
           <div className="space-y-1.5">
-            <Label>Their shape — without the ball</Label>
+            <Label>Their shape — BPO</Label>
             <Textarea rows={3} value={d.theirBpoNotes} onChange={(e) => set("theirBpoNotes", e.target.value)} placeholder={"Back 4 not always organised\nBig spaces between the lines"} />
           </div>
         </CardContent>
@@ -536,8 +580,8 @@ export default function MatchPrep() {
             <Label>Your game plan notes (feeds the AI draft)</Label>
             <Textarea rows={3} value={d.gamePlan} onChange={(e) => set("gamePlan", e.target.value)} placeholder={"e.g. They are direct and quick — we control the tempo, keep the ball, be patient. Watch their no. 12 in behind."} />
           </div>
-          {objEditor("bp", "With the ball (BP)")}
-          {objEditor("bpo", "Without the ball (BPO)")}
+          {objEditor("bp", "BP")}
+          {objEditor("bpo", "BPO")}
         </CardContent>
       </Card>
 
@@ -552,6 +596,12 @@ export default function MatchPrep() {
             {spRole("spFor", "Near post", 1)}
             {spRole("spFor", "Edge of box", 2)}
             {spRole("spFor", "Stay back", 2)}
+            <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2</h4>
+            {spRole("spFor2", "Taker", 2)}
+            {spRole("spFor2", "Attack the goal", 4)}
+            {spRole("spFor2", "Near post", 1)}
+            {spRole("spFor2", "Edge of box", 2)}
+            {spRole("spFor2", "Stay back", 2)}
           </div>
           <div className="space-y-3">
             <h4 className="font-semibold text-sm">Corners — against</h4>
@@ -572,12 +622,12 @@ export default function MatchPrep() {
         </CardContent>
       </Card>
 
-      {/* Week Ahead — the Monday briefing lives here too: both are prep. */}
-      <div className="space-y-2 pt-2">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <FileDown className="h-5 w-5 text-primary" /> Week Ahead report
-        </h2>
-        <WeekAheadCard />
+      {/* Bottom download — saves scrolling back up after filling everything in. */}
+      <div className="flex justify-end">
+        <Button onClick={download} disabled={building || !d.opponent}>
+          {building ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+          Download deck
+        </Button>
       </div>
     </div>
   );

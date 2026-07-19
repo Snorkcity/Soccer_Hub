@@ -54,6 +54,7 @@ export interface PrematchInput {
   objectivesBp: UnitObjectives;
   objectivesBpo: UnitObjectives;
   cornersFor: { groups: SetPieceGroup[]; players: PitchPlayer[] };
+  cornersFor2?: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   cornersAgainst: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   freeKicks: SetPieceGroup[];
 }
@@ -66,18 +67,18 @@ export interface UnitObjectives {
   attackers: string[];
 }
 
-function darkSlide(pptx: PptxGenJS, kicker: string, title: string): PptxGenJS.Slide {
+function darkSlide(pptx: PptxGenJS, kicker: string, title: string, textX = MX): PptxGenJS.Slide {
   const s = pptx.addSlide();
   s.background = { color: NAVY };
   s.addText(kicker.toUpperCase(), {
-    x: MX, y: 0.42, w: W - 2 * MX, h: 0.3,
+    x: textX, y: 0.42, w: W - MX - textX, h: 0.3,
     fontSize: 11, color: SKY, bold: true, charSpacing: 4,
   });
   s.addText(title, {
-    x: MX, y: 0.68, w: W - 2 * MX, h: 0.7,
+    x: textX, y: 0.68, w: W - MX - textX, h: 0.7,
     fontSize: 30, color: PAPER, bold: true,
   });
-  s.addShape("rect", { x: MX, y: 1.48, w: 1.1, h: 0.05, fill: { color: SKY_DARK } });
+  s.addShape("rect", { x: textX, y: 1.48, w: 1.1, h: 0.05, fill: { color: SKY_DARK } });
   return s;
 }
 
@@ -304,12 +305,14 @@ function shapeSlide(
   notes: string[],
   foot: string,
 ) {
-  const s = darkSlide(pptx, kicker, title);
-  const ph = H - 2.35;
+  // Big pitch down the left, title + notes in the right column.
+  const ph = H - 0.9;
   const pw = ph * 0.72;
-  const plot = drawPitch(s, MX + 0.2, 1.85, pw, ph);
+  const tx = MX + pw + 0.7;
+  const s = darkSlide(pptx, kicker, title, tx);
+  const plot = drawPitch(s, MX, 0.45, pw, ph);
   drawPlayers(s, plot, players);
-  noteCards(s, MX + pw + 0.8, W - MX - (MX + pw + 0.8), notes);
+  noteCards(s, tx, W - MX - tx, notes);
   footer(s, foot);
 }
 
@@ -351,12 +354,12 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
 
   // ── Lineup ──
   {
-    const s = darkSlide(pptx, "Starting lineup", `Our XI — ${input.formationName}`, );
-    const ph = H - 2.3;
+    const ph = H - 0.9;
     const pw = ph * 0.74;
-    const plot = drawPitch(s, MX + 0.2, 1.8, pw, ph);
+    const lx = MX + pw + 0.7;
+    const s = darkSlide(pptx, "Starting lineup", `Our XI — ${input.formationName}`, lx);
+    const plot = drawPitch(s, MX, 0.45, pw, ph);
     drawPlayers(s, plot, input.lineup, { r: 0.24, nameSize: 10 });
-    const lx = MX + pw + 0.8;
     const lw = W - MX - lx;
     const half = Math.ceil(input.lineup.length / 2);
     const listCol = (names: string[], x: number, w: number) =>
@@ -391,24 +394,24 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   }
 
   // ── Our shape (BP, BPO) ──
-  shapeSlide(pptx, "Our shape — with the ball", `In possession — ${input.formationName}`,
+  shapeSlide(pptx, "Our shape — BP", `In possession — ${input.formationName}`,
     input.ourBp.players, input.ourBp.notes, foot);
-  shapeSlide(pptx, "Our shape — without the ball", "Out of possession",
+  shapeSlide(pptx, "Our shape — BPO", "Out of possession",
     input.ourBpo.players, input.ourBpo.notes, foot);
 
   // ── Their shape — both pitches on one slide ──
   {
     const s = darkSlide(pptx, "Know the opponent", `${input.opponent} — likely shape${input.theirFormationName ? ` (${input.theirFormationName})` : ""}`);
-    const ph = H - 2.75;
+    const ph = H - 2.5;
     const pw = ph * 0.7;
     const colW = (W - 2 * MX) / 2;
     for (const [i, side] of ([[0, input.theirBp], [1, input.theirBpo]] as const)) {
       const cx = MX + i * colW;
-      s.addText(i === 0 ? "WITH THE BALL" : "WITHOUT THE BALL", {
-        x: cx, y: 1.78, w: colW, h: 0.3,
+      s.addText(i === 0 ? "BP" : "BPO", {
+        x: cx, y: 1.7, w: colW, h: 0.3,
         fontSize: 11, color: SKY, bold: true, charSpacing: 3,
       });
-      const plot = drawPitch(s, cx + 0.15, 2.12, pw, ph);
+      const plot = drawPitch(s, cx + 0.15, 2.02, pw, ph);
       drawPlayers(s, plot, side.players, { r: 0.18, nameSize: 8 });
       // Notes to the right of each pitch.
       const nx = cx + pw + 0.45;
@@ -424,8 +427,8 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   }
 
   // ── Key objectives ──
-  objectivesSlide(pptx, "Key objectives — with the ball", "In possession", input.objectivesBp, foot);
-  objectivesSlide(pptx, "Key objectives — without the ball", "Out of possession", input.objectivesBpo, foot);
+  objectivesSlide(pptx, "Key objectives — BP", "In possession", input.objectivesBp, foot);
+  objectivesSlide(pptx, "Key objectives — BPO", "Out of possession", input.objectivesBpo, foot);
 
   // ── Set pieces ──
   const setPieceSlide = (
@@ -436,14 +439,18 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     attacking: boolean,
   ) => {
     const s = darkSlide(pptx, kicker, title);
-    const bw = 5.6;
+    const bw = 6.4;
     const bh = H - 2.55;
     const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh);
     drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? (attacking ? SKY_DARK : RED) })), { r: 0.19, nameSize: 8.5 });
     roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups);
     footer(s, foot);
   };
-  setPieceSlide("Set pieces", "Corners — for", input.cornersFor.groups, input.cornersFor.players, true);
+  const hasVar2 = !!input.cornersFor2 && (input.cornersFor2.groups.length > 0 || input.cornersFor2.players.length > 0);
+  setPieceSlide("Set pieces", hasVar2 ? "Corners — for · variation 1" : "Corners — for", input.cornersFor.groups, input.cornersFor.players, true);
+  if (hasVar2 && input.cornersFor2) {
+    setPieceSlide("Set pieces", "Corners — for · variation 2", input.cornersFor2.groups, input.cornersFor2.players, true);
+  }
   setPieceSlide("Set pieces", "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false);
   {
     const s = darkSlide(pptx, "Set pieces", "Free kicks");
