@@ -164,6 +164,7 @@ function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: str
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          weekStartsOn={1}
           selected={selected}
           defaultMonth={selected}
           onSelect={(day) => {
