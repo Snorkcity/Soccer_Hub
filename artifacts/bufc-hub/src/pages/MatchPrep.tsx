@@ -124,7 +124,7 @@ const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
 // the 18-yard box straight to the far post, one outside the box, two back at halfway.
 const CORNERS_FOR2_SPOTS: Record<string, Array<[number, number]>> = {
   // Tight 2×2 around the six-yard box, right in the keeper's space.
-  "Crowd the keeper": [[0.465, 0.06], [0.535, 0.06], [0.47, 0.17], [0.53, 0.17]],
+  "Crowd the keeper": [[0.465, 0.06], [0.535, 0.06], [0.47, 0.148], [0.53, 0.148]],
   "Far post": [[0.34, 0.1]], // same spot as the standard routine
   "Runner to far post": [[0.5, 0.31]], // just inside the 18-yard box
   "Outside the box": [[0.5, 0.58]],
