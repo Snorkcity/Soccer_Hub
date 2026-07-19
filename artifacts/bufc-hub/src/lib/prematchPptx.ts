@@ -197,11 +197,12 @@ function drawBoxView(
   w: number,
   h: number,
 ): (px: number, py: number) => { x: number; y: number } {
-  const bands = 5;
-  const bh = h / bands;
+  // Vertical mowing stripes, same as the full pitch.
+  const bands = 7;
+  const bwBand = w / bands;
   for (let i = 0; i < bands; i++) {
     s.addShape("rect", {
-      x, y: y + i * bh, w, h: bh,
+      x: x + i * bwBand, y, w: bwBand, h,
       fill: { color: i % 2 === 0 ? GRASS_A : GRASS_B },
     });
   }
@@ -447,7 +448,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     attacking: boolean,
   ) => {
     const s = darkSlide(pptx, kicker, title);
-    const bw = 6.4;
+    const bw = 7.4;
     const bh = H - 2.55;
     const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh);
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
