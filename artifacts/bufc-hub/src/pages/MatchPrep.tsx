@@ -504,6 +504,14 @@ export default function MatchPrep() {
       set(store, { ...roles, [role]: arr });
     };
     const takR = ((d.spTakers ?? {})[TAKER_R] ?? [])[0];
+    // On the attacking pitches, the takers are picked right in the corners.
+    const showTakers = store === "spFor" || store === "spFor2";
+    const takers = d.spTakers ?? {};
+    const setTaker = (role: string, v: string) => set("spTakers", { ...takers, [role]: v ? [v] : [] });
+    const takerSpots: Array<[string, string, string]> = [
+      [TAKER_L, "TL", "18px"],
+      [TAKER_R, "TR", "calc(100% - 18px)"],
+    ];
     return (
       <div className="overflow-x-auto">
         <div
@@ -523,6 +531,29 @@ export default function MatchPrep() {
           <div className="absolute bottom-0 left-1/2 aspect-square w-[27%] -translate-x-1/2 translate-y-1/2 rounded-full border border-white/50" />
           {/* ball in the right corner */}
           <div className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
+          {showTakers &&
+            takerSpots.map(([role, code, left]) => {
+              const current = (takers[role] ?? [])[0] ?? "";
+              return (
+                <div
+                  key={role}
+                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                  style={{ left, top: "20px" }}
+                >
+                  <PlayerSelect
+                    circle
+                    title={`${role}${current ? ` — ${current}` : ""}`}
+                    value={current}
+                    onChange={(v) => setTaker(role, v)}
+                    exclude={new Set()}
+                    options={starters}
+                  />
+                  <span className="pointer-events-none mt-px rounded bg-slate-900/70 px-1 text-[8px] font-bold leading-3 text-amber-200">
+                    {code}
+                  </span>
+                </div>
+              );
+            })}
           {Object.entries(spots).map(([role, coords]) =>
             coords.map((c, i) => {
               const current = (roles[role] ?? [])[i] ?? "";
@@ -555,40 +586,16 @@ export default function MatchPrep() {
         </div>
         {/* legend for the role codes */}
         <div className="mx-auto mt-1 flex max-w-xl flex-wrap gap-x-3 gap-y-0.5 px-1 text-[10px] text-slate-400">
+          {showTakers && (
+            <>
+              <span><span className="font-bold text-amber-300">TL</span> Taker — left</span>
+              <span><span className="font-bold text-amber-300">TR</span> Taker — right</span>
+            </>
+          )}
           {Object.keys(spots).map((role) => (
             <span key={role}><span className="font-bold text-sky-300">{ABBR(role)}</span> {role}</span>
           ))}
         </div>
-      </div>
-    );
-  };
-
-  const spRole = (store: "spTakers" | "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal", role: string, max?: number) => {
-    // Names already assigned to a different role within the same set piece.
-    // Only roles currently on display count — stale keys from older layouts are ignored.
-    // Takers live in their own store and never exclude (or get excluded by) other roles.
-    const liveRoles: Record<string, Record<string, unknown>> = {
-      spTakers: {},
-      spFor: CORNERS_FOR_SPOTS,
-      spFor2: CORNERS_FOR2_SPOTS,
-      spAgainst: CORNERS_AGAINST_SPOTS,
-      spAgainstZonal: CORNERS_AGAINST_ZONAL_SPOTS,
-    };
-    const roles = d[store] ?? {}; // drafts saved before this store existed
-    // Takers sit on top of role quotas in the corners-for variations: one takes,
-    // the other joins a role, so their names don't use up the role's spots.
-    const takerNames = ["spFor", "spFor2"].includes(store)
-      ? new Set(Object.values(d.spTakers ?? {}).flat())
-      : undefined;
-    const taken = new Set(
-      Object.entries(roles)
-        .filter(([r]) => r !== role && r in liveRoles[store])
-        .flatMap(([, names]) => names),
-    );
-    return (
-      <div key={`${store}-${role}`} className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
-        <MultiPick pool={squad} value={roles[role] ?? []} onChange={(v) => set(store, { ...roles, [role]: v })} max={max} starters={new Set(xiNames)} taken={taken} exempt={takerNames} />
       </div>
     );
   };
@@ -793,10 +800,7 @@ export default function MatchPrep() {
         <CardHeader className="pb-3"><CardTitle className="text-base">5 · Set pieces</CardTitle></CardHeader>
         <CardContent className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Corners — for · takers</h4>
-            {spRole("spTakers", TAKER_R, 1)}
-            {spRole("spTakers", TAKER_L, 1)}
-            <h4 className="font-semibold text-sm pt-2">Corners — for · standard</h4>
+            <h4 className="font-semibold text-sm">Corners — for · standard</h4>
             <CornerPitch store="spFor" spots={CORNERS_FOR_SPOTS} />
             <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2 — crowd the keeper</h4>
             <CornerPitch store="spFor2" spots={CORNERS_FOR2_SPOTS} />
