@@ -123,11 +123,12 @@ const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
 // Crowd the keeper — 4 around the keeper, far post cover, a runner from just inside
 // the 18-yard box straight to the far post, one outside the box, two back at halfway.
 const CORNERS_FOR2_SPOTS: Record<string, Array<[number, number]>> = {
-  "Crowd the keeper": [[0.44, 0.07], [0.56, 0.07], [0.46, 0.13], [0.54, 0.13]],
-  "Far post": [[0.575, 0.04]],
+  // Tight 2×2 around the six-yard box, right in the keeper's space.
+  "Crowd the keeper": [[0.465, 0.06], [0.535, 0.06], [0.47, 0.125], [0.53, 0.125]],
+  "Far post": [[0.34, 0.1]], // same spot as the standard routine
   "Runner to far post": [[0.5, 0.45]],
   "Outside the box": [[0.5, 0.58]],
-  Halfway: [[0.35, 0.85], [0.65, 0.85]],
+  Halfway: [[0.6, 0.82], [0.48, 0.94]], // staggered, same as standard's stay back
 };
 const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
   // Tight "Olympic rings" cluster — 3 over 2 — so they read as one marking group.
@@ -161,11 +162,11 @@ const UI_SPOTS: Record<string, Record<string, Array<[number, number]>>> = {
     "Stay back": [[0.62, 0.78], [0.36, 0.92]],
   },
   spFor2: {
-    "Crowd the keeper": [[0.28, 0.08], [0.62, 0.08], [0.36, 0.21], [0.62, 0.21]],
-    "Far post": [[0.88, 0.06]],
+    "Crowd the keeper": [[0.32, 0.08], [0.66, 0.08], [0.38, 0.21], [0.62, 0.21]],
+    "Far post": [[0.12, 0.1]],
     "Runner to far post": [[0.5, 0.42]],
     "Outside the box": [[0.5, 0.58]],
-    Halfway: [[0.28, 0.86], [0.68, 0.86]],
+    Halfway: [[0.62, 0.78], [0.36, 0.92]],
   },
   spAgainst: {
     "Man marking": [[0.2, 0.24], [0.44, 0.24], [0.68, 0.24], [0.32, 0.38], [0.56, 0.38]],
