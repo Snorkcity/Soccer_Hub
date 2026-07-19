@@ -133,9 +133,9 @@ const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
   "Man marking": [[0.45, 0.22], [0.55, 0.25], [0.5, 0.32], [0.6, 0.3], [0.4, 0.3]],
   "Near post": [[0.435, 0.045]],
   "Far post": [[0.565, 0.045]],
-  "First defender": [[0.68, 0.14]],
+  "First defender": [[0.58, 0.14]], // in line with the right-sided post
   "Edge of box": [[0.5, 0.58]],
-  Halfway: [[0.5, 0.85]],
+  Halfway: [[0.5, 0.94]],
 };
 // Zonal setup — 4 in the zone, 1 in front of them on the 6-yard line, posts, floater, edge of box, halfway.
 const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
@@ -145,7 +145,7 @@ const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
   "Far post": [[0.565, 0.045]],
   Floater: [[0.6, 0.3]],
   "Edge of box": [[0.5, 0.56]],
-  Halfway: [[0.5, 0.85]],
+  Halfway: [[0.5, 0.94]],
 };
 
 const SHORT = (name: string) => {
