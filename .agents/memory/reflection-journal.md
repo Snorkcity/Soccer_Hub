@@ -3,13 +3,12 @@ name: Reflection journal module
 description: A-diploma reality-journal cycles + standalone coach reflections; pptx export; voice interviews planned
 ---
 
-## Friday pre-match report (IN PROGRESS Jul 2026)
-- Analysed coach's 5 sample decks (attached_assets *match_prep*/prep pptx). Agreed v1 scaffold: Cover → Lineup (pitch XI + subs) → Our shape (2 slides: BP pitch, BPO pitch) → Their shape (1 slide, BP+BPO pitches side by side) → Key objectives BP → Key objectives BPO (theme line + GK/Def/Mid/Att bullets, AI-drafted, coach-editable) → Corners for / Corners against / Free kicks.
-- One lineup per game (no halves). Set-piece slide design pending: coach will share his current weekly set-piece print file — design from that.
-- Coach persona for AI voice: Pep-style — passionate but calm, detail-specific, controlled positional play. Punchy dot points, never overload players (A-licence feedback).
-- Builder UX: pick opponent + formation, place XI on pitch from roster, subs, set-piece roles, free-text game-plan notes; AI drafts objectives from notes + opponent scout data; all bullets editable before generating pptx.
-- Same navy/badge style as Monday deck. Print mode: B&W slim, coach ticks pages.
-- Club logos: fetch from web for the 6 NPLW clubs, store in app, show coach for approval; he can supply better files if poor.
+## Friday pre-match report (BUILT v1, Jul 2026 — awaiting coach feedback)
+- 10-slide deck live: Cover → Lineup (pitch XI + subs) → Our shape BP → Our shape BPO → Their shape (BP+BPO side by side) → Key objectives BP → BPO (theme banner + GK/Def/Mid/Att 2×2 cards, AI-drafted Pep-voice, editable) → Corners for → Corners against → Free kicks.
+- Builder at /match-prep (nav "Match Prep"): FORMATIONS slot maps (433/4231/442/343/352), roster from opponent-profile club=Belconnen, draft persisted in localStorage `bufc-matchprep-draft-v1`, POST /journal/prematch-brief (gpt-4o, coach's key, Australian spelling in prompt), client pptx via prematchPptx.ts (green pitch, 7 mowing-stripe bands on navy — coach-requested).
+- Coach persona for AI voice: Pep-style — passionate but calm, detail-specific; punchy dot points, never overload players (A-licence feedback).
+- e2e tested (browser + libreoffice render of deck). Verify pptx visually: esbuild-bundle prematchPptx.ts for node (blob→Buffer works), soffice→pdftoppm.
+- Still to do: print mode (B&W slim, coach ticks pages); club logos (fetch for 6 NPLW clubs, coach approves); coach layout feedback on set-piece slides.
 - Monday report considered done at "8/10" — don't polish further unless asked.
 
 ## Week Ahead report (BUILT Jul 2026)
