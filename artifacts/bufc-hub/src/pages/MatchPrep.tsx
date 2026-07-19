@@ -509,15 +509,15 @@ export default function MatchPrep() {
         <div
           className="relative mx-auto w-full min-w-[420px] max-w-xl rounded-md border border-white/20 overflow-hidden"
           style={{
-            aspectRatio: "4 / 2.8",
+            aspectRatio: "4 / 2.5",
             background:
               "repeating-linear-gradient(to right, #3e8e54 0, #3e8e54 14.28%, #46995c 14.28%, #46995c 28.56%)",
           }}
         >
           {/* goal + boxes at the top, halfway line at the bottom */}
           <div className="absolute left-1/2 top-0 h-1.5 w-[16%] -translate-x-1/2 bg-white/90" />
-          <div className="absolute left-1/2 top-0 h-[31%] w-[62%] -translate-x-1/2 border border-t-0 border-white/50" />
-          <div className="absolute left-1/2 top-0 h-[10.5%] w-[28%] -translate-x-1/2 border border-t-0 border-white/50" />
+          <div className="absolute left-1/2 top-0 h-[34.7%] w-[62%] -translate-x-1/2 border border-t-0 border-white/50" />
+          <div className="absolute left-1/2 top-0 h-[11.8%] w-[28%] -translate-x-1/2 border border-t-0 border-white/50" />
           <div className="absolute left-0 right-0 bottom-0 h-px bg-white/50" />
           {/* top half of the centre circle poking up from the halfway line */}
           <div className="absolute bottom-0 left-1/2 aspect-square w-[27%] -translate-x-1/2 translate-y-1/2 rounded-full border border-white/50" />
