@@ -51,6 +51,7 @@ export interface PrematchInput {
   theirBp: { players: PitchPlayer[]; notes: string[] };
   theirBpo: { players: PitchPlayer[]; notes: string[] };
   theirFormationName: string;
+  theirFormationBpoName?: string;
   objectivesBp: UnitObjectives;
   objectivesBpo: UnitObjectives;
   cornersFor: { groups: SetPieceGroup[]; players: PitchPlayer[] };
@@ -401,13 +402,14 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
 
   // ── Their shape — both pitches on one slide ──
   {
-    const s = darkSlide(pptx, "Know the opponent", `${input.opponent} — likely shape${input.theirFormationName ? ` (${input.theirFormationName})` : ""}`);
+    const s = darkSlide(pptx, "Know the opponent", `${input.opponent} — likely shape`);
     const ph = H - 2.5;
     const pw = ph * 0.7;
     const colW = (W - 2 * MX) / 2;
     for (const [i, side] of ([[0, input.theirBp], [1, input.theirBpo]] as const)) {
       const cx = MX + i * colW;
-      s.addText(i === 0 ? "BP" : "BPO", {
+      const colFormation = i === 0 ? input.theirFormationName : (input.theirFormationBpoName || input.theirFormationName);
+      s.addText(`${i === 0 ? "BP" : "BPO"}${colFormation ? ` — ${colFormation}` : ""}`, {
         x: cx, y: 1.7, w: colW, h: 0.3,
         fontSize: 11, color: SKY, bold: true, charSpacing: 3,
       });

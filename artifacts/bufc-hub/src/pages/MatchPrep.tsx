@@ -138,6 +138,7 @@ interface Draft {
   matchDate: string;
   formation: string;
   theirFormation: string;
+  theirFormationBpo: string;
   xi: Record<string, string>; // slotId -> player name
   subs: string[];
   ourBpNotes: string;
@@ -157,7 +158,7 @@ interface Draft {
 const DRAFT_KEY = "bufc-matchprep-draft-v1";
 
 const blankDraft = (): Draft => ({
-  opponent: "", round: "", matchDate: "", formation: "433", theirFormation: "433",
+  opponent: "", round: "", matchDate: "", formation: "433", theirFormation: "433", theirFormationBpo: "433",
   xi: {}, subs: [],
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
@@ -276,6 +277,8 @@ export default function MatchPrep() {
       }));
       const theirSlots = FORMATIONS[d.theirFormation] ?? FORMATIONS["433"];
       const theirPlayers: PitchPlayer[] = theirSlots.map((s) => ({ px: s.px, py: s.py, label: s.num, color: "B54A4A" }));
+      const theirBpoSlots = FORMATIONS[d.theirFormationBpo] ?? theirSlots;
+      const theirBpoPlayers: PitchPlayer[] = theirBpoSlots.map((s) => ({ px: s.px, py: s.py, label: s.num, color: "B54A4A" }));
 
       const spPlayers = (
         roles: Record<string, string[]>,
@@ -315,8 +318,9 @@ export default function MatchPrep() {
         ourBp: { players: lineup, notes: lines(d.ourBpNotes) },
         ourBpo: { players: lineup, notes: lines(d.ourBpoNotes) },
         theirBp: { players: theirPlayers, notes: lines(d.theirBpNotes) },
-        theirBpo: { players: theirPlayers, notes: lines(d.theirBpoNotes) },
+        theirBpo: { players: theirBpoPlayers, notes: lines(d.theirBpoNotes) },
         theirFormationName: d.theirFormation,
+        theirFormationBpoName: d.theirFormationBpo,
         objectivesBp: d.bp,
         objectivesBpo: d.bpo,
         cornersFor: {
@@ -363,23 +367,27 @@ export default function MatchPrep() {
     </Select>
   );
 
-  const MultiPick = ({ pool, value, onChange, max, starters }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number; starters?: Set<string> }) => (
+  const MultiPick = ({ pool, value, onChange, max, starters, taken }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number; starters?: Set<string>; taken?: Set<string> }) => (
     <div className="flex flex-wrap gap-1.5">
       {pool.map((n) => {
         const on = value.includes(n);
         const starting = starters?.has(n) ?? false;
-        // Starters get a green chip so takers are easy to spot vs bench players.
-        const cls = on
-          ? starting
-            ? "bg-emerald-500 text-white border-emerald-500"
-            : "bg-primary text-primary-foreground border-primary"
-          : starting
-            ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/60 hover:border-emerald-400"
-            : "bg-background text-muted-foreground border-border hover:border-primary/50";
+        // Already used in another role of this set piece — greyed out with a strike so you can't double up.
+        const used = !on && (taken?.has(n) ?? false);
+        const cls = used
+          ? "bg-muted/40 text-muted-foreground/50 border-dashed border-border line-through cursor-not-allowed"
+          : on
+            ? starting
+              ? "bg-emerald-500 text-white border-emerald-500"
+              : "bg-primary text-primary-foreground border-primary"
+            : starting
+              ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/60 hover:border-emerald-400"
+              : "bg-background text-muted-foreground border-border hover:border-primary/50";
         return (
           <button
             key={n}
             type="button"
+            disabled={used}
             onClick={() => {
               if (on) onChange(value.filter((v) => v !== n));
               else if (!max || value.length < max) onChange([...value, n]);
@@ -393,12 +401,18 @@ export default function MatchPrep() {
     </div>
   );
 
-  const spRole = (store: "spFor" | "spFor2" | "spAgainst", role: string, max?: number) => (
-    <div key={`${store}-${role}`} className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
-      <MultiPick pool={squad} value={d[store][role] ?? []} onChange={(v) => set(store, { ...d[store], [role]: v })} max={max} starters={new Set(xiNames)} />
-    </div>
-  );
+  const spRole = (store: "spFor" | "spFor2" | "spAgainst", role: string, max?: number) => {
+    // Names already assigned to a different role within the same set piece.
+    const taken = new Set(
+      Object.entries(d[store]).filter(([r]) => r !== role).flatMap(([, names]) => names),
+    );
+    return (
+      <div key={`${store}-${role}`} className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
+        <MultiPick pool={squad} value={d[store][role] ?? []} onChange={(v) => set(store, { ...d[store], [role]: v })} max={max} starters={new Set(xiNames)} taken={taken} />
+      </div>
+    );
+  };
 
   const objEditor = (key: "bp" | "bpo", title: string) => {
     const o = d[key];
@@ -433,11 +447,24 @@ export default function MatchPrep() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Match Prep</h1>
-          <p className="text-sm text-muted-foreground">Friday pre-match deck — for the players, the night before the game. Your picks save automatically on this device.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Match Prep</h1>
+        <p className="text-sm text-muted-foreground">Monday briefing and Friday pre-match deck. Your picks save automatically on this device.</p>
+      </div>
+
+      {/* Week Ahead — Monday briefing first: it starts the week. */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileDown className="h-5 w-5 text-primary" /> Week Ahead / Last Week Review report
+        </h2>
+        <WeekAheadCard />
+      </div>
+
+      {/* Deck actions live with the deck heading so they can't be mistaken for the report above. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileDown className="h-5 w-5 text-primary" /> Friday pre-match deck
+        </h2>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setD(blankDraft())}>Start fresh</Button>
           <Button onClick={download} disabled={building || !d.opponent}>
@@ -446,18 +473,6 @@ export default function MatchPrep() {
           </Button>
         </div>
       </div>
-
-      {/* Week Ahead — Monday briefing first: it starts the week. */}
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <FileDown className="h-5 w-5 text-primary" /> Week Ahead report
-        </h2>
-        <WeekAheadCard />
-      </div>
-
-      <h2 className="text-lg font-semibold flex items-center gap-2 pt-2">
-        <FileDown className="h-5 w-5 text-primary" /> Friday pre-match deck
-      </h2>
 
       {/* Match details */}
       <Card>
@@ -558,7 +573,16 @@ export default function MatchPrep() {
             <Textarea rows={3} value={d.theirBpNotes} onChange={(e) => set("theirBpNotes", e.target.value)} placeholder={"Outside centre backs happy to advance\nBoth forwards run in behind"} />
           </div>
           <div className="space-y-1.5">
-            <Label>Their shape — BPO</Label>
+            <div className="flex items-center justify-between">
+              <Label>Their shape — BPO</Label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Their formation</span>
+                <Select value={d.theirFormationBpo} onValueChange={(v) => set("theirFormationBpo", v)}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
             <Textarea rows={3} value={d.theirBpoNotes} onChange={(e) => set("theirBpoNotes", e.target.value)} placeholder={"Back 4 not always organised\nBig spaces between the lines"} />
           </div>
         </CardContent>
