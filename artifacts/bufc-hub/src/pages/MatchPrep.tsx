@@ -454,13 +454,30 @@ export default function MatchPrep() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">2 · Starting XI & subs</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          <div
+            className="relative mx-auto w-full max-w-2xl rounded-md border border-white/20 overflow-hidden"
+            style={{
+              aspectRatio: "4 / 3.4",
+              background:
+                "repeating-linear-gradient(to bottom, #3e8e54 0, #3e8e54 14.28%, #46995c 14.28%, #46995c 28.56%)",
+            }}
+          >
+            {/* halfway line + centre circle */}
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-white/50" />
+            <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/50" />
+            {/* penalty boxes */}
+            <div className="absolute left-1/2 top-0 h-[13%] w-[44%] -translate-x-1/2 border border-t-0 border-white/50" />
+            <div className="absolute left-1/2 bottom-0 h-[13%] w-[44%] -translate-x-1/2 border border-b-0 border-white/50" />
             {slots.map((s) => (
-              <div key={s.id} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 text-xs font-semibold text-muted-foreground text-right">{s.num} · {s.role}</span>
-                <div className="flex-1">
-                  <PlayerSelect value={d.xi[s.id] ?? ""} onChange={(v) => set("xi", { ...d.xi, [s.id]: v })} exclude={picked} />
-                </div>
+              <div
+                key={s.id}
+                className="absolute flex w-[120px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
+                style={{ left: `clamp(62px, ${s.px * 100}%, calc(100% - 62px))`, top: `${s.py * 100}%` }}
+              >
+                <span className="rounded-full bg-slate-900/80 px-1.5 py-px text-[10px] font-bold text-sky-200">
+                  {s.num} · {s.role}
+                </span>
+                <PlayerSelect value={d.xi[s.id] ?? ""} onChange={(v) => set("xi", { ...d.xi, [s.id]: v })} exclude={picked} />
               </div>
             ))}
           </div>
