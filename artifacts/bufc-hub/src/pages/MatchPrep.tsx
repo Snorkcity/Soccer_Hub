@@ -326,11 +326,20 @@ export default function MatchPrep() {
         return out;
       };
 
-      // Right taker sits in the right corner, left taker in the left corner (shared by both variations).
-      const takerPins: PitchPlayer[] = [
-        ...((d.spTakers ?? {})[TAKER_R] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
-        ...((d.spTakers ?? {})[TAKER_L] ?? []).slice(0, 1).map((name) => ({ px: 0.035, py: 0.03, label: SHORT(name), name })),
-      ];
+      // Diagram shows a right-sided corner: the right taker is always at the right
+      // corner (next to the ball) and never at a role spot. The left taker draws at
+      // her role spot when she's been given one; otherwise she waits in the left corner.
+      const takR = ((d.spTakers ?? {})[TAKER_R] ?? [])[0];
+      const takL = ((d.spTakers ?? {})[TAKER_L] ?? [])[0];
+      const takerPins = (roles: Record<string, string[]>): PitchPlayer[] => {
+        const assigned = new Set(Object.values(roles).flat());
+        const pins: PitchPlayer[] = [];
+        if (takR) pins.push({ px: 0.965, py: 0.03, label: SHORT(takR), name: takR });
+        if (takL && !assigned.has(takL)) pins.push({ px: 0.035, py: 0.03, label: SHORT(takL), name: takL });
+        return pins;
+      };
+      // Drop the right taker from role spots — she's pinned at the corner instead.
+      const noTakR = (ps: PitchPlayer[]) => ps.filter((p) => !takR || p.name !== takR);
       const takerGroups: SetPieceGroup[] = [TAKER_R, TAKER_L]
         .map((role) => ({ role, players: (d.spTakers ?? {})[role] ?? [] }))
         .filter((g) => g.players.length);
@@ -362,11 +371,11 @@ export default function MatchPrep() {
         objectivesBpo: d.bpo,
         cornersFor: {
           groups: takerGroups.concat(groups(d.spFor, Object.keys(CORNERS_FOR_SPOTS))),
-          players: spPlayers(d.spFor, CORNERS_FOR_SPOTS).concat(takerPins),
+          players: noTakR(spPlayers(d.spFor, CORNERS_FOR_SPOTS)).concat(takerPins(d.spFor)),
         },
         cornersFor2: {
           groups: takerGroups.concat(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS))),
-          players: spPlayers(d.spFor2, CORNERS_FOR2_SPOTS).concat(takerPins),
+          players: noTakR(spPlayers(d.spFor2, CORNERS_FOR2_SPOTS)).concat(takerPins(d.spFor2)),
         },
         cornersAgainst: {
           groups: d.spAgainstMode === "zonal"
@@ -406,7 +415,9 @@ export default function MatchPrep() {
     </Select>
   );
 
-  const MultiPick = ({ pool, value, onChange, max, starters, taken }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number; starters?: Set<string>; taken?: Set<string> }) => (
+  // `exempt` names (the corner takers) don't count toward `max` — one of them takes,
+  // the other joins a role, so they ride along on top of the role's normal quota.
+  const MultiPick = ({ pool, value, onChange, max, starters, taken, exempt }: { pool: string[]; value: string[]; onChange: (v: string[]) => void; max?: number; starters?: Set<string>; taken?: Set<string>; exempt?: Set<string> }) => (
     <div className="flex flex-wrap gap-1.5">
       {pool.map((n) => {
         const on = value.includes(n);
@@ -429,7 +440,7 @@ export default function MatchPrep() {
             disabled={used}
             onClick={() => {
               if (on) onChange(value.filter((v) => v !== n));
-              else if (!max || value.length < max) onChange([...value, n]);
+              else if (!max || exempt?.has(n) || value.filter((v) => !exempt?.has(v)).length < max) onChange([...value, n]);
             }}
             className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${cls}`}
           >
@@ -452,6 +463,11 @@ export default function MatchPrep() {
       spAgainstZonal: CORNERS_AGAINST_ZONAL_SPOTS,
     };
     const roles = d[store] ?? {}; // drafts saved before this store existed
+    // Takers sit on top of role quotas in the corners-for variations: one takes,
+    // the other joins a role, so their names don't use up the role's spots.
+    const takerNames = ["spFor", "spFor2"].includes(store)
+      ? new Set(Object.values(d.spTakers ?? {}).flat())
+      : undefined;
     const taken = new Set(
       Object.entries(roles)
         .filter(([r]) => r !== role && r in liveRoles[store])
@@ -460,7 +476,7 @@ export default function MatchPrep() {
     return (
       <div key={`${store}-${role}`} className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
-        <MultiPick pool={squad} value={roles[role] ?? []} onChange={(v) => set(store, { ...roles, [role]: v })} max={max} starters={new Set(xiNames)} taken={taken} />
+        <MultiPick pool={squad} value={roles[role] ?? []} onChange={(v) => set(store, { ...roles, [role]: v })} max={max} starters={new Set(xiNames)} taken={taken} exempt={takerNames} />
       </div>
     );
   };
