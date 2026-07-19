@@ -99,12 +99,12 @@ function drawPitch(
   w: number,
   h: number,
 ): (px: number, py: number) => { x: number; y: number } {
-  // Striped turf — 7 horizontal mowing bands across the play direction.
+  // Striped turf — 7 vertical mowing bands running down the pitch.
   const bands = 7;
-  const bh = h / bands;
+  const bw = w / bands;
   for (let i = 0; i < bands; i++) {
     s.addShape("rect", {
-      x, y: y + i * bh, w, h: bh,
+      x: x + i * bw, y, w: bw, h,
       fill: { color: i % 2 === 0 ? GRASS_A : GRASS_B },
     });
   }

@@ -55,40 +55,40 @@ const FORMATIONS: Record<string, Slot[]> = {
   ],
   "442": [
     { id: "gk", num: "1", role: "GK", px: 0.5, py: 0.93 },
-    { id: "rb", num: "2", role: "RB", px: 0.85, py: 0.72 },
-    { id: "rcb", num: "5", role: "CB", px: 0.63, py: 0.79 },
-    { id: "lcb", num: "4", role: "CB", px: 0.37, py: 0.79 },
-    { id: "lb", num: "3", role: "LB", px: 0.15, py: 0.72 },
-    { id: "rm", num: "7", role: "RM", px: 0.85, py: 0.45 },
-    { id: "rcm", num: "8", role: "CM", px: 0.62, py: 0.5 },
-    { id: "lcm", num: "6", role: "CM", px: 0.38, py: 0.5 },
-    { id: "lm", num: "11", role: "LM", px: 0.15, py: 0.45 },
+    { id: "rb", num: "2", role: "RB", px: 0.85, py: 0.66 },
+    { id: "rcb", num: "5", role: "CB", px: 0.63, py: 0.73 },
+    { id: "lcb", num: "4", role: "CB", px: 0.37, py: 0.73 },
+    { id: "lb", num: "3", role: "LB", px: 0.15, py: 0.66 },
+    { id: "rm", num: "7", role: "RM", px: 0.85, py: 0.4 },
+    { id: "rcm", num: "8", role: "CM", px: 0.62, py: 0.45 },
+    { id: "lcm", num: "6", role: "CM", px: 0.38, py: 0.45 },
+    { id: "lm", num: "11", role: "LM", px: 0.15, py: 0.4 },
     { id: "rs", num: "9", role: "ST", px: 0.6, py: 0.18 },
     { id: "ls", num: "10", role: "ST", px: 0.4, py: 0.18 },
   ],
   "343": [
     { id: "gk", num: "1", role: "GK", px: 0.5, py: 0.93 },
-    { id: "rcb", num: "5", role: "CB", px: 0.72, py: 0.78 },
-    { id: "ccb", num: "4", role: "CB", px: 0.5, py: 0.82 },
-    { id: "lcb", num: "3", role: "CB", px: 0.28, py: 0.78 },
-    { id: "rwb", num: "2", role: "WB", px: 0.9, py: 0.52 },
-    { id: "rcm", num: "8", role: "8", px: 0.62, py: 0.55 },
-    { id: "lcm", num: "6", role: "6", px: 0.38, py: 0.55 },
-    { id: "lwb", num: "11", role: "WB", px: 0.1, py: 0.52 },
+    { id: "rcb", num: "5", role: "CB", px: 0.72, py: 0.71 },
+    { id: "ccb", num: "4", role: "CB", px: 0.5, py: 0.75 },
+    { id: "lcb", num: "3", role: "CB", px: 0.28, py: 0.71 },
+    { id: "rwb", num: "2", role: "WB", px: 0.9, py: 0.46 },
+    { id: "rcm", num: "8", role: "8", px: 0.62, py: 0.49 },
+    { id: "lcm", num: "6", role: "6", px: 0.38, py: 0.49 },
+    { id: "lwb", num: "11", role: "WB", px: 0.1, py: 0.46 },
     { id: "rw", num: "7", role: "W", px: 0.8, py: 0.25 },
     { id: "st", num: "9", role: "S", px: 0.5, py: 0.15 },
     { id: "lw", num: "10", role: "W", px: 0.2, py: 0.25 },
   ],
   "352": [
     { id: "gk", num: "1", role: "GK", px: 0.5, py: 0.93 },
-    { id: "rcb", num: "5", role: "CB", px: 0.72, py: 0.78 },
-    { id: "ccb", num: "4", role: "CB", px: 0.5, py: 0.82 },
-    { id: "lcb", num: "3", role: "CB", px: 0.28, py: 0.78 },
-    { id: "rwb", num: "2", role: "WB", px: 0.9, py: 0.48 },
-    { id: "rcm", num: "8", role: "8", px: 0.66, py: 0.5 },
-    { id: "dm", num: "6", role: "6", px: 0.5, py: 0.6 },
-    { id: "lcm", num: "10", role: "10", px: 0.34, py: 0.5 },
-    { id: "lwb", num: "11", role: "WB", px: 0.1, py: 0.48 },
+    { id: "rcb", num: "5", role: "CB", px: 0.72, py: 0.71 },
+    { id: "ccb", num: "4", role: "CB", px: 0.5, py: 0.75 },
+    { id: "lcb", num: "3", role: "CB", px: 0.28, py: 0.71 },
+    { id: "rwb", num: "2", role: "WB", px: 0.9, py: 0.43 },
+    { id: "rcm", num: "8", role: "8", px: 0.66, py: 0.45 },
+    { id: "dm", num: "6", role: "6", px: 0.5, py: 0.55 },
+    { id: "lcm", num: "10", role: "10", px: 0.34, py: 0.45 },
+    { id: "lwb", num: "11", role: "WB", px: 0.1, py: 0.43 },
     { id: "rs", num: "9", role: "ST", px: 0.6, py: 0.16 },
     { id: "ls", num: "7", role: "ST", px: 0.4, py: 0.16 },
   ],
@@ -454,12 +454,13 @@ export default function MatchPrep() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">2 · Starting XI & subs</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          <div className="overflow-x-auto">
           <div
-            className="relative mx-auto w-full max-w-2xl rounded-md border border-white/20 overflow-hidden"
+            className="relative mx-auto w-full min-w-[440px] max-w-2xl rounded-md border border-white/20 overflow-hidden"
             style={{
               aspectRatio: "4 / 3.4",
               background:
-                "repeating-linear-gradient(to bottom, #3e8e54 0, #3e8e54 14.28%, #46995c 14.28%, #46995c 28.56%)",
+                "repeating-linear-gradient(to right, #3e8e54 0, #3e8e54 14.28%, #46995c 14.28%, #46995c 28.56%)",
             }}
           >
             {/* halfway line + centre circle */}
@@ -480,6 +481,7 @@ export default function MatchPrep() {
                 <PlayerSelect value={d.xi[s.id] ?? ""} onChange={(v) => set("xi", { ...d.xi, [s.id]: v })} exclude={picked} />
               </div>
             ))}
+          </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Subs</Label>
