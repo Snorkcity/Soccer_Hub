@@ -150,42 +150,9 @@ const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
   Halfway: [[0.5, 0.94]],
 };
 
-// On-screen pitch-picker positions. Same roles/spot counts as the deck maps above,
-// but spread out so the dropdowns don't sit on top of each other. The deck keeps
-// the precise coordinates; these only drive the editing UI.
-const UI_SPOTS: Record<string, Record<string, Array<[number, number]>>> = {
-  spFor: {
-    "Attack the goal": [[0.22, 0.3], [0.46, 0.3], [0.7, 0.3], [0.34, 0.44], [0.58, 0.44]],
-    "Far post": [[0.16, 0.1]],
-    "Closer to corner taker": [[0.84, 0.47]],
-    "Edge of box": [[0.36, 0.6], [0.66, 0.58]],
-    "Stay back": [[0.62, 0.78], [0.36, 0.92]],
-  },
-  spFor2: {
-    "Crowd the keeper": [[0.32, 0.08], [0.66, 0.08], [0.38, 0.21], [0.62, 0.21]],
-    "Far post": [[0.12, 0.1]],
-    "Runner to far post": [[0.5, 0.42]],
-    "Outside the box": [[0.5, 0.58]],
-    Halfway: [[0.62, 0.78], [0.36, 0.92]],
-  },
-  spAgainst: {
-    "Man marking": [[0.2, 0.24], [0.44, 0.24], [0.68, 0.24], [0.32, 0.38], [0.56, 0.38]],
-    "Near post": [[0.18, 0.06]],
-    "Far post": [[0.58, 0.05]],
-    "First defender": [[0.85, 0.13]],
-    "Edge of box": [[0.5, 0.58]],
-    Halfway: [[0.5, 0.9]],
-  },
-  spAgainstZonal: {
-    "Zone (4)": [[0.14, 0.2], [0.38, 0.18], [0.62, 0.2], [0.86, 0.18]],
-    "Front of zone": [[0.5, 0.32]],
-    "Near post": [[0.22, 0.04]],
-    "Far post": [[0.66, 0.04]],
-    Floater: [[0.84, 0.42]],
-    "Edge of box": [[0.5, 0.58]],
-    Halfway: [[0.5, 0.9]],
-  },
-};
+// Short role code shown under each picker circle (e.g. "Attack the goal" → AG).
+const ABBR = (role: string) =>
+  role.replace(/\(.*?\)/g, "").split(/[\s—-]+/).filter(Boolean).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
 const SHORT = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -306,6 +273,7 @@ export default function MatchPrep() {
 
   const slots = FORMATIONS[d.formation] ?? FORMATIONS["433"];
   const xiNames = slots.map((s) => d.xi[s.id]).filter(Boolean) as string[];
+  const xiSet = new Set(xiNames);
   const picked = new Set([...xiNames, ...d.subs]);
   const squad = [...xiNames, ...d.subs];
 
@@ -454,12 +422,24 @@ export default function MatchPrep() {
   }
 
   // ── UI helpers ──
-  const PlayerSelect = ({ value, onChange, exclude, small }: { value: string; onChange: (v: string) => void; exclude?: Set<string>; small?: boolean }) => (
+  const PlayerSelect = ({ value, onChange, exclude, circle, options, title }: {
+    value: string; onChange: (v: string) => void; exclude?: Set<string>;
+    circle?: boolean; options?: string[]; title?: string;
+  }) => (
     <Select value={value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
-      <SelectTrigger className={small ? "h-7 w-full px-1.5 text-xs bg-slate-900/80 border-white/20" : "h-9"}><SelectValue placeholder="—" /></SelectTrigger>
+      <SelectTrigger
+        title={title}
+        className={circle
+          ? `h-8 w-8 shrink-0 justify-center rounded-full border p-0 text-[10px] font-bold [&>svg]:hidden ${value ? "border-white bg-sky-500 text-white" : "border-dashed border-white/70 bg-white/15 text-white/90"}`
+          : "h-9"}
+      >
+        {circle
+          ? <span>{value ? SHORT(value) : "+"}</span>
+          : <SelectValue placeholder="—" />}
+      </SelectTrigger>
       <SelectContent>
         <SelectItem value="__none__">—</SelectItem>
-        {roster.map((n) => (
+        {(options ?? roster).map((n) => (
           <SelectItem key={n} value={n} disabled={exclude?.has(n) && n !== value}>{n}</SelectItem>
         ))}
       </SelectContent>
@@ -506,7 +486,8 @@ export default function MatchPrep() {
   // coach can see where each player is standing (attacking goal at the top).
   const CornerPitch = ({ store, spots }: { store: "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal"; spots: Record<string, Array<[number, number]>> }) => {
     const roles = d[store] ?? {};
-    const uiSpots = UI_SPOTS[store];
+    // Only starters can hold a corner role — they're the ones on the pitch.
+    const starters = roster.filter((n) => xiSet.has(n));
     // Everyone — takers included — can only stand in one spot per pitch.
     const assigned = new Set(
       Object.entries(roles)
@@ -541,27 +522,40 @@ export default function MatchPrep() {
           {/* ball in the right corner */}
           <div className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
           {Object.entries(spots).map(([role, coords]) =>
-            coords.map((_, i) => {
+            coords.map((c, i) => {
               const current = (roles[role] ?? [])[i] ?? "";
               const exclude = new Set([...assigned].filter((n) => n !== current));
-              const ui = uiSpots?.[role]?.[i] ?? coords[i];
+              const label = `${ABBR(role)}${coords.length > 1 ? i + 1 : ""}`;
               return (
                 <div
                   key={`${role}-${i}`}
-                  className="absolute flex w-[104px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
+                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                   style={{
-                    left: `clamp(54px, ${ui[0] * 100}%, calc(100% - 54px))`,
-                    top: `clamp(26px, ${ui[1] * 100}%, calc(100% - 20px))`,
+                    left: `clamp(18px, ${c[0] * 100}%, calc(100% - 18px))`,
+                    top: `clamp(20px, ${c[1] * 100}%, calc(100% - 26px))`,
                   }}
                 >
-                  <span className="max-w-[120px] truncate rounded-full bg-slate-900/80 px-1.5 py-px text-[9px] font-bold text-sky-200">
-                    {role}{coords.length > 1 ? ` ${i + 1}` : ""}
+                  <PlayerSelect
+                    circle
+                    title={`${role}${coords.length > 1 ? ` ${i + 1}` : ""}${current ? ` — ${current}` : ""}`}
+                    value={current}
+                    onChange={(v) => setSpot(role, i, v)}
+                    exclude={exclude}
+                    options={starters}
+                  />
+                  <span className="pointer-events-none mt-px rounded bg-slate-900/70 px-1 text-[8px] font-bold leading-3 text-sky-200">
+                    {label}
                   </span>
-                  <PlayerSelect small value={current} onChange={(v) => setSpot(role, i, v)} exclude={exclude} />
                 </div>
               );
             }),
           )}
+        </div>
+        {/* legend for the role codes */}
+        <div className="mx-auto mt-1 flex max-w-xl flex-wrap gap-x-3 gap-y-0.5 px-1 text-[10px] text-slate-400">
+          {Object.keys(spots).map((role) => (
+            <span key={role}><span className="font-bold text-sky-300">{ABBR(role)}</span> {role}</span>
+          ))}
         </div>
       </div>
     );
