@@ -114,7 +114,7 @@ const FORMATIONS: Record<string, Slot[]> = {
 const TAKER_R = "Taker — right";
 const TAKER_L = "Taker — left";
 const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
-  "Attack the goal": [[0.38, 0.36], [0.46, 0.36], [0.54, 0.36], [0.4, 0.43], [0.5, 0.43]], // grouped at the top of the box
+  "Attack the goal": [[0.4, 0.36], [0.46, 0.36], [0.52, 0.36], [0.43, 0.42], [0.49, 0.42]], // grouped tightly at the top of the box
   "Far post": [[0.34, 0.1]],
   "Closer to corner taker": [[0.74, 0.45]],
   "Edge of box": [[0.5, 0.55], [0.62, 0.52]],
@@ -354,6 +354,13 @@ export default function MatchPrep() {
       const groups = (roles: Record<string, string[]>, order: string[]): SetPieceGroup[] =>
         order.map((role) => ({ role, players: roles[role] ?? [] })).filter((g) => g.players.length);
 
+      // Belt and braces for drafts saved under the old "Near post" role name —
+      // treat it as "Far post" at deck time even if the load-time migration was missed.
+      const spForRoles: Record<string, string[]> =
+        (d.spFor?.["Near post"]?.length && !d.spFor["Far post"]?.length)
+          ? { ...d.spFor, "Far post": d.spFor["Near post"] }
+          : (d.spFor ?? {});
+
       const fk: SetPieceGroup[] = [
         { role: "Wide free kicks — takers", players: lines(d.fkWide) },
         { role: "Central free kicks — takers", players: lines(d.fkCentral) },
@@ -377,8 +384,8 @@ export default function MatchPrep() {
         objectivesBp: d.bp,
         objectivesBpo: d.bpo,
         cornersFor: {
-          groups: takerGroups.concat(groups(d.spFor, Object.keys(CORNERS_FOR_SPOTS))),
-          players: noTakR(spPlayers(d.spFor, CORNERS_FOR_SPOTS)).concat(takerPins(d.spFor)),
+          groups: takerGroups.concat(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS))),
+          players: noTakR(spPlayers(spForRoles, CORNERS_FOR_SPOTS)).concat(takerPins(spForRoles)),
         },
         cornersFor2: {
           groups: takerGroups.concat(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS))),
@@ -391,7 +398,7 @@ export default function MatchPrep() {
           players: (d.spAgainstMode === "zonal"
             ? spPlayers(d.spAgainstZonal, CORNERS_AGAINST_ZONAL_SPOTS)
             : spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS)
-          ).concat([{ px: 0.965, py: 0.03, label: "OP", name: "Their taker", color: "B54A4A" }]),
+          ).concat([{ px: 0.99, py: 0.012, label: "OP", name: "Their taker", color: "B54A4A" }]),
         },
         cornersAgainstLabel: d.spAgainstMode === "zonal" ? "Corners — against — zonal" : "Corners — against — man marking",
         freeKicks: fk,

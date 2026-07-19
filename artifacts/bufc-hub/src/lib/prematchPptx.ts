@@ -321,7 +321,7 @@ function shapeSlide(
   const tx = MX + pw + 0.7;
   const s = darkSlide(pptx, kicker, title, tx);
   const plot = drawPitch(s, MX, 0.45, pw, ph);
-  drawPlayers(s, plot, players);
+  drawPlayers(s, plot, players, { names: false });
   noteCards(s, tx, W - MX - tx, notes);
   footer(s, foot);
 }
@@ -369,7 +369,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const lx = MX + pw + 0.7;
     const s = darkSlide(pptx, "Starting lineup", `Our XI — ${input.formationName}`, lx);
     const plot = drawPitch(s, MX, 0.45, pw, ph);
-    drawPlayers(s, plot, input.lineup, { r: 0.24, nameSize: 10 });
+    drawPlayers(s, plot, input.lineup, { r: 0.24, names: false });
     const lw = W - MX - lx;
     const half = Math.ceil(input.lineup.length / 2);
     const listCol = (names: string[], x: number, w: number) =>
