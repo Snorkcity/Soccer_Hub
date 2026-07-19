@@ -150,14 +150,16 @@ function drawPlayers(
   const showNames = opts?.names ?? true;
   for (const p of players) {
     const { x, y } = plot(p.px, p.py);
-    s.addShape("ellipse", {
+    // Circle + initials as ONE shape (a text box shaped as an ellipse) so
+    // coaches can drag the marker around in PowerPoint without the label
+    // staying behind.
+    s.addText(p.label, {
+      shape: "ellipse",
       x: x - r, y: y - r, w: r * 2, h: r * 2,
       fill: { color: p.color ?? SKY_DARK }, line: { color: PAPER, width: 1.25 },
-    });
-    s.addText(p.label, {
-      x: x - r, y: y - r, w: r * 2, h: r * 2,
       fontSize: r > 0.18 ? 10 : 8.5, color: PAPER, bold: true,
       align: "center", valign: "middle",
+      margin: 0,
     });
     if (p.name && showNames) {
       s.addText(p.name, {

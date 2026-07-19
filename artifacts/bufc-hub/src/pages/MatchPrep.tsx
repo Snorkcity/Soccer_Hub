@@ -377,19 +377,18 @@ export default function MatchPrep() {
       // her role spot when she's been given one; otherwise she waits in the left corner.
       const takR = ((d.spTakers ?? {})[TAKER_R] ?? [])[0];
       const takL = ((d.spTakers ?? {})[TAKER_L] ?? [])[0];
-      const takerPins = (roles: Record<string, string[]>): PitchPlayer[] => {
-        const assigned = new Set(Object.values(roles).flat());
+      const takerPins = (): PitchPlayer[] => {
         const pins: PitchPlayer[] = [];
         if (takR) pins.push({ px: 0.99, py: 0.012, label: SHORT(takR), name: takR });
-        if (takL && !assigned.has(takL)) pins.push({ px: 0.01, py: 0.012, label: SHORT(takL), name: takL });
+        if (takL) pins.push({ px: 0.01, py: 0.012, label: SHORT(takL), name: takL });
         return pins;
       };
-      // Drop the right taker from role spots — she's pinned at the corner instead.
-      const noTakR = (ps: PitchPlayer[]) => ps.filter((p) => !takR || p.name !== takR);
-      // Keep the role cards consistent with the diagram: the right taker never
-      // appears inside a role group (old drafts may still have her in one).
+      // Drop both takers from role spots — they're pinned at the corners instead.
+      const noTakR = (ps: PitchPlayer[]) => ps.filter((p) => p.name !== takR && p.name !== takL);
+      // Keep the role cards consistent with the diagram: takers never appear
+      // inside a role group (old drafts may still have them in one).
       const noTakRGroups = (gs: SetPieceGroup[]) =>
-        gs.map((g) => (g.role === TAKER_R || g.role === TAKER_L) ? g : { ...g, players: g.players.filter((p) => p !== takR) })
+        gs.map((g) => (g.role === TAKER_R || g.role === TAKER_L) ? g : { ...g, players: g.players.filter((p) => p !== takR && p !== takL) })
           .filter((g) => g.players.length);
       const takerGroups: SetPieceGroup[] = [TAKER_R, TAKER_L]
         .map((role) => ({ role, players: (d.spTakers ?? {})[role] ?? [] }))
@@ -429,11 +428,11 @@ export default function MatchPrep() {
         objectivesBpo: d.bpo,
         cornersFor: {
           groups: takerGroups.concat(noTakRGroups(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS)))),
-          players: noTakR(spPlayers(spForRoles, CORNERS_FOR_SPOTS)).concat(takerPins(spForRoles)),
+          players: noTakR(spPlayers(spForRoles, CORNERS_FOR_SPOTS)).concat(takerPins()),
         },
         cornersFor2: {
           groups: takerGroups.concat(noTakRGroups(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS)))),
-          players: noTakR(spPlayers(d.spFor2, CORNERS_FOR2_SPOTS)).concat(takerPins(d.spFor2)),
+          players: noTakR(spPlayers(d.spFor2, CORNERS_FOR2_SPOTS)).concat(takerPins()),
         },
         cornersAgainst: {
           groups: d.spAgainstMode === "zonal"
@@ -521,10 +520,11 @@ export default function MatchPrep() {
         .flatMap(([, ns]) => ns)
         .filter(Boolean),
     );
-    // The right taker takes the corner on the diagram, so she can't also hold a role
-    // in the corners-for setups. The left taker can (one takes, the other joins in).
-    const rightTaker = ["spFor", "spFor2"].includes(store) ? ((d.spTakers ?? {})[TAKER_R] ?? [])[0] : undefined;
-    if (rightTaker) assigned.add(rightTaker);
+    // Both takers are pinned at the corners on the diagram, so neither can also
+    // hold a role spot in the corners-for setups.
+    if (["spFor", "spFor2"].includes(store)) {
+      for (const t of Object.values(d.spTakers ?? {}).flat()) if (t) assigned.add(t);
+    }
     const setSpot = (role: string, i: number, v: string) => {
       const arr = [...(roles[role] ?? [])];
       while (arr.length <= i) arr.push("");
