@@ -114,7 +114,7 @@ const FORMATIONS: Record<string, Slot[]> = {
 const TAKER_R = "Taker — right";
 const TAKER_L = "Taker — left";
 const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
-  "Attack the goal": [[0.4, 0.36], [0.46, 0.36], [0.52, 0.36], [0.43, 0.42], [0.49, 0.42]], // grouped tightly at the top of the box
+  "Attack the goal": [[0.4, 0.3], [0.46, 0.3], [0.52, 0.3], [0.43, 0.42], [0.49, 0.42]], // front three pushed on, two just behind
   "Far post": [[0.34, 0.1]],
   "Closer to corner taker": [[0.74, 0.45]],
   "Edge of box": [[0.5, 0.55], [0.62, 0.52]],
@@ -124,9 +124,9 @@ const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
 // the 18-yard box straight to the far post, one outside the box, two back at halfway.
 const CORNERS_FOR2_SPOTS: Record<string, Array<[number, number]>> = {
   // Tight 2×2 around the six-yard box, right in the keeper's space.
-  "Crowd the keeper": [[0.465, 0.06], [0.535, 0.06], [0.47, 0.125], [0.53, 0.125]],
+  "Crowd the keeper": [[0.465, 0.06], [0.535, 0.06], [0.47, 0.17], [0.53, 0.17]],
   "Far post": [[0.34, 0.1]], // same spot as the standard routine
-  "Runner to far post": [[0.5, 0.45]],
+  "Runner to far post": [[0.5, 0.31]], // just inside the 18-yard box
   "Outside the box": [[0.5, 0.58]],
   Halfway: [[0.6, 0.82], [0.48, 0.94]], // staggered, same as standard's stay back
 };
