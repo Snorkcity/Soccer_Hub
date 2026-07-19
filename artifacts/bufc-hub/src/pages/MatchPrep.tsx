@@ -530,7 +530,7 @@ export default function MatchPrep() {
           {/* top half of the centre circle poking up from the halfway line */}
           <div className="absolute bottom-0 left-1/2 aspect-square w-[27%] -translate-x-1/2 translate-y-1/2 rounded-full border border-white/50" />
           {/* ball in the right corner */}
-          <div className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
+          <div className="absolute right-[42px] top-[15px] h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
           {showTakers &&
             takerSpots.map(([role, code, left]) => {
               const current = (takers[role] ?? [])[0] ?? "";
