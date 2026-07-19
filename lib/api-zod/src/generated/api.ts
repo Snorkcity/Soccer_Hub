@@ -2568,6 +2568,37 @@ export const CreateWeekAheadBriefResponse = zod.object({
 
 
 /**
+ * @summary AI key objectives (BP/BPO by unit) for the Friday pre-match deck (coach's OpenAI key)
+ */
+
+
+
+export const CreatePrematchBriefBody = zod.object({
+  "opponent": zod.string().min(1),
+  "formation": zod.string().optional(),
+  "gamePlanNotes": zod.string().optional(),
+  "scoutText": zod.string().optional()
+})
+
+export const CreatePrematchBriefResponse = zod.object({
+  "bp": zod.object({
+  "theme": zod.string(),
+  "gk": zod.array(zod.string()),
+  "defenders": zod.array(zod.string()),
+  "midfielders": zod.array(zod.string()),
+  "attackers": zod.array(zod.string())
+}),
+  "bpo": zod.object({
+  "theme": zod.string(),
+  "gk": zod.array(zod.string()),
+  "defenders": zod.array(zod.string()),
+  "midfielders": zod.array(zod.string()),
+  "attackers": zod.array(zod.string())
+})
+})
+
+
+/**
  * @summary Write up interview answers into journal fields in the coach's voice
  */
 export const JournalInterviewWriteupBody = zod.object({

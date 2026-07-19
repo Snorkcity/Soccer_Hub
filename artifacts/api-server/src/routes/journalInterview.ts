@@ -18,6 +18,7 @@ import {
   JournalInterviewTurnBody,
   JournalInterviewWriteupBody,
   CreateWeekAheadBriefBody,
+  CreatePrematchBriefBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -308,6 +309,73 @@ Rules:
       return res.status(502).json({ error: "The write-up came back empty. Please try again." });
     }
     return res.json({ content });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// POST /journal/prematch-brief — BP/BPO key objectives (per unit) for the Friday deck
+router.post("/journal/prematch-brief", async (req, res, next) => {
+  try {
+    const key = apiKey();
+    if (!key) return noKey(res);
+    const parsed = CreatePrematchBriefBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+    const { opponent, formation, gamePlanNotes, scoutText } = parsed.data;
+
+    const sections = [
+      formation ? `## Our formation\n${formation}` : "",
+      gamePlanNotes ? `## The coach's game plan notes for this match\n${gamePlanNotes}` : "",
+      scoutText ? `## Scout data on ${opponent}\n${scoutText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const unitShape = `{"theme": string, "gk": string[], "defenders": string[], "midfielders": string[], "attackers": string[]}`;
+    const result = await openaiJson(
+      "/chat/completions",
+      {
+        model: "gpt-4o",
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `You are the head coach of Belconnen United (NPLW football) writing key objectives for the players' pre-match briefing. This week's opponent: ${opponent}.
+Coaching identity: controlled positional play (Guardiola-style) — passionate but calm, very detail-specific. We control tempo, keep the ball, create through patience and positioning.
+Return JSON: {"bp": ${unitShape}, "bpo": ${unitShape}}.
+- "bp" = with the ball (in possession). "bpo" = without the ball (out of possession).
+- "theme": one short headline line for that phase (e.g. "Control the tempo. Keep them under pressure.").
+- Each unit (gk/defenders/midfielders/attackers): exactly 2 bullets, direct address to the players ("Stay composed — your calmness sets our tempo.").
+- Punchy and simple — players must not be overloaded. Each bullet under 18 words. Plain spoken Australian English (defence, organisation), no jargon beyond common football terms (6, 8, 10, press, block).
+- Ground bullets in the coach's notes and scout data where given; never invent facts about the opponent.`,
+          },
+          { role: "user", content: sections || "(no extra input — write from the coaching identity)" },
+        ],
+      },
+      key,
+    );
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
+    const cleanArr = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
+    const cleanUnit = (v: unknown) => {
+      const u = (v ?? {}) as Record<string, unknown>;
+      return {
+        theme: typeof u.theme === "string" ? u.theme : "",
+        gk: cleanArr(u.gk),
+        defenders: cleanArr(u.defenders),
+        midfielders: cleanArr(u.midfielders),
+        attackers: cleanArr(u.attackers),
+      };
+    };
+    const bp = cleanUnit(out.bp);
+    const bpo = cleanUnit(out.bpo);
+    const empty = (u: ReturnType<typeof cleanUnit>) =>
+      !u.theme && !u.gk.length && !u.defenders.length && !u.midfielders.length && !u.attackers.length;
+    if (empty(bp) && empty(bpo)) {
+      return res.status(502).json({ error: "The objectives came back empty. Please try again." });
+    }
+    return res.json({ bp, bpo });
   } catch (err) {
     return next(err);
   }

@@ -1922,6 +1922,27 @@ export interface WeekAheadBriefResponse {
   pointers: string[];
 }
 
+export interface PrematchBriefRequest {
+  /** @minLength 1 */
+  opponent: string;
+  formation?: string;
+  gamePlanNotes?: string;
+  scoutText?: string;
+}
+
+export interface PrematchUnitObjectives {
+  theme: string;
+  gk: string[];
+  defenders: string[];
+  midfielders: string[];
+  attackers: string[];
+}
+
+export interface PrematchBriefResponse {
+  bp: PrematchUnitObjectives;
+  bpo: PrematchUnitObjectives;
+}
+
 export type InterviewWriteupResponseContent = {[key: string]: string};
 
 export interface InterviewWriteupResponse {

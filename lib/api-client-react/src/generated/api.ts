@@ -135,6 +135,8 @@ import type {
   PlayerTimelineResponse,
   PlayerUpdate,
   PracticeVariationList,
+  PrematchBriefRequest,
+  PrematchBriefResponse,
   Season,
   SeasonInput,
   SeasonSummary,
@@ -7114,6 +7116,77 @@ export const useCreateWeekAheadBrief = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateWeekAheadBriefMutationOptions(options));
+    }
+
+export const getCreatePrematchBriefUrl = () => {
+
+
+
+
+  return `/api/journal/prematch-brief`
+}
+
+/**
+ * @summary AI key objectives (BP/BPO by unit) for the Friday pre-match deck (coach's OpenAI key)
+ */
+export const createPrematchBrief = async (prematchBriefRequest: PrematchBriefRequest, options?: RequestInit): Promise<PrematchBriefResponse> => {
+
+  return customFetch<PrematchBriefResponse>(getCreatePrematchBriefUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(prematchBriefRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePrematchBriefMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrematchBrief>>, TError,{data: BodyType<PrematchBriefRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPrematchBrief>>, TError,{data: BodyType<PrematchBriefRequest>}, TContext> => {
+
+const mutationKey = ['createPrematchBrief'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPrematchBrief>>, {data: BodyType<PrematchBriefRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPrematchBrief(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePrematchBriefMutationResult = NonNullable<Awaited<ReturnType<typeof createPrematchBrief>>>
+    export type CreatePrematchBriefMutationBody = BodyType<PrematchBriefRequest>
+    export type CreatePrematchBriefMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI key objectives (BP/BPO by unit) for the Friday pre-match deck (coach's OpenAI key)
+ */
+export const useCreatePrematchBrief = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrematchBrief>>, TError,{data: BodyType<PrematchBriefRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPrematchBrief>>,
+        TError,
+        {data: BodyType<PrematchBriefRequest>},
+        TContext
+      > => {
+      return useMutation(getCreatePrematchBriefMutationOptions(options));
     }
 
 export const getJournalInterviewWriteupUrl = () => {

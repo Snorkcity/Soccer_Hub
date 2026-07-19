@@ -1923,6 +1923,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/WeekAheadBriefResponse"
 
+  /journal/prematch-brief:
+    post:
+      operationId: createPrematchBrief
+      tags: [journal]
+      summary: AI key objectives (BP/BPO by unit) for the Friday pre-match deck (coach's OpenAI key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrematchBriefRequest"
+      responses:
+        "200":
+          description: BP and BPO objectives
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrematchBriefResponse"
+
   /journal/interview/writeup:
     post:
       operationId: journalInterviewWriteup
@@ -3646,6 +3665,44 @@ components:
           type: array
           items: { type: string }
       required: [review, pointers]
+
+    PrematchBriefRequest:
+      type: object
+      properties:
+        opponent:      { type: string, minLength: 1 }
+        formation:     { type: string }
+        gamePlanNotes: { type: string }
+        # Condensed plain-text opponent scout block assembled client-side
+        scoutText:     { type: string }
+      required: [opponent]
+
+    PrematchUnitObjectives:
+      type: object
+      properties:
+        theme:
+          type: string
+        gk:
+          type: array
+          items: { type: string }
+        defenders:
+          type: array
+          items: { type: string }
+        midfielders:
+          type: array
+          items: { type: string }
+        attackers:
+          type: array
+          items: { type: string }
+      required: [theme, gk, defenders, midfielders, attackers]
+
+    PrematchBriefResponse:
+      type: object
+      properties:
+        bp:
+          $ref: "#/components/schemas/PrematchUnitObjectives"
+        bpo:
+          $ref: "#/components/schemas/PrematchUnitObjectives"
+      required: [bp, bpo]
 
     InterviewWriteupResponse:
       type: object
