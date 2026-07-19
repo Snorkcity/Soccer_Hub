@@ -16,7 +16,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, Loader2, Sparkles } from "lucide-react";
+import { FileDown, CalendarIcon, Loader2, Sparkles } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, parse, isValid } from "date-fns";
 import type { PitchPlayer, SetPieceGroup, UnitObjectives } from "@/lib/prematchPptx";
 
 // ── Formations ────────────────────────────────────────────────────────────
@@ -145,6 +148,33 @@ const blankDraft = (): Draft => ({
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
   spFor: {}, spAgainst: {}, fkWide: "", fkCentral: "",
 });
+
+function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const parsed = value ? parse(value, "d MMMM yyyy", new Date()) : undefined;
+  const selected = parsed && isValid(parsed) ? parsed : undefined;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-full justify-start font-normal">
+          <CalendarIcon className="mr-2 h-4 w-4 opacity-60" />
+          {value || <span className="text-muted-foreground">Pick a date</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          onSelect={(day) => {
+            if (day) onChange(format(day, "d MMMM yyyy"));
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function loadDraft(): Draft {
   try {
@@ -407,7 +437,7 @@ export default function MatchPrep() {
           </div>
           <div className="space-y-1.5">
             <Label>Match date</Label>
-            <Input value={d.matchDate} onChange={(e) => set("matchDate", e.target.value)} placeholder="e.g. 19 July 2026" />
+            <MatchDatePicker value={d.matchDate} onChange={(v) => set("matchDate", v)} />
           </div>
           <div className="space-y-1.5">
             <Label>Our formation</Label>
