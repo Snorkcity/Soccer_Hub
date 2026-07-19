@@ -406,7 +406,11 @@ export default function MatchPrep() {
                 const zone = [...(d.spAgainstZonal["Zone (4)"] ?? []), ...(d.spAgainstZonal["Front of zone"] ?? [])].filter(Boolean);
                 return p.name && zone.includes(p.name) ? { ...p, color: "172554" } : p;
               })
-            : spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS)
+            // Man markers draw in navy too — same clarity as the zone.
+            : spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS).map((p) => {
+                const markers = (d.spAgainst["Man marking"] ?? []).filter(Boolean);
+                return p.name && markers.includes(p.name) ? { ...p, color: "172554" } : p;
+              })
           ).concat([{ px: 0.99, py: 0.012, label: "OP", name: "Their taker", color: "B54A4A" }]),
         },
         cornersAgainstLabel: d.spAgainstMode === "zonal" ? "Corners — against — zonal" : "Corners — against — man marking",
@@ -574,7 +578,8 @@ export default function MatchPrep() {
                 >
                   <PlayerSelect
                     circle
-                    navy={store === "spAgainstZonal" && (role === "Zone (4)" || role === "Front of zone")}
+                    navy={(store === "spAgainstZonal" && (role === "Zone (4)" || role === "Front of zone")) ||
+                      (store === "spAgainst" && role === "Man marking")}
                     title={`${role}${coords.length > 1 ? ` ${i + 1}` : ""}${current ? ` — ${current}` : ""}`}
                     value={current}
                     onChange={(v) => setSpot(role, i, v)}
