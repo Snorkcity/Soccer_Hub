@@ -130,7 +130,8 @@ const CORNERS_FOR2_SPOTS: Record<string, Array<[number, number]>> = {
   Halfway: [[0.35, 0.85], [0.65, 0.85]],
 };
 const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
-  "Man marking": [[0.45, 0.22], [0.55, 0.25], [0.5, 0.32], [0.6, 0.3], [0.4, 0.3]],
+  // Tight "Olympic rings" cluster — 3 over 2 — so they read as one marking group.
+  "Man marking": [[0.43, 0.23], [0.5, 0.23], [0.57, 0.23], [0.465, 0.295], [0.535, 0.295]],
   "Near post": [[0.435, 0.045]],
   "Far post": [[0.565, 0.045]],
   "First defender": [[0.58, 0.14]], // in line with the right-sided post
