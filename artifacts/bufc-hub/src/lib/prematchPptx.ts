@@ -144,9 +144,10 @@ function drawPlayers(
   s: PptxGenJS.Slide,
   plot: (px: number, py: number) => { x: number; y: number },
   players: PitchPlayer[],
-  opts?: { r?: number; nameSize?: number },
+  opts?: { r?: number; nameSize?: number; names?: boolean },
 ) {
   const r = opts?.r ?? 0.21;
+  const showNames = opts?.names ?? true;
   for (const p of players) {
     const { x, y } = plot(p.px, p.py);
     s.addShape("ellipse", {
@@ -158,7 +159,7 @@ function drawPlayers(
       fontSize: r > 0.18 ? 10 : 8.5, color: PAPER, bold: true,
       align: "center", valign: "middle",
     });
-    if (p.name) {
+    if (p.name && showNames) {
       s.addText(p.name, {
         x: x - 0.75, y: y + r - 0.02, w: 1.5, h: 0.24,
         fontSize: opts?.nameSize ?? 9, color: PAPER, bold: true,
@@ -215,10 +216,11 @@ function drawBoxView(
     fill: { color: PAPER },
   });
   // Six-yard + penalty box (view is roughly the final quarter of the pitch).
+  // Depths pulled in closer to the goal for more realistic proportions.
   const paW = w * 0.62;
-  const paH = h * 0.52;
+  const paH = h * 0.4;
   const gaW = w * 0.3;
-  const gaH = h * 0.2;
+  const gaH = h * 0.135;
   s.addShape("rect", { x: x + (w - paW) / 2, y, w: paW, h: paH, fill: { type: "none" }, line });
   s.addShape("rect", { x: x + (w - gaW) / 2, y, w: gaW, h: gaH, fill: { type: "none" }, line });
   // Penalty spot.
@@ -453,7 +455,15 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh);
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
     void attacking;
-    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, nameSize: 8.5 });
+    // Ball beside the right corner taker — shows the setup for a right-sided corner.
+    const ball = plot(0.925, 0.055);
+    const br = 0.07;
+    s.addShape("ellipse", {
+      x: ball.x - br, y: ball.y - br, w: br * 2, h: br * 2,
+      fill: { color: PAPER }, line: { color: "1F2937", width: 1 },
+    });
+    // Initials in the circles are enough on set-piece diagrams — no names underneath.
+    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, names: false });
     roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups);
     footer(s, foot);
   };
