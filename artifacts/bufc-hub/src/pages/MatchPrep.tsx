@@ -148,6 +148,43 @@ const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
   Halfway: [[0.5, 0.94]],
 };
 
+// On-screen pitch-picker positions. Same roles/spot counts as the deck maps above,
+// but spread out so the dropdowns don't sit on top of each other. The deck keeps
+// the precise coordinates; these only drive the editing UI.
+const UI_SPOTS: Record<string, Record<string, Array<[number, number]>>> = {
+  spFor: {
+    "Attack the goal": [[0.22, 0.3], [0.46, 0.3], [0.7, 0.3], [0.34, 0.44], [0.58, 0.44]],
+    "Far post": [[0.16, 0.1]],
+    "Closer to corner taker": [[0.84, 0.47]],
+    "Edge of box": [[0.36, 0.6], [0.66, 0.58]],
+    "Stay back": [[0.62, 0.78], [0.36, 0.92]],
+  },
+  spFor2: {
+    "Crowd the keeper": [[0.28, 0.08], [0.62, 0.08], [0.36, 0.21], [0.62, 0.21]],
+    "Far post": [[0.88, 0.06]],
+    "Runner to far post": [[0.5, 0.42]],
+    "Outside the box": [[0.5, 0.58]],
+    Halfway: [[0.28, 0.86], [0.68, 0.86]],
+  },
+  spAgainst: {
+    "Man marking": [[0.2, 0.24], [0.44, 0.24], [0.68, 0.24], [0.32, 0.38], [0.56, 0.38]],
+    "Near post": [[0.18, 0.06]],
+    "Far post": [[0.58, 0.05]],
+    "First defender": [[0.85, 0.13]],
+    "Edge of box": [[0.5, 0.58]],
+    Halfway: [[0.5, 0.9]],
+  },
+  spAgainstZonal: {
+    "Zone (4)": [[0.14, 0.2], [0.38, 0.18], [0.62, 0.2], [0.86, 0.18]],
+    "Front of zone": [[0.5, 0.32]],
+    "Near post": [[0.22, 0.04]],
+    "Far post": [[0.66, 0.04]],
+    Floater: [[0.84, 0.42]],
+    "Edge of box": [[0.5, 0.58]],
+    Halfway: [[0.5, 0.9]],
+  },
+};
+
 const SHORT = (name: string) => {
   const parts = name.trim().split(/\s+/);
   return parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase() : name.slice(0, 2);
@@ -325,6 +362,7 @@ export default function MatchPrep() {
           if (skip.includes(role)) continue;
           const coords = spots[role] ?? [];
           players.forEach((name, i) => {
+            if (!name) return; // empty pitch-picker slot
             const c = coords[i] ?? coords[coords.length - 1];
             if (!c) return;
             out.push({ px: c[0] + (i >= coords.length ? 0.05 * (i - coords.length + 1) : 0), py: c[1], label: SHORT(name), name });
@@ -352,7 +390,7 @@ export default function MatchPrep() {
         .filter((g) => g.players.length);
 
       const groups = (roles: Record<string, string[]>, order: string[]): SetPieceGroup[] =>
-        order.map((role) => ({ role, players: roles[role] ?? [] })).filter((g) => g.players.length);
+        order.map((role) => ({ role, players: (roles[role] ?? []).filter(Boolean) })).filter((g) => g.players.length);
 
       // Belt and braces for drafts saved under the old "Near post" role name —
       // treat it as "Far post" at deck time even if the load-time migration was missed.
@@ -417,9 +455,9 @@ export default function MatchPrep() {
   }
 
   // ── UI helpers ──
-  const PlayerSelect = ({ value, onChange, exclude }: { value: string; onChange: (v: string) => void; exclude?: Set<string> }) => (
+  const PlayerSelect = ({ value, onChange, exclude, small }: { value: string; onChange: (v: string) => void; exclude?: Set<string>; small?: boolean }) => (
     <Select value={value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
-      <SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger>
+      <SelectTrigger className={small ? "h-7 w-full px-1.5 text-xs bg-slate-900/80 border-white/20" : "h-9"}><SelectValue placeholder="—" /></SelectTrigger>
       <SelectContent>
         <SelectItem value="__none__">—</SelectItem>
         {roster.map((n) => (
@@ -464,6 +502,72 @@ export default function MatchPrep() {
       })}
     </div>
   );
+
+  // Pitch-based picker for the corner set pieces — a dropdown at each spot so the
+  // coach can see where each player is standing (attacking goal at the top).
+  const CornerPitch = ({ store, spots }: { store: "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal"; spots: Record<string, Array<[number, number]>> }) => {
+    const roles = d[store] ?? {};
+    const uiSpots = UI_SPOTS[store];
+    // Takers ride on top of roles in the corners-for setups — never grey them out.
+    const takerNames = ["spFor", "spFor2"].includes(store)
+      ? new Set(Object.values(d.spTakers ?? {}).flat())
+      : new Set<string>();
+    const assigned = new Set(
+      Object.entries(roles)
+        .filter(([r]) => r in spots)
+        .flatMap(([, ns]) => ns)
+        .filter((n) => n && !takerNames.has(n)),
+    );
+    const setSpot = (role: string, i: number, v: string) => {
+      const arr = [...(roles[role] ?? [])];
+      while (arr.length <= i) arr.push("");
+      arr[i] = v;
+      set(store, { ...roles, [role]: arr });
+    };
+    const takR = ((d.spTakers ?? {})[TAKER_R] ?? [])[0];
+    return (
+      <div className="overflow-x-auto">
+        <div
+          className="relative mx-auto w-full min-w-[420px] max-w-xl rounded-md border border-white/20 overflow-hidden"
+          style={{
+            aspectRatio: "4 / 3.8",
+            background:
+              "repeating-linear-gradient(to right, #3e8e54 0, #3e8e54 14.28%, #46995c 14.28%, #46995c 28.56%)",
+          }}
+        >
+          {/* goal + boxes at the top, halfway line at the bottom */}
+          <div className="absolute left-1/2 top-0 h-1.5 w-[16%] -translate-x-1/2 bg-white/90" />
+          <div className="absolute left-1/2 top-0 h-[36%] w-[62%] -translate-x-1/2 border border-t-0 border-white/50" />
+          <div className="absolute left-1/2 top-0 h-[13%] w-[28%] -translate-x-1/2 border border-t-0 border-white/50" />
+          <div className="absolute left-0 right-0 bottom-0 h-px bg-white/50" />
+          {/* ball in the right corner */}
+          <div className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
+          {Object.entries(spots).map(([role, coords]) =>
+            coords.map((_, i) => {
+              const current = (roles[role] ?? [])[i] ?? "";
+              const exclude = new Set([...assigned].filter((n) => n !== current));
+              const ui = uiSpots?.[role]?.[i] ?? coords[i];
+              return (
+                <div
+                  key={`${role}-${i}`}
+                  className="absolute flex w-[104px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
+                  style={{
+                    left: `clamp(54px, ${ui[0] * 100}%, calc(100% - 54px))`,
+                    top: `clamp(26px, ${ui[1] * 100}%, calc(100% - 20px))`,
+                  }}
+                >
+                  <span className="max-w-[120px] truncate rounded-full bg-slate-900/80 px-1.5 py-px text-[9px] font-bold text-sky-200">
+                    {role}{coords.length > 1 ? ` ${i + 1}` : ""}
+                  </span>
+                  <PlayerSelect small value={current} onChange={(v) => setSpot(role, i, v)} exclude={exclude} />
+                </div>
+              );
+            }),
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const spRole = (store: "spTakers" | "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal", role: string, max?: number) => {
     // Names already assigned to a different role within the same set piece.
@@ -699,17 +803,9 @@ export default function MatchPrep() {
             {spRole("spTakers", TAKER_R, 1)}
             {spRole("spTakers", TAKER_L, 1)}
             <h4 className="font-semibold text-sm pt-2">Corners — for · standard</h4>
-            {spRole("spFor", "Attack the goal", 5)}
-            {spRole("spFor", "Far post", 1)}
-            {spRole("spFor", "Closer to corner taker", 1)}
-            {spRole("spFor", "Edge of box", 2)}
-            {spRole("spFor", "Stay back", 2)}
+            <CornerPitch store="spFor" spots={CORNERS_FOR_SPOTS} />
             <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2 — crowd the keeper</h4>
-            {spRole("spFor2", "Crowd the keeper", 4)}
-            {spRole("spFor2", "Far post", 1)}
-            {spRole("spFor2", "Runner to far post", 1)}
-            {spRole("spFor2", "Outside the box", 1)}
-            {spRole("spFor2", "Halfway", 2)}
+            <CornerPitch store="spFor2" spots={CORNERS_FOR2_SPOTS} />
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -732,24 +828,9 @@ export default function MatchPrep() {
               </div>
             </div>
             {d.spAgainstMode === "man" ? (
-              <>
-                {spRole("spAgainst", "Man marking", 5)}
-                {spRole("spAgainst", "Near post", 1)}
-                {spRole("spAgainst", "Far post", 1)}
-                {spRole("spAgainst", "First defender", 1)}
-                {spRole("spAgainst", "Edge of box", 1)}
-                {spRole("spAgainst", "Halfway", 1)}
-              </>
+              <CornerPitch store="spAgainst" spots={CORNERS_AGAINST_SPOTS} />
             ) : (
-              <>
-                {spRole("spAgainstZonal", "Zone (4)", 4)}
-                {spRole("spAgainstZonal", "Front of zone", 1)}
-                {spRole("spAgainstZonal", "Near post", 1)}
-                {spRole("spAgainstZonal", "Far post", 1)}
-                {spRole("spAgainstZonal", "Floater", 1)}
-                {spRole("spAgainstZonal", "Edge of box", 1)}
-                {spRole("spAgainstZonal", "Halfway", 1)}
-              </>
+              <CornerPitch store="spAgainstZonal" spots={CORNERS_AGAINST_ZONAL_SPOTS} />
             )}
             <h4 className="font-semibold text-sm pt-2">Free kicks</h4>
             <div className="space-y-1.5">
