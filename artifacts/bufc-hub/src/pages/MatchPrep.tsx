@@ -383,13 +383,6 @@ export default function MatchPrep() {
         if (takL) pins.push({ px: 0.01, py: 0.012, label: SHORT(takL), name: takL });
         return pins;
       };
-      // Drop both takers from role spots — they're pinned at the corners instead.
-      const noTakR = (ps: PitchPlayer[]) => ps.filter((p) => p.name !== takR && p.name !== takL);
-      // Keep the role cards consistent with the diagram: takers never appear
-      // inside a role group (old drafts may still have them in one).
-      const noTakRGroups = (gs: SetPieceGroup[]) =>
-        gs.map((g) => (g.role === TAKER_R || g.role === TAKER_L) ? g : { ...g, players: g.players.filter((p) => p !== takR && p !== takL) })
-          .filter((g) => g.players.length);
       const takerGroups: SetPieceGroup[] = [TAKER_R, TAKER_L]
         .map((role) => ({ role, players: (d.spTakers ?? {})[role] ?? [] }))
         .filter((g) => g.players.length);
@@ -427,12 +420,12 @@ export default function MatchPrep() {
         objectivesBp: d.bp,
         objectivesBpo: d.bpo,
         cornersFor: {
-          groups: takerGroups.concat(noTakRGroups(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS)))),
-          players: noTakR(spPlayers(spForRoles, CORNERS_FOR_SPOTS)).concat(takerPins()),
+          groups: takerGroups.concat(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS))),
+          players: spPlayers(spForRoles, CORNERS_FOR_SPOTS).concat(takerPins()),
         },
         cornersFor2: {
-          groups: takerGroups.concat(noTakRGroups(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS)))),
-          players: noTakR(spPlayers(d.spFor2, CORNERS_FOR2_SPOTS)).concat(takerPins()),
+          groups: takerGroups.concat(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS))),
+          players: spPlayers(d.spFor2, CORNERS_FOR2_SPOTS).concat(takerPins()),
         },
         cornersAgainst: {
           groups: d.spAgainstMode === "zonal"
@@ -520,11 +513,8 @@ export default function MatchPrep() {
         .flatMap(([, ns]) => ns)
         .filter(Boolean),
     );
-    // Both takers are pinned at the corners on the diagram, so neither can also
-    // hold a role spot in the corners-for setups.
-    if (["spFor", "spFor2"].includes(store)) {
-      for (const t of Object.values(d.spTakers ?? {}).flat()) if (t) assigned.add(t);
-    }
+    // Takers still pick a role — the corner pins just show who's taking, while
+    // their role spot shows where they stand when they're not taking.
     const setSpot = (role: string, i: number, v: string) => {
       const arr = [...(roles[role] ?? [])];
       while (arr.length <= i) arr.push("");
