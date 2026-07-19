@@ -220,9 +220,9 @@ function drawBoxView(
   // Six-yard + penalty box (view is roughly the final quarter of the pitch).
   // Depths pulled in closer to the goal for more realistic proportions.
   const paW = w * 0.62;
-  const paH = h * 0.4;
+  const paH = h * 0.365;
   const gaW = w * 0.3;
-  const gaH = h * 0.135;
+  const gaH = h * 0.12;
   s.addShape("rect", { x: x + (w - paW) / 2, y, w: paW, h: paH, fill: { type: "none" }, line });
   s.addShape("rect", { x: x + (w - gaW) / 2, y, w: gaW, h: gaH, fill: { type: "none" }, line });
   // Penalty spot.
