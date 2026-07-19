@@ -136,7 +136,7 @@ const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
   "Near post": [[0.435, 0.045]],
   "Far post": [[0.565, 0.045]],
   "First defender": [[0.58, 0.14]], // in line with the right-sided post
-  "Edge of box": [[0.5, 0.58]],
+  "Edge of box": [[0.5, 0.385]], // just outside the 18-yard box
   Halfway: [[0.5, 0.94]],
 };
 // Zonal setup — 4 in the zone, 1 in front of them on the 6-yard line, posts, floater, edge of box, halfway.
