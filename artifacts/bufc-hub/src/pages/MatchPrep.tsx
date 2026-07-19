@@ -109,12 +109,29 @@ const FORMATIONS: Record<string, Slot[]> = {
 };
 
 // Default set-piece diagram spots (box view, goal at top) per role, in order.
+// Takers pin to their own corner and may double up in other roles (they're in the
+// picture when the corner comes from the other side).
+const TAKER_R = "Taker — right";
+const TAKER_L = "Taker — left";
 const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
-  Taker: [[0.965, 0.03]],
-  "Attack the goal": [[0.42, 0.24], [0.54, 0.28], [0.62, 0.2], [0.48, 0.36]],
+  [TAKER_R]: [[0.965, 0.03]],
+  [TAKER_L]: [[0.035, 0.03]],
+  "Attack the goal": [[0.42, 0.24], [0.54, 0.28], [0.62, 0.2], [0.48, 0.36], [0.58, 0.42]],
   "Near post": [[0.42, 0.12]],
+  "Closer to corner taker": [[0.8, 0.1]],
   "Edge of box": [[0.5, 0.55], [0.62, 0.52]],
   "Stay back": [[0.35, 0.85], [0.65, 0.85]],
+};
+// Crowd the keeper — 4 around the keeper, far post cover, a runner from just inside
+// the 18-yard box straight to the far post, one outside the box, two back at halfway.
+const CORNERS_FOR2_SPOTS: Record<string, Array<[number, number]>> = {
+  [TAKER_R]: [[0.965, 0.03]],
+  [TAKER_L]: [[0.035, 0.03]],
+  "Crowd the keeper": [[0.44, 0.07], [0.56, 0.07], [0.46, 0.13], [0.54, 0.13]],
+  "Far post": [[0.575, 0.04]],
+  "Runner to far post": [[0.5, 0.45]],
+  "Outside the box": [[0.5, 0.58]],
+  Halfway: [[0.35, 0.85], [0.65, 0.85]],
 };
 const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
   "Man marking": [[0.45, 0.22], [0.55, 0.25], [0.5, 0.32], [0.6, 0.3], [0.4, 0.3]],
@@ -310,6 +327,12 @@ export default function MatchPrep() {
         return out;
       };
 
+      // Right taker sits in the right corner, left taker in the left corner.
+      const takerPins = (roles: Record<string, string[]>): PitchPlayer[] => [
+        ...(roles[TAKER_R] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
+        ...(roles[TAKER_L] ?? []).slice(0, 1).map((name) => ({ px: 0.035, py: 0.03, label: SHORT(name), name })),
+      ];
+
       const groups = (roles: Record<string, string[]>, order: string[]): SetPieceGroup[] =>
         order.map((role) => ({ role, players: roles[role] ?? [] })).filter((g) => g.players.length);
 
@@ -337,15 +360,11 @@ export default function MatchPrep() {
         objectivesBpo: d.bpo,
         cornersFor: {
           groups: groups(d.spFor, Object.keys(CORNERS_FOR_SPOTS)),
-          players: spPlayers(d.spFor, CORNERS_FOR_SPOTS, ["Stay back", "Taker"]).concat(
-            (d.spFor["Taker"] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
-          ),
+          players: spPlayers(d.spFor, CORNERS_FOR_SPOTS, [TAKER_R, TAKER_L]).concat(takerPins(d.spFor)),
         },
         cornersFor2: {
-          groups: groups(d.spFor2, Object.keys(CORNERS_FOR_SPOTS)),
-          players: spPlayers(d.spFor2, CORNERS_FOR_SPOTS, ["Stay back", "Taker"]).concat(
-            (d.spFor2["Taker"] ?? []).slice(0, 1).map((name) => ({ px: 0.965, py: 0.03, label: SHORT(name), name })),
-          ),
+          groups: groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS)),
+          players: spPlayers(d.spFor2, CORNERS_FOR2_SPOTS, [TAKER_R, TAKER_L]).concat(takerPins(d.spFor2)),
         },
         cornersAgainst: {
           groups: d.spAgainstMode === "zonal"
@@ -421,9 +440,14 @@ export default function MatchPrep() {
 
   const spRole = (store: "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal", role: string, max?: number) => {
     // Names already assigned to a different role within the same set piece.
-    const taken = new Set(
-      Object.entries(d[store]).filter(([r]) => r !== role).flatMap(([, names]) => names),
-    );
+    // Takers are exempt both ways — when the corner comes from the other side they're
+    // in the picture, so they can hold another role too.
+    const isTaker = (r: string) => r === TAKER_R || r === TAKER_L;
+    const taken = isTaker(role)
+      ? new Set<string>()
+      : new Set(
+          Object.entries(d[store]).filter(([r]) => r !== role && !isTaker(r)).flatMap(([, names]) => names),
+        );
     return (
       <div key={`${store}-${role}`} className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">{role}{max ? ` (up to ${max})` : ""}</Label>
@@ -633,17 +657,21 @@ export default function MatchPrep() {
         <CardContent className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-3">
             <h4 className="font-semibold text-sm">Corners — for · standard</h4>
-            {spRole("spFor", "Taker", 2)}
-            {spRole("spFor", "Attack the goal", 4)}
+            {spRole("spFor", TAKER_R, 1)}
+            {spRole("spFor", TAKER_L, 1)}
+            {spRole("spFor", "Attack the goal", 5)}
             {spRole("spFor", "Near post", 1)}
+            {spRole("spFor", "Closer to corner taker", 1)}
             {spRole("spFor", "Edge of box", 2)}
             {spRole("spFor", "Stay back", 2)}
             <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2 — crowd the keeper</h4>
-            {spRole("spFor2", "Taker", 2)}
-            {spRole("spFor2", "Attack the goal", 4)}
-            {spRole("spFor2", "Near post", 1)}
-            {spRole("spFor2", "Edge of box", 2)}
-            {spRole("spFor2", "Stay back", 2)}
+            {spRole("spFor2", TAKER_R, 1)}
+            {spRole("spFor2", TAKER_L, 1)}
+            {spRole("spFor2", "Crowd the keeper", 4)}
+            {spRole("spFor2", "Far post", 1)}
+            {spRole("spFor2", "Runner to far post", 1)}
+            {spRole("spFor2", "Outside the box", 1)}
+            {spRole("spFor2", "Halfway", 2)}
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
