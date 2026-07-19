@@ -456,7 +456,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
     void attacking;
     // Ball beside the right corner taker — shows the setup for a right-sided corner.
-    const ball = plot(0.925, 0.055);
+    const ball = plot(0.965, 0.035); // right in the corner, next to the taker
     const br = 0.07;
     s.addShape("ellipse", {
       x: ball.x - br, y: ball.y - br, w: br * 2, h: br * 2,

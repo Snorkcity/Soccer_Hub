@@ -114,11 +114,11 @@ const FORMATIONS: Record<string, Slot[]> = {
 const TAKER_R = "Taker — right";
 const TAKER_L = "Taker — left";
 const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
-  "Attack the goal": [[0.42, 0.24], [0.54, 0.28], [0.62, 0.2], [0.48, 0.36], [0.58, 0.42]],
-  "Near post": [[0.42, 0.12]],
-  "Closer to corner taker": [[0.8, 0.1]],
+  "Attack the goal": [[0.38, 0.36], [0.46, 0.36], [0.54, 0.36], [0.4, 0.43], [0.5, 0.43]], // grouped at the top of the box
+  "Far post": [[0.34, 0.1]],
+  "Closer to corner taker": [[0.74, 0.45]],
   "Edge of box": [[0.5, 0.55], [0.62, 0.52]],
-  "Stay back": [[0.35, 0.85], [0.65, 0.85]],
+  "Stay back": [[0.6, 0.82], [0.48, 0.94]], // staggered on the way back to halfway
 };
 // Crowd the keeper — 4 around the keeper, far post cover, a runner from just inside
 // the 18-yard box straight to the far post, one outside the box, two back at halfway.
@@ -224,7 +224,14 @@ function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: str
 function loadDraft(): Draft {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) return { ...blankDraft(), ...JSON.parse(raw) };
+    if (raw) {
+      const d: Draft = { ...blankDraft(), ...JSON.parse(raw) };
+      // Old drafts named the corners-for role "Near post" — carry the pick over to "Far post".
+      if (d.spFor?.["Near post"]?.length && !d.spFor["Far post"]?.length) {
+        d.spFor = { ...d.spFor, "Far post": d.spFor["Near post"] };
+      }
+      return d;
+    }
   } catch { /* corrupted draft — start fresh */ }
   return blankDraft();
 }
@@ -334,8 +341,8 @@ export default function MatchPrep() {
       const takerPins = (roles: Record<string, string[]>): PitchPlayer[] => {
         const assigned = new Set(Object.values(roles).flat());
         const pins: PitchPlayer[] = [];
-        if (takR) pins.push({ px: 0.965, py: 0.03, label: SHORT(takR), name: takR });
-        if (takL && !assigned.has(takL)) pins.push({ px: 0.035, py: 0.03, label: SHORT(takL), name: takL });
+        if (takR) pins.push({ px: 0.99, py: 0.012, label: SHORT(takR), name: takR });
+        if (takL && !assigned.has(takL)) pins.push({ px: 0.01, py: 0.012, label: SHORT(takL), name: takL });
         return pins;
       };
       // Drop the right taker from role spots — she's pinned at the corner instead.
@@ -686,7 +693,7 @@ export default function MatchPrep() {
             {spRole("spTakers", TAKER_L, 1)}
             <h4 className="font-semibold text-sm pt-2">Corners — for · standard</h4>
             {spRole("spFor", "Attack the goal", 5)}
-            {spRole("spFor", "Near post", 1)}
+            {spRole("spFor", "Far post", 1)}
             {spRole("spFor", "Closer to corner taker", 1)}
             {spRole("spFor", "Edge of box", 2)}
             {spRole("spFor", "Stay back", 2)}
