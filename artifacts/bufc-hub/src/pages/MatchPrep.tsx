@@ -264,7 +264,7 @@ function loadDraft(): Draft {
     if (raw) {
       const d: Draft = { ...blankDraft(), ...JSON.parse(raw) };
       // Old drafts named the corners-for role "Near post" — carry the pick over to "Far post".
-      if (d.spFor?.["Near post"]?.length && !d.spFor["Far post"]?.length) {
+      if (d.spFor?.["Near post"]?.filter(Boolean).length && !d.spFor["Far post"]?.filter(Boolean).length) {
         d.spFor = { ...d.spFor, "Far post": d.spFor["Near post"] };
       }
       return d;
@@ -385,6 +385,11 @@ export default function MatchPrep() {
       };
       // Drop the right taker from role spots — she's pinned at the corner instead.
       const noTakR = (ps: PitchPlayer[]) => ps.filter((p) => !takR || p.name !== takR);
+      // Keep the role cards consistent with the diagram: the right taker never
+      // appears inside a role group (old drafts may still have her in one).
+      const noTakRGroups = (gs: SetPieceGroup[]) =>
+        gs.map((g) => (g.role === TAKER_R || g.role === TAKER_L) ? g : { ...g, players: g.players.filter((p) => p !== takR) })
+          .filter((g) => g.players.length);
       const takerGroups: SetPieceGroup[] = [TAKER_R, TAKER_L]
         .map((role) => ({ role, players: (d.spTakers ?? {})[role] ?? [] }))
         .filter((g) => g.players.length);
@@ -395,7 +400,7 @@ export default function MatchPrep() {
       // Belt and braces for drafts saved under the old "Near post" role name —
       // treat it as "Far post" at deck time even if the load-time migration was missed.
       const spForRoles: Record<string, string[]> =
-        (d.spFor?.["Near post"]?.length && !d.spFor["Far post"]?.length)
+        (d.spFor?.["Near post"]?.filter(Boolean).length && !d.spFor["Far post"]?.filter(Boolean).length)
           ? { ...d.spFor, "Far post": d.spFor["Near post"] }
           : (d.spFor ?? {});
 
@@ -422,11 +427,11 @@ export default function MatchPrep() {
         objectivesBp: d.bp,
         objectivesBpo: d.bpo,
         cornersFor: {
-          groups: takerGroups.concat(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS))),
+          groups: takerGroups.concat(noTakRGroups(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS)))),
           players: noTakR(spPlayers(spForRoles, CORNERS_FOR_SPOTS)).concat(takerPins(spForRoles)),
         },
         cornersFor2: {
-          groups: takerGroups.concat(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS))),
+          groups: takerGroups.concat(noTakRGroups(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS)))),
           players: noTakR(spPlayers(d.spFor2, CORNERS_FOR2_SPOTS)).concat(takerPins(d.spFor2)),
         },
         cornersAgainst: {
@@ -508,16 +513,17 @@ export default function MatchPrep() {
   const CornerPitch = ({ store, spots }: { store: "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal"; spots: Record<string, Array<[number, number]>> }) => {
     const roles = d[store] ?? {};
     const uiSpots = UI_SPOTS[store];
-    // Takers ride on top of roles in the corners-for setups — never grey them out.
-    const takerNames = ["spFor", "spFor2"].includes(store)
-      ? new Set(Object.values(d.spTakers ?? {}).flat())
-      : new Set<string>();
+    // Everyone — takers included — can only stand in one spot per pitch.
     const assigned = new Set(
       Object.entries(roles)
         .filter(([r]) => r in spots)
         .flatMap(([, ns]) => ns)
-        .filter((n) => n && !takerNames.has(n)),
+        .filter(Boolean),
     );
+    // The right taker takes the corner on the diagram, so she can't also hold a role
+    // in the corners-for setups. The left taker can (one takes, the other joins in).
+    const rightTaker = ["spFor", "spFor2"].includes(store) ? ((d.spTakers ?? {})[TAKER_R] ?? [])[0] : undefined;
+    if (rightTaker) assigned.add(rightTaker);
     const setSpot = (role: string, i: number, v: string) => {
       const arr = [...(roles[role] ?? [])];
       while (arr.length <= i) arr.push("");
