@@ -229,6 +229,12 @@ function drawBoxView(
   s.addShape("ellipse", {
     x: x + w / 2 - 0.03, y: y + paH * 0.72 - 0.03, w: 0.06, h: 0.06, fill: { color: PAPER },
   });
+  // Top half of the centre circle on the halfway line (bottom edge of the view).
+  const ccW = w * 0.27;
+  s.addShape("arc", {
+    x: x + (w - ccW) / 2, y: y + h - ccW / 2, w: ccW, h: ccW,
+    angleRange: [180, 360], fill: { type: "none" }, line,
+  });
   return (px, py) => ({ x: x + px * w, y: y + py * h });
 }
 
