@@ -141,8 +141,8 @@ const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
 };
 // Zonal setup — 4 in the zone, 1 in front of them on the 6-yard line, posts, floater, edge of box, halfway.
 const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
-  "Zone (4)": [[0.41, 0.12], [0.47, 0.14], [0.53, 0.12], [0.59, 0.14]],
-  "Front of zone": [[0.5, 0.22]],
+  "Zone (4)": [[0.41, 0.142], [0.47, 0.14], [0.53, 0.142], [0.59, 0.14]],
+  "Front of zone": [[0.5, 0.242]],
   "Near post": [[0.435, 0.045]],
   "Far post": [[0.565, 0.045]],
   Floater: [[0.6, 0.3]],
@@ -401,7 +401,11 @@ export default function MatchPrep() {
             ? groups(d.spAgainstZonal, Object.keys(CORNERS_AGAINST_ZONAL_SPOTS))
             : groups(d.spAgainst, Object.keys(CORNERS_AGAINST_SPOTS)),
           players: (d.spAgainstMode === "zonal"
-            ? spPlayers(d.spAgainstZonal, CORNERS_AGAINST_ZONAL_SPOTS)
+            // Zone players draw in navy on the slide — they ARE the zone.
+            ? spPlayers(d.spAgainstZonal, CORNERS_AGAINST_ZONAL_SPOTS).map((p) => {
+                const zone = [...(d.spAgainstZonal["Zone (4)"] ?? []), ...(d.spAgainstZonal["Front of zone"] ?? [])].filter(Boolean);
+                return p.name && zone.includes(p.name) ? { ...p, color: "172554" } : p;
+              })
             : spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS)
           ).concat([{ px: 0.99, py: 0.012, label: "OP", name: "Their taker", color: "B54A4A" }]),
         },
@@ -422,15 +426,15 @@ export default function MatchPrep() {
   }
 
   // ── UI helpers ──
-  const PlayerSelect = ({ value, onChange, exclude, circle, options, title }: {
+  const PlayerSelect = ({ value, onChange, exclude, circle, options, title, navy }: {
     value: string; onChange: (v: string) => void; exclude?: Set<string>;
-    circle?: boolean; options?: string[]; title?: string;
+    circle?: boolean; options?: string[]; title?: string; navy?: boolean;
   }) => (
     <Select value={value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
       <SelectTrigger
         title={title}
         className={circle
-          ? `h-8 w-8 shrink-0 justify-center rounded-full border p-0 text-[10px] font-bold [&>svg]:hidden ${value ? "border-white bg-sky-500 text-white" : "border-dashed border-white/70 bg-white/15 text-white/90"}`
+          ? `h-8 w-8 shrink-0 justify-center rounded-full border p-0 text-[10px] font-bold [&>svg]:hidden ${value ? `border-white ${navy ? "bg-blue-950" : "bg-sky-500"} text-white` : `border-dashed border-white/70 ${navy ? "bg-blue-950/60" : "bg-white/15"} text-white/90`}`
           : "h-9"}
       >
         {circle
@@ -570,6 +574,7 @@ export default function MatchPrep() {
                 >
                   <PlayerSelect
                     circle
+                    navy={store === "spAgainstZonal" && (role === "Zone (4)" || role === "Front of zone")}
                     title={`${role}${coords.length > 1 ? ` ${i + 1}` : ""}${current ? ` — ${current}` : ""}`}
                     value={current}
                     onChange={(v) => setSpot(role, i, v)}
