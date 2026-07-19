@@ -21,6 +21,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parse, isValid } from "date-fns";
 import type { PitchPlayer, SetPieceGroup, UnitObjectives } from "@/lib/prematchPptx";
+import WeekAheadCard from "@/components/WeekAheadCard";
 
 // ── Formations ────────────────────────────────────────────────────────────
 // px 0–1 across (0 = left touchline), py 0–1 down (0 = attacking goal).
@@ -570,6 +571,14 @@ export default function MatchPrep() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Week Ahead — the Monday briefing lives here too: both are prep. */}
+      <div className="space-y-2 pt-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileDown className="h-5 w-5 text-primary" /> Week Ahead report
+        </h2>
+        <WeekAheadCard />
+      </div>
     </div>
   );
 }
