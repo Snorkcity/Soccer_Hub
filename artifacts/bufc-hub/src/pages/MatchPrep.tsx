@@ -122,6 +122,16 @@ const CORNERS_AGAINST_SPOTS: Record<string, Array<[number, number]>> = {
   "Far post": [[0.565, 0.045]],
   "Edge of box / halfway": [[0.5, 0.58], [0.64, 0.55]],
 };
+// Zonal setup — 4 in the zone, 1 in front of them on the 6-yard line, posts, floater, edge of box, halfway.
+const CORNERS_AGAINST_ZONAL_SPOTS: Record<string, Array<[number, number]>> = {
+  "Zone (4)": [[0.41, 0.12], [0.47, 0.14], [0.53, 0.12], [0.59, 0.14]],
+  "Front of zone": [[0.5, 0.22]],
+  "Near post": [[0.435, 0.045]],
+  "Far post": [[0.565, 0.045]],
+  Floater: [[0.6, 0.3]],
+  "Edge of box": [[0.5, 0.56]],
+  Halfway: [[0.5, 0.85]],
+};
 
 const SHORT = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -151,6 +161,8 @@ interface Draft {
   spFor: Record<string, string[]>;
   spFor2: Record<string, string[]>;
   spAgainst: Record<string, string[]>;
+  spAgainstZonal: Record<string, string[]>;
+  spAgainstMode: "man" | "zonal";
   fkWide: string;
   fkCentral: string;
 }
@@ -162,7 +174,7 @@ const blankDraft = (): Draft => ({
   xi: {}, subs: [],
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
-  spFor: {}, spFor2: {}, spAgainst: {}, fkWide: "", fkCentral: "",
+  spFor: {}, spFor2: {}, spAgainst: {}, spAgainstZonal: {}, spAgainstMode: "man", fkWide: "", fkCentral: "",
 });
 
 function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -336,9 +348,15 @@ export default function MatchPrep() {
           ),
         },
         cornersAgainst: {
-          groups: groups(d.spAgainst, Object.keys(CORNERS_AGAINST_SPOTS)),
-          players: spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS),
+          groups: d.spAgainstMode === "zonal"
+            ? groups(d.spAgainstZonal, Object.keys(CORNERS_AGAINST_ZONAL_SPOTS))
+            : groups(d.spAgainst, Object.keys(CORNERS_AGAINST_SPOTS)),
+          players: (d.spAgainstMode === "zonal"
+            ? spPlayers(d.spAgainstZonal, CORNERS_AGAINST_ZONAL_SPOTS)
+            : spPlayers(d.spAgainst, CORNERS_AGAINST_SPOTS)
+          ).concat([{ px: 0.965, py: 0.03, label: "OP", name: "Their taker", color: "B54A4A" }]),
         },
+        cornersAgainstLabel: d.spAgainstMode === "zonal" ? "Corners — against — zonal" : "Corners — against — man marking",
         freeKicks: fk,
       });
       const url = URL.createObjectURL(blob);
@@ -401,7 +419,7 @@ export default function MatchPrep() {
     </div>
   );
 
-  const spRole = (store: "spFor" | "spFor2" | "spAgainst", role: string, max?: number) => {
+  const spRole = (store: "spFor" | "spFor2" | "spAgainst" | "spAgainstZonal", role: string, max?: number) => {
     // Names already assigned to a different role within the same set piece.
     const taken = new Set(
       Object.entries(d[store]).filter(([r]) => r !== role).flatMap(([, names]) => names),
@@ -614,13 +632,13 @@ export default function MatchPrep() {
         <CardHeader className="pb-3"><CardTitle className="text-base">5 · Set pieces</CardTitle></CardHeader>
         <CardContent className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Corners — for</h4>
+            <h4 className="font-semibold text-sm">Corners — for · standard</h4>
             {spRole("spFor", "Taker", 2)}
             {spRole("spFor", "Attack the goal", 4)}
             {spRole("spFor", "Near post", 1)}
             {spRole("spFor", "Edge of box", 2)}
             {spRole("spFor", "Stay back", 2)}
-            <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2</h4>
+            <h4 className="font-semibold text-sm pt-2">Corners — for · variation 2 — crowd the keeper</h4>
             {spRole("spFor2", "Taker", 2)}
             {spRole("spFor2", "Attack the goal", 4)}
             {spRole("spFor2", "Near post", 1)}
@@ -628,11 +646,43 @@ export default function MatchPrep() {
             {spRole("spFor2", "Stay back", 2)}
           </div>
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Corners — against</h4>
-            {spRole("spAgainst", "Man marking", 5)}
-            {spRole("spAgainst", "Near post", 1)}
-            {spRole("spAgainst", "Far post", 1)}
-            {spRole("spAgainst", "Edge of box / halfway", 2)}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h4 className="font-semibold text-sm">Corners — against</h4>
+              <div className="flex gap-1">
+                {(["man", "zonal"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => set("spAgainstMode", m)}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                      d.spAgainstMode === m
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                    }`}
+                  >
+                    {m === "man" ? "Man marking" : "Zonal"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {d.spAgainstMode === "man" ? (
+              <>
+                {spRole("spAgainst", "Man marking", 5)}
+                {spRole("spAgainst", "Near post", 1)}
+                {spRole("spAgainst", "Far post", 1)}
+                {spRole("spAgainst", "Edge of box / halfway", 2)}
+              </>
+            ) : (
+              <>
+                {spRole("spAgainstZonal", "Zone (4)", 4)}
+                {spRole("spAgainstZonal", "Front of zone", 1)}
+                {spRole("spAgainstZonal", "Near post", 1)}
+                {spRole("spAgainstZonal", "Far post", 1)}
+                {spRole("spAgainstZonal", "Floater", 1)}
+                {spRole("spAgainstZonal", "Edge of box", 1)}
+                {spRole("spAgainstZonal", "Halfway", 1)}
+              </>
+            )}
             <h4 className="font-semibold text-sm pt-2">Free kicks</h4>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Wide takers — one per line</Label>

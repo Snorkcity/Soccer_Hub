@@ -57,6 +57,7 @@ export interface PrematchInput {
   cornersFor: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   cornersFor2?: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   cornersAgainst: { groups: SetPieceGroup[]; players: PitchPlayer[] };
+  cornersAgainstLabel?: string;
   freeKicks: SetPieceGroup[];
 }
 
@@ -227,24 +228,29 @@ function drawBoxView(
 }
 
 function roleColumn(s: PptxGenJS.Slide, x: number, w: number, groups: SetPieceGroup[]) {
+  // Normal layout: one player per line. If the cards won't fit (e.g. zonal corners
+  // has 7 roles), switch to a compact layout: names joined on one line, tighter cards.
+  const avail = H - 0.5 - 1.85;
+  const normalTotal = groups.reduce((t, g) => t + 0.42 + Math.max(g.players.length, 1) * 0.28 + 0.16, 0);
+  const compact = normalTotal > avail;
   let y = 1.85;
   for (const g of groups) {
-    const rows = Math.max(g.players.length, 1);
-    const cardH = 0.42 + rows * 0.28;
+    const rows = compact ? 1 : Math.max(g.players.length, 1);
+    const cardH = compact ? 0.62 : 0.42 + rows * 0.28;
     if (y + cardH > H - 0.5) break;
     s.addShape("roundRect", {
       x, y, w, h: cardH,
       fill: { color: CARD }, line: { color: CARD_LINE, width: 1 }, rectRadius: 0.06,
     });
     s.addText(g.role.toUpperCase(), {
-      x: x + 0.2, y: y + 0.08, w: w - 0.4, h: 0.28,
-      fontSize: 10.5, color: SKY, bold: true, charSpacing: 2,
+      x: x + 0.2, y: y + (compact ? 0.05 : 0.08), w: w - 0.4, h: compact ? 0.24 : 0.28,
+      fontSize: compact ? 9.5 : 10.5, color: SKY, bold: true, charSpacing: 2,
     });
-    s.addText(g.players.length ? g.players.join("\n") : "—", {
-      x: x + 0.2, y: y + 0.36, w: w - 0.4, h: rows * 0.28,
-      fontSize: 12.5, color: PAPER, lineSpacing: 16,
+    s.addText(g.players.length ? (compact ? g.players.join(" · ") : g.players.join("\n")) : "—", {
+      x: x + 0.2, y: y + (compact ? 0.28 : 0.36), w: w - 0.4, h: compact ? 0.28 : rows * 0.28,
+      fontSize: compact ? 11 : 12.5, color: PAPER, lineSpacing: compact ? 13 : 16,
     });
-    y += cardH + 0.16;
+    y += cardH + (compact ? 0.12 : 0.16);
   }
 }
 
@@ -444,16 +450,18 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const bw = 6.4;
     const bh = H - 2.55;
     const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh);
-    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? (attacking ? SKY_DARK : RED) })), { r: 0.19, nameSize: 8.5 });
+    // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
+    void attacking;
+    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, nameSize: 8.5 });
     roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups);
     footer(s, foot);
   };
   const hasVar2 = !!input.cornersFor2 && (input.cornersFor2.groups.length > 0 || input.cornersFor2.players.length > 0);
-  setPieceSlide("Set pieces", hasVar2 ? "Corners — for · variation 1" : "Corners — for", input.cornersFor.groups, input.cornersFor.players, true);
+  setPieceSlide("Set pieces", "Corners — for · standard", input.cornersFor.groups, input.cornersFor.players, true);
   if (hasVar2 && input.cornersFor2) {
-    setPieceSlide("Set pieces", "Corners — for · variation 2", input.cornersFor2.groups, input.cornersFor2.players, true);
+    setPieceSlide("Set pieces", "Corners — for · crowd the keeper", input.cornersFor2.groups, input.cornersFor2.players, true);
   }
-  setPieceSlide("Set pieces", "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false);
+  setPieceSlide("Set pieces", input.cornersAgainstLabel ?? "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false);
   {
     const s = darkSlide(pptx, "Set pieces", "Free kicks");
     roleColumn(s, MX, (W - 2 * MX - 0.3) / 2, input.freeKicks.slice(0, Math.ceil(input.freeKicks.length / 2)));
