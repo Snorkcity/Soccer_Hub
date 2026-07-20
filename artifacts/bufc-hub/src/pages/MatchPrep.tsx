@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useListTeams,
   useListSeasons,
@@ -31,6 +31,9 @@ import WeekAheadCard from "@/components/WeekAheadCard";
 
 // ── Formations ────────────────────────────────────────────────────────────
 // px 0–1 across (0 = left touchline), py 0–1 down (0 = attacking goal).
+// IMPORTANT: every formation array must list 11 slots in the same positional
+// order (GK first, then defence → midfield → attack). The deck's BP/BPO shape
+// remap (shapedLineup) carries the XI across formations BY INDEX.
 interface Slot { id: string; num: string; role: string; px: number; py: number }
 
 const FORMATIONS: Record<string, Slot[]> = {
@@ -267,6 +270,15 @@ export default function MatchPrep() {
 
   const deckTitle = () => `${d.round || "Match"} v ${d.opponent || "?"}${d.matchDate ? ` — ${d.matchDate}` : ""}`;
 
+  // Guard against silently wiping unsaved work: remember the editor state as of
+  // the last save/open/fresh-start and prompt before replacing a changed draft.
+  const baselineRef = useRef<string>(JSON.stringify(d));
+  const markClean = (draft: Draft) => { baselineRef.current = JSON.stringify(draft); };
+  const confirmReplace = (): boolean => {
+    if (JSON.stringify(d) === baselineRef.current) return true;
+    return window.confirm("You have unsaved changes in the current deck. Replace them? (Save the deck first if you want to keep them.)");
+  };
+
   async function saveDeck() {
     if (!d.opponent) { toast({ title: "Pick an opponent first", variant: "destructive" }); return; }
     setSaving(true);
@@ -285,6 +297,7 @@ export default function MatchPrep() {
         setDeckReportId(created.id);
       }
       await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+      markClean(d);
       toast({ title: "Deck saved", description: "Open it again any time from the saved list." });
     } catch {
       toast({ title: "Couldn't save the deck", variant: "destructive" });
@@ -294,12 +307,14 @@ export default function MatchPrep() {
   }
 
   function openDeck(r: NonNullable<typeof savedReports>[number], asNew: boolean) {
+    if (!confirmReplace()) return;
     const loaded: Draft = { ...blankDraft(), ...(r.data as unknown as Partial<Draft>) };
     if (asNew) {
       // Continuity: keep shapes, roles and set pieces — clear the match facts.
       loaded.opponent = ""; loaded.round = ""; loaded.matchDate = "";
     }
     setD(loaded);
+    markClean(loaded);
     setDeckReportId(asNew ? null : r.id);
     toast({ title: asNew ? "New deck started from that one" : `Opened "${r.title}"` });
   }
@@ -754,7 +769,7 @@ export default function MatchPrep() {
           <FileDown className="h-5 w-5 text-primary" /> Friday pre-match deck
         </h2>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => { setD(blankDraft()); setDeckReportId(null); }}>Start fresh</Button>
+          <Button variant="outline" onClick={() => { if (!confirmReplace()) return; const fresh = blankDraft(); setD(fresh); markClean(fresh); setDeckReportId(null); }}>Start fresh</Button>
           <Button variant="outline" onClick={() => void saveDeck()} disabled={saving || !d.opponent}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             {deckReportId != null ? "Save changes" : "Save deck"}
