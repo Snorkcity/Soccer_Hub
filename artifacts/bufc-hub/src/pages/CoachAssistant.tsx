@@ -163,7 +163,7 @@ export default function CoachAssistant() {
                 <details className="mt-2 text-xs text-muted-foreground">
                   <summary className="cursor-pointer">Sources from the curriculum</summary>
                   <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                    {m.sources.map((s) => <li key={s}>{s}</li>)}
+                    {[...new Set(m.sources)].map((s) => <li key={s}>{s}</li>)}
                   </ul>
                 </details>
               )}
