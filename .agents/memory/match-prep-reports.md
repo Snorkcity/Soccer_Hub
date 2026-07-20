@@ -8,3 +8,5 @@ description: How Monday briefings and Friday decks persist, and the our-shape re
 - **Why:** coach wants week-to-week continuity; most roles don't change.
 - Editor keeps a localStorage draft too; a baseline-JSON compare guards open/start-fresh with a confirm() so a saved deck can't silently wipe unsaved work.
 - Our BP/BPO shape pickers remap the XI across formations BY INDEX — every FORMATIONS array must stay 11 slots ordered GK→def→mid→att or the remap silently mis-assigns.
+
+**Week Ahead flow decision (Jul 2026):** no in-app editing of the AI-drafted briefing — "Draft with AI" saves straight to the list; downloads happen from saved rows. **Why:** coach wants AI to own the wording; coaches tweak in PowerPoint if needed. Streamlining for coaches beats in-app editing. Don't re-add textareas without being asked.
