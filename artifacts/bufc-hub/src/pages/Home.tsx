@@ -122,22 +122,25 @@ export default function Home() {
               </Card>
             </Link>
           ))}
-          <Card className="h-full border-dashed opacity-80">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Bot className="h-8 w-8 text-chart-2" />
-              </div>
-              <CardTitle className="mt-4">Coach Assistant</CardTitle>
-              <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                Ask questions of the full football development curriculum, right here in the hub.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs font-medium text-muted-foreground bg-muted inline-flex items-center px-2.5 py-0.5 rounded-full">
-                Coming Soon
-              </div>
-            </CardContent>
-          </Card>
+          <Link href="/assistant">
+            <Card className="h-full hover-elevate transition-all border-l-4 border-l-transparent hover:border-l-primary cursor-pointer group">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <Bot className="h-8 w-8 text-chart-2" />
+                  <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1" />
+                </div>
+                <CardTitle className="mt-4">Coach Assistant</CardTitle>
+                <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+                  Ask questions of the full football development curriculum, right here in the hub.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs font-medium text-primary/80 bg-primary/10 inline-flex items-center px-2.5 py-0.5 rounded-full">
+                  U11 to 16+ curriculum
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 

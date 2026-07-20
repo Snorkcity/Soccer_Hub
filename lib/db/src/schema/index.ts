@@ -18,3 +18,4 @@ export * from "./sessions";
 export * from "./practiceVariations";
 export * from "./journal";
 export * from "./matchPrepReports";
+export * from "./curriculum";

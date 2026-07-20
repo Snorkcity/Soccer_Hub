@@ -251,6 +251,22 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // ── Coach Assistant curriculum knowledge base (2026-07) ──
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS curriculum_chunks (
+      id text PRIMARY KEY,
+      doc_title text NOT NULL,
+      doc_type text NOT NULL,
+      age_group text NOT NULL,
+      heading text NOT NULL,
+      heading_path text NOT NULL,
+      content text NOT NULL,
+      sort_order integer NOT NULL DEFAULT 0,
+      embedding jsonb,
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
   await syncPracticeLibrary();
 
   logger.info("Startup migrations applied");

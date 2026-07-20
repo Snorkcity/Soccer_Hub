@@ -96,6 +96,8 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
     return;
   }
   if (req.method === "GET" || req.method === "HEAD") return next();
+  // The Coach Assistant is a read-style POST (chat) — open to any signed-in role.
+  if (req.path === "/assistant/chat") return next();
   if (role !== "admin") {
     res.status(403).json({ error: "Admin access required to change data" });
     return;

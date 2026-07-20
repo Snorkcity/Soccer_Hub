@@ -18,6 +18,7 @@ import SessionEditor from '@/pages/SessionEditor';
 import SessionPrint from '@/pages/SessionPrint';
 import Reflections from '@/pages/Reflections';
 import MatchPrep from '@/pages/MatchPrep';
+import CoachAssistant from '@/pages/CoachAssistant';
 import ReflectionCycle from '@/pages/ReflectionCycle';
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ function Router() {
             <Route path="/sessions/:id" component={SessionEditor} />
             <Route path="/reflections" component={Reflections} />
             <Route path="/match-prep" component={MatchPrep} />
+            <Route path="/assistant" component={CoachAssistant} />
             <Route path="/reflections/:id" component={ReflectionCycle} />
             <Route path="/data-entry" component={DataEntry} />
             <Route component={NotFound} />
