@@ -209,6 +209,9 @@ export default function WeekAheadCard() {
     .filter((r) => r.kind === "monday")
     .sort((a, b) => mondayTime(b) - mondayTime(a));
 
+  // Long seasons mean 20+ briefings — show the latest few, expand on demand.
+  const [showAllBriefs, setShowAllBriefs] = useState(false);
+
   const [weekOpp, setWeekOpp] = useState("");
   const [building, setBuilding] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -454,7 +457,7 @@ export default function WeekAheadCard() {
           <div className="space-y-1.5 pt-1">
             <Label className="text-xs text-muted-foreground">Saved briefings</Label>
             <div className="space-y-1">
-              {mondayReports.map((r) => (
+              {(showAllBriefs ? mondayReports : mondayReports.slice(0, 5)).map((r) => (
                 <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${reportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
                   <span className="flex-1 truncate">{r.title}</span>
                   <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new briefing from this one" onClick={() => openSaved(r, true)}>
@@ -466,6 +469,11 @@ export default function WeekAheadCard() {
                 </div>
               ))}
             </div>
+            {mondayReports.length > 5 && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setShowAllBriefs((v) => !v)}>
+                {showAllBriefs ? "Show fewer" : `Show all (${mondayReports.length})`}
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

@@ -267,6 +267,8 @@ export default function MatchPrep() {
     query: { queryKey: getListMatchPrepReportsQueryKey() },
   });
   const [deckSort, setDeckSort] = useState<"game" | "saved">("game");
+  // Long seasons mean 20+ saved decks — show the latest few, expand on demand.
+  const [showAllDecks, setShowAllDecks] = useState(false);
   const gameTime = (md: string | null | undefined): number => {
     if (!md) return 0;
     const p = parse(md, "d MMMM yyyy", new Date());
@@ -806,7 +808,7 @@ export default function MatchPrep() {
               </div>
             </div>
             <div className="space-y-1">
-              {fridayReports.map((r) => (
+              {(showAllDecks ? fridayReports : fridayReports.slice(0, 5)).map((r) => (
                 <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${deckReportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
                   <span className="flex-1 truncate">
                     <span className="font-semibold">{((r.data as Partial<Draft>)?.round || "").trim() || "—"}</span>
@@ -826,6 +828,11 @@ export default function MatchPrep() {
                 </div>
               ))}
             </div>
+            {fridayReports.length > 5 && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setShowAllDecks((v) => !v)}>
+                {showAllDecks ? "Show fewer" : `Show all (${fridayReports.length})`}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
