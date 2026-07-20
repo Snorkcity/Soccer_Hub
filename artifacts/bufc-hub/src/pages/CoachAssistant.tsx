@@ -150,7 +150,7 @@ export default function CoachAssistant() {
             }`}>
               {m.role === "assistant" ? (
                 m.content ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_p]:my-1.5 [&_ul]:my-1.5 [&_li]:my-0.5">
+                  <div className="prose prose-sm prose-invert prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-headings:text-foreground prose-blockquote:text-foreground/80 max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_p]:my-1.5 [&_ul]:my-1.5 [&_li]:my-0.5">
                     <ReactMarkdown>{m.content}</ReactMarkdown>
                   </div>
                 ) : (
