@@ -438,7 +438,7 @@ export default function MatchPrep() {
       <SelectTrigger
         title={title}
         className={circle
-          ? `h-8 w-8 shrink-0 justify-center rounded-full border p-0 text-[10px] font-bold [&>svg]:hidden ${value ? `border-white ${navy ? "bg-blue-950" : "bg-sky-500"} text-white` : `border-dashed border-white/70 ${navy ? "bg-blue-950/60" : "bg-white/15"} text-white/90`}`
+          ? `h-7 w-7 sm:h-8 sm:w-8 shrink-0 justify-center rounded-full border p-0 text-[10px] font-bold [&>svg]:hidden ${value ? `border-white ${navy ? "bg-blue-950" : "bg-sky-500"} text-white` : `border-dashed border-white/70 ${navy ? "bg-blue-950/60" : "bg-white/15"} text-white/90`}`
           : "h-9"}
       >
         {circle
@@ -523,7 +523,7 @@ export default function MatchPrep() {
     return (
       <div className="overflow-x-auto">
         <div
-          className="relative mx-auto w-full min-w-[420px] max-w-xl rounded-md border border-white/20 overflow-hidden"
+          className="relative mx-auto w-full sm:min-w-[420px] max-w-xl rounded-md border border-white/20 overflow-hidden"
           style={{
             aspectRatio: "4 / 2.5",
             background:
@@ -546,7 +546,7 @@ export default function MatchPrep() {
               style={{ left: "calc(100% - 18px)", top: "20px" }}
               title="Their corner taker"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white bg-red-700 text-[10px] font-bold text-white">OP</div>
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full border border-white bg-red-700 text-[10px] font-bold text-white">OP</div>
               <span className="pointer-events-none mt-px rounded bg-slate-900/70 px-1 text-[8px] font-bold leading-3 text-red-300">OP</span>
             </div>
           )}

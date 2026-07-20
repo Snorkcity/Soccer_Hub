@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 import { useListTeams, useListSeasons, useGetSeasonSummary, getGetSeasonSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
-import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookHeart, BookOpen, ClipboardList, PenLine, Bot } from "lucide-react";
+import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookHeart, BookOpen, ClipboardList, PenLine, Bot, Presentation } from "lucide-react";
 
 export default function Home() {
   const { data: teams } = useListTeams();
@@ -58,6 +58,14 @@ export default function Home() {
       href: "/sessions",
       stat: "4-Part Sessions",
       color: "text-chart-5"
+    },
+    {
+      title: "Match Prep",
+      description: "Build the weekly pre-match deck — starting XI, corners, and free kicks.",
+      icon: Presentation,
+      href: "/match-prep",
+      stat: "Pre-Match Deck",
+      color: "text-chart-3"
     },
     {
       title: "Reflections",
