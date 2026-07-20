@@ -938,7 +938,7 @@ export default function MatchPrep() {
                 </Select>
               </div>
             </div>
-            <Textarea rows={3} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"We move from 433 to 442\nWingers tuck in to join midfield"} />
+            <Textarea rows={3} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"How are we pressing today? What moments are we pressing?\nHow do we move to the BPO shape if it's different to BP?"} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
