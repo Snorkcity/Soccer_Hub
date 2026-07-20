@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, Loader2, Save, Copy, Trash2, FolderOpen, Sparkles } from "lucide-react";
+import { FileDown, Loader2, Save, Copy, Trash2, Sparkles } from "lucide-react";
 import { KIND_DEFS, type JournalStandaloneKind } from "@/lib/journalFields";
 
 /** Parse the coach's dd.mm.yyyy entry date; null if it doesn't parse. */
@@ -195,7 +195,19 @@ export default function WeekAheadCard() {
   const { data: savedReports } = useListMatchPrepReports({
     query: { queryKey: getListMatchPrepReportsQueryKey() },
   });
-  const mondayReports = (savedReports ?? []).filter((r) => r.kind === "monday");
+  // Sort briefings by the Monday they cover, newest first (fall back to saved time).
+  const mondayTime = (r: { data?: unknown; updatedAt: string }): number => {
+    const wk = ((r.data ?? {}) as { weekOf?: string }).weekOf ?? "";
+    const m = wk.match(/(\d{1,2}) (\w+) (\d{4})/);
+    if (m) {
+      const t = new Date(`${m[1]} ${m[2]} ${m[3]}`).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+    return new Date(r.updatedAt).getTime();
+  };
+  const mondayReports = (savedReports ?? [])
+    .filter((r) => r.kind === "monday")
+    .sort((a, b) => mondayTime(b) - mondayTime(a));
 
   const [weekOpp, setWeekOpp] = useState("");
   const [building, setBuilding] = useState(false);
@@ -445,9 +457,6 @@ export default function WeekAheadCard() {
               {mondayReports.map((r) => (
                 <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${reportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
                   <span className="flex-1 truncate">{r.title}</span>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Open and edit" onClick={() => openSaved(r, false)}>
-                    <FolderOpen className="h-3.5 w-3.5" />
-                  </Button>
                   <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new briefing from this one" onClick={() => openSaved(r, true)}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>

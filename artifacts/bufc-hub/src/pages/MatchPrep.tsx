@@ -266,7 +266,20 @@ export default function MatchPrep() {
   const { data: savedReports } = useListMatchPrepReports({
     query: { queryKey: getListMatchPrepReportsQueryKey() },
   });
-  const fridayReports = (savedReports ?? []).filter((r) => r.kind === "friday");
+  const [deckSort, setDeckSort] = useState<"game" | "saved">("game");
+  const gameTime = (md: string | null | undefined): number => {
+    if (!md) return 0;
+    const p = parse(md, "d MMMM yyyy", new Date());
+    return isValid(p) ? p.getTime() : 0;
+  };
+  const fridayReports = (savedReports ?? [])
+    .filter((r) => r.kind === "friday")
+    .sort((a, b) =>
+      deckSort === "game"
+        ? gameTime(b.matchDate) - gameTime(a.matchDate) ||
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
 
   const deckTitle = () => `${d.round || "Match"} v ${d.opponent || "?"}${d.matchDate ? ` — ${d.matchDate}` : ""}`;
 
@@ -784,11 +797,23 @@ export default function MatchPrep() {
       {fridayReports.length > 0 && (
         <Card>
           <CardContent className="p-4 space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Saved decks</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs text-muted-foreground">Saved decks</Label>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground mr-1">Sort by</span>
+                <Button variant={deckSort === "game" ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-xs" onClick={() => setDeckSort("game")}>Game date</Button>
+                <Button variant={deckSort === "saved" ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-xs" onClick={() => setDeckSort("saved")}>Last saved</Button>
+              </div>
+            </div>
             <div className="space-y-1">
               {fridayReports.map((r) => (
                 <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${deckReportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
-                  <span className="flex-1 truncate">{r.title}</span>
+                  <span className="flex-1 truncate">
+                    <span className="font-semibold">{((r.data as Partial<Draft>)?.round || "").trim() || "—"}</span>
+                    {" "}v {r.opponent || "?"}
+                    {r.matchDate && <span className="text-muted-foreground"> · {r.matchDate}</span>}
+                    <span className="text-muted-foreground text-xs"> · saved {new Date(r.updatedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
+                  </span>
                   <Button variant="ghost" size="sm" className="h-7 px-2" title="Open and edit" onClick={() => openDeck(r, false)}>
                     <FolderOpen className="h-3.5 w-3.5" />
                   </Button>
