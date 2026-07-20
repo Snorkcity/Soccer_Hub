@@ -1039,7 +1039,11 @@ export default function MatchPrep() {
       </Card>
 
       {/* Bottom download — saves scrolling back up after filling everything in. */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => void saveDeck()} disabled={saving || !d.opponent}>
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          {deckReportId != null ? "Save changes" : "Save deck"}
+        </Button>
         <Button onClick={download} disabled={building || !d.opponent}>
           {building ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
           Download deck
