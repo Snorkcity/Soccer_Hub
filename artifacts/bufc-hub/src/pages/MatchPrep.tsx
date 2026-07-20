@@ -114,7 +114,7 @@ const FORMATIONS: Record<string, Slot[]> = {
 const TAKER_R = "Taker — right";
 const TAKER_L = "Taker — left";
 const CORNERS_FOR_SPOTS: Record<string, Array<[number, number]>> = {
-  "Attack the goal": [[0.4, 0.3], [0.46, 0.3], [0.52, 0.3], [0.43, 0.42], [0.49, 0.42]], // front three pushed on, two just behind
+  "Attack the goal": [[0.4, 0.3], [0.46, 0.3], [0.52, 0.3], [0.43, 0.37], [0.49, 0.37]], // front three pushed on, two tucked in behind
   "Far post": [[0.34, 0.1]],
   "Closer to corner taker": [[0.74, 0.45]],
   "Edge of box": [[0.5, 0.55], [0.62, 0.52]],
