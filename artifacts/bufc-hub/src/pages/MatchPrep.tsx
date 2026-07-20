@@ -925,7 +925,7 @@ export default function MatchPrep() {
                 </Select>
               </div>
             </div>
-            <Textarea rows={3} value={d.ourBpNotes} onChange={(e) => set("ourBpNotes", e.target.value)} placeholder={"8 plays a little deeper to help buildup\nWingers give width"} />
+            <Textarea rows={6} value={d.ourBpNotes} onChange={(e) => set("ourBpNotes", e.target.value)} placeholder={"Are we playing two 6s?\nShould the 9 drop into midfield to have 4 there?\nIs there a preference for FBs or CBs to push forward?"} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -938,7 +938,7 @@ export default function MatchPrep() {
                 </Select>
               </div>
             </div>
-            <Textarea rows={3} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"How are we pressing today? What moments are we pressing?\nHow do we move to the BPO shape if it's different to BP?"} />
+            <Textarea rows={6} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"How are we pressing today? What moments are we pressing?\nHow do we move to the BPO shape if it's different to BP?"} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -951,7 +951,7 @@ export default function MatchPrep() {
                 </Select>
               </div>
             </div>
-            <Textarea rows={3} value={d.theirBpNotes} onChange={(e) => set("theirBpNotes", e.target.value)} placeholder={"Outside centre backs happy to advance\nBoth forwards run in behind"} />
+            <Textarea rows={5} value={d.theirBpNotes} onChange={(e) => set("theirBpNotes", e.target.value)} placeholder={"What are the strengths or weaknesses of their shape?\nNarrow, too low? High defensive line?\nSlow wingers?\nAerially dominant defenders?"} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -964,7 +964,7 @@ export default function MatchPrep() {
                 </Select>
               </div>
             </div>
-            <Textarea rows={3} value={d.theirBpoNotes} onChange={(e) => set("theirBpoNotes", e.target.value)} placeholder={"Back 4 not always organised\nBig spaces between the lines"} />
+            <Textarea rows={5} value={d.theirBpoNotes} onChange={(e) => set("theirBpoNotes", e.target.value)} placeholder={"What are the strengths or weaknesses of their shape?\nNarrow, too low? High defensive line?\nSlow wingers?\nAerially dominant defenders?"} />
           </div>
         </CardContent>
       </Card>
