@@ -539,6 +539,17 @@ export default function MatchPrep() {
           <div className="absolute bottom-0 left-1/2 aspect-square w-[27%] -translate-x-1/2 translate-y-1/2 rounded-full border border-white/50" />
           {/* ball in the right corner */}
           <div className="absolute right-[42px] top-[15px] h-2.5 w-2.5 rounded-full bg-white shadow" title={takR ? `Taker: ${takR}` : "Corner taker"} />
+          {!showTakers && (
+            // Corners against — show THEIR taker in red at the corner, next to the ball.
+            <div
+              className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+              style={{ left: "calc(100% - 18px)", top: "20px" }}
+              title="Their corner taker"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white bg-red-700 text-[10px] font-bold text-white">OP</div>
+              <span className="pointer-events-none mt-px rounded bg-slate-900/70 px-1 text-[8px] font-bold leading-3 text-red-300">OP</span>
+            </div>
+          )}
           {showTakers &&
             takerSpots.map(([role, code, left]) => {
               const current = (takers[role] ?? [])[0] ?? "";
@@ -596,11 +607,13 @@ export default function MatchPrep() {
         </div>
         {/* legend for the role codes */}
         <div className="mx-auto mt-1 flex max-w-xl flex-wrap gap-x-3 gap-y-0.5 px-1 text-[10px] text-slate-400">
-          {showTakers && (
+          {showTakers ? (
             <>
               <span><span className="font-bold text-amber-300">TL</span> Taker — left</span>
               <span><span className="font-bold text-amber-300">TR</span> Taker — right</span>
             </>
+          ) : (
+            <span><span className="font-bold text-red-300">OP</span> Their taker</span>
           )}
           {Object.keys(spots).map((role) => (
             <span key={role}><span className="font-bold text-sky-300">{ABBR(role)}</span> {role}</span>
