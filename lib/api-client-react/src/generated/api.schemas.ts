@@ -1831,6 +1831,60 @@ export interface JournalReflectionUpdateRequest {
   content?: JournalReflectionUpdateRequestContent;
 }
 
+export type MatchPrepReportKind = typeof MatchPrepReportKind[keyof typeof MatchPrepReportKind];
+
+
+export const MatchPrepReportKind = {
+  monday: 'monday',
+  friday: 'friday',
+} as const;
+
+export type MatchPrepReportData = { [key: string]: unknown };
+
+export interface MatchPrepReport {
+  id: number;
+  kind: MatchPrepReportKind;
+  title: string;
+  /** @nullable */
+  opponent: string | null;
+  /** @nullable */
+  matchDate: string | null;
+  data: MatchPrepReportData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MatchPrepReportCreateRequestKind = typeof MatchPrepReportCreateRequestKind[keyof typeof MatchPrepReportCreateRequestKind];
+
+
+export const MatchPrepReportCreateRequestKind = {
+  monday: 'monday',
+  friday: 'friday',
+} as const;
+
+export type MatchPrepReportCreateRequestData = { [key: string]: unknown };
+
+export interface MatchPrepReportCreateRequest {
+  kind: MatchPrepReportCreateRequestKind;
+  /** @minLength 1 */
+  title: string;
+  opponent?: string;
+  matchDate?: string;
+  data: MatchPrepReportCreateRequestData;
+}
+
+export type MatchPrepReportUpdateRequestData = { [key: string]: unknown };
+
+export interface MatchPrepReportUpdateRequest {
+  /** @minLength 1 */
+  title?: string;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  matchDate?: string | null;
+  data?: MatchPrepReportUpdateRequestData;
+}
+
 export interface JournalDeleteResult {
   deleted: boolean;
 }

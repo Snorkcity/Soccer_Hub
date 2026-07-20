@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTeams,
   useListSeasons,
@@ -8,13 +9,20 @@ import {
   createWeekAheadBrief,
   useListJournalReflections,
   getListJournalReflectionsQueryKey,
+  useListMatchPrepReports,
+  getListMatchPrepReportsQueryKey,
+  createMatchPrepReport,
+  updateMatchPrepReport,
+  deleteMatchPrepReport,
   type OpponentProfileResponse,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, Save, Copy, Trash2, FolderOpen, Sparkles } from "lucide-react";
 import { KIND_DEFS, type JournalStandaloneKind } from "@/lib/journalFields";
 
 /** Parse the coach's dd.mm.yyyy entry date; null if it doesn't parse. */
@@ -183,8 +191,75 @@ export default function WeekAheadCard() {
     query: { queryKey: getListJournalReflectionsQueryKey() },
   });
 
+  const queryClient = useQueryClient();
+  const { data: savedReports } = useListMatchPrepReports({
+    query: { queryKey: getListMatchPrepReportsQueryKey() },
+  });
+  const mondayReports = (savedReports ?? []).filter((r) => r.kind === "monday");
+
   const [weekOpp, setWeekOpp] = useState("");
   const [building, setBuilding] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Editable brief — filled by AI, tweakable before download, savable for later.
+  const [reportId, setReportId] = useState<number | null>(null);
+  const [weekOf, setWeekOf] = useState("");
+  const [review, setReview] = useState("");
+  const [pointers, setPointers] = useState("");
+  const briefReady = Boolean(review.trim() || pointers.trim());
+
+  const toLines = (t: string) => t.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  async function refreshList() {
+    await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+  }
+
+  function openSaved(r: NonNullable<typeof savedReports>[number], asNew: boolean) {
+    const data = (r.data ?? {}) as { opponent?: string; weekOf?: string; review?: string[]; pointers?: string[] };
+    setWeekOpp(data.opponent ?? r.opponent ?? "");
+    setWeekOf(asNew ? "" : (data.weekOf ?? ""));
+    setReview((data.review ?? []).join("\n"));
+    setPointers((data.pointers ?? []).join("\n"));
+    setReportId(asNew ? null : r.id);
+    toast({ title: asNew ? "Started a new briefing from that one" : `Opened "${r.title}"` });
+  }
+
+  async function saveReport() {
+    if (!weekOpp) return;
+    setSaving(true);
+    try {
+      const wk = weekOf || comingMonday();
+      const payload = {
+        kind: "monday" as const,
+        title: `Week Ahead — vs ${weekOpp} (${wk})`,
+        opponent: weekOpp,
+        data: { opponent: weekOpp, weekOf: wk, review: toLines(review), pointers: toLines(pointers) },
+      };
+      if (reportId != null) {
+        await updateMatchPrepReport(reportId, payload);
+      } else {
+        const created = await createMatchPrepReport(payload);
+        setReportId(created.id);
+      }
+      setWeekOf(wk);
+      await refreshList();
+      toast({ title: "Briefing saved", description: "Open it again any time from the saved list." });
+    } catch {
+      toast({ title: "Couldn't save the briefing", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeSaved(id: number) {
+    try {
+      await deleteMatchPrepReport(id);
+      if (reportId === id) setReportId(null);
+      await refreshList();
+    } catch {
+      toast({ title: "Couldn't delete that briefing", variant: "destructive" });
+    }
+  }
 
   /** One reflection as [label, answer] rows, empty answers dropped. */
   function reflectionRows(r: NonNullable<typeof reflections>[number]): Array<[string, string]> {
@@ -198,9 +273,9 @@ export default function WeekAheadCard() {
     return reflectionRows(r).map(([q, a]) => `${q} ${a}`).join("\n");
   }
 
-  async function buildWeekAhead() {
+  async function generateBrief() {
     if (!weekOpp || teamId == null || seasonId == null) return;
-    setBuilding(true);
+    setDrafting(true);
     try {
       const [theirs, ours] = await Promise.all([
         getOpponentProfile({ teamId, seasonId, club: weekOpp }),
@@ -245,19 +320,54 @@ export default function WeekAheadCard() {
         ourGamesText: gamesText(ourGames) || undefined,
       });
 
+      setReview(brief.review.join("\n"));
+      setPointers(brief.pointers.join("\n"));
+      if (!weekOf) setWeekOf(comingMonday());
+      toast({ title: "Briefing drafted", description: "Edit any line, then download or save it." });
+    } catch {
+      toast({
+        title: "Couldn't draft the briefing",
+        description: "Check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  async function downloadReport() {
+    if (!weekOpp || teamId == null || seasonId == null) return;
+    setBuilding(true);
+    try {
+      const [theirs, ours] = await Promise.all([
+        getOpponentProfile({ teamId, seasonId, club: weekOpp }),
+        getOpponentProfile({ teamId, seasonId, club: "Belconnen" }),
+      ]);
+      const oppNeedle = weekOpp.toLowerCase();
+      const lastVsOpp = [...(reflections ?? [])]
+        .sort(
+          (a, b) =>
+            (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
+            (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
+        )
+        .find(
+          (r) =>
+            r.kind === "match_reflection" &&
+            `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
+        );
       const { buildWeekAheadPptx } = await import("@/lib/weekAheadPptx");
       const pptx = buildWeekAheadPptx({
-        weekOf: comingMonday(),
+        weekOf: weekOf || comingMonday(),
         opponent: weekOpp,
         author: "Belconnen United FC",
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
-        review: brief.review,
-        pointers: brief.pointers,
+        review: toLines(review),
+        pointers: toLines(pointers),
         lastVsOpponent: lastVsOpp
           ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
           : null,
-        theirGames,
-        ourGames,
+        theirGames: lastGames(theirs, 3),
+        ourGames: lastGames(ours, 3),
         ourSnapshot: clubSnapshot(ours, 3),
         theirSnapshot: clubSnapshot(theirs, 3),
       });
@@ -292,14 +402,63 @@ export default function WeekAheadCard() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => void buildWeekAhead()} disabled={!weekOpp || building}>
+          <Button variant="outline" onClick={() => void generateBrief()} disabled={!weekOpp || drafting}>
+            {drafting ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Drafting…</>
+            ) : (
+              <><Sparkles className="h-4 w-4 mr-1" /> Draft with AI</>
+            )}
+          </Button>
+          <Button onClick={() => void downloadReport()} disabled={!weekOpp || building || !briefReady}>
             {building ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Building…</>
             ) : (
-              <><FileDown className="h-4 w-4 mr-1" /> Build report</>
+              <><FileDown className="h-4 w-4 mr-1" /> Download report</>
+            )}
+          </Button>
+          <Button variant="outline" onClick={() => void saveReport()} disabled={!weekOpp || saving || !briefReady}>
+            {saving ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving…</>
+            ) : (
+              <><Save className="h-4 w-4 mr-1" /> {reportId != null ? "Save changes" : "Save"}</>
             )}
           </Button>
         </div>
+
+        {briefReady && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Last week review — one point per line</Label>
+              <Textarea rows={5} value={review} onChange={(e) => setReview(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Prep pointers — one point per line</Label>
+              <Textarea rows={5} value={pointers} onChange={(e) => setPointers(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {mondayReports.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs text-muted-foreground">Saved briefings</Label>
+            <div className="space-y-1">
+              {mondayReports.map((r) => (
+                <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${reportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <span className="flex-1 truncate">{r.title}</span>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Open and edit" onClick={() => openSaved(r, false)}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new briefing from this one" onClick={() => openSaved(r, true)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" title="Delete" onClick={() => void removeSaved(r.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

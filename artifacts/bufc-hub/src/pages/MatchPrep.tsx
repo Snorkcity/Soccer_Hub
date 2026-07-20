@@ -8,7 +8,13 @@ import {
   getGetOpponentProfileQueryKey,
   getOpponentProfile,
   createPrematchBrief,
+  useListMatchPrepReports,
+  getListMatchPrepReportsQueryKey,
+  createMatchPrepReport,
+  updateMatchPrepReport,
+  deleteMatchPrepReport,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, CalendarIcon, Loader2, Sparkles } from "lucide-react";
+import { FileDown, CalendarIcon, Loader2, Sparkles, Save, Copy, Trash2, FolderOpen } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parse, isValid } from "date-fns";
@@ -168,6 +174,8 @@ interface Draft {
   round: string;
   matchDate: string;
   formation: string;
+  ourFormationBp: string;
+  ourFormationBpo: string;
   theirFormation: string;
   theirFormationBpo: string;
   xi: Record<string, string>; // slotId -> player name
@@ -192,7 +200,8 @@ interface Draft {
 const DRAFT_KEY = "bufc-matchprep-draft-v1";
 
 const blankDraft = (): Draft => ({
-  opponent: "", round: "", matchDate: "", formation: "433", theirFormation: "433", theirFormationBpo: "433",
+  opponent: "", round: "", matchDate: "", formation: "433", ourFormationBp: "433", ourFormationBpo: "433",
+  theirFormation: "433", theirFormationBpo: "433",
   xi: {}, subs: [],
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
@@ -247,6 +256,63 @@ export default function MatchPrep() {
   const [d, setD] = useState<Draft>(loadDraft);
   const [drafting, setDrafting] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Which saved Friday deck we're editing (null = unsaved draft).
+  const [deckReportId, setDeckReportId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const { data: savedReports } = useListMatchPrepReports({
+    query: { queryKey: getListMatchPrepReportsQueryKey() },
+  });
+  const fridayReports = (savedReports ?? []).filter((r) => r.kind === "friday");
+
+  const deckTitle = () => `${d.round || "Match"} v ${d.opponent || "?"}${d.matchDate ? ` — ${d.matchDate}` : ""}`;
+
+  async function saveDeck() {
+    if (!d.opponent) { toast({ title: "Pick an opponent first", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        kind: "friday" as const,
+        title: deckTitle(),
+        opponent: d.opponent,
+        matchDate: d.matchDate || undefined,
+        data: d as unknown as Record<string, unknown>,
+      };
+      if (deckReportId != null) {
+        await updateMatchPrepReport(deckReportId, payload);
+      } else {
+        const created = await createMatchPrepReport(payload);
+        setDeckReportId(created.id);
+      }
+      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+      toast({ title: "Deck saved", description: "Open it again any time from the saved list." });
+    } catch {
+      toast({ title: "Couldn't save the deck", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openDeck(r: NonNullable<typeof savedReports>[number], asNew: boolean) {
+    const loaded: Draft = { ...blankDraft(), ...(r.data as unknown as Partial<Draft>) };
+    if (asNew) {
+      // Continuity: keep shapes, roles and set pieces — clear the match facts.
+      loaded.opponent = ""; loaded.round = ""; loaded.matchDate = "";
+    }
+    setD(loaded);
+    setDeckReportId(asNew ? null : r.id);
+    toast({ title: asNew ? "New deck started from that one" : `Opened "${r.title}"` });
+  }
+
+  async function removeDeck(id: number) {
+    try {
+      await deleteMatchPrepReport(id);
+      if (deckReportId === id) setDeckReportId(null);
+      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+    } catch {
+      toast({ title: "Couldn't delete that deck", variant: "destructive" });
+    }
+  }
 
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
@@ -317,6 +383,17 @@ export default function MatchPrep() {
         px: s.px, py: s.py, label: s.num,
         name: d.xi[s.id] || s.role,
       }));
+      // Our BP/BPO shapes may differ from the lineup formation — map the XI
+      // into the picked shape by position order (GK first, then defence up).
+      const shapedLineup = (formation: string): PitchPlayer[] => {
+        const shape = FORMATIONS[formation] ?? slots;
+        return shape.map((s, i) => ({
+          px: s.px, py: s.py, label: s.num,
+          name: (slots[i] ? d.xi[slots[i].id] : "") || s.role,
+        }));
+      };
+      const ourBpFormation = d.ourFormationBp || d.formation;
+      const ourBpoFormation = d.ourFormationBpo || d.formation;
       const theirSlots = FORMATIONS[d.theirFormation] ?? FORMATIONS["433"];
       const theirPlayers: PitchPlayer[] = theirSlots.map((s) => ({ px: s.px, py: s.py, label: s.num, color: "B54A4A" }));
       const theirBpoSlots = FORMATIONS[d.theirFormationBpo] ?? theirSlots;
@@ -380,8 +457,10 @@ export default function MatchPrep() {
         formationName: d.formation,
         lineup,
         subs: d.subs,
-        ourBp: { players: lineup, notes: lines(d.ourBpNotes) },
-        ourBpo: { players: lineup, notes: lines(d.ourBpoNotes) },
+        ourBp: { players: shapedLineup(ourBpFormation), notes: lines(d.ourBpNotes) },
+        ourBpo: { players: shapedLineup(ourBpoFormation), notes: lines(d.ourBpoNotes) },
+        ourBpFormationName: ourBpFormation,
+        ourBpoFormationName: ourBpoFormation,
         theirBp: { players: theirPlayers, notes: lines(d.theirBpNotes) },
         theirBpo: { players: theirBpoPlayers, notes: lines(d.theirBpoNotes) },
         theirFormationName: d.theirFormation,
@@ -674,14 +753,42 @@ export default function MatchPrep() {
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <FileDown className="h-5 w-5 text-primary" /> Friday pre-match deck
         </h2>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setD(blankDraft())}>Start fresh</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => { setD(blankDraft()); setDeckReportId(null); }}>Start fresh</Button>
+          <Button variant="outline" onClick={() => void saveDeck()} disabled={saving || !d.opponent}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            {deckReportId != null ? "Save changes" : "Save deck"}
+          </Button>
           <Button onClick={download} disabled={building || !d.opponent}>
             {building ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
             Download deck
           </Button>
         </div>
       </div>
+
+      {fridayReports.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Saved decks</Label>
+            <div className="space-y-1">
+              {fridayReports.map((r) => (
+                <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${deckReportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <span className="flex-1 truncate">{r.title}</span>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Open and edit" onClick={() => openDeck(r, false)}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new deck from this one" onClick={() => openDeck(r, true)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" title="Delete" onClick={() => void removeDeck(r.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Match details */}
       <Card>
@@ -761,11 +868,29 @@ export default function MatchPrep() {
         <CardHeader className="pb-3"><CardTitle className="text-base">3 · Shapes — one point per line</CardTitle></CardHeader>
         <CardContent className="grid md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Our shape — BP</Label>
+            <div className="flex items-center justify-between">
+              <Label>Our shape — BP</Label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Shape</span>
+                <Select value={d.ourFormationBp || d.formation} onValueChange={(v) => set("ourFormationBp", v)}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
             <Textarea rows={3} value={d.ourBpNotes} onChange={(e) => set("ourBpNotes", e.target.value)} placeholder={"8 plays a little deeper to help buildup\nWingers give width"} />
           </div>
           <div className="space-y-1.5">
-            <Label>Our shape — BPO</Label>
+            <div className="flex items-center justify-between">
+              <Label>Our shape — BPO</Label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Shape</span>
+                <Select value={d.ourFormationBpo || d.formation} onValueChange={(v) => set("ourFormationBpo", v)}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
             <Textarea rows={3} value={d.ourBpoNotes} onChange={(e) => set("ourBpoNotes", e.target.value)} placeholder={"We move from 433 to 442\nWingers tuck in to join midfield"} />
           </div>
           <div className="space-y-1.5">

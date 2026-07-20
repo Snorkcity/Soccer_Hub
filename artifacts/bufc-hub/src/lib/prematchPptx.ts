@@ -48,6 +48,8 @@ export interface PrematchInput {
   subs: string[];
   ourBp: { players: PitchPlayer[]; notes: string[] };
   ourBpo: { players: PitchPlayer[]; notes: string[] };
+  ourBpFormationName?: string;
+  ourBpoFormationName?: string;
   theirBp: { players: PitchPlayer[]; notes: string[] };
   theirBpo: { players: PitchPlayer[]; notes: string[] };
   theirFormationName: string;
@@ -412,9 +414,9 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   }
 
   // ── Our shape (BP, BPO) ──
-  shapeSlide(pptx, "Our shape — BP", `In possession — ${input.formationName}`,
+  shapeSlide(pptx, "Our shape — BP", `In possession — ${input.ourBpFormationName || input.formationName}`,
     input.ourBp.players, input.ourBp.notes, foot);
-  shapeSlide(pptx, "Our shape — BPO", "Out of possession",
+  shapeSlide(pptx, "Our shape — BPO", `Out of possession — ${input.ourBpoFormationName || input.formationName}`,
     input.ourBpo.players, input.ourBpo.notes, foot);
 
   // ── Their shape — both pitches on one slide ──

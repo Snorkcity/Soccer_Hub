@@ -1866,6 +1866,78 @@ paths:
               schema:
                 $ref: "#/components/schemas/JournalDeleteResult"
 
+  /match-prep/reports:
+    get:
+      operationId: listMatchPrepReports
+      tags: [journal]
+      summary: List saved Match Prep reports (Monday briefings + Friday decks), newest first
+      responses:
+        "200":
+          description: Saved reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchPrepReport"
+    post:
+      operationId: createMatchPrepReport
+      tags: [journal]
+      summary: Save a Match Prep report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchPrepReportCreateRequest"
+      responses:
+        "200":
+          description: Saved report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchPrepReport"
+
+  /match-prep/reports/{id}:
+    patch:
+      operationId: updateMatchPrepReport
+      tags: [journal]
+      summary: Update a saved Match Prep report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchPrepReportUpdateRequest"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchPrepReport"
+    delete:
+      operationId: deleteMatchPrepReport
+      tags: [journal]
+      summary: Delete a saved Match Prep report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalDeleteResult"
+
   /journal/interview/speak:
     post:
       operationId: journalInterviewSpeak
@@ -3575,6 +3647,43 @@ components:
         content:
           type: object
           additionalProperties: { type: string }
+
+    MatchPrepReport:
+      type: object
+      properties:
+        id:        { type: integer }
+        kind:      { type: string, enum: [monday, friday] }
+        title:     { type: string }
+        opponent:  { type: ["string", "null"] }
+        matchDate: { type: ["string", "null"] }
+        data:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, kind, title, opponent, matchDate, data, createdAt, updatedAt]
+
+    MatchPrepReportCreateRequest:
+      type: object
+      properties:
+        kind:      { type: string, enum: [monday, friday] }
+        title:     { type: string, minLength: 1 }
+        opponent:  { type: string }
+        matchDate: { type: string }
+        data:
+          type: object
+          additionalProperties: true
+      required: [kind, title, data]
+
+    MatchPrepReportUpdateRequest:
+      type: object
+      properties:
+        title:     { type: string, minLength: 1 }
+        opponent:  { type: ["string", "null"] }
+        matchDate: { type: ["string", "null"] }
+        data:
+          type: object
+          additionalProperties: true
 
     JournalDeleteResult:
       type: object

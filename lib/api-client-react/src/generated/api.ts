@@ -120,6 +120,9 @@ import type {
   ListPlayersParams,
   Match,
   MatchInput,
+  MatchPrepReport,
+  MatchPrepReportCreateRequest,
+  MatchPrepReportUpdateRequest,
   MatchUpdate,
   OpponentGoalBreakdownResponse,
   OpponentLeaderboardResponse,
@@ -6903,6 +6906,297 @@ export const useDeleteJournalReflection = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteJournalReflectionMutationOptions(options));
+    }
+
+export const getListMatchPrepReportsUrl = () => {
+
+
+
+
+  return `/api/match-prep/reports`
+}
+
+/**
+ * @summary List saved Match Prep reports (Monday briefings + Friday decks), newest first
+ */
+export const listMatchPrepReports = async ( options?: RequestInit): Promise<MatchPrepReport[]> => {
+
+  return customFetch<MatchPrepReport[]>(getListMatchPrepReportsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMatchPrepReportsQueryKey = () => {
+    return [
+    `/api/match-prep/reports`
+    ] as const;
+    }
+
+
+export const getListMatchPrepReportsQueryOptions = <TData = Awaited<ReturnType<typeof listMatchPrepReports>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMatchPrepReportsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMatchPrepReports>>> = ({ signal }) => listMatchPrepReports({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMatchPrepReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listMatchPrepReports>>>
+export type ListMatchPrepReportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved Match Prep reports (Monday briefings + Friday decks), newest first
+ */
+
+export function useListMatchPrepReports<TData = Awaited<ReturnType<typeof listMatchPrepReports>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMatchPrepReportsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMatchPrepReportUrl = () => {
+
+
+
+
+  return `/api/match-prep/reports`
+}
+
+/**
+ * @summary Save a Match Prep report
+ */
+export const createMatchPrepReport = async (matchPrepReportCreateRequest: MatchPrepReportCreateRequest, options?: RequestInit): Promise<MatchPrepReport> => {
+
+  return customFetch<MatchPrepReport>(getCreateMatchPrepReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchPrepReportCreateRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateMatchPrepReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMatchPrepReport>>, TError,{data: BodyType<MatchPrepReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMatchPrepReport>>, TError,{data: BodyType<MatchPrepReportCreateRequest>}, TContext> => {
+
+const mutationKey = ['createMatchPrepReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMatchPrepReport>>, {data: BodyType<MatchPrepReportCreateRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMatchPrepReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMatchPrepReportMutationResult = NonNullable<Awaited<ReturnType<typeof createMatchPrepReport>>>
+    export type CreateMatchPrepReportMutationBody = BodyType<MatchPrepReportCreateRequest>
+    export type CreateMatchPrepReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a Match Prep report
+ */
+export const useCreateMatchPrepReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMatchPrepReport>>, TError,{data: BodyType<MatchPrepReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMatchPrepReport>>,
+        TError,
+        {data: BodyType<MatchPrepReportCreateRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateMatchPrepReportMutationOptions(options));
+    }
+
+export const getUpdateMatchPrepReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/match-prep/reports/${id}`
+}
+
+/**
+ * @summary Update a saved Match Prep report
+ */
+export const updateMatchPrepReport = async (id: number,
+    matchPrepReportUpdateRequest: MatchPrepReportUpdateRequest, options?: RequestInit): Promise<MatchPrepReport> => {
+
+  return customFetch<MatchPrepReport>(getUpdateMatchPrepReportUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchPrepReportUpdateRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateMatchPrepReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatchPrepReport>>, TError,{id: number;data: BodyType<MatchPrepReportUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMatchPrepReport>>, TError,{id: number;data: BodyType<MatchPrepReportUpdateRequest>}, TContext> => {
+
+const mutationKey = ['updateMatchPrepReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMatchPrepReport>>, {id: number;data: BodyType<MatchPrepReportUpdateRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMatchPrepReport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMatchPrepReportMutationResult = NonNullable<Awaited<ReturnType<typeof updateMatchPrepReport>>>
+    export type UpdateMatchPrepReportMutationBody = BodyType<MatchPrepReportUpdateRequest>
+    export type UpdateMatchPrepReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a saved Match Prep report
+ */
+export const useUpdateMatchPrepReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatchPrepReport>>, TError,{id: number;data: BodyType<MatchPrepReportUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMatchPrepReport>>,
+        TError,
+        {id: number;data: BodyType<MatchPrepReportUpdateRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateMatchPrepReportMutationOptions(options));
+    }
+
+export const getDeleteMatchPrepReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/match-prep/reports/${id}`
+}
+
+/**
+ * @summary Delete a saved Match Prep report
+ */
+export const deleteMatchPrepReport = async (id: number, options?: RequestInit): Promise<JournalDeleteResult> => {
+
+  return customFetch<JournalDeleteResult>(getDeleteMatchPrepReportUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMatchPrepReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatchPrepReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMatchPrepReport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteMatchPrepReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMatchPrepReport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMatchPrepReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMatchPrepReportMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMatchPrepReport>>>
+
+    export type DeleteMatchPrepReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a saved Match Prep report
+ */
+export const useDeleteMatchPrepReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatchPrepReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMatchPrepReport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMatchPrepReportMutationOptions(options));
     }
 
 export const getJournalInterviewSpeakUrl = () => {

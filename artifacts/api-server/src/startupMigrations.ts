@@ -238,6 +238,19 @@ export async function runStartupMigrations(): Promise<void> {
       WHERE cycle_id IS NOT NULL
   `);
 
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS match_prep_reports (
+      id serial PRIMARY KEY,
+      kind text NOT NULL,
+      title text NOT NULL,
+      opponent text,
+      match_date text,
+      data jsonb NOT NULL DEFAULT '{}',
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
   await syncPracticeLibrary();
 
   logger.info("Startup migrations applied");

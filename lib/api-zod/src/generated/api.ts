@@ -2505,6 +2505,89 @@ export const DeleteJournalReflectionResponse = zod.object({
 
 
 /**
+ * @summary List saved Match Prep reports (Monday briefings + Friday decks), newest first
+ */
+export const ListMatchPrepReportsResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['monday', 'friday']),
+  "title": zod.string(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMatchPrepReportsResponse = zod.array(ListMatchPrepReportsResponseItem)
+
+
+/**
+ * @summary Save a Match Prep report
+ */
+
+
+
+export const CreateMatchPrepReportBody = zod.object({
+  "kind": zod.enum(['monday', 'friday']),
+  "title": zod.string().min(1),
+  "opponent": zod.string().optional(),
+  "matchDate": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+export const CreateMatchPrepReportResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['monday', 'friday']),
+  "title": zod.string(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a saved Match Prep report
+ */
+export const UpdateMatchPrepReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateMatchPrepReportBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "opponent": zod.string().nullish(),
+  "matchDate": zod.string().nullish(),
+  "data": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const UpdateMatchPrepReportResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['monday', 'friday']),
+  "title": zod.string(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a saved Match Prep report
+ */
+export const DeleteMatchPrepReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteMatchPrepReportResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
  * @summary Convert interview question text to spoken audio (coach's OpenAI key)
  */
 export const journalInterviewSpeakBodyTextMax = 2000;

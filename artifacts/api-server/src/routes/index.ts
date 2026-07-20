@@ -16,6 +16,7 @@ import entryRouter from "./entry";
 import libraryRouter from "./library";
 import sessionsRouter from "./sessions";
 import journalRouter from "./journal";
+import matchPrepReportsRouter from "./matchPrepReports";
 import journalInterviewRouter from "./journalInterview";
 
 const router: IRouter = Router();
@@ -37,6 +38,7 @@ router.use(entryRouter);
 router.use(libraryRouter);
 router.use(sessionsRouter);
 router.use(journalRouter);
+router.use(matchPrepReportsRouter);
 router.use(journalInterviewRouter);
 
 export default router;
