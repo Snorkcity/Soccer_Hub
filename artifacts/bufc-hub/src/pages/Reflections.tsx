@@ -26,8 +26,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
 import InterviewDialog from "@/components/InterviewDialog";
-import { KIND_DEFS, filledCount, type JournalStandaloneKind } from "@/lib/journalFields";
-import { parseEntryDate } from "@/components/WeekAheadCard";
+import { KIND_DEFS, filledCount, parseEntryDate, type JournalStandaloneKind } from "@/lib/journalFields";
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
 

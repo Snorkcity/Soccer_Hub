@@ -12,27 +12,16 @@ import {
   useListMatchPrepReports,
   getListMatchPrepReportsQueryKey,
   createMatchPrepReport,
-  updateMatchPrepReport,
   deleteMatchPrepReport,
   type OpponentProfileResponse,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, Loader2, Save, Copy, Trash2, Sparkles } from "lucide-react";
-import { KIND_DEFS, type JournalStandaloneKind } from "@/lib/journalFields";
-
-/** Parse the coach's dd.mm.yyyy entry date; null if it doesn't parse. */
-export function parseEntryDate(raw: string | null | undefined): number | null {
-  if (!raw) return null;
-  const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (!m) return null;
-  const t = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
-  return Number.isNaN(t) ? null : t;
-}
+import { FileDown, Loader2, Copy, Trash2, Sparkles } from "lucide-react";
+import { KIND_DEFS, parseEntryDate, type JournalStandaloneKind } from "@/lib/journalFields";
 
 /** Parse a match date that may be dd.mm.yyyy or ISO; NaN-safe. */
 function parseMatchDate(raw: string | null | undefined): number {
@@ -213,63 +202,38 @@ export default function WeekAheadCard() {
   const [showAllBriefs, setShowAllBriefs] = useState(false);
 
   const [weekOpp, setWeekOpp] = useState("");
-  const [building, setBuilding] = useState(false);
   const [drafting, setDrafting] = useState(false);
-  const [saving, setSaving] = useState(false);
-  // Editable brief — filled by AI, tweakable before download, savable for later.
-  const [reportId, setReportId] = useState<number | null>(null);
-  const [weekOf, setWeekOf] = useState("");
-  const [review, setReview] = useState("");
-  const [pointers, setPointers] = useState("");
-  const briefReady = Boolean(review.trim() || pointers.trim());
-
-  const toLines = (t: string) => t.split("\n").map((l) => l.trim()).filter(Boolean);
+  // Which saved row is currently building its PowerPoint (row spinner).
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   async function refreshList() {
     await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
   }
 
-  function openSaved(r: NonNullable<typeof savedReports>[number], asNew: boolean) {
-    const data = (r.data ?? {}) as { opponent?: string; weekOf?: string; review?: string[]; pointers?: string[] };
-    setWeekOpp(data.opponent ?? r.opponent ?? "");
-    setWeekOf(asNew ? "" : (data.weekOf ?? ""));
-    setReview((data.review ?? []).join("\n"));
-    setPointers((data.pointers ?? []).join("\n"));
-    setReportId(asNew ? null : r.id);
-    toast({ title: asNew ? "Started a new briefing from that one" : `Opened "${r.title}"` });
-  }
+  type SavedBriefData = { opponent?: string; weekOf?: string; review?: string[]; pointers?: string[] };
 
-  async function saveReport() {
-    if (!weekOpp) return;
-    setSaving(true);
+  /** "Start new from this" — duplicate a saved briefing for the coming Monday. */
+  async function copySaved(r: NonNullable<typeof savedReports>[number]) {
+    const data = (r.data ?? {}) as SavedBriefData;
+    const opponent = data.opponent ?? r.opponent ?? "";
+    const wk = comingMonday();
     try {
-      const wk = weekOf || comingMonday();
-      const payload = {
-        kind: "monday" as const,
-        title: `Week Ahead — vs ${weekOpp} (${wk})`,
-        opponent: weekOpp,
-        data: { opponent: weekOpp, weekOf: wk, review: toLines(review), pointers: toLines(pointers) },
-      };
-      if (reportId != null) {
-        await updateMatchPrepReport(reportId, payload);
-      } else {
-        const created = await createMatchPrepReport(payload);
-        setReportId(created.id);
-      }
-      setWeekOf(wk);
+      await createMatchPrepReport({
+        kind: "monday",
+        title: `Week Ahead — vs ${opponent} (${wk})`,
+        opponent,
+        data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [] },
+      });
       await refreshList();
-      toast({ title: "Briefing saved", description: "Open it again any time from the saved list." });
+      toast({ title: "New briefing created from that one", description: `Dated ${wk}.` });
     } catch {
-      toast({ title: "Couldn't save the briefing", variant: "destructive" });
-    } finally {
-      setSaving(false);
+      toast({ title: "Couldn't copy the briefing", variant: "destructive" });
     }
   }
 
   async function removeSaved(id: number) {
     try {
       await deleteMatchPrepReport(id);
-      if (reportId === id) setReportId(null);
       await refreshList();
     } catch {
       toast({ title: "Couldn't delete that briefing", variant: "destructive" });
@@ -335,10 +299,16 @@ export default function WeekAheadCard() {
         ourGamesText: gamesText(ourGames) || undefined,
       });
 
-      setReview(brief.review.join("\n"));
-      setPointers(brief.pointers.join("\n"));
-      if (!weekOf) setWeekOf(comingMonday());
-      toast({ title: "Briefing drafted", description: "Edit any line, then download or save it." });
+      // Save straight into the list — downloads happen from the saved rows.
+      const wk = comingMonday();
+      await createMatchPrepReport({
+        kind: "monday",
+        title: `Week Ahead — vs ${weekOpp} (${wk})`,
+        opponent: weekOpp,
+        data: { opponent: weekOpp, weekOf: wk, review: brief.review, pointers: brief.pointers },
+      });
+      await refreshList();
+      toast({ title: "Briefing drafted and saved", description: "Download it from the list below." });
     } catch {
       toast({
         title: "Couldn't draft the briefing",
@@ -350,15 +320,18 @@ export default function WeekAheadCard() {
     }
   }
 
-  async function downloadReport() {
-    if (!weekOpp || teamId == null || seasonId == null) return;
-    setBuilding(true);
+  /** Build and download the PowerPoint for one saved briefing row. */
+  async function downloadSaved(r: NonNullable<typeof savedReports>[number]) {
+    const data = (r.data ?? {}) as SavedBriefData;
+    const opponent = data.opponent ?? r.opponent ?? "";
+    if (!opponent || teamId == null || seasonId == null) return;
+    setDownloadingId(r.id);
     try {
       const [theirs, ours] = await Promise.all([
-        getOpponentProfile({ teamId, seasonId, club: weekOpp }),
+        getOpponentProfile({ teamId, seasonId, club: opponent }),
         getOpponentProfile({ teamId, seasonId, club: "Belconnen" }),
       ]);
-      const oppNeedle = weekOpp.toLowerCase();
+      const oppNeedle = opponent.toLowerCase();
       const lastVsOpp = [...(reflections ?? [])]
         .sort(
           (a, b) =>
@@ -372,12 +345,12 @@ export default function WeekAheadCard() {
         );
       const { buildWeekAheadPptx } = await import("@/lib/weekAheadPptx");
       const pptx = buildWeekAheadPptx({
-        weekOf: weekOf || comingMonday(),
-        opponent: weekOpp,
+        weekOf: data.weekOf || comingMonday(),
+        opponent,
         author: "Belconnen United FC",
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
-        review: toLines(review),
-        pointers: toLines(pointers),
+        review: data.review ?? [],
+        pointers: data.pointers ?? [],
         lastVsOpponent: lastVsOpp
           ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
           : null,
@@ -386,7 +359,7 @@ export default function WeekAheadCard() {
         ourSnapshot: clubSnapshot(ours, 3),
         theirSnapshot: clubSnapshot(theirs, 3),
       });
-      await pptx.writeFile({ fileName: `Week Ahead — vs ${weekOpp}.pptx` });
+      await pptx.writeFile({ fileName: `Week Ahead — vs ${opponent}.pptx` });
     } catch {
       toast({
         title: "Couldn't build the report",
@@ -394,7 +367,7 @@ export default function WeekAheadCard() {
         variant: "destructive",
       });
     } finally {
-      setBuilding(false);
+      setDownloadingId(null);
     }
   }
 
@@ -404,7 +377,7 @@ export default function WeekAheadCard() {
         <p className="text-sm text-muted-foreground">
           Your Monday briefing as a PowerPoint: last week's reflections reviewed, then the
           coming opponent — their last 3 games, ours, and prep pointers for the week. Pick who
-          you play next and build it.
+          you play next, draft it, then download from the saved list below.
         </p>
         <div className="flex gap-2 flex-wrap items-center">
           <Select value={weekOpp} onValueChange={setWeekOpp}>
@@ -417,50 +390,26 @@ export default function WeekAheadCard() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => void generateBrief()} disabled={!weekOpp || drafting}>
+          <Button onClick={() => void generateBrief()} disabled={!weekOpp || drafting}>
             {drafting ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Drafting…</>
             ) : (
               <><Sparkles className="h-4 w-4 mr-1" /> Draft with AI</>
             )}
           </Button>
-          <Button onClick={() => void downloadReport()} disabled={!weekOpp || building || !briefReady}>
-            {building ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Building…</>
-            ) : (
-              <><FileDown className="h-4 w-4 mr-1" /> Download report</>
-            )}
-          </Button>
-          <Button variant="outline" onClick={() => void saveReport()} disabled={!weekOpp || saving || !briefReady}>
-            {saving ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving…</>
-            ) : (
-              <><Save className="h-4 w-4 mr-1" /> {reportId != null ? "Save changes" : "Save"}</>
-            )}
-          </Button>
         </div>
-
-        {briefReady && (
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Last week review — one point per line</Label>
-              <Textarea rows={5} value={review} onChange={(e) => setReview(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Prep pointers — one point per line</Label>
-              <Textarea rows={5} value={pointers} onChange={(e) => setPointers(e.target.value)} />
-            </div>
-          </div>
-        )}
 
         {mondayReports.length > 0 && (
           <div className="space-y-1.5 pt-1">
             <Label className="text-xs text-muted-foreground">Saved briefings</Label>
             <div className="space-y-1">
               {(showAllBriefs ? mondayReports : mondayReports.slice(0, 5)).map((r) => (
-                <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${reportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                <div key={r.id} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
                   <span className="flex-1 truncate">{r.title}</span>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new briefing from this one" onClick={() => openSaved(r, true)}>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Download report" disabled={downloadingId != null} onClick={() => void downloadSaved(r)}>
+                    {downloadingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="Start a new briefing from this one" onClick={() => void copySaved(r)}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" title="Delete" onClick={() => void removeSaved(r.id)}>

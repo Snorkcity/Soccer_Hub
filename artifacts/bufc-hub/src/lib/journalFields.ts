@@ -164,3 +164,12 @@ export function filledCount(kind: JournalKind, content: Record<string, string> |
   if (!content) return 0;
   return KIND_DEFS[kind].fields.filter((f) => (content[f.id] ?? "").trim().length > 0).length;
 }
+
+/** Parse the coach's dd.mm.yyyy entry date; null if it doesn't parse. */
+export function parseEntryDate(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return null;
+  const t = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+  return Number.isNaN(t) ? null : t;
+}
