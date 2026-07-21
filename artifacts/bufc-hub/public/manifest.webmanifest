@@ -1,0 +1,17 @@
+{
+  "name": "BUFC Performance Hub",
+  "short_name": "BUFC Hub",
+  "description": "Belconnen United FC — Performance Hub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F2C44",
+  "theme_color": "#0F2C44",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

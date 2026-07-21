@@ -3,7 +3,25 @@ import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Loader2, RotateCcw, Send, User } from "lucide-react";
+import { Bot, Loader2, Mic, MicOff, RotateCcw, Send, User } from "lucide-react";
+
+// Web Speech API (Chrome/Android); typed loosely because lib.dom omits it.
+type SpeechRec = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+};
+
+function getSpeechRecognition(): SpeechRec | null {
+  const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+  return Ctor ? new Ctor() : null;
+}
 
 interface Msg {
   role: "user" | "assistant";
@@ -25,6 +43,39 @@ export default function CoachAssistant() {
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<SpeechRec | null>(null);
+  const [speechSupported] = useState(() =>
+    typeof window !== "undefined" &&
+    Boolean((window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition),
+  );
+
+  function toggleMic() {
+    if (listening) {
+      recRef.current?.stop();
+      return;
+    }
+    const rec = getSpeechRecognition();
+    if (!rec) return;
+    recRef.current = rec;
+    rec.lang = "en-AU";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      let text = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) text += e.results[i][0].transcript;
+      }
+      if (text) setInput((prev) => (prev ? prev.replace(/\s+$/, "") + " " : "") + text.trim());
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    setListening(true);
+    rec.start();
+  }
+
+  useEffect(() => () => recRef.current?.stop(), []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -193,6 +244,16 @@ export default function CoachAssistant() {
           }}
           className="resize-none"
         />
+        {speechSupported && (
+          <Button
+            variant={listening ? "destructive" : "outline"}
+            onClick={toggleMic}
+            className="h-10"
+            title={listening ? "Stop dictating" : "Dictate with your voice"}
+          >
+            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </Button>
+        )}
         <Button onClick={() => void send()} disabled={busy || !input.trim()} className="h-10">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
