@@ -54,3 +54,15 @@ id = "diPpHfYXCYmpFttWnWVJs"
 uri = "file://attached_assets/generated_images/hub_logo_f_radarshield_ballpoint.png"
 type = "image"
 title = "Radar Shield v3 — ball at shield point, teal"
+
+[[outputs]]
+id = "OnqMvmTYuR7-3ShanfTgk"
+uri = "file://attached_assets/generated_images/hub_logo_g_shield_filled.png"
+type = "image"
+title = "Radar Shield — web filled, no ball"
+
+[[outputs]]
+id = "1Z-Ix-SnBRrdc4xSIEjRn"
+uri = "file://attached_assets/generated_images/hub_logo_h_shield_outline.png"
+type = "image"
+title = "Radar Shield — web outline only, no ball"
