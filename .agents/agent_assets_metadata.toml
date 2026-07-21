@@ -42,3 +42,15 @@ id = "3MyO29qhQ0iIqomYg0QEw"
 uri = "file://attached_assets/generated_images/hub_logo_d_radarshield.png"
 type = "image"
 title = "Concept D — Radar Shield"
+
+[[outputs]]
+id = "gyWmgQ0IJKtwBUUmqKPuc"
+uri = "file://attached_assets/generated_images/hub_logo_e_radarshield_cyan.png"
+type = "image"
+title = "Radar Shield v2 — ball at corner, cyan"
+
+[[outputs]]
+id = "diPpHfYXCYmpFttWnWVJs"
+uri = "file://attached_assets/generated_images/hub_logo_f_radarshield_ballpoint.png"
+type = "image"
+title = "Radar Shield v3 — ball at shield point, teal"
