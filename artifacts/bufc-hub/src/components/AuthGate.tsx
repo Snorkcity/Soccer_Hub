@@ -30,6 +30,7 @@ function LoginScreen() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-1">
+          <img src="/logo-outline.png" alt="Performance Hub" className="mx-auto h-24 w-24" />
           <h1 className="text-2xl font-bold tracking-tight">BUFC Performance Hub</h1>
           <p className="text-sm text-muted-foreground">Belconnen United FC</p>
         </div>
