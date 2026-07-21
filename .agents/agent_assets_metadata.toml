@@ -18,3 +18,27 @@ id = "XdFihweQV19kByIDtN_91"
 uri = "file://attached_assets/demo-journal-cycle03.pptx"
 type = "slides"
 title = "Demo Journal — Cycle 03 (Week 1 populated)"
+
+[[outputs]]
+id = "qVGTnwzOn0BaQEwMcTEHw"
+uri = "file://attached_assets/generated_images/hub_logo_a_datafootball.png"
+type = "image"
+title = "Concept A — Data Football"
+
+[[outputs]]
+id = "Yaf1jT0LvP7YopCniAFPW"
+uri = "file://attached_assets/generated_images/hub_logo_b_ecosystem.png"
+type = "image"
+title = "Concept B — Ecosystem Hub"
+
+[[outputs]]
+id = "5jwZGCTbV_872aCommXoP"
+uri = "file://attached_assets/generated_images/hub_logo_c_pulse.png"
+type = "image"
+title = "Concept C — Performance Pulse"
+
+[[outputs]]
+id = "3MyO29qhQ0iIqomYg0QEw"
+uri = "file://attached_assets/generated_images/hub_logo_d_radarshield.png"
+type = "image"
+title = "Concept D — Radar Shield"
