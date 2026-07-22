@@ -2053,10 +2053,6 @@ export const reviewLibraryPracticeResponseReviewCropsItemWMin = 20;
 
 export const reviewLibraryPracticeResponseReviewCropsItemHMin = 20;
 
-export const reviewLibraryPracticeResponseReviewCropOneWMin = 20;
-
-export const reviewLibraryPracticeResponseReviewCropOneHMin = 20;
-
 
 
 export const ReviewLibraryPracticeResponse = zod.object({
@@ -2068,13 +2064,7 @@ export const ReviewLibraryPracticeResponse = zod.object({
   "w": zod.number().min(reviewLibraryPracticeResponseReviewCropsItemWMin),
   "h": zod.number().min(reviewLibraryPracticeResponseReviewCropsItemHMin)
 }).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional(),
-  "reviewTags": zod.array(zod.string()),
-  "reviewCrop": zod.union([zod.object({
-  "x": zod.number(),
-  "y": zod.number(),
-  "w": zod.number().min(reviewLibraryPracticeResponseReviewCropOneWMin),
-  "h": zod.number().min(reviewLibraryPracticeResponseReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "reviewTags": zod.array(zod.string())
 })
 
 

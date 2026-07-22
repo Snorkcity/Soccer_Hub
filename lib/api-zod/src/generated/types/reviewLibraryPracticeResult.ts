@@ -13,5 +13,4 @@ export interface ReviewLibraryPracticeResult {
   reviewPart: string | null;
   reviewCrops?: DiagramCrop[];
   reviewTags: string[];
-  reviewCrop?: DiagramCrop | null;
 }

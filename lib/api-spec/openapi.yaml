@@ -3491,10 +3491,6 @@ components:
         reviewTags:
           type: array
           items: { type: string }
-        reviewCrop:
-          oneOf:
-            - $ref: "#/components/schemas/DiagramCrop"
-            - type: "null"
       required: [id, reviewPart, reviewTags]
 
     PracticeVariation:
