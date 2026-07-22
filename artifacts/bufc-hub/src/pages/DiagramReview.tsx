@@ -253,6 +253,23 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     reader.readAsDataURL(file);
   };
 
+  // Paste-a-screenshot support: while the dialog is open, Ctrl/Cmd+V with an
+  // image on the clipboard drops it straight in.
+  useEffect(() => {
+    if (!open) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith("image/"));
+      const file = item?.getAsFile();
+      if (file) {
+        e.preventDefault();
+        pickFile(file);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const uploadMutation = useUploadLibraryPractice({
     mutation: {
       onSuccess: () => {
@@ -285,7 +302,7 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           ) : (
             <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-md p-8 cursor-pointer text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
               <ImagePlus className="h-6 w-6" />
-              <span className="text-sm">Tap to choose an image (screenshot, photo, export)</span>
+              <span className="text-sm">Tap to choose an image — or just paste a screenshot (Ctrl+V)</span>
               <input
                 type="file"
                 accept="image/*"
