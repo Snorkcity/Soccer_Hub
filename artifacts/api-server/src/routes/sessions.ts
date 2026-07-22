@@ -289,10 +289,11 @@ ${list(ends)}`;
   const main = pick(plan.mainId, mains);
   const end = pick(plan.endId, ends);
 
-  // Standard dynamic warmup = first usable Warmup-chapter slide in the deck.
+  // Standard dynamic warmup = first Warmup-chapter slide the coach has kept
+  // for the warmup slot (or hasn't reviewed yet).
   const warmup =
     entries
-      .filter((e) => e.chapter === "Warmup" && e.reviewPart !== "unusable")
+      .filter((e) => e.chapter === "Warmup" && usableFor("warmup")(e))
       .sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
 
   const sessionId = await createPrefilledSession((plan.title?.trim() || `Session — ${theme}`).slice(0, 200), theme);
