@@ -35,5 +35,6 @@
 - [Reflection journal](reflection-journal.md) — cycles+entries jsonb content (field ids client-side only!), atomic upsert needs targetWhere; voice interviews stage 2 via gpt-audio (no Realtime in dev proxy).
 - [Match Prep saved reports](match-prep-reports.md) — monday/friday reports in match_prep_reports jsonb; copy-to-new keeps roles, clears match facts; shape remap is by-index (keep FORMATIONS ordered GK→def→mid→att).
 - [Match Prep corner set pieces](match-prep-corners.md) — pitch-picker writes ""-padded per-spot arrays (filter before deck); dual coord maps (deck vs UI); takers pinned at corners AND hold a role (drawn twice, deliberate).
+- [Assistant session diagrams](assistant-session-diagrams.md) — parked feature: embed practice-library diagrams in assistant session answers; no diagram beats wrong diagram; matching done with coach.
 - [Coach Assistant](coach-assistant.md) — RAG chat over 14 curriculum docx; embeddings need direct OPENAI_API_KEY (proxy lacks embeddings); chat open to any signed-in role; system prompt rules are non-negotiable.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
