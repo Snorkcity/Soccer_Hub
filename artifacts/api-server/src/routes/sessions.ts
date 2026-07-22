@@ -42,6 +42,7 @@ async function loadSessionDetail(id: number) {
       practiceId: practicesTable.id,
       practiceTitle: practicesTable.title,
       practiceDiagram: practicesTable.diagram,
+      practiceReviewCrop: practicesTable.reviewCrop,
     })
     .from(sessionPracticesTable)
     .leftJoin(practicesTable, eq(sessionPracticesTable.practiceId, practicesTable.id))
@@ -67,7 +68,12 @@ async function loadSessionDetail(id: number) {
       part: s.part,
       practice:
         s.practiceId != null
-          ? { id: s.practiceId, title: s.practiceTitle, diagram: s.practiceDiagram as Record<string, unknown> }
+          ? {
+              id: s.practiceId,
+              title: s.practiceTitle,
+              diagram: s.practiceDiagram as Record<string, unknown>,
+              reviewCrop: (s.practiceReviewCrop as { x: number; y: number; w: number; h: number } | null) ?? null,
+            }
           : null,
       rules: s.rules,
       tasks: s.tasks,
@@ -197,16 +203,26 @@ router.post("/sessions/generate", async (req, res): Promise<void> => {
     res.status(502).json({ error: "Couldn't analyse the theme — please try again" });
     return;
   }
-  const intros = rankPractices(entries, themeVec, "Activations", 8);
-  const mains = rankPractices(entries, themeVec, "Main Part", 8);
+  // The coach's review pass takes precedence over wording similarity: practices
+  // marked unusable are never picked, and once a practice is tagged with a part
+  // it can only fill that slot. Unreviewed practices remain eligible everywhere.
+  const usableFor = (part: string) => (e: PracticeEntry) =>
+    e.reviewPart == null ? true : e.reviewPart === part;
+  const intros = rankPractices(entries, themeVec, "Activations", 8, usableFor("introduction"));
+  const mains = rankPractices(entries, themeVec, "Main Part", 8, usableFor("main"));
   const section = CYCLE_SECTION[endGame];
-  let ends = rankPractices(entries, endVec, "End Games", 6, (e) => e.sectionName === section);
-  if (ends.length === 0) ends = rankPractices(entries, endVec, "End Games", 6);
+  let ends = rankPractices(entries, endVec, "End Games", 6, (e) => usableFor("endgame")(e) && e.sectionName === section);
+  if (ends.length === 0) ends = rankPractices(entries, endVec, "End Games", 6, usableFor("endgame"));
 
   const list = (xs: PracticeEntry[]) =>
-    xs.map((e) => `[id ${e.id}] ${e.title ?? "(untitled)"} — section: ${e.sectionName ?? "?"}\n${e.text.slice(0, 900)}`).join("\n\n");
+    xs
+      .map(
+        (e) =>
+          `[id ${e.id}] ${e.title ?? "(untitled)"} — section: ${e.sectionName ?? "?"}${e.reviewTags.length ? ` — coach tags: ${e.reviewTags.join(", ")}` : ""}\n${e.text.slice(0, 900)}`,
+      )
+      .join("\n\n");
 
-  const sys = `You assemble a football training session for a senior / 16+ squad from the coach's OWN practice library. Never invent drills — you may only pick from the candidate practices listed, and your coaching messages and rules must be grounded in the language of the chosen practices (adapt numbers/area to the squad, keep the coach's terminology). The Introduction and Main part must train the same theme with consistent coaching messages. Respond with JSON only:
+  const sys = `You assemble a football training session for a senior / 16+ squad from the coach's OWN practice library. Never invent drills — you may only pick from the candidate practices listed, and your coaching messages and rules must be grounded in the language of the chosen practices (adapt numbers/area to the squad, keep the coach's terminology). The Introduction and Main part must train the same theme with consistent coaching messages. Some candidates carry the coach's own sub-category tags — trust them over your reading of the text (Activations: A1 General Rondos, A2 Directional Rondos, A3 Build the Thirds, A4 Cover/Balance, A5 Pressing/Counter-Press, A6 Endzone-games, A7 Finishing Activations, A8 Hybrid/Other. Main Part: MP1 Playing Out (back third), MP2 Middle Third Attacking, MP3 Combination Play (final third), MP4 Low Block, MP5 Mid-Block, MP6 High Pressing, MP7 Counter-Pressing, MP8 Transition to BP, MP9 Transition to BPO, MP10 General Possession, MP11 Opposition-Specific Tactical). Respond with JSON only:
 {
   "title": "short session title",
   "introId": <id from INTRODUCTION candidates>,
@@ -273,8 +289,11 @@ ${list(ends)}`;
   const main = pick(plan.mainId, mains);
   const end = pick(plan.endId, ends);
 
-  // Standard dynamic warmup = first Warmup-chapter slide in the deck.
-  const warmup = entries.filter((e) => e.chapter === "Warmup").sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
+  // Standard dynamic warmup = first usable Warmup-chapter slide in the deck.
+  const warmup =
+    entries
+      .filter((e) => e.chapter === "Warmup" && e.reviewPart !== "unusable")
+      .sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
 
   const sessionId = await createPrefilledSession((plan.title?.trim() || `Session — ${theme}`).slice(0, 200), theme);
   const now = new Date();

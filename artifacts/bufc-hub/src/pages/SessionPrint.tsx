@@ -70,7 +70,7 @@ function PartColumn({
     <div className="flex flex-col min-w-0 flex-1 gap-1">
       {slot?.practice && (
         <div className="border border-black">
-          <PracticeDiagram diagram={slot.practice.diagram as DiagramData} className="w-full h-auto" />
+          <PracticeDiagram diagram={slot.practice.diagram as DiagramData} crop={slot.practice.reviewCrop ?? null} className="w-full h-auto" />
         </div>
       )}
       <div className="text-center font-bold">{PART_TITLES[part]}</div>
@@ -230,7 +230,7 @@ export default function SessionPrint() {
             {activation?.practice && (
               <div className="border border-black">
                 <div className="bg-[#c6d4ec] border-b border-black text-center font-bold">Passing activation</div>
-                <PracticeDiagram diagram={activation.practice.diagram as DiagramData} className="w-full h-auto" />
+                <PracticeDiagram diagram={activation.practice.diagram as DiagramData} crop={activation.practice.reviewCrop ?? null} className="w-full h-auto" />
               </div>
             )}
             <LabelledBox label="Comments" text={session.comments} />

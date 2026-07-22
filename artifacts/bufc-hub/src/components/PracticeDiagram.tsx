@@ -257,14 +257,31 @@ function ShapeEl({ sh, i }: { sh: DiagramShape; i: number }) {
   );
 }
 
-export function PracticeDiagram({ diagram, className }: { diagram: DiagramData; className?: string }) {
+export interface DiagramCrop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export function PracticeDiagram({
+  diagram,
+  className,
+  crop,
+}: {
+  diagram: DiagramData;
+  className?: string;
+  /** Coach's snip: only show this rectangle (canvas coords). Applied via SVG viewBox. */
+  crop?: DiagramCrop | null;
+}) {
   const shapes = diagram.shapes ?? [];
   const W = diagram.canvas?.w ?? 960;
   const H = diagram.canvas?.h ?? 720;
+  const vb = crop && crop.w >= 20 && crop.h >= 20 ? `${crop.x} ${crop.y} ${crop.w} ${crop.h}` : `0 0 ${W} ${H}`;
 
   if (diagram.img) {
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={vb} className={className} preserveAspectRatio="xMidYMid meet">
         <rect width={W} height={H} fill={diagram.bg ?? "#FFFFFF"} />
         <image href={diagram.img} width={W} height={H} preserveAspectRatio="xMidYMid meet" />
       </svg>
@@ -280,7 +297,7 @@ export function PracticeDiagram({ diagram, className }: { diagram: DiagramData; 
   }, [shapes]);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="xMidYMid meet" fontFamily="sans-serif">
+    <svg viewBox={vb} className={className} preserveAspectRatio="xMidYMid meet" fontFamily="sans-serif">
       <defs>
         {arrowColors.map((c) => (
           <marker

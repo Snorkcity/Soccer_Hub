@@ -1502,6 +1502,18 @@ export interface LibraryPara {
  */
 export type LibraryPracticeDiagram = { [key: string]: unknown };
 
+/**
+ * Crop rectangle in diagram canvas coordinates (960x720 standard)
+ */
+export interface DiagramCrop {
+  x: number;
+  y: number;
+  /** @minimum 20 */
+  w: number;
+  /** @minimum 20 */
+  h: number;
+}
+
 export interface LibraryPractice {
   id: number;
   ordinal: number;
@@ -1522,6 +1534,43 @@ export interface LibraryPractice {
   variationCount: number;
   /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
   variationParts: string[];
+  reviewCrop?: DiagramCrop | null;
+  /**
+     * warmup | introduction | main | endgame | unusable; null = not yet reviewed
+     * @nullable
+     */
+  reviewPart?: string | null;
+  /** Sub-category tags, e.g. A5 or MP6 */
+  reviewTags: string[];
+}
+
+export type ReviewLibraryPracticeRequestPart = typeof ReviewLibraryPracticeRequestPart[keyof typeof ReviewLibraryPracticeRequestPart];
+
+
+export const ReviewLibraryPracticeRequestPart = {
+  warmup: 'warmup',
+  introduction: 'introduction',
+  main: 'main',
+  endgame: 'endgame',
+  unusable: 'unusable',
+} as const;
+
+export interface ReviewLibraryPracticeRequest {
+  part: ReviewLibraryPracticeRequestPart;
+  /**
+     * @maxItems 12
+     * @items.maxLength 10
+     */
+  tags: string[];
+  crop?: DiagramCrop | null;
+}
+
+export interface ReviewLibraryPracticeResult {
+  id: number;
+  /** @nullable */
+  reviewPart: string | null;
+  reviewTags: string[];
+  reviewCrop?: DiagramCrop | null;
 }
 
 export interface PracticeVariation {
@@ -1675,6 +1724,7 @@ export interface SessionPartPractice {
   title?: string | null;
   /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
   diagram: SessionPartPracticeDiagram;
+  reviewCrop?: DiagramCrop | null;
 }
 
 export type SessionPartDetailPart = typeof SessionPartDetailPart[keyof typeof SessionPartDetailPart];

@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { DiagramCrop } from './diagramCrop';
 import type { LibraryPara } from './libraryPara';
 import type { LibraryPracticeDiagram } from './libraryPracticeDiagram';
 
@@ -28,4 +29,12 @@ export interface LibraryPractice {
   variationCount: number;
   /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
   variationParts: string[];
+  reviewCrop?: DiagramCrop | null;
+  /**
+     * warmup | introduction | main | endgame | unusable; null = not yet reviewed
+     * @nullable
+     */
+  reviewPart?: string | null;
+  /** Sub-category tags, e.g. A5 or MP6 */
+  reviewTags: string[];
 }

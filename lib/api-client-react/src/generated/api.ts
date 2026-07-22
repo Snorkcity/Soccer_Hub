@@ -140,6 +140,8 @@ import type {
   PracticeVariationList,
   PrematchBriefRequest,
   PrematchBriefResponse,
+  ReviewLibraryPracticeRequest,
+  ReviewLibraryPracticeResult,
   Season,
   SeasonInput,
   SeasonSummary,
@@ -5657,6 +5659,78 @@ export const useFlagLibraryPractice = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getFlagLibraryPracticeMutationOptions(options));
+    }
+
+export const getReviewLibraryPracticeUrl = (id: number,) => {
+
+
+
+
+  return `/api/library/practices/${id}/review`
+}
+
+/**
+ * @summary Save the coach's diagram review (crop, part, sub-category tags)
+ */
+export const reviewLibraryPractice = async (id: number,
+    reviewLibraryPracticeRequest: ReviewLibraryPracticeRequest, options?: RequestInit): Promise<ReviewLibraryPracticeResult> => {
+
+  return customFetch<ReviewLibraryPracticeResult>(getReviewLibraryPracticeUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewLibraryPracticeRequest)
+  }
+);}
+
+
+
+
+
+export const getReviewLibraryPracticeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewLibraryPractice>>, TError,{id: number;data: BodyType<ReviewLibraryPracticeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewLibraryPractice>>, TError,{id: number;data: BodyType<ReviewLibraryPracticeRequest>}, TContext> => {
+
+const mutationKey = ['reviewLibraryPractice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewLibraryPractice>>, {id: number;data: BodyType<ReviewLibraryPracticeRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewLibraryPractice(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewLibraryPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof reviewLibraryPractice>>>
+    export type ReviewLibraryPracticeMutationBody = BodyType<ReviewLibraryPracticeRequest>
+    export type ReviewLibraryPracticeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save the coach's diagram review (crop, part, sub-category tags)
+ */
+export const useReviewLibraryPractice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewLibraryPractice>>, TError,{id: number;data: BodyType<ReviewLibraryPracticeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewLibraryPractice>>,
+        TError,
+        {id: number;data: BodyType<ReviewLibraryPracticeRequest>},
+        TContext
+      > => {
+      return useMutation(getReviewLibraryPracticeMutationOptions(options));
     }
 
 export const getListSessionsUrl = () => {

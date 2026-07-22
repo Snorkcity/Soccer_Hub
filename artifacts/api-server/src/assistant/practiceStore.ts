@@ -21,6 +21,15 @@ export interface PracticeEntry {
   title: string | null;
   text: string;
   embedding: number[] | null;
+  /** coach's review: warmup | introduction | main | endgame | unusable; null = not reviewed yet */
+  reviewPart: string | null;
+  /** coach's sub-category tags, e.g. ["A5"] or ["MP6","MP7"] */
+  reviewTags: string[];
+}
+
+/** Call after any review save so the next generation sees fresh tags. */
+export function invalidatePracticeCache(): void {
+  cache = null;
 }
 
 /** Flatten a practice's paras into readable text (skips 1-char slide-corner labels). */
@@ -48,6 +57,8 @@ export async function loadPractices(force = false): Promise<PracticeEntry[]> {
       title: practicesTable.title,
       paras: practicesTable.paras,
       embedding: practicesTable.embedding,
+      reviewPart: practicesTable.reviewPart,
+      reviewTags: practicesTable.reviewTags,
     })
     .from(practicesTable)
     .where(and(eq(practicesTable.kind, "practice"), inArray(practicesTable.chapter, EMBED_CHAPTERS)));
@@ -59,6 +70,8 @@ export async function loadPractices(force = false): Promise<PracticeEntry[]> {
     title: r.title,
     text: practiceText(r.title, r.sectionName, r.paras),
     embedding: (r.embedding as number[] | null) ?? null,
+    reviewPart: r.reviewPart,
+    reviewTags: Array.isArray(r.reviewTags) ? (r.reviewTags as string[]) : [],
   }));
   return cache;
 }

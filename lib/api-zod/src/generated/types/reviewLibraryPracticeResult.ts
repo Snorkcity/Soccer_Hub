@@ -6,13 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiagramCrop } from './diagramCrop';
-import type { SessionPartPracticeDiagram } from './sessionPartPracticeDiagram';
 
-export interface SessionPartPractice {
+export interface ReviewLibraryPracticeResult {
   id: number;
   /** @nullable */
-  title?: string | null;
-  /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
-  diagram: SessionPartPracticeDiagram;
+  reviewPart: string | null;
+  reviewTags: string[];
   reviewCrop?: DiagramCrop | null;
 }

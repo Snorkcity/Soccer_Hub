@@ -13,6 +13,7 @@ import GpsInsights from '@/pages/GpsInsights';
 import Testing from '@/pages/Testing';
 import DataEntry from '@/pages/DataEntry';
 import SessionLibrary from '@/pages/SessionLibrary';
+import DiagramReview from '@/pages/DiagramReview';
 import Sessions from '@/pages/Sessions';
 import SessionEditor from '@/pages/SessionEditor';
 import SessionPrint from '@/pages/SessionPrint';
@@ -36,6 +37,7 @@ function Router() {
             <Route path="/gps" component={GpsInsights} />
             <Route path="/testing" component={Testing} />
             <Route path="/library" component={SessionLibrary} />
+            <Route path="/library/review" component={DiagramReview} />
             <Route path="/sessions" component={Sessions} />
             <Route path="/sessions/:id" component={SessionEditor} />
             <Route path="/reflections" component={Reflections} />

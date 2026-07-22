@@ -18,7 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { PracticeDiagram, type DiagramData } from "@/components/PracticeDiagram";
-import { Flag, Search } from "lucide-react";
+import { Crop, Flag, Search } from "lucide-react";
+import { useLocation } from "wouter";
 
 const CHAPTER_ORDER = [
   "Warmup",
@@ -127,6 +128,7 @@ export default function SessionLibrary() {
   );
   const { data: auth } = useGetAuthStatus({ query: { queryKey: getGetAuthStatusQueryKey() } });
   const isAdmin = auth?.authenticated && auth.role === "admin";
+  const [, navigate] = useLocation();
 
   const [chapter, setChapter] = useState<string>("Activations");
   const [section, setSection] = useState<string>("all");
@@ -246,6 +248,11 @@ export default function SessionLibrary() {
         >
           <Flag className="h-3.5 w-3.5 mr-1" /> Flagged
         </Button>
+        {isAdmin && (
+          <Button size="sm" variant="outline" onClick={() => navigate("/library/review")}>
+            <Crop className="h-3.5 w-3.5 mr-1" /> Diagram review
+          </Button>
+        )}
         <span className="text-sm text-muted-foreground ml-auto">{visible.length} shown</span>
       </div>
 
@@ -261,7 +268,7 @@ export default function SessionLibrary() {
               onClick={() => setSelected(p)}
             >
               <div className="aspect-[4/3] bg-muted">
-                <PracticeDiagram diagram={p.diagram as DiagramData} className="w-full h-full" />
+                <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrop ?? null} className="w-full h-full" />
               </div>
               <CardContent className="p-3 space-y-1">
                 <div className="flex items-start justify-between gap-2">
@@ -303,7 +310,7 @@ export default function SessionLibrary() {
                 </DialogTitle>
               </DialogHeader>
               <div className="rounded-md overflow-hidden border">
-                <PracticeDiagram diagram={selected.diagram as DiagramData} className="w-full h-auto" />
+                <PracticeDiagram diagram={selected.diagram as DiagramData} crop={selected.reviewCrop ?? null} className="w-full h-auto" />
               </div>
               <PastWriteUps practice={selected} />
               <div className="flex items-center justify-between gap-2">

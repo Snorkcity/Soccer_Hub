@@ -172,7 +172,7 @@ function PracticeGrid({
           onClick={() => onPick(p)}
         >
           <div className="aspect-[4/3] bg-muted">
-            <PracticeDiagram diagram={p.diagram as DiagramData} className="w-full h-full" />
+            <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrop ?? null} className="w-full h-full" />
           </div>
           <div className="p-2">
             <p className="text-xs font-medium leading-tight line-clamp-2">
@@ -354,7 +354,7 @@ function PartSlot({
         {slot?.practice ? (
           <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-3">
             <div className="rounded-md overflow-hidden border self-start">
-              <PracticeDiagram diagram={slot.practice.diagram as DiagramData} className="w-full h-auto" />
+              <PracticeDiagram diagram={slot.practice.diagram as DiagramData} crop={slot.practice.reviewCrop ?? null} className="w-full h-auto" />
               <p className="text-xs text-muted-foreground p-1.5 border-t">
                 {slot.practice.title ?? "Untitled practice"}
               </p>

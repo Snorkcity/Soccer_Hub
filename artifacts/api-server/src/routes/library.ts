@@ -6,7 +6,10 @@ import {
   ListPracticeVariationsResponse,
   FlagLibraryPracticeBody,
   FlagLibraryPracticeResponse,
+  ReviewLibraryPracticeBody,
+  ReviewLibraryPracticeResponse,
 } from "@workspace/api-zod";
+import { invalidatePracticeCache } from "../assistant/practiceStore";
 
 const router: IRouter = Router();
 
@@ -60,6 +63,9 @@ router.get("/library/practices", async (req, res): Promise<void> => {
     needsReview: r.needsReview,
     variationCount: counts.get(r.id) ?? 0,
     variationParts: parts.get(r.id) ?? [],
+    reviewCrop: r.reviewCrop ?? null,
+    reviewPart: r.reviewPart,
+    reviewTags: Array.isArray(r.reviewTags) ? r.reviewTags : [],
   }))));
 });
 
@@ -98,6 +104,45 @@ router.patch("/library/practices/:id/flag", async (req, res): Promise<void> => {
     return;
   }
   res.json(FlagLibraryPracticeResponse.parse(row));
+});
+
+router.patch("/library/practices/:id/review", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid practice id" });
+    return;
+  }
+  const body = ReviewLibraryPracticeBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const [row] = await db
+    .update(practicesTable)
+    .set({
+      reviewPart: body.data.part,
+      reviewTags: body.data.tags,
+      reviewCrop: body.data.crop ?? null,
+      reviewedAt: new Date(),
+    })
+    .where(eq(practicesTable.id, id))
+    .returning({
+      id: practicesTable.id,
+      reviewPart: practicesTable.reviewPart,
+      reviewTags: practicesTable.reviewTags,
+      reviewCrop: practicesTable.reviewCrop,
+    });
+  if (!row) {
+    res.status(404).json({ error: "Practice not found" });
+    return;
+  }
+  invalidatePracticeCache();
+  res.json(ReviewLibraryPracticeResponse.parse({
+    id: row.id,
+    reviewPart: row.reviewPart,
+    reviewTags: Array.isArray(row.reviewTags) ? row.reviewTags : [],
+    reviewCrop: row.reviewCrop ?? null,
+  }));
 });
 
 export default router;

@@ -23,6 +23,13 @@ export const practicesTable = pgTable("practices", {
   sourceFile:  text("source_file"),
   /** text-embedding-3-small vector (number[] jsonb) of title+section+paras; null until embedded */
   embedding:   jsonb("embedding"),
+  /** Coach's diagram review: crop rect in canvas coords ({x,y,w,h}); null = whole slide */
+  reviewCrop:  jsonb("review_crop"),
+  /** warmup | introduction | main | endgame | unusable; null = not yet reviewed */
+  reviewPart:  text("review_part"),
+  /** sub-category tags, e.g. ["A5"] or ["MP6","MP7"] (string[] jsonb) */
+  reviewTags:  jsonb("review_tags"),
+  reviewedAt:  timestamp("reviewed_at"),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 });
 
