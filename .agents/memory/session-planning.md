@@ -41,6 +41,10 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 - Editor draft lesson: per-section drafts must (a) re-sync from server whenever not dirty, and (b) picking a practice while text is dirty must save the dirty text together with practiceId — otherwise edits are silently lost. Both handled; keep this invariant in slice 3.
 - Pitch-layout diagram on print p2 deferred; ~102 untitled "Variation" slides grouping deferred.
 
+## Development phases & AI scope (coach, Jul 2026)
+- The 5 years of uploaded sessions + curriculum are ALL senior / 16+ phase. The two earlier learning phases focus differently: phase 1 = individual skill development; middle phase = intro to collective play (3v3, 4v4 small formats).
+- **How to apply:** AI session generation should target senior/16+ first — that's the data we have, and senior coaches are the expected first customers. Don't let it fake younger-phase sessions from senior material; earlier phases need their own curriculum content later.
+
 ## Coach-assistant GPT (idea noted Jul 2026 — not started)
 - Coach has a custom ChatGPT GPT: a complete football development curriculum (series of documents) used for the Belconnen female program; intended for every club that uses this product.
 - Goal: interact with it INSIDE the app (behind club login) instead of the public ChatGPT URL, which she wants to stop sharing — access only for product users.
