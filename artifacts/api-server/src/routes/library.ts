@@ -119,25 +119,41 @@ router.post("/library/practices/upload", async (req, res): Promise<void> => {
     }
   }
 
-  const [row] = await db
-    .insert(practicesTable)
-    .values({
-      ordinal: sql`GREATEST((SELECT COALESCE(MAX(ordinal), 0) + 1 FROM practices), ${UPLOAD_ORDINAL_BASE})`,
-      kind: "practice",
-      chapter: "Uploads",
-      sectionCode: null,
-      sectionName: "Coach uploads",
-      title,
-      paras,
-      diagram: { img: imageDataUri, canvas: { w: Math.round(canvas.w), h: Math.round(canvas.h) } },
-      sourceFile: "coach-upload",
-      embedding,
-      reviewPart: part,
-      reviewTags: tags,
-      reviewCrop: [],
-      reviewedAt: new Date(),
-    })
-    .returning({ id: practicesTable.id });
+  // ordinal is unique and allocated as max+1 — two simultaneous uploads can
+  // collide, so retry a couple of times on a unique violation.
+  let row: { id: number } | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      [row] = await db
+        .insert(practicesTable)
+        .values({
+          ordinal: sql`GREATEST((SELECT COALESCE(MAX(ordinal), 0) + 1 FROM practices), ${UPLOAD_ORDINAL_BASE})`,
+          kind: "practice",
+          chapter: "Uploads",
+          sectionCode: null,
+          sectionName: "Coach uploads",
+          title,
+          paras,
+          diagram: { img: imageDataUri, canvas: { w: Math.round(canvas.w), h: Math.round(canvas.h) } },
+          sourceFile: "coach-upload",
+          embedding,
+          reviewPart: part,
+          reviewTags: tags,
+          reviewCrop: [],
+          reviewedAt: new Date(),
+        })
+        .returning({ id: practicesTable.id });
+      break;
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "23505" && attempt < 2) continue; // unique_violation — retry
+      throw err;
+    }
+  }
+  if (!row) {
+    res.status(500).json({ error: "Couldn't allocate a slot for the upload — try again" });
+    return;
+  }
 
   invalidatePracticeCache();
   res.json(UploadLibraryPracticeResponse.parse({ id: row.id }));
