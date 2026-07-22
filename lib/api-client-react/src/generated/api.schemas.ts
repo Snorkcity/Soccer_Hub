@@ -1580,6 +1580,8 @@ export interface UploadLibraryPracticeRequest {
   notes?: string;
   /** @maxLength 14000000 */
   imageDataUri: string;
+  /** @maxItems 6 */
+  crops?: DiagramCrop[];
   canvas: UploadLibraryPracticeRequestCanvas;
 }
 

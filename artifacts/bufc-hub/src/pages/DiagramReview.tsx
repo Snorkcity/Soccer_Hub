@@ -223,6 +223,7 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [part, setPart] = useState<string>("main");
   const [tags, setTags] = useState<string[]>([]);
   const [img, setImg] = useState<{ dataUri: string; w: number; h: number } | null>(null);
+  const [crops, setCrops] = useState<DiagramCrop[]>([]);
 
   const reset = () => {
     setTitle("");
@@ -230,6 +231,7 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     setPart("main");
     setTags([]);
     setImg(null);
+    setCrops([]);
   };
 
   const pickFile = (file: File | undefined) => {
@@ -294,10 +296,27 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <div className="space-y-3">
           {img ? (
             <div className="space-y-1.5">
-              <img src={img.dataUri} alt="New diagram" className="w-full rounded-md border bg-white" />
-              <Button size="sm" variant="outline" onClick={() => setImg(null)}>
-                Choose a different image
-              </Button>
+              <CropEditor
+                diagram={{ img: img.dataUri, canvas: { w: img.w, h: img.h } }}
+                crops={crops}
+                onChange={setCrops}
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Crop className="h-3.5 w-3.5" />
+                  {crops.length === 0
+                    ? "More than one variation on the image? Drag a box around each, in order"
+                    : `${crops.length} snip${crops.length === 1 ? "" : "s"} — drag again to add the next variation`}
+                </p>
+                {crops.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setCrops([])}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Whole image
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => { setImg(null); setCrops([]); }}>
+                  Different image
+                </Button>
+              </div>
             </div>
           ) : (
             <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-md p-8 cursor-pointer text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
@@ -393,6 +412,7 @@ function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                   tags,
                   notes: notes.trim() || undefined,
                   imageDataUri: img.dataUri,
+                  crops,
                   canvas: { w: img.w, h: img.h },
                 },
               })

@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { DiagramCrop } from './diagramCrop';
 import type { UploadLibraryPracticeRequestCanvas } from './uploadLibraryPracticeRequestCanvas';
 import type { UploadLibraryPracticeRequestPart } from './uploadLibraryPracticeRequestPart';
 
@@ -24,5 +25,7 @@ export interface UploadLibraryPracticeRequest {
   notes?: string;
   /** @maxLength 14000000 */
   imageDataUri: string;
+  /** @maxItems 6 */
+  crops?: DiagramCrop[];
   canvas: UploadLibraryPracticeRequestCanvas;
 }

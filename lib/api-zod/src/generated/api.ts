@@ -2032,6 +2032,12 @@ export const uploadLibraryPracticeBodyNotesMax = 4000;
 
 export const uploadLibraryPracticeBodyImageDataUriMax = 14000000;
 
+export const uploadLibraryPracticeBodyCropsItemWMin = 20;
+
+export const uploadLibraryPracticeBodyCropsItemHMin = 20;
+
+export const uploadLibraryPracticeBodyCropsMax = 6;
+
 
 
 export const UploadLibraryPracticeBody = zod.object({
@@ -2040,6 +2046,12 @@ export const UploadLibraryPracticeBody = zod.object({
   "tags": zod.array(zod.string().max(uploadLibraryPracticeBodyTagsItemMax)).max(uploadLibraryPracticeBodyTagsMax),
   "notes": zod.string().max(uploadLibraryPracticeBodyNotesMax).optional(),
   "imageDataUri": zod.string().max(uploadLibraryPracticeBodyImageDataUriMax),
+  "crops": zod.array(zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "w": zod.number().min(uploadLibraryPracticeBodyCropsItemWMin),
+  "h": zod.number().min(uploadLibraryPracticeBodyCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).max(uploadLibraryPracticeBodyCropsMax).optional(),
   "canvas": zod.object({
   "w": zod.number(),
   "h": zod.number()

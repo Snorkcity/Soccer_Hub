@@ -98,7 +98,7 @@ router.post("/library/practices/upload", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const { title, part, tags, notes, imageDataUri, canvas } = body.data;
+  const { title, part, tags, notes, imageDataUri, canvas, crops } = body.data;
   if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(imageDataUri)) {
     res.status(400).json({ error: "imageDataUri must be a base64 PNG/JPEG/WebP/GIF data URI" });
     return;
@@ -139,7 +139,7 @@ router.post("/library/practices/upload", async (req, res): Promise<void> => {
           embedding,
           reviewPart: part,
           reviewTags: tags,
-          reviewCrop: [],
+          reviewCrop: crops ?? [],
           reviewedAt: new Date(),
         })
         .returning({ id: practicesTable.id });
