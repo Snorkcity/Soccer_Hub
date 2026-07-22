@@ -37,7 +37,8 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 
 ## Status — AI generation (Jul 2026)
 - **Form slice DONE:** "Generate with AI" on Sessions page (admin only) → POST /sessions/generate. Practices (Warmup/Activations/Main Part/End Games chapters) embedded on boot (jsonb col on practices, direct OPENAI_API_KEY needed); theme embedded → top-k candidates per chapter → one LLM JSON call picks intro/main/endgame + writes part text fields; ids validated against candidate pools with fallback; warmup = lowest-ordinal Warmup slide; activation slot left empty (passing-activation pool comes later from coach uploads).
-- Next slice: chat-side generation in the Coach Assistant (coach chose BOTH form and chat); then diagram tick/fix pairing review.
+- **Diagram Review tool DONE:** /library/review (admin) — drag-a-box crop stored as review_crop jsonb (canvas coords, applied via SVG viewBox everywhere incl. session print), part pills (warmup/introduction/main/endgame/unusable) + coach's sub-category tags (Activations A1–A8, Main Part MP1–MP11, End Games small/medium/big). Generator: unusable never picked, tagged practices locked to their part, unreviewed still eligible; tags shown to the LLM and outrank wording. syncPracticeLibrary ON CONFLICT does NOT touch review columns — reviews survive re-seeds.
+- Next slices: chat-side generation in the Coach Assistant (coach chose BOTH form and chat); paste-in new diagrams as image practices with tags (coach requested).
 
 ## Status
 - Slice 1 (Import & Library) DONE — see practice-library.md.
