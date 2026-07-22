@@ -409,18 +409,18 @@ export default function MatchPrep() {
     if (!d.opponent) { toast({ title: "Pick an opponent first", variant: "destructive" }); return; }
     setBuilding(true);
     try {
-      const lineup: PitchPlayer[] = slots.map((s) => ({
-        px: s.px, py: s.py, label: s.num,
-        name: d.xi[s.id] || s.role,
-      }));
+      const lineup: PitchPlayer[] = slots.map((s) => {
+        const nm = d.xi[s.id];
+        return { px: s.px, py: s.py, label: nm ? SHORT(nm) : s.num, name: nm || s.role };
+      });
       // Our BP/BPO shapes may differ from the lineup formation — map the XI
       // into the picked shape by position order (GK first, then defence up).
       const shapedLineup = (formation: string): PitchPlayer[] => {
         const shape = FORMATIONS[formation] ?? slots;
-        return shape.map((s, i) => ({
-          px: s.px, py: s.py, label: s.num,
-          name: (slots[i] ? d.xi[slots[i].id] : "") || s.role,
-        }));
+        return shape.map((s, i) => {
+          const nm = slots[i] ? d.xi[slots[i].id] : "";
+          return { px: s.px, py: s.py, label: nm ? SHORT(nm) : s.num, name: nm || s.role };
+        });
       };
       const ourBpFormation = d.ourFormationBp || d.formation;
       const ourBpoFormation = d.ourFormationBpo || d.formation;

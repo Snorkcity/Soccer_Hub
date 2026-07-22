@@ -86,6 +86,22 @@ function darkSlide(pptx: PptxGenJS, kicker: string, title: string, textX = MX): 
   return s;
 }
 
+/** White print-friendly header — used by the B/W set-piece print slides. */
+function lightSlide(pptx: PptxGenJS, kicker: string, title: string): PptxGenJS.Slide {
+  const s = pptx.addSlide();
+  s.background = { color: "FFFFFF" };
+  s.addText(`${kicker.toUpperCase()} — PRINT`, {
+    x: MX, y: 0.42, w: W - 2 * MX, h: 0.3,
+    fontSize: 11, color: "000000", bold: true, charSpacing: 4,
+  });
+  s.addText(title, {
+    x: MX, y: 0.68, w: W - 2 * MX, h: 0.7,
+    fontSize: 30, color: "000000", bold: true,
+  });
+  s.addShape("rect", { x: MX, y: 1.48, w: 1.1, h: 0.05, fill: { color: "000000" } });
+  return s;
+}
+
 function footer(slide: PptxGenJS.Slide, text: string) {
   slide.addText(text, {
     x: MX, y: H - 0.42, w: W - 2 * MX, h: 0.3,
@@ -146,10 +162,11 @@ function drawPlayers(
   s: PptxGenJS.Slide,
   plot: (px: number, py: number) => { x: number; y: number },
   players: PitchPlayer[],
-  opts?: { r?: number; nameSize?: number; names?: boolean },
+  opts?: { r?: number; nameSize?: number; names?: boolean; mono?: boolean },
 ) {
   const r = opts?.r ?? 0.21;
   const showNames = opts?.names ?? true;
+  const mono = opts?.mono ?? false;
   for (const p of players) {
     const { x, y } = plot(p.px, p.py);
     // Circle + initials as ONE shape (a text box shaped as an ellipse) so
@@ -158,8 +175,9 @@ function drawPlayers(
     s.addText(p.label, {
       shape: "ellipse",
       x: x - r, y: y - r, w: r * 2, h: r * 2,
-      fill: { color: p.color ?? SKY_DARK }, line: { color: PAPER, width: 1.25 },
-      fontSize: r > 0.18 ? 10 : 8.5, color: PAPER, bold: true,
+      fill: { color: mono ? "FFFFFF" : (p.color ?? SKY_DARK) },
+      line: { color: mono ? "000000" : PAPER, width: 1.25 },
+      fontSize: r > 0.18 ? 10 : 8.5, color: mono ? "000000" : PAPER, bold: true,
       align: "center", valign: "middle",
       margin: 0,
     });
@@ -201,23 +219,29 @@ function drawBoxView(
   y: number,
   w: number,
   h: number,
+  mono = false,
 ): (px: number, py: number) => { x: number; y: number } {
-  // Vertical mowing stripes, same as the full pitch.
-  const bands = 7;
-  const bwBand = w / bands;
-  for (let i = 0; i < bands; i++) {
-    s.addShape("rect", {
-      x: x + i * bwBand, y, w: bwBand, h,
-      fill: { color: i % 2 === 0 ? GRASS_A : GRASS_B },
-    });
+  if (mono) {
+    // Print-friendly: plain white turf, black lines, no colour fills.
+    s.addShape("rect", { x, y, w, h, fill: { color: "FFFFFF" } });
+  } else {
+    // Vertical mowing stripes, same as the full pitch.
+    const bands = 7;
+    const bwBand = w / bands;
+    for (let i = 0; i < bands; i++) {
+      s.addShape("rect", {
+        x: x + i * bwBand, y, w: bwBand, h,
+        fill: { color: i % 2 === 0 ? GRASS_A : GRASS_B },
+      });
+    }
   }
-  const line = { color: PAPER, width: LINE_W };
+  const line = { color: mono ? "000000" : PAPER, width: LINE_W };
   s.addShape("rect", { x, y, w, h, fill: { type: "none" }, line });
   // Goal mouth.
   const goalW = w * 0.16;
   s.addShape("rect", {
     x: x + (w - goalW) / 2, y: y - 0.12, w: goalW, h: 0.12,
-    fill: { color: PAPER },
+    fill: mono ? { type: "none" } : { color: PAPER }, line: mono ? line : undefined,
   });
   // Six-yard + penalty box (view is roughly the final quarter of the pitch).
   // Depths pulled in closer to the goal for more realistic proportions.
@@ -229,7 +253,8 @@ function drawBoxView(
   s.addShape("rect", { x: x + (w - gaW) / 2, y, w: gaW, h: gaH, fill: { type: "none" }, line });
   // Penalty spot.
   s.addShape("ellipse", {
-    x: x + w / 2 - 0.03, y: y + paH * 0.72 - 0.03, w: 0.06, h: 0.06, fill: { color: PAPER },
+    x: x + w / 2 - 0.03, y: y + paH * 0.72 - 0.03, w: 0.06, h: 0.06,
+    fill: { color: mono ? "000000" : PAPER },
   });
   // Top half of the centre circle on the halfway line (bottom edge of the view).
   const ccW = w * 0.27;
@@ -240,7 +265,7 @@ function drawBoxView(
   return (px, py) => ({ x: x + px * w, y: y + py * h });
 }
 
-function roleColumn(s: PptxGenJS.Slide, x: number, w: number, groups: SetPieceGroup[]) {
+function roleColumn(s: PptxGenJS.Slide, x: number, w: number, groups: SetPieceGroup[], mono = false) {
   // Normal layout: one player per line. If the cards won't fit (e.g. zonal corners
   // has 7 roles), switch to a compact layout: names joined on one line, tighter cards.
   const avail = H - 0.5 - 1.85;
@@ -253,15 +278,15 @@ function roleColumn(s: PptxGenJS.Slide, x: number, w: number, groups: SetPieceGr
     if (y + cardH > H - 0.5) break;
     s.addShape("roundRect", {
       x, y, w, h: cardH,
-      fill: { color: CARD }, line: { color: CARD_LINE, width: 1 }, rectRadius: 0.06,
+      fill: { color: mono ? "FFFFFF" : CARD }, line: { color: mono ? "000000" : CARD_LINE, width: 1 }, rectRadius: 0.06,
     });
     s.addText(g.role.toUpperCase(), {
       x: x + 0.2, y: y + (compact ? 0.05 : 0.08), w: w - 0.4, h: compact ? 0.24 : 0.28,
-      fontSize: compact ? 9.5 : 10.5, color: SKY, bold: true, charSpacing: 2,
+      fontSize: compact ? 9.5 : 10.5, color: mono ? "000000" : SKY, bold: true, charSpacing: 2,
     });
     s.addText(g.players.length ? (compact ? g.players.join(" · ") : g.players.join("\n")) : "—", {
       x: x + 0.2, y: y + (compact ? 0.28 : 0.36), w: w - 0.4, h: compact ? 0.28 : rows * 0.28,
-      fontSize: compact ? 11 : 12.5, color: PAPER, lineSpacing: compact ? 13 : 16,
+      fontSize: compact ? 11 : 12.5, color: mono ? "000000" : PAPER, lineSpacing: compact ? 13 : 16,
     });
     y += cardH + (compact ? 0.12 : 0.16);
   }
@@ -458,11 +483,12 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     groups: SetPieceGroup[],
     players: PitchPlayer[],
     attacking: boolean,
+    mono = false,
   ) => {
-    const s = darkSlide(pptx, kicker, title);
+    const s = mono ? lightSlide(pptx, kicker, title) : darkSlide(pptx, kicker, title);
     const bw = 7.4;
     const bh = H - 2.55;
-    const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh);
+    const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh, mono);
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
     void attacking;
     // Ball beside the right corner taker — shows the setup for a right-sided corner.
@@ -470,12 +496,12 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const br = 0.07;
     s.addShape("ellipse", {
       x: ball.x - br, y: ball.y - br, w: br * 2, h: br * 2,
-      fill: { color: PAPER }, line: { color: "1F2937", width: 1 },
+      fill: { color: mono ? "000000" : PAPER }, line: { color: "1F2937", width: 1 },
     });
     // Initials in the circles are enough on set-piece diagrams — no names underneath.
-    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, names: false });
-    roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups);
-    footer(s, foot);
+    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, names: false, mono });
+    roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups, mono);
+    if (!mono) footer(s, foot);
   };
   const hasVar2 = !!input.cornersFor2 && (input.cornersFor2.groups.length > 0 || input.cornersFor2.players.length > 0);
   setPieceSlide("Set pieces", "Corners — for · standard", input.cornersFor.groups, input.cornersFor.players, true);
@@ -489,6 +515,13 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     roleColumn(s, MX + (W - 2 * MX + 0.3) / 2, (W - 2 * MX - 0.3) / 2, input.freeKicks.slice(Math.ceil(input.freeKicks.length / 2)));
     footer(s, foot);
   }
+
+  // ── B/W print copies of the set-piece diagrams (for the changing-room wall) ──
+  setPieceSlide("Set pieces", "Corners — for · standard", input.cornersFor.groups, input.cornersFor.players, true, true);
+  if (hasVar2 && input.cornersFor2) {
+    setPieceSlide("Set pieces", "Corners — for · crowd the keeper", input.cornersFor2.groups, input.cornersFor2.players, true, true);
+  }
+  setPieceSlide("Set pieces", input.cornersAgainstLabel ?? "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false, true);
 
   const out = (await pptx.write({ outputType: "blob" })) as Blob;
   return out;
