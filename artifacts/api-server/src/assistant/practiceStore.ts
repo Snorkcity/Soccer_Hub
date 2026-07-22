@@ -11,7 +11,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { cosine, embedTexts } from "./curriculumStore";
 import { logger } from "../lib/logger";
 
-const EMBED_CHAPTERS = ["Warmup", "Activations", "Main Part", "End Games"];
+const EMBED_CHAPTERS = ["Warmup", "Activations", "Main Part", "End Games", "Uploads"];
 
 export interface PracticeEntry {
   id: number;
@@ -85,7 +85,9 @@ export function rankPractices(
   filter?: (e: PracticeEntry) => boolean,
 ): PracticeEntry[] {
   return entries
-    .filter((e) => e.chapter === chapter && e.embedding && (!filter || filter(e)))
+    // Coach uploads live in their own chapter but compete everywhere their
+    // reviewPart tag allows (the usableFor filter locks them to their slot).
+    .filter((e) => (e.chapter === chapter || (e.chapter === "Uploads" && e.reviewPart != null)) && e.embedding && (!filter || filter(e)))
     .map((e) => ({ e, score: cosine(queryVec, e.embedding as number[]) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, k)

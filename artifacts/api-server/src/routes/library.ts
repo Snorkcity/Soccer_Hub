@@ -8,8 +8,12 @@ import {
   FlagLibraryPracticeResponse,
   ReviewLibraryPracticeBody,
   ReviewLibraryPracticeResponse,
+  UploadLibraryPracticeBody,
+  UploadLibraryPracticeResponse,
 } from "@workspace/api-zod";
-import { invalidatePracticeCache } from "../assistant/practiceStore";
+import { invalidatePracticeCache, practiceText } from "../assistant/practiceStore";
+import { embedTexts } from "../assistant/curriculumStore";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -81,6 +85,62 @@ router.get("/library/practices/:id/variations", async (req, res): Promise<void> 
     .where(eq(practiceVariationsTable.practiceId, id))
     .orderBy(desc(practiceVariationsTable.sessionDate), desc(practiceVariationsTable.id));
   res.json(ListPracticeVariationsResponse.parse(rows));
+});
+
+// Coach-uploaded diagrams: an image plus part/tags, saved as a fully-reviewed
+// practice in the "Uploads" chapter. Ordinals start at 100000 so deck re-imports
+// (which upsert by ordinal) can never collide with uploads.
+const UPLOAD_ORDINAL_BASE = 100000;
+
+router.post("/library/practices/upload", async (req, res): Promise<void> => {
+  const body = UploadLibraryPracticeBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const { title, part, tags, notes, imageDataUri, canvas } = body.data;
+  if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(imageDataUri)) {
+    res.status(400).json({ error: "imageDataUri must be a base64 PNG/JPEG/WebP/GIF data URI" });
+    return;
+  }
+  if (!(canvas.w > 0 && canvas.h > 0)) {
+    res.status(400).json({ error: "canvas dimensions must be positive" });
+    return;
+  }
+
+  const paras = notes?.trim() ? [{ text: notes.trim() }] : [];
+  // Embed now so the generator can pick it without waiting for a reboot.
+  let embedding: number[] | null = null;
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      [embedding] = await embedTexts([practiceText(title, null, paras) || title]);
+    } catch (err) {
+      logger.warn({ err }, "Upload embed failed — will be embedded at next boot");
+    }
+  }
+
+  const [row] = await db
+    .insert(practicesTable)
+    .values({
+      ordinal: sql`GREATEST((SELECT COALESCE(MAX(ordinal), 0) + 1 FROM practices), ${UPLOAD_ORDINAL_BASE})`,
+      kind: "practice",
+      chapter: "Uploads",
+      sectionCode: null,
+      sectionName: "Coach uploads",
+      title,
+      paras,
+      diagram: { img: imageDataUri, canvas: { w: Math.round(canvas.w), h: Math.round(canvas.h) } },
+      sourceFile: "coach-upload",
+      embedding,
+      reviewPart: part,
+      reviewTags: tags,
+      reviewCrop: [],
+      reviewedAt: new Date(),
+    })
+    .returning({ id: practicesTable.id });
+
+  invalidatePracticeCache();
+  res.json(UploadLibraryPracticeResponse.parse({ id: row.id }));
 });
 
 router.patch("/library/practices/:id/flag", async (req, res): Promise<void> => {

@@ -154,6 +154,8 @@ import type {
   SessionUpdateRequest,
   Team,
   TeamForm,
+  UploadLibraryPracticeRequest,
+  UploadLibraryPracticeResult,
   WeekAheadBriefRequest,
   WeekAheadBriefResponse
 } from './api.schemas';
@@ -5659,6 +5661,77 @@ export const useFlagLibraryPractice = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getFlagLibraryPracticeMutationOptions(options));
+    }
+
+export const getUploadLibraryPracticeUrl = () => {
+
+
+
+
+  return `/api/library/practices/upload`
+}
+
+/**
+ * @summary Add a new diagram (image) to the practice library, pre-tagged
+ */
+export const uploadLibraryPractice = async (uploadLibraryPracticeRequest: UploadLibraryPracticeRequest, options?: RequestInit): Promise<UploadLibraryPracticeResult> => {
+
+  return customFetch<UploadLibraryPracticeResult>(getUploadLibraryPracticeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(uploadLibraryPracticeRequest)
+  }
+);}
+
+
+
+
+
+export const getUploadLibraryPracticeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadLibraryPractice>>, TError,{data: BodyType<UploadLibraryPracticeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadLibraryPractice>>, TError,{data: BodyType<UploadLibraryPracticeRequest>}, TContext> => {
+
+const mutationKey = ['uploadLibraryPractice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadLibraryPractice>>, {data: BodyType<UploadLibraryPracticeRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadLibraryPractice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadLibraryPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof uploadLibraryPractice>>>
+    export type UploadLibraryPracticeMutationBody = BodyType<UploadLibraryPracticeRequest>
+    export type UploadLibraryPracticeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a new diagram (image) to the practice library, pre-tagged
+ */
+export const useUploadLibraryPractice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadLibraryPractice>>, TError,{data: BodyType<UploadLibraryPracticeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadLibraryPractice>>,
+        TError,
+        {data: BodyType<UploadLibraryPracticeRequest>},
+        TContext
+      > => {
+      return useMutation(getUploadLibraryPracticeMutationOptions(options));
     }
 
 export const getReviewLibraryPracticeUrl = (id: number,) => {

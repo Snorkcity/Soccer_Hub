@@ -2020,6 +2020,38 @@ export const FlagLibraryPracticeResponse = zod.object({
 
 
 /**
+ * @summary Add a new diagram (image) to the practice library, pre-tagged
+ */
+export const uploadLibraryPracticeBodyTitleMax = 200;
+
+export const uploadLibraryPracticeBodyTagsItemMax = 10;
+
+export const uploadLibraryPracticeBodyTagsMax = 12;
+
+export const uploadLibraryPracticeBodyNotesMax = 4000;
+
+export const uploadLibraryPracticeBodyImageDataUriMax = 14000000;
+
+
+
+export const UploadLibraryPracticeBody = zod.object({
+  "title": zod.string().min(1).max(uploadLibraryPracticeBodyTitleMax),
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "tags": zod.array(zod.string().max(uploadLibraryPracticeBodyTagsItemMax)).max(uploadLibraryPracticeBodyTagsMax),
+  "notes": zod.string().max(uploadLibraryPracticeBodyNotesMax).optional(),
+  "imageDataUri": zod.string().max(uploadLibraryPracticeBodyImageDataUriMax),
+  "canvas": zod.object({
+  "w": zod.number(),
+  "h": zod.number()
+})
+})
+
+export const UploadLibraryPracticeResponse = zod.object({
+  "id": zod.number()
+})
+
+
+/**
  * @summary Save the coach's diagram review (crop, part, sub-category tags)
  */
 export const ReviewLibraryPracticeParams = zod.object({

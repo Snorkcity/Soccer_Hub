@@ -4,15 +4,20 @@ import {
   useListLibraryPractices,
   getListLibraryPracticesQueryKey,
   useReviewLibraryPractice,
+  useUploadLibraryPractice,
   useGetAuthStatus,
   getGetAuthStatusQueryKey,
 } from "@workspace/api-client-react";
 import type { LibraryPractice } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { PracticeDiagram, type DiagramData, type DiagramCrop } from "@/components/PracticeDiagram";
-import { ArrowLeft, ArrowRight, Check, Crop, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Crop, ImagePlus, RotateCcw } from "lucide-react";
 import { useLocation } from "wouter";
 
 /** Chapters that go through the review pass (matches the AI generator). */
@@ -207,6 +212,184 @@ function CropEditor({
   );
 }
 
+const UPLOAD_PARTS = PARTS.filter((p) => p.value !== "unusable");
+
+/** Dialog for adding a brand-new diagram: pick an image, name it, tag it. */
+function AddDiagramDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [part, setPart] = useState<string>("main");
+  const [tags, setTags] = useState<string[]>([]);
+  const [img, setImg] = useState<{ dataUri: string; w: number; h: number } | null>(null);
+
+  const reset = () => {
+    setTitle("");
+    setNotes("");
+    setPart("main");
+    setTags([]);
+    setImg(null);
+  };
+
+  const pickFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "That's not an image file", variant: "destructive" });
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ title: "Image too big — keep it under 8 MB", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUri = reader.result as string;
+      const probe = new Image();
+      probe.onload = () => setImg({ dataUri, w: probe.naturalWidth, h: probe.naturalHeight });
+      probe.onerror = () => toast({ title: "Couldn't read that image", variant: "destructive" });
+      probe.src = dataUri;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadMutation = useUploadLibraryPractice({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListLibraryPracticesQueryKey({}) });
+        toast({ title: "Diagram added to the library" });
+        reset();
+        onOpenChange(false);
+      },
+      onError: () => toast({ title: "Couldn't save — try again", variant: "destructive" }),
+    },
+  });
+
+  const tagPool = tagsForPart(part);
+  const canSave = !!img && title.trim().length > 0 && !uploadMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !uploadMutation.isPending && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add a new diagram</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {img ? (
+            <div className="space-y-1.5">
+              <img src={img.dataUri} alt="New diagram" className="w-full rounded-md border bg-white" />
+              <Button size="sm" variant="outline" onClick={() => setImg(null)}>
+                Choose a different image
+              </Button>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-md p-8 cursor-pointer text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
+              <ImagePlus className="h-6 w-6" />
+              <span className="text-sm">Tap to choose an image (screenshot, photo, export)</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => pickFile(e.target.files?.[0])}
+              />
+            </label>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="up-title">Name</Label>
+            <Input
+              id="up-title"
+              placeholder="e.g. Y-shape passing pattern"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={200}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="up-notes">Notes (optional — helps the session generator find it)</Label>
+            <Textarea
+              id="up-notes"
+              placeholder="What it works on, setup, key points…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              maxLength={4000}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Session part</p>
+            <div className="flex flex-wrap gap-1.5">
+              {UPLOAD_PARTS.map((p) => (
+                <Button
+                  key={p.value}
+                  size="sm"
+                  variant={part === p.value ? "default" : "outline"}
+                  onClick={() => {
+                    setPart(p.value);
+                    setTags([]);
+                  }}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {tagPool.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {part === "endgame" ? "Game size" : "Sub-category (pick all that fit)"}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {tagPool.map(([code, label]) => {
+                  const on = tags.includes(code);
+                  return (
+                    <Button
+                      key={code}
+                      size="sm"
+                      variant={on ? "default" : "outline"}
+                      onClick={() =>
+                        setTags((t) =>
+                          part === "endgame" ? [code] : on ? t.filter((x) => x !== code) : [...t, code],
+                        )
+                      }
+                    >
+                      {code !== label ? `${code} · ${label}` : label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            disabled={!canSave}
+            onClick={() =>
+              img &&
+              uploadMutation.mutate({
+                data: {
+                  title: title.trim(),
+                  part: part as never,
+                  tags,
+                  notes: notes.trim() || undefined,
+                  imageDataUri: img.dataUri,
+                  canvas: { w: img.w, h: img.h },
+                },
+              })
+            }
+          >
+            <Check className="h-4 w-4 mr-1" />
+            {uploadMutation.isPending ? "Saving…" : "Add to library"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function DiagramReview() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -243,6 +426,7 @@ export default function DiagramReview() {
   const [part, setPart] = useState<string>("main");
   const [tags, setTags] = useState<string[]>([]);
   const [crops, setCrops] = useState<DiagramCrop[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Reset the form whenever we land on a new practice.
   useEffect(() => {
@@ -303,10 +487,17 @@ export default function DiagramReview() {
             Snip the bit of each slide you'd actually use, then tag it — {reviewedCount} of {queue.length} done
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate("/library")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Library
-        </Button>
+        <div className="flex gap-1.5">
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <ImagePlus className="h-4 w-4 mr-1" /> Add diagram
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/library")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Library
+          </Button>
+        </div>
       </div>
+
+      <AddDiagramDialog open={addOpen} onOpenChange={setAddOpen} />
 
       <div className="h-2 rounded-full bg-muted overflow-hidden">
         <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />

@@ -1548,6 +1548,45 @@ export interface LibraryPractice {
   reviewTags: string[];
 }
 
+export type UploadLibraryPracticeRequestPart = typeof UploadLibraryPracticeRequestPart[keyof typeof UploadLibraryPracticeRequestPart];
+
+
+export const UploadLibraryPracticeRequestPart = {
+  warmup: 'warmup',
+  activation: 'activation',
+  introduction: 'introduction',
+  main: 'main',
+  endgame: 'endgame',
+} as const;
+
+export type UploadLibraryPracticeRequestCanvas = {
+  w: number;
+  h: number;
+};
+
+export interface UploadLibraryPracticeRequest {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  part: UploadLibraryPracticeRequestPart;
+  /**
+     * @maxItems 12
+     * @items.maxLength 10
+     */
+  tags: string[];
+  /** @maxLength 4000 */
+  notes?: string;
+  /** @maxLength 14000000 */
+  imageDataUri: string;
+  canvas: UploadLibraryPracticeRequestCanvas;
+}
+
+export interface UploadLibraryPracticeResult {
+  id: number;
+}
+
 export type ReviewLibraryPracticeRequestPart = typeof ReviewLibraryPracticeRequestPart[keyof typeof ReviewLibraryPracticeRequestPart];
 
 

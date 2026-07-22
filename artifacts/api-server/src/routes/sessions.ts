@@ -298,7 +298,7 @@ ${list(ends)}`;
   // for the warmup slot (or hasn't reviewed yet).
   const warmup =
     entries
-      .filter((e) => e.chapter === "Warmup" && usableFor("warmup")(e))
+      .filter((e) => (e.chapter === "Warmup" || (e.chapter === "Uploads" && e.reviewPart === "warmup")) && usableFor("warmup")(e))
       .sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
 
   // Optional passing activation: best theme match among the slides the coach

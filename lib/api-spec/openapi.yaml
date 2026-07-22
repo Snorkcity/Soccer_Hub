@@ -1542,6 +1542,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/LibraryFlagResult"
 
+  /library/practices/upload:
+    post:
+      operationId: uploadLibraryPractice
+      summary: Add a new diagram (image) to the practice library, pre-tagged
+      tags: [library]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadLibraryPracticeRequest"
+      responses:
+        "200":
+          description: Created practice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadLibraryPracticeResult"
+
   /library/practices/{id}/review:
     patch:
       operationId: reviewLibraryPractice
@@ -3463,6 +3482,33 @@ components:
         w: { type: number, minimum: 20 }
         h: { type: number, minimum: 20 }
       required: [x, y, w, h]
+
+    UploadLibraryPracticeRequest:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        part:
+          type: string
+          enum: [warmup, activation, introduction, main, endgame]
+        tags:
+          type: array
+          items: { type: string, maxLength: 10 }
+          maxItems: 12
+        notes: { type: string, maxLength: 4000 }
+        imageDataUri: { type: string, maxLength: 14000000 }
+        canvas:
+          type: object
+          properties:
+            w: { type: number }
+            h: { type: number }
+          required: [w, h]
+      required: [title, part, tags, imageDataUri, canvas]
+
+    UploadLibraryPracticeResult:
+      type: object
+      properties:
+        id: { type: integer }
+      required: [id]
 
     ReviewLibraryPracticeRequest:
       type: object
