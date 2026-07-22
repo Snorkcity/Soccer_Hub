@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runStartupMigrations } from "./startupMigrations";
 import { syncCurriculum } from "./assistant/curriculumStore";
+import { syncPracticeEmbeddings } from "./assistant/practiceStore";
 import { logger as bootLogger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -37,5 +38,8 @@ runStartupMigrations()
     // until embeddings exist.
     syncCurriculum().catch((err) => {
       bootLogger.error({ err }, "Curriculum sync failed");
+    });
+    syncPracticeEmbeddings().catch((err) => {
+      bootLogger.error({ err }, "Practice embeddings sync failed");
     });
   });

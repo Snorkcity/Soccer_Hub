@@ -267,6 +267,9 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // Practice embeddings for AI session generation (2026-07)
+  await db.execute(sql`ALTER TABLE practices ADD COLUMN IF NOT EXISTS embedding jsonb`);
+
   await syncPracticeLibrary();
 
   logger.info("Startup migrations applied");

@@ -146,6 +146,7 @@ import type {
   SessionCreateRequest,
   SessionDeleteResult,
   SessionDetail,
+  SessionGenerateRequest,
   SessionPartUpsert,
   SessionSummaryList,
   SessionUpdateRequest,
@@ -5804,6 +5805,77 @@ export const useCreateSession = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateSessionMutationOptions(options));
+    }
+
+export const getGenerateSessionUrl = () => {
+
+
+
+
+  return `/api/sessions/generate`
+}
+
+/**
+ * @summary AI-generate a draft session (16+ phase) from the practice library
+ */
+export const generateSession = async (sessionGenerateRequest: SessionGenerateRequest, options?: RequestInit): Promise<SessionDetail> => {
+
+  return customFetch<SessionDetail>(getGenerateSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sessionGenerateRequest)
+  }
+);}
+
+
+
+
+
+export const getGenerateSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSession>>, TError,{data: BodyType<SessionGenerateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSession>>, TError,{data: BodyType<SessionGenerateRequest>}, TContext> => {
+
+const mutationKey = ['generateSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSession>>, {data: BodyType<SessionGenerateRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSessionMutationResult = NonNullable<Awaited<ReturnType<typeof generateSession>>>
+    export type GenerateSessionMutationBody = BodyType<SessionGenerateRequest>
+    export type GenerateSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI-generate a draft session (16+ phase) from the practice library
+ */
+export const useGenerateSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSession>>, TError,{data: BodyType<SessionGenerateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSession>>,
+        TError,
+        {data: BodyType<SessionGenerateRequest>},
+        TContext
+      > => {
+      return useMutation(getGenerateSessionMutationOptions(options));
     }
 
 export const getGetSessionUrl = (id: number,) => {

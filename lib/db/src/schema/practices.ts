@@ -21,6 +21,8 @@ export const practicesTable = pgTable("practices", {
   diagram:     jsonb("diagram").notNull(), // { bg, shapes: [...] }
   needsReview: boolean("needs_review").notNull().default(false),
   sourceFile:  text("source_file"),
+  /** text-embedding-3-small vector (number[] jsonb) of title+section+paras; null until embedded */
+  embedding:   jsonb("embedding"),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 });
 

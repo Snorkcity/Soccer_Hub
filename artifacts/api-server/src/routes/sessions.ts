@@ -1,9 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, sessionsTable, sessionPracticesTable, practicesTable, SESSION_PARTS } from "@workspace/db";
+import { embedTexts } from "../assistant/curriculumStore";
+import { loadPractices, rankPractices, type PracticeEntry } from "../assistant/practiceStore";
 import {
   ListSessionsResponse,
   CreateSessionBody,
+  GenerateSessionBody,
   GetSessionResponse,
   UpdateSessionBody,
   DeleteSessionResponse,
@@ -99,15 +102,10 @@ router.get("/sessions", async (_req, res): Promise<void> => {
   );
 });
 
-router.post("/sessions", async (req, res): Promise<void> => {
-  const body = CreateSessionBody.safeParse(req.body ?? {});
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  // Pre-fill the new session from the most recently created one so the coach
-  // doesn't have to re-type team, location, time slot, squad list, etc.
-  // (skips blank sessions that never had details filled in).
+// Pre-fill a new session from the most recently created one so the coach
+// doesn't have to re-type team, location, time slot, squad list, etc.
+// (skips blank sessions that never had details filled in).
+async function createPrefilledSession(title: string, theme?: string | null): Promise<number> {
   const [last] = await db
     .select()
     .from(sessionsTable)
@@ -138,17 +136,164 @@ router.post("/sessions", async (req, res): Promise<void> => {
   const [row] = await db
     .insert(sessionsTable)
     .values({
-      title: body.data.title ?? "New session",
+      title,
       sessionDate: todayStr,
       team: last?.team ?? null,
       sessionNumber: nextNumber,
+      theme: theme ?? null,
       cycleCode: last?.cycleCode ?? null,
       location: last?.location ?? null,
       timeSlot: last?.timeSlot ?? null,
       squadText: last?.squadText ?? null,
     })
     .returning({ id: sessionsTable.id });
-  const detail = await loadSessionDetail(row.id);
+  return row.id;
+}
+
+router.post("/sessions", async (req, res): Promise<void> => {
+  const body = CreateSessionBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const id = await createPrefilledSession(body.data.title ?? "New session");
+  const detail = await loadSessionDetail(id);
+  res.json(GetSessionResponse.parse(detail));
+});
+
+// ── AI session generation (16+ / professional development phase) ────────────
+const CYCLE_SECTION: Record<string, string> = { small: "Small Games", medium: "Medium Games", big: "Big Games" };
+
+router.post("/sessions/generate", async (req, res): Promise<void> => {
+  const body = GenerateSessionBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const { theme, players, minutes, endGame, endGamePlan } = body.data;
+
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
+  const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  if (!apiKey) {
+    res.status(503).json({ error: "AI is not configured on this server" });
+    return;
+  }
+
+  const entries = await loadPractices();
+  if (!entries.some((e) => e.embedding)) {
+    res.status(503).json({ error: "The practice library is still being prepared — try again in a minute" });
+    return;
+  }
+
+  // Retrieve candidates: intro from Activations, main from Main Part, end game
+  // from the requested game-cycle section.
+  const [themeVec, endVec] = await embedTexts([theme, endGamePlan?.trim() ? `${endGamePlan} ${theme}` : theme]);
+  const intros = rankPractices(entries, themeVec, "Activations", 8);
+  const mains = rankPractices(entries, themeVec, "Main Part", 8);
+  const section = CYCLE_SECTION[endGame];
+  let ends = rankPractices(entries, endVec, "End Games", 6, (e) => e.sectionName === section);
+  if (ends.length === 0) ends = rankPractices(entries, endVec, "End Games", 6);
+
+  const list = (xs: PracticeEntry[]) =>
+    xs.map((e) => `[id ${e.id}] ${e.title ?? "(untitled)"} — section: ${e.sectionName ?? "?"}\n${e.text.slice(0, 900)}`).join("\n\n");
+
+  const sys = `You assemble a football training session for a senior / 16+ squad from the coach's OWN practice library. Never invent drills — you may only pick from the candidate practices listed, and your coaching messages and rules must be grounded in the language of the chosen practices (adapt numbers/area to the squad, keep the coach's terminology). The Introduction and Main part must train the same theme with consistent coaching messages. Respond with JSON only:
+{
+  "title": "short session title",
+  "introId": <id from INTRODUCTION candidates>,
+  "mainId": <id from MAIN candidates>,
+  "endId": <id from END GAME candidates>,
+  "parts": {
+    "introduction": { "rules": "...", "tasks": "coaching messages, one per line", "coachingPoints": "...", "players": "...", "size": "...", "timing": "..." },
+    "main": { "rules": "...", "tasks": "...", "coachingPoints": "...", "players": "...", "size": "...", "timing": "..." },
+    "endgame": { "rules": "...", "tasks": "...", "players": "...", "size": "...", "timing": "..." }
+  }
+}`;
+  const usr = `Theme: ${theme}
+Players available: ${players ?? "unknown"}
+Session length: ${minutes ?? 90} minutes (allow ~10-15 min warmup + passing activation before the introduction)
+End game cycle: ${endGame} games${endGamePlan ? ` — coach's plan: ${endGamePlan}` : ""}
+
+INTRODUCTION candidates (technical activations):
+${list(intros)}
+
+MAIN candidates:
+${list(mains)}
+
+END GAME candidates:
+${list(ends)}`;
+
+  const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "gpt-5.6-terra",
+      max_completion_tokens: 4096,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: usr },
+      ],
+    }),
+  });
+  if (!aiRes.ok) {
+    const text = await aiRes.text();
+    console.error("generate-session AI call failed", aiRes.status, text.slice(0, 400));
+    res.status(502).json({ error: "The AI had a problem assembling the session — please try again" });
+    return;
+  }
+  const json = (await aiRes.json()) as { choices?: { message?: { content?: string } }[] };
+  let plan: {
+    title?: string;
+    introId?: number;
+    mainId?: number;
+    endId?: number;
+    parts?: Record<string, Record<string, string | undefined>>;
+  };
+  try {
+    plan = JSON.parse(json.choices?.[0]?.message?.content ?? "{}");
+  } catch {
+    res.status(502).json({ error: "The AI returned an unreadable plan — please try again" });
+    return;
+  }
+
+  // Validate picks against the candidate lists; fall back to the top-ranked candidate.
+  const pick = (id: number | undefined, pool: PracticeEntry[]) =>
+    pool.find((e) => e.id === id) ?? pool[0] ?? null;
+  const intro = pick(plan.introId, intros);
+  const main = pick(plan.mainId, mains);
+  const end = pick(plan.endId, ends);
+
+  // Standard dynamic warmup = first Warmup-chapter slide in the deck.
+  const warmup = entries.filter((e) => e.chapter === "Warmup").sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
+
+  const sessionId = await createPrefilledSession(plan.title?.trim() || `Session — ${theme}`, theme);
+  const now = new Date();
+  const partRows: (typeof sessionPracticesTable.$inferInsert)[] = [];
+  if (warmup) partRows.push({ sessionId, part: "warmup", practiceId: warmup.id, updatedAt: now });
+  const f = (part: string, entry: PracticeEntry | null) => {
+    if (!entry) return;
+    const p = plan.parts?.[part] ?? {};
+    const t = (k: string) => (typeof p[k] === "string" && p[k]?.trim() ? (p[k] as string).trim() : null);
+    partRows.push({
+      sessionId,
+      part: part === "introduction" ? "introduction" : part,
+      practiceId: entry.id,
+      rules: t("rules"),
+      tasks: t("tasks"),
+      coachingPoints: t("coachingPoints"),
+      players: t("players"),
+      size: t("size"),
+      timing: t("timing"),
+      updatedAt: now,
+    });
+  };
+  f("introduction", intro);
+  f("main", main);
+  f("endgame", end);
+  if (partRows.length) await db.insert(sessionPracticesTable).values(partRows);
+
+  const detail = await loadSessionDetail(sessionId);
   res.json(GetSessionResponse.parse(detail));
 });
 

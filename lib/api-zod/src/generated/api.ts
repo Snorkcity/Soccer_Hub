@@ -2060,6 +2060,60 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
+ * @summary AI-generate a draft session (16+ phase) from the practice library
+ */
+export const generateSessionBodyThemeMin = 3;
+
+export const generateSessionBodyPlayersMin = 4;
+export const generateSessionBodyPlayersMax = 40;
+
+export const generateSessionBodyMinutesMin = 30;
+export const generateSessionBodyMinutesMax = 180;
+
+
+
+export const GenerateSessionBody = zod.object({
+  "theme": zod.string().min(generateSessionBodyThemeMin).describe('What the session trains, e.g. \'pressing from a mid block\''),
+  "players": zod.number().min(generateSessionBodyPlayersMin).max(generateSessionBodyPlayersMax).optional(),
+  "minutes": zod.number().min(generateSessionBodyMinutesMin).max(generateSessionBodyMinutesMax).optional(),
+  "endGame": zod.enum(['small', 'medium', 'big']).describe('Game cycle for the end game'),
+  "endGamePlan": zod.string().optional().describe('Optional free-text plan\/size for the end game')
+})
+
+export const GenerateSessionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "sessionDate": zod.string().nullish(),
+  "team": zod.string().nullish(),
+  "sessionNumber": zod.string().nullish(),
+  "theme": zod.string().nullish(),
+  "cycleCode": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timeSlot": zod.string().nullish(),
+  "comments": zod.string().nullish(),
+  "squadText": zod.string().nullish(),
+  "updatedAt": zod.string(),
+  "parts": zod.array(zod.object({
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
+  "practice": zod.union([zod.object({
+  "id": zod.number(),
+  "title": zod.string().nullish(),
+  "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side')
+}),zod.null()]).optional(),
+  "rules": zod.string().nullish(),
+  "tasks": zod.string().nullish(),
+  "progressions": zod.string().nullish(),
+  "coachingPoints": zod.string().nullish(),
+  "players": zod.string().nullish(),
+  "size": zod.string().nullish(),
+  "timing": zod.string().nullish(),
+  "scoring": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+/**
  * @summary Get a session with its part slots and embedded practice diagrams
  */
 export const GetSessionParams = zod.object({

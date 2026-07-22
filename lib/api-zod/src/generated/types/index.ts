@@ -196,6 +196,8 @@ export * from './seasonSummary';
 export * from './sessionCreateRequest';
 export * from './sessionDeleteResult';
 export * from './sessionDetail';
+export * from './sessionGenerateRequest';
+export * from './sessionGenerateRequestEndGame';
 export * from './sessionPartDetail';
 export * from './sessionPartDetailPart';
 export * from './sessionPartPractice';

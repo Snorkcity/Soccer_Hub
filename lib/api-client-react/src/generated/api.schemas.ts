@@ -1585,6 +1585,40 @@ export interface SessionCreateRequest {
   title?: string;
 }
 
+/**
+ * Game cycle for the end game
+ */
+export type SessionGenerateRequestEndGame = typeof SessionGenerateRequestEndGame[keyof typeof SessionGenerateRequestEndGame];
+
+
+export const SessionGenerateRequestEndGame = {
+  small: 'small',
+  medium: 'medium',
+  big: 'big',
+} as const;
+
+export interface SessionGenerateRequest {
+  /**
+     * What the session trains, e.g. 'pressing from a mid block'
+     * @minLength 3
+     */
+  theme: string;
+  /**
+     * @minimum 4
+     * @maximum 40
+     */
+  players?: number;
+  /**
+     * @minimum 30
+     * @maximum 180
+     */
+  minutes?: number;
+  /** Game cycle for the end game */
+  endGame: SessionGenerateRequestEndGame;
+  /** Optional free-text plan/size for the end game */
+  endGamePlan?: string;
+}
+
 export interface SessionUpdateRequest {
   title?: string;
   /** @nullable */
