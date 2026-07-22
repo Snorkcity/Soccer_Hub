@@ -8,3 +8,5 @@ description: Planned feature — Coach Assistant answers include the matching pr
 **Why parked:** coach wants it ("monumentally ground breaking") but the curriculum docx text and the practice library came from different sources, so practice names won't align cleanly — matching must be worked through WITH the coach when he can commit "good brain energy" (his words, July 2026).
 
 **How to apply:** when he says go — build a link layer (exact name match first, coach-reviewed overrides for fuzzy ones). Hard rule agreed: show NO diagram rather than the WRONG one; a wrong diagram destroys trust pitch-side.
+
+**Second avenue (coach's suggestion):** assistant answers already describe setups precisely (cones, players, area, shape) — could GENERATE a diagram from that description using the library's SVG renderer style/vocabulary as fallback when no library match exists. Pull-if-matched, generate-if-not.
