@@ -35,6 +35,10 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 - Other coaches in the club get a SIMPLER session-details form: date, theme, and a couple of other basics. Design generic form first when session planner work resumes; don't extend her bespoke fields further for now.
 - **Why:** app's purpose is club-wide — every coach plans sessions; most won't fill her level of detail.
 
+## Status — AI generation (Jul 2026)
+- **Form slice DONE:** "Generate with AI" on Sessions page (admin only) → POST /sessions/generate. Practices (Warmup/Activations/Main Part/End Games chapters) embedded on boot (jsonb col on practices, direct OPENAI_API_KEY needed); theme embedded → top-k candidates per chapter → one LLM JSON call picks intro/main/endgame + writes part text fields; ids validated against candidate pools with fallback; warmup = lowest-ordinal Warmup slide; activation slot left empty (passing-activation pool comes later from coach uploads).
+- Next slice: chat-side generation in the Coach Assistant (coach chose BOTH form and chat); then diagram tick/fix pairing review.
+
 ## Status
 - Slice 1 (Import & Library) DONE — see practice-library.md.
 - Slice 2 (Session Builder + print) DONE Jul 2026: /sessions list + editor + /sessions/:id/print (browser print = PDF export, A4 landscape, 2 pages matching her format; print route renders OUTSIDE the app Shell). Parts stored one row per part (unique session_id+part), part slot = practiceId + 9 free-text fields; squad list is free text "num | pos | name | note" per line (later: pull from player data). PUT part is a partial upsert — only provided keys update.
