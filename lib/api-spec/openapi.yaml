@@ -3442,16 +3442,17 @@ components:
           type: array
           items: { type: string }
           description: "Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from"
-        reviewCrop:
-          oneOf:
-            - $ref: "#/components/schemas/DiagramCrop"
-            - type: "null"
-        reviewPart: { type: ["string", "null"], description: "warmup | introduction | main | endgame | unusable; null = not yet reviewed" }
+        reviewCrops:
+          type: array
+          description: Coach's snips; multiple entries = variations worked through in order
+          items: { $ref: "#/components/schemas/DiagramCrop" }
+          maxItems: 6
+        reviewPart: { type: ["string", "null"], description: "warmup | activation | introduction | main | endgame | unusable; null = not yet reviewed" }
         reviewTags:
           type: array
           items: { type: string }
           description: "Sub-category tags, e.g. A5 or MP6"
-      required: [id, ordinal, kind, paras, diagram, needsReview, variationCount, variationParts, reviewTags]
+      required: [id, ordinal, kind, paras, diagram, needsReview, variationCount, variationParts, reviewTags, reviewCrops]
 
     DiagramCrop:
       type: object
@@ -3468,15 +3469,15 @@ components:
       properties:
         part:
           type: string
-          enum: [warmup, introduction, main, endgame, unusable]
+          enum: [warmup, activation, introduction, main, endgame, unusable]
         tags:
           type: array
           items: { type: string, maxLength: 10 }
           maxItems: 12
-        crop:
-          oneOf:
-            - $ref: "#/components/schemas/DiagramCrop"
-            - type: "null"
+        crops:
+          type: array
+          items: { $ref: "#/components/schemas/DiagramCrop" }
+          maxItems: 6
       required: [part, tags]
 
     ReviewLibraryPracticeResult:
@@ -3484,6 +3485,9 @@ components:
       properties:
         id: { type: integer }
         reviewPart: { type: ["string", "null"] }
+        reviewCrops:
+          type: array
+          items: { $ref: "#/components/schemas/DiagramCrop" }
         reviewTags:
           type: array
           items: { type: string }
@@ -3563,6 +3567,7 @@ components:
         minutes:     { type: integer, minimum: 30, maximum: 180 }
         endGame:     { type: string, enum: [small, medium, big], description: "Game cycle for the end game" }
         endGamePlan: { type: string, description: "Optional free-text plan/size for the end game" }
+        includeActivation: { type: boolean, description: "Also fill the passing activation slot from the coach's tagged activations" }
       required: [theme, endGame]
 
     SessionUpdateRequest:
@@ -3602,10 +3607,9 @@ components:
           type: object
           description: Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side
           additionalProperties: true
-        reviewCrop:
-          oneOf:
-            - $ref: "#/components/schemas/DiagramCrop"
-            - type: "null"
+        reviewCrops:
+          type: array
+          items: { $ref: "#/components/schemas/DiagramCrop" }
       required: [id, diagram]
 
     SessionPartDetail:

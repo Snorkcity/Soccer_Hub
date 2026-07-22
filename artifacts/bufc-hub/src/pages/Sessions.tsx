@@ -53,6 +53,7 @@ export default function Sessions() {
   const [minutes, setMinutes] = useState("90");
   const [endGame, setEndGame] = useState<"small" | "medium" | "big">("big");
   const [endGamePlan, setEndGamePlan] = useState("");
+  const [includeActivation, setIncludeActivation] = useState(false);
 
   const generateMutation = useGenerateSession({
     mutation: {
@@ -84,6 +85,7 @@ export default function Sessions() {
         minutes: Number.isFinite(m) && m >= 30 ? m : undefined,
         endGame,
         endGamePlan: endGamePlan.trim() || undefined,
+        includeActivation: includeActivation || undefined,
       },
     });
   };
@@ -151,6 +153,18 @@ export default function Sessions() {
                   </Button>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="gen-activation"
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={includeActivation}
+                onChange={(e) => setIncludeActivation(e.target.checked)}
+              />
+              <Label htmlFor="gen-activation" className="font-normal">
+                Include a passing activation in the warmup (older teams)
+              </Label>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gen-plan">End game plan / size (optional)</Label>

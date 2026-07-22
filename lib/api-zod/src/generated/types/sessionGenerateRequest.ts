@@ -27,4 +27,6 @@ export interface SessionGenerateRequest {
   endGame: SessionGenerateRequestEndGame;
   /** Optional free-text plan/size for the end game */
   endGamePlan?: string;
+  /** Also fill the passing activation slot from the coach's tagged activations */
+  includeActivation?: boolean;
 }

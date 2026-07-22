@@ -321,3 +321,37 @@ export function PracticeDiagram({
     </svg>
   );
 }
+
+/**
+ * Renders a practice honouring the coach's review snips. One snip (or none)
+ * renders a single diagram; multiple snips are variations worked through in
+ * order and render as a labelled row (or stack).
+ */
+export function DiagramWithCrops({
+  diagram,
+  crops,
+  className,
+  layout = "row",
+}: {
+  diagram: DiagramData;
+  crops?: DiagramCrop[] | null;
+  className?: string;
+  layout?: "row" | "stack";
+}) {
+  const list = crops ?? [];
+  if (list.length <= 1) {
+    return <PracticeDiagram diagram={diagram} crop={list[0] ?? null} className={className} />;
+  }
+  return (
+    <div className={layout === "row" ? "flex gap-1 items-stretch" : "space-y-1"}>
+      {list.map((c, i) => (
+        <div key={i} className={layout === "row" ? "flex-1 min-w-0" : undefined}>
+          <p className="text-[10px] font-semibold text-muted-foreground leading-tight">
+            Variation {i + 1}
+          </p>
+          <PracticeDiagram diagram={diagram} crop={c} className={className ?? "w-full h-auto"} />
+        </div>
+      ))}
+    </div>
+  );
+}

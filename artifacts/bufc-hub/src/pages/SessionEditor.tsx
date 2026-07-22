@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { PracticeDiagram, type DiagramData } from "@/components/PracticeDiagram";
+import { PracticeDiagram, DiagramWithCrops, type DiagramData } from "@/components/PracticeDiagram";
 import { ArrowLeft, Printer, Replace, Save, Search, X } from "lucide-react";
 
 const PART_LABELS: Record<string, string> = {
@@ -172,7 +172,7 @@ function PracticeGrid({
           onClick={() => onPick(p)}
         >
           <div className="aspect-[4/3] bg-muted">
-            <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrop ?? null} className="w-full h-full" />
+            <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrops?.[0] ?? null} className="w-full h-full" />
           </div>
           <div className="p-2">
             <p className="text-xs font-medium leading-tight line-clamp-2">
@@ -352,9 +352,15 @@ function PartSlot({
       </CardHeader>
       <CardContent className="space-y-3">
         {slot?.practice ? (
-          <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-3">
-            <div className="rounded-md overflow-hidden border self-start">
-              <PracticeDiagram diagram={slot.practice.diagram as DiagramData} crop={slot.practice.reviewCrop ?? null} className="w-full h-auto" />
+          <div className="space-y-3">
+            <div className="rounded-md overflow-hidden border max-w-2xl mx-auto">
+              <div className="p-1.5">
+                <DiagramWithCrops
+                  diagram={slot.practice.diagram as DiagramData}
+                  crops={slot.practice.reviewCrops}
+                  className="w-full h-auto"
+                />
+              </div>
               <p className="text-xs text-muted-foreground p-1.5 border-t">
                 {slot.practice.title ?? "Untitled practice"}
               </p>

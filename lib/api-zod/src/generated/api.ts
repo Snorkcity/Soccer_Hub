@@ -1938,9 +1938,11 @@ export const ListLibraryPracticesQueryParams = zod.object({
   "sectionCode": zod.coerce.string().optional()
 })
 
-export const listLibraryPracticesResponseReviewCropOneWMin = 20;
+export const listLibraryPracticesResponseReviewCropsItemWMin = 20;
 
-export const listLibraryPracticesResponseReviewCropOneHMin = 20;
+export const listLibraryPracticesResponseReviewCropsItemHMin = 20;
+
+export const listLibraryPracticesResponseReviewCropsMax = 6;
 
 
 
@@ -1962,13 +1964,13 @@ export const ListLibraryPracticesResponseItem = zod.object({
   "needsReview": zod.boolean(),
   "variationCount": zod.number().describe('Number of imported wording variations available'),
   "variationParts": zod.array(zod.string()).describe('Distinct session parts (warmup\/activation\/introduction\/main\/endgame) this practice\'s past write-ups came from'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(listLibraryPracticesResponseReviewCropOneWMin),
-  "h": zod.number().min(listLibraryPracticesResponseReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional(),
-  "reviewPart": zod.string().nullish().describe('warmup | introduction | main | endgame | unusable; null = not yet reviewed'),
+  "w": zod.number().min(listLibraryPracticesResponseReviewCropsItemWMin),
+  "h": zod.number().min(listLibraryPracticesResponseReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).max(listLibraryPracticesResponseReviewCropsMax).describe('Coach\'s snips; multiple entries = variations worked through in order'),
+  "reviewPart": zod.string().nullish().describe('warmup | activation | introduction | main | endgame | unusable; null = not yet reviewed'),
   "reviewTags": zod.array(zod.string()).describe('Sub-category tags, e.g. A5 or MP6')
 })
 export const ListLibraryPracticesResponse = zod.array(ListLibraryPracticesResponseItem)
@@ -2028,22 +2030,28 @@ export const reviewLibraryPracticeBodyTagsItemMax = 10;
 
 export const reviewLibraryPracticeBodyTagsMax = 12;
 
-export const reviewLibraryPracticeBodyCropOneWMin = 20;
+export const reviewLibraryPracticeBodyCropsItemWMin = 20;
 
-export const reviewLibraryPracticeBodyCropOneHMin = 20;
+export const reviewLibraryPracticeBodyCropsItemHMin = 20;
+
+export const reviewLibraryPracticeBodyCropsMax = 6;
 
 
 
 export const ReviewLibraryPracticeBody = zod.object({
-  "part": zod.enum(['warmup', 'introduction', 'main', 'endgame', 'unusable']),
+  "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame', 'unusable']),
   "tags": zod.array(zod.string().max(reviewLibraryPracticeBodyTagsItemMax)).max(reviewLibraryPracticeBodyTagsMax),
-  "crop": zod.union([zod.object({
+  "crops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(reviewLibraryPracticeBodyCropOneWMin),
-  "h": zod.number().min(reviewLibraryPracticeBodyCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(reviewLibraryPracticeBodyCropsItemWMin),
+  "h": zod.number().min(reviewLibraryPracticeBodyCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).max(reviewLibraryPracticeBodyCropsMax).optional()
 })
+
+export const reviewLibraryPracticeResponseReviewCropsItemWMin = 20;
+
+export const reviewLibraryPracticeResponseReviewCropsItemHMin = 20;
 
 export const reviewLibraryPracticeResponseReviewCropOneWMin = 20;
 
@@ -2054,6 +2062,12 @@ export const reviewLibraryPracticeResponseReviewCropOneHMin = 20;
 export const ReviewLibraryPracticeResponse = zod.object({
   "id": zod.number(),
   "reviewPart": zod.string().nullable(),
+  "reviewCrops": zod.array(zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "w": zod.number().min(reviewLibraryPracticeResponseReviewCropsItemWMin),
+  "h": zod.number().min(reviewLibraryPracticeResponseReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional(),
   "reviewTags": zod.array(zod.string()),
   "reviewCrop": zod.union([zod.object({
   "x": zod.number(),
@@ -2087,9 +2101,9 @@ export const CreateSessionBody = zod.object({
   "title": zod.string().optional()
 })
 
-export const createSessionResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const createSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const createSessionResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const createSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2112,12 +2126,12 @@ export const CreateSessionResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(createSessionResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(createSessionResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(createSessionResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(createSessionResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),
@@ -2150,12 +2164,13 @@ export const GenerateSessionBody = zod.object({
   "players": zod.number().min(generateSessionBodyPlayersMin).max(generateSessionBodyPlayersMax).optional(),
   "minutes": zod.number().min(generateSessionBodyMinutesMin).max(generateSessionBodyMinutesMax).optional(),
   "endGame": zod.enum(['small', 'medium', 'big']).describe('Game cycle for the end game'),
-  "endGamePlan": zod.string().optional().describe('Optional free-text plan\/size for the end game')
+  "endGamePlan": zod.string().optional().describe('Optional free-text plan\/size for the end game'),
+  "includeActivation": zod.boolean().optional().describe('Also fill the passing activation slot from the coach\'s tagged activations')
 })
 
-export const generateSessionResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const generateSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const generateSessionResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const generateSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2178,12 +2193,12 @@ export const GenerateSessionResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(generateSessionResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(generateSessionResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(generateSessionResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(generateSessionResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),
@@ -2205,9 +2220,9 @@ export const GetSessionParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const getSessionResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const getSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const getSessionResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const getSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2230,12 +2245,12 @@ export const GetSessionResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(getSessionResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(getSessionResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(getSessionResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(getSessionResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),
@@ -2270,9 +2285,9 @@ export const UpdateSessionBody = zod.object({
   "squadText": zod.string().nullish()
 })
 
-export const updateSessionResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const updateSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const updateSessionResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const updateSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2295,12 +2310,12 @@ export const UpdateSessionResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(updateSessionResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(updateSessionResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(updateSessionResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(updateSessionResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),
@@ -2348,9 +2363,9 @@ export const UpsertSessionPartBody = zod.object({
   "intensity": zod.string().nullish()
 })
 
-export const upsertSessionPartResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const upsertSessionPartResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2373,12 +2388,12 @@ export const UpsertSessionPartResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(upsertSessionPartResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(upsertSessionPartResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),
@@ -2401,9 +2416,9 @@ export const ClearSessionPartParams = zod.object({
   "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame'])
 })
 
-export const clearSessionPartResponsePartsItemPracticeOneReviewCropOneWMin = 20;
+export const clearSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
-export const clearSessionPartResponsePartsItemPracticeOneReviewCropOneHMin = 20;
+export const clearSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
 
@@ -2426,12 +2441,12 @@ export const ClearSessionPartResponse = zod.object({
   "id": zod.number(),
   "title": zod.string().nullish(),
   "diagram": zod.record(zod.string(), zod.unknown()).describe('Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side'),
-  "reviewCrop": zod.union([zod.object({
+  "reviewCrops": zod.array(zod.object({
   "x": zod.number(),
   "y": zod.number(),
-  "w": zod.number().min(clearSessionPartResponsePartsItemPracticeOneReviewCropOneWMin),
-  "h": zod.number().min(clearSessionPartResponsePartsItemPracticeOneReviewCropOneHMin)
-}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)'),zod.null()]).optional()
+  "w": zod.number().min(clearSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin),
+  "h": zod.number().min(clearSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin)
+}).describe('Crop rectangle in diagram canvas coordinates (960x720 standard)')).optional()
 }),zod.null()]).optional(),
   "rules": zod.string().nullish(),
   "tasks": zod.string().nullish(),

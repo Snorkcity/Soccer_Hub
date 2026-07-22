@@ -3,6 +3,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { db, sessionsTable, sessionPracticesTable, practicesTable, SESSION_PARTS } from "@workspace/db";
 import { embedTexts } from "../assistant/curriculumStore";
 import { loadPractices, rankPractices, type PracticeEntry } from "../assistant/practiceStore";
+import { cosine } from "../assistant/curriculumStore";
 import {
   ListSessionsResponse,
   CreateSessionBody,
@@ -72,7 +73,11 @@ async function loadSessionDetail(id: number) {
               id: s.practiceId,
               title: s.practiceTitle,
               diagram: s.practiceDiagram as Record<string, unknown>,
-              reviewCrop: (s.practiceReviewCrop as { x: number; y: number; w: number; h: number } | null) ?? null,
+              reviewCrops: Array.isArray(s.practiceReviewCrop)
+                ? s.practiceReviewCrop
+                : s.practiceReviewCrop
+                  ? [s.practiceReviewCrop]
+                  : [],
             }
           : null,
       rules: s.rules,
@@ -176,7 +181,7 @@ router.post("/sessions/generate", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const { theme, players, minutes, endGame, endGamePlan } = body.data;
+  const { theme, players, minutes, endGame, endGamePlan, includeActivation } = body.data;
 
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
@@ -296,10 +301,22 @@ ${list(ends)}`;
       .filter((e) => e.chapter === "Warmup" && usableFor("warmup")(e))
       .sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
 
+  // Optional passing activation: best theme match among the slides the coach
+  // has explicitly tagged for the activation slot (any chapter).
+  let activation: PracticeEntry | null = null;
+  if (includeActivation) {
+    activation =
+      entries
+        .filter((e) => e.reviewPart === "activation" && e.embedding)
+        .map((e) => ({ e, score: cosine(themeVec, e.embedding as number[]) }))
+        .sort((a, b) => b.score - a.score)[0]?.e ?? null;
+  }
+
   const sessionId = await createPrefilledSession((plan.title?.trim() || `Session — ${theme}`).slice(0, 200), theme);
   const now = new Date();
   const partRows: (typeof sessionPracticesTable.$inferInsert)[] = [];
   if (warmup) partRows.push({ sessionId, part: "warmup", practiceId: warmup.id, updatedAt: now });
+  if (activation) partRows.push({ sessionId, part: "activation", practiceId: activation.id, updatedAt: now });
   const f = (part: string, entry: PracticeEntry | null) => {
     if (!entry) return;
     const p = plan.parts?.[part] ?? {};

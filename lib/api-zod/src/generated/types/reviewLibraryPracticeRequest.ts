@@ -15,5 +15,6 @@ export interface ReviewLibraryPracticeRequest {
      * @items.maxLength 10
      */
   tags: string[];
-  crop?: DiagramCrop | null;
+  /** @maxItems 6 */
+  crops?: DiagramCrop[];
 }

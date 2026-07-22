@@ -1534,9 +1534,13 @@ export interface LibraryPractice {
   variationCount: number;
   /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
   variationParts: string[];
-  reviewCrop?: DiagramCrop | null;
   /**
-     * warmup | introduction | main | endgame | unusable; null = not yet reviewed
+     * Coach's snips; multiple entries = variations worked through in order
+     * @maxItems 6
+     */
+  reviewCrops: DiagramCrop[];
+  /**
+     * warmup | activation | introduction | main | endgame | unusable; null = not yet reviewed
      * @nullable
      */
   reviewPart?: string | null;
@@ -1549,6 +1553,7 @@ export type ReviewLibraryPracticeRequestPart = typeof ReviewLibraryPracticeReque
 
 export const ReviewLibraryPracticeRequestPart = {
   warmup: 'warmup',
+  activation: 'activation',
   introduction: 'introduction',
   main: 'main',
   endgame: 'endgame',
@@ -1562,13 +1567,15 @@ export interface ReviewLibraryPracticeRequest {
      * @items.maxLength 10
      */
   tags: string[];
-  crop?: DiagramCrop | null;
+  /** @maxItems 6 */
+  crops?: DiagramCrop[];
 }
 
 export interface ReviewLibraryPracticeResult {
   id: number;
   /** @nullable */
   reviewPart: string | null;
+  reviewCrops?: DiagramCrop[];
   reviewTags: string[];
   reviewCrop?: DiagramCrop | null;
 }
@@ -1666,6 +1673,8 @@ export interface SessionGenerateRequest {
   endGame: SessionGenerateRequestEndGame;
   /** Optional free-text plan/size for the end game */
   endGamePlan?: string;
+  /** Also fill the passing activation slot from the coach's tagged activations */
+  includeActivation?: boolean;
 }
 
 export interface SessionUpdateRequest {
@@ -1724,7 +1733,7 @@ export interface SessionPartPractice {
   title?: string | null;
   /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
   diagram: SessionPartPracticeDiagram;
-  reviewCrop?: DiagramCrop | null;
+  reviewCrops?: DiagramCrop[];
 }
 
 export type SessionPartDetailPart = typeof SessionPartDetailPart[keyof typeof SessionPartDetailPart];

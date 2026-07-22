@@ -63,7 +63,7 @@ router.get("/library/practices", async (req, res): Promise<void> => {
     needsReview: r.needsReview,
     variationCount: counts.get(r.id) ?? 0,
     variationParts: parts.get(r.id) ?? [],
-    reviewCrop: r.reviewCrop ?? null,
+    reviewCrops: Array.isArray(r.reviewCrop) ? r.reviewCrop : r.reviewCrop ? [r.reviewCrop] : [],
     reviewPart: r.reviewPart,
     reviewTags: Array.isArray(r.reviewTags) ? r.reviewTags : [],
   }))));
@@ -122,7 +122,7 @@ router.patch("/library/practices/:id/review", async (req, res): Promise<void> =>
     .set({
       reviewPart: body.data.part,
       reviewTags: body.data.tags,
-      reviewCrop: body.data.crop ?? null,
+      reviewCrop: body.data.crops && body.data.crops.length ? body.data.crops : null,
       reviewedAt: new Date(),
     })
     .where(eq(practicesTable.id, id))
@@ -141,7 +141,7 @@ router.patch("/library/practices/:id/review", async (req, res): Promise<void> =>
     id: row.id,
     reviewPart: row.reviewPart,
     reviewTags: Array.isArray(row.reviewTags) ? row.reviewTags : [],
-    reviewCrop: row.reviewCrop ?? null,
+    reviewCrops: Array.isArray(row.reviewCrop) ? row.reviewCrop : row.reviewCrop ? [row.reviewCrop] : [],
   }));
 });
 

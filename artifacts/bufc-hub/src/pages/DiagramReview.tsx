@@ -20,6 +20,7 @@ const REVIEW_CHAPTERS = ["Warmup", "Activations", "Main Part", "End Games"];
 
 const PARTS = [
   { value: "warmup", label: "Warmup" },
+  { value: "activation", label: "Passing activation" },
   { value: "introduction", label: "Introduction" },
   { value: "main", label: "Main part" },
   { value: "endgame", label: "End game" },
@@ -95,16 +96,19 @@ function practiceTitle(p: LibraryPractice): string {
   return p.title ?? `Variation (slide ${p.ordinal})`;
 }
 
-/** Drag-a-box crop editor over the full slide. Coordinates are stored in
- *  diagram canvas units (usually 960x720) so the crop works at any size. */
+const MAX_CROPS = 6;
+
+/** Drag-a-box crop editor over the full slide. Each drag adds a numbered box
+ *  (variation); coordinates are stored in diagram canvas units (usually
+ *  960x720) so the crops work at any size. */
 function CropEditor({
   diagram,
-  crop,
+  crops,
   onChange,
 }: {
   diagram: DiagramData;
-  crop: DiagramCrop | null;
-  onChange: (c: DiagramCrop | null) => void;
+  crops: DiagramCrop[];
+  onChange: (c: DiagramCrop[]) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -123,14 +127,21 @@ function CropEditor({
     [W, H],
   );
 
-  const rect = drag
+  const dragRect = drag
     ? {
         x: Math.min(drag.x0, drag.x1),
         y: Math.min(drag.y0, drag.y1),
         w: Math.abs(drag.x1 - drag.x0),
         h: Math.abs(drag.y1 - drag.y0),
       }
-    : crop;
+    : null;
+
+  const pct = (r: DiagramCrop) => ({
+    left: `${(r.x / W) * 100}%`,
+    top: `${(r.y / H) * 100}%`,
+    width: `${(r.w / W) * 100}%`,
+    height: `${(r.h / H) * 100}%`,
+  });
 
   return (
     <div
@@ -138,6 +149,7 @@ function CropEditor({
       className="relative w-full touch-none select-none cursor-crosshair rounded-md overflow-hidden border bg-white"
       style={{ aspectRatio: `${W} / ${H}` }}
       onPointerDown={(e) => {
+        if (crops.length >= MAX_CROPS) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         const p = toCanvas(e.clientX, e.clientY);
         setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
@@ -152,27 +164,43 @@ function CropEditor({
         const w = Math.abs(drag.x1 - drag.x0);
         const h = Math.abs(drag.y1 - drag.y0);
         if (w >= 40 && h >= 40) {
-          onChange({
-            x: Math.round(Math.min(drag.x0, drag.x1)),
-            y: Math.round(Math.min(drag.y0, drag.y1)),
-            w: Math.round(w),
-            h: Math.round(h),
-          });
+          onChange([
+            ...crops,
+            {
+              x: Math.round(Math.min(drag.x0, drag.x1)),
+              y: Math.round(Math.min(drag.y0, drag.y1)),
+              w: Math.round(w),
+              h: Math.round(h),
+            },
+          ]);
         }
         setDrag(null);
       }}
     >
       <PracticeDiagram diagram={diagram} className="w-full h-full pointer-events-none" />
-      {rect && rect.w >= 20 && rect.h >= 20 && (
+      {crops.map((c, i) => (
+        <div key={i} className="absolute border-2 border-red-500" style={pct(c)}>
+          <span className="absolute -top-0.5 -left-0.5 bg-red-500 text-white text-xs font-bold leading-none px-1.5 py-1 rounded-br-md">
+            {i + 1}
+          </span>
+          <button
+            type="button"
+            className="absolute -top-0.5 -right-0.5 bg-red-500 hover:bg-red-600 text-white leading-none px-1.5 py-1 rounded-bl-md cursor-pointer"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(crops.filter((_, j) => j !== i));
+            }}
+            aria-label={`Remove box ${i + 1}`}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      {dragRect && dragRect.w >= 20 && dragRect.h >= 20 && (
         <div
-          className="absolute border-2 border-red-500 pointer-events-none"
-          style={{
-            left: `${(rect.x / W) * 100}%`,
-            top: `${(rect.y / H) * 100}%`,
-            width: `${(rect.w / W) * 100}%`,
-            height: `${(rect.h / H) * 100}%`,
-            boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
-          }}
+          className="absolute border-2 border-red-500 border-dashed pointer-events-none"
+          style={pct(dragRect)}
         />
       )}
     </div>
@@ -214,7 +242,7 @@ export default function DiagramReview() {
 
   const [part, setPart] = useState<string>("main");
   const [tags, setTags] = useState<string[]>([]);
-  const [crop, setCrop] = useState<DiagramCrop | null>(null);
+  const [crops, setCrops] = useState<DiagramCrop[]>([]);
 
   // Reset the form whenever we land on a new practice.
   useEffect(() => {
@@ -222,7 +250,7 @@ export default function DiagramReview() {
     const p = current.reviewPart ?? defaultPart(current);
     setPart(p);
     setTags(current.reviewPart != null ? (current.reviewTags ?? []) : defaultTags(current, p));
-    setCrop((current.reviewCrop as DiagramCrop | null) ?? null);
+    setCrops((current.reviewCrops as DiagramCrop[]) ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
@@ -235,7 +263,7 @@ export default function DiagramReview() {
           (old: LibraryPractice[] | undefined) =>
             old?.map((p) =>
               p.id === vars.id
-                ? { ...p, reviewPart: vars.data.part, reviewTags: vars.data.tags, reviewCrop: vars.data.crop ?? null }
+                ? { ...p, reviewPart: vars.data.part, reviewTags: vars.data.tags, reviewCrops: vars.data.crops ?? [] }
                 : p,
             ),
         );
@@ -256,7 +284,7 @@ export default function DiagramReview() {
 
   const save = () => {
     if (!current) return;
-    reviewMutation.mutate({ id: current.id, data: { part: part as never, tags, crop } });
+    reviewMutation.mutate({ id: current.id, data: { part: part as never, tags, crops } });
   };
 
   if (!isAdmin) {
@@ -310,13 +338,16 @@ export default function DiagramReview() {
               </div>
             </div>
 
-            <CropEditor diagram={current.diagram as DiagramData} crop={crop} onChange={setCrop} />
+            <CropEditor diagram={current.diagram as DiagramData} crops={crops} onChange={setCrops} />
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Crop className="h-3.5 w-3.5" /> Drag a box around the part you'd snip
+                <Crop className="h-3.5 w-3.5" />
+                {crops.length === 0
+                  ? "Drag a box around the part you'd snip — drag more boxes for variations you work through in order"
+                  : `${crops.length} snip${crops.length === 1 ? "" : "s"} — drag again to add the next variation`}
               </p>
-              {crop && (
-                <Button size="sm" variant="outline" onClick={() => setCrop(null)}>
+              {crops.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setCrops([])}>
                   <RotateCcw className="h-3.5 w-3.5 mr-1" /> Whole slide
                 </Button>
               )}

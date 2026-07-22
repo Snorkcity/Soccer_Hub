@@ -11,6 +11,7 @@ export type ReviewLibraryPracticeRequestPart = typeof ReviewLibraryPracticeReque
 
 export const ReviewLibraryPracticeRequestPart = {
   warmup: 'warmup',
+  activation: 'activation',
   introduction: 'introduction',
   main: 'main',
   endgame: 'endgame',

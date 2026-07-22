@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { PracticeDiagram, type DiagramData } from "@/components/PracticeDiagram";
+import { PracticeDiagram, DiagramWithCrops, type DiagramData } from "@/components/PracticeDiagram";
 import { Crop, Flag, Search } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -268,7 +268,7 @@ export default function SessionLibrary() {
               onClick={() => setSelected(p)}
             >
               <div className="aspect-[4/3] bg-muted">
-                <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrop ?? null} className="w-full h-full" />
+                <PracticeDiagram diagram={p.diagram as DiagramData} crop={p.reviewCrops?.[0] ?? null} className="w-full h-full" />
               </div>
               <CardContent className="p-3 space-y-1">
                 <div className="flex items-start justify-between gap-2">
@@ -310,7 +310,7 @@ export default function SessionLibrary() {
                 </DialogTitle>
               </DialogHeader>
               <div className="rounded-md overflow-hidden border">
-                <PracticeDiagram diagram={selected.diagram as DiagramData} crop={selected.reviewCrop ?? null} className="w-full h-auto" />
+                <DiagramWithCrops diagram={selected.diagram as DiagramData} crops={selected.reviewCrops} layout="stack" className="w-full h-auto" />
               </div>
               <PastWriteUps practice={selected} />
               <div className="flex items-center justify-between gap-2">

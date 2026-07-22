@@ -14,5 +14,5 @@ export interface SessionPartPractice {
   title?: string | null;
   /** Resolved diagram ({ bg, canvas, shapes }) rendered as SVG client-side */
   diagram: SessionPartPracticeDiagram;
-  reviewCrop?: DiagramCrop | null;
+  reviewCrops?: DiagramCrop[];
 }

@@ -29,9 +29,13 @@ export interface LibraryPractice {
   variationCount: number;
   /** Distinct session parts (warmup/activation/introduction/main/endgame) this practice's past write-ups came from */
   variationParts: string[];
-  reviewCrop?: DiagramCrop | null;
   /**
-     * warmup | introduction | main | endgame | unusable; null = not yet reviewed
+     * Coach's snips; multiple entries = variations worked through in order
+     * @maxItems 6
+     */
+  reviewCrops: DiagramCrop[];
+  /**
+     * warmup | activation | introduction | main | endgame | unusable; null = not yet reviewed
      * @nullable
      */
   reviewPart?: string | null;
