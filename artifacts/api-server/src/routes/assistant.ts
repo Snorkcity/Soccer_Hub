@@ -18,7 +18,14 @@ const ChatBody = z.object({
     role: z.enum(["user", "assistant"]),
     content: z.string().min(1).max(8000),
   })).min(1).max(40),
+  // Client hint: user is on a phone — answers should be briefer where possible.
+  mobile: z.boolean().optional(),
 });
+
+const MOBILE_STYLE_NOTE = `
+
+## Device note for THIS conversation
+The coach is reading on a PHONE. Keep answers brief and scannable: short sentences, dot points over paragraphs, no long preamble. Exception — when delivering a session or practice, still include ALL practice detail as required by the content preservation rule; use tight formatting (headings + dot points) rather than cutting content. For explanations and general questions, give the short version first and offer to expand if they want more.`;
 
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16+"] as const;
 
@@ -162,7 +169,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
         max_completion_tokens: 8192,
         stream: true,
         messages: [
-          { role: "system", content: `${SYSTEM_PROMPT}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}` },
+          { role: "system", content: `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}` },
           ...messages,
         ],
       }),

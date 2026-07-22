@@ -101,6 +101,8 @@ export default function CoachAssistant() {
         body: JSON.stringify({
           // Send trimmed history — the assistant is stateless server-side.
           messages: history.slice(-16).map(({ role, content: c }) => ({ role, content: c })),
+          // Phone-sized screens get briefer answers (session detail is never cut).
+          mobile: window.matchMedia("(max-width: 767px)").matches,
         }),
         signal: ac.signal,
       });
