@@ -174,7 +174,9 @@ router.post("/sessions/generate", async (req, res): Promise<void> => {
 
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  if (!apiKey) {
+  // Embeddings go direct to OpenAI (proxy has no embeddings endpoint), so both
+  // keys are genuine dependencies here.
+  if (!apiKey || !process.env.OPENAI_API_KEY) {
     res.status(503).json({ error: "AI is not configured on this server" });
     return;
   }
@@ -187,7 +189,14 @@ router.post("/sessions/generate", async (req, res): Promise<void> => {
 
   // Retrieve candidates: intro from Activations, main from Main Part, end game
   // from the requested game-cycle section.
-  const [themeVec, endVec] = await embedTexts([theme, endGamePlan?.trim() ? `${endGamePlan} ${theme}` : theme]);
+  let themeVec: number[], endVec: number[];
+  try {
+    [themeVec, endVec] = await embedTexts([theme, endGamePlan?.trim() ? `${endGamePlan} ${theme}` : theme]);
+  } catch (err) {
+    console.error("generate-session embedding failed", err);
+    res.status(502).json({ error: "Couldn't analyse the theme — please try again" });
+    return;
+  }
   const intros = rankPractices(entries, themeVec, "Activations", 8);
   const mains = rankPractices(entries, themeVec, "Main Part", 8);
   const section = CYCLE_SECTION[endGame];
@@ -267,14 +276,15 @@ ${list(ends)}`;
   // Standard dynamic warmup = first Warmup-chapter slide in the deck.
   const warmup = entries.filter((e) => e.chapter === "Warmup").sort((a, b) => a.ordinal - b.ordinal)[0] ?? null;
 
-  const sessionId = await createPrefilledSession(plan.title?.trim() || `Session — ${theme}`, theme);
+  const sessionId = await createPrefilledSession((plan.title?.trim() || `Session — ${theme}`).slice(0, 200), theme);
   const now = new Date();
   const partRows: (typeof sessionPracticesTable.$inferInsert)[] = [];
   if (warmup) partRows.push({ sessionId, part: "warmup", practiceId: warmup.id, updatedAt: now });
   const f = (part: string, entry: PracticeEntry | null) => {
     if (!entry) return;
     const p = plan.parts?.[part] ?? {};
-    const t = (k: string) => (typeof p[k] === "string" && p[k]?.trim() ? (p[k] as string).trim() : null);
+    // Only plain strings from the LLM make it to the DB, trimmed and capped.
+    const t = (k: string) => (typeof p[k] === "string" && p[k]?.trim() ? (p[k] as string).trim().slice(0, 4000) : null);
     partRows.push({
       sessionId,
       part: part === "introduction" ? "introduction" : part,
@@ -291,7 +301,15 @@ ${list(ends)}`;
   f("introduction", intro);
   f("main", main);
   f("endgame", end);
-  if (partRows.length) await db.insert(sessionPracticesTable).values(partRows);
+  try {
+    if (partRows.length) await db.insert(sessionPracticesTable).values(partRows);
+  } catch (err) {
+    // Don't leave a half-built session behind (parts cascade on delete).
+    await db.delete(sessionsTable).where(eq(sessionsTable.id, sessionId));
+    console.error("generate-session part insert failed", err);
+    res.status(500).json({ error: "Couldn't save the generated session — please try again" });
+    return;
+  }
 
   const detail = await loadSessionDetail(sessionId);
   res.json(GetSessionResponse.parse(detail));
