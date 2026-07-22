@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Loader2, Mic, MicOff, RotateCcw, Send, User } from "lucide-react";
+import { Bot, Loader2, Mic, RotateCcw, Send, User } from "lucide-react";
 
 // Web Speech API (Chrome/Android); typed loosely because lib.dom omits it.
 type SpeechRec = {
@@ -234,7 +234,7 @@ export default function CoachAssistant() {
         <Textarea
           rows={2}
           value={input}
-          placeholder="Ask about a session, cycle, framework or matchday routine..."
+          placeholder={listening ? "Listening — speak now, tap the mic again when done..." : "Ask about a session, cycle, framework or matchday routine..."}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -249,9 +249,9 @@ export default function CoachAssistant() {
             variant={listening ? "destructive" : "outline"}
             onClick={toggleMic}
             className="h-10"
-            title={listening ? "Stop dictating" : "Dictate with your voice"}
+            title={listening ? "Listening — tap to stop" : "Dictate with your voice"}
           >
-            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {listening ? <Mic className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
           </Button>
         )}
         <Button onClick={() => void send()} disabled={busy || !input.trim()} className="h-10">
