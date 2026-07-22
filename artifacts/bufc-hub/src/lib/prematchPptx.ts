@@ -87,13 +87,19 @@ function darkSlide(pptx: PptxGenJS, kicker: string, title: string, textX = MX): 
 }
 
 /** White print-friendly header — used by the B/W set-piece print slides. */
-function lightSlide(pptx: PptxGenJS, kicker: string, title: string): PptxGenJS.Slide {
+function lightSlide(pptx: PptxGenJS, kicker: string, title: string, matchInfo?: string): PptxGenJS.Slide {
   const s = pptx.addSlide();
   s.background = { color: "FFFFFF" };
   s.addText(`${kicker.toUpperCase()} — PRINT`, {
     x: MX, y: 0.42, w: W - 2 * MX, h: 0.3,
     fontSize: 11, color: "000000", bold: true, charSpacing: 4,
   });
+  if (matchInfo) {
+    s.addText(matchInfo, {
+      x: W - MX - 4.5, y: 0.42, w: 4.5, h: 0.3,
+      fontSize: 11, color: "000000", bold: true, align: "right",
+    });
+  }
   s.addText(title, {
     x: MX, y: 0.68, w: W - 2 * MX, h: 0.7,
     fontSize: 30, color: "000000", bold: true,
@@ -488,7 +494,9 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     attacking: boolean,
     mono = false,
   ) => {
-    const s = mono ? lightSlide(pptx, kicker, title) : darkSlide(pptx, kicker, title);
+    const s = mono
+      ? lightSlide(pptx, kicker, title, `${input.round} v ${input.opponent} · ${input.matchDate}`)
+      : darkSlide(pptx, kicker, title);
     const bw = 7.4;
     const bh = H - 2.55;
     const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh, mono);
