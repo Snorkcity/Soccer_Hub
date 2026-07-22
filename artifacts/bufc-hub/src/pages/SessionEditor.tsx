@@ -110,11 +110,18 @@ function PracticePicker({
         return blob.includes(needle);
       });
     }
+    // Diagrams the coach marked "not usable" never show up; ones tagged for a
+    // part lead the list for that part. Untagged ones fall back to the old
+    // chapter-based guess, and anything tagged for a different part drops to
+    // "everything else" (still pickable — the coach knows best).
+    all = all.filter((p) => p.reviewPart !== "unusable");
     const chapter = PART_CHAPTERS[part];
     const isSuggested = (p: LibraryPractice) =>
-      (p.variationParts ?? []).includes(part) || p.chapter === chapter;
+      p.reviewPart === part ||
+      (p.reviewPart == null && ((p.variationParts ?? []).includes(part) || p.chapter === chapter));
+    const rank = (p: LibraryPractice) => (p.reviewPart === part ? 0 : 1);
     return {
-      suggested: all.filter(isSuggested),
+      suggested: all.filter(isSuggested).sort((a, b) => rank(a) - rank(b)),
       rest: all.filter((p) => !isSuggested(p)),
     };
   }, [practices, q, part]);
