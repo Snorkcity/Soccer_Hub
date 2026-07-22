@@ -499,11 +499,19 @@ export default function MatchPrep() {
         objectivesBpo: d.bpo,
         cornersFor: {
           groups: takerGroups.concat(groups(spForRoles, Object.keys(CORNERS_FOR_SPOTS))),
-          players: spPlayers(spForRoles, CORNERS_FOR_SPOTS).concat(takerPins()),
+          // Attack-the-goal players draw in navy — the aggressive runners stand out.
+          players: spPlayers(spForRoles, CORNERS_FOR_SPOTS).map((p) => {
+            const attackers = (spForRoles["Attack the goal"] ?? []).filter(Boolean);
+            return p.name && attackers.includes(p.name) ? { ...p, color: "172554" } : p;
+          }).concat(takerPins()),
         },
         cornersFor2: {
           groups: takerGroups.concat(groups(d.spFor2, Object.keys(CORNERS_FOR2_SPOTS))),
-          players: spPlayers(d.spFor2, CORNERS_FOR2_SPOTS).concat(takerPins()),
+          // Crowd-the-keeper players draw in navy — same emphasis as attack-the-goal.
+          players: spPlayers(d.spFor2, CORNERS_FOR2_SPOTS).map((p) => {
+            const crowders = ((d.spFor2 ?? {})["Crowd the keeper"] ?? []).filter(Boolean);
+            return p.name && crowders.includes(p.name) ? { ...p, color: "172554" } : p;
+          }).concat(takerPins()),
         },
         cornersAgainst: {
           groups: d.spAgainstMode === "zonal"
