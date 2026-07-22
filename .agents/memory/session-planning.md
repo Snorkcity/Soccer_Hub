@@ -45,6 +45,17 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
 - The 5 years of uploaded sessions + curriculum are ALL senior / 16+ phase. The two earlier learning phases focus differently: phase 1 = individual skill development; middle phase = intro to collective play (3v3, 4v4 small formats).
 - **How to apply:** AI session generation should target senior/16+ first — that's the data we have, and senior coaches are the expected first customers. Don't let it fake younger-phase sessions from senior material; earlier phases need their own curriculum content later.
 
+## AI session assembly recipe (coach, Jul 2026)
+- **Gold standard:** the 2025 and 2026 seasons' sessions.
+- Coaching messages run consistently from Introduction → Main part (same theme thread).
+- Generated session must contain:
+  1. **Dynamic warmup** — the standard warmup image with cones and players (fixed, reused).
+  2. **Passing activation** — cycled from a pool coach will grow to ~10–12; does NOT need to match the session's coaching messages.
+  3. **Introduction (technical activation)** — the coaching-messages box under the diagram doubles as TAGS for what's being trained; the rules box can be matched/aligned to a library session the assistant knows.
+  4. **Main part** — usually same messages as the Introduction; has rules (pairable with the ask), plus size etc. → enough data to generate a diagram or match the uploaded plan's diagram.
+  5. **End game** — ask the coach whether it's a small/medium/big-game cycle (or "what's your plan/size for the big game"); a matching diagram likely already exists in the library.
+- Matching strategy implied: use the rules + coaching-message text of intro/main practices as the pairing key against library practices, not just titles.
+
 ## Coach-assistant GPT (idea noted Jul 2026 — not started)
 - Coach has a custom ChatGPT GPT: a complete football development curriculum (series of documents) used for the Belconnen female program; intended for every club that uses this product.
 - Goal: interact with it INSIDE the app (behind club login) instead of the public ChatGPT URL, which she wants to stop sharing — access only for product users.
