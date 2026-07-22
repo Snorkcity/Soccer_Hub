@@ -361,21 +361,21 @@ function PartSlot({
         {slot?.practice ? (
           <div className="space-y-3">
             <div className="rounded-md overflow-hidden border max-w-2xl mx-auto">
-              <div className="p-1.5">
+              <div className="p-1.5 flex justify-center">
                 <DiagramWithCrops
                   diagram={slot.practice.diagram as DiagramData}
                   crops={slot.practice.reviewCrops}
-                  className="w-full h-auto"
+                  className="w-full h-auto max-h-80 object-contain"
                 />
               </div>
               <p className="text-xs text-muted-foreground p-1.5 border-t">
                 {slot.practice.title ?? "Untitled practice"}
               </p>
             </div>
-            <SlotFields draft={draft} set={set} isAdmin={isAdmin} />
+            <SlotFields draft={draft} set={set} isAdmin={isAdmin} part={part} />
           </div>
         ) : (
-          <SlotFields draft={draft} set={set} isAdmin={isAdmin} />
+          <SlotFields draft={draft} set={set} isAdmin={isAdmin} part={part} />
         )}
         {isAdmin && (
           <div className="flex justify-end">
@@ -453,16 +453,41 @@ function PartSlot({
   );
 }
 
+// Per-part labels for the big text boxes. Warmup doesn't need progressions
+// or coaching points at all, and activation/introduction use the coach's
+// "Messages" wording.
+const SLOT_TEXT_LAYOUT: Record<
+  (typeof PART_ORDER)[number],
+  { tasks: string; progressions: string | null; coachingPoints: string | null }
+> = {
+  warmup: { tasks: "Coaching messages / tasks", progressions: null, coachingPoints: null },
+  activation: {
+    tasks: "Messages / Individual tasks",
+    progressions: "Variations",
+    coachingPoints: "Messages / Team tasks",
+  },
+  introduction: {
+    tasks: "Messages / Individual tasks",
+    progressions: "Progressions",
+    coachingPoints: "Messages / Team tasks",
+  },
+  main: { tasks: "Coaching messages / tasks", progressions: "Progressions", coachingPoints: "Coaching points" },
+  endgame: { tasks: "Coaching messages / tasks", progressions: "Progressions", coachingPoints: "Coaching points" },
+};
+
 function SlotFields({
   draft,
   set,
   isAdmin,
+  part,
 }: {
   draft: Record<TextField, string>;
   set: (f: TextField) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isAdmin: boolean;
+  part: (typeof PART_ORDER)[number];
 }) {
   const ro = !isAdmin;
+  const layout = SLOT_TEXT_LAYOUT[part];
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -471,38 +496,42 @@ function SlotFields({
           <Textarea value={draft.rules} onChange={set("rules")} rows={4} readOnly={ro} />
         </div>
         <div>
-          <label className="text-xs font-medium text-muted-foreground">Coaching messages / tasks</label>
+          <label className="text-xs font-medium text-muted-foreground">{layout.tasks}</label>
           <Textarea value={draft.tasks} onChange={set("tasks")} rows={4} readOnly={ro} />
         </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Progressions</label>
-          <Textarea value={draft.progressions} onChange={set("progressions")} rows={2} readOnly={ro} />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Coaching points</label>
-          <Textarea value={draft.coachingPoints} onChange={set("coachingPoints")} rows={2} readOnly={ro} />
-        </div>
+        {layout.progressions && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{layout.progressions}</label>
+            <Textarea value={draft.progressions} onChange={set("progressions")} rows={2} readOnly={ro} />
+          </div>
+        )}
+        {layout.coachingPoints && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{layout.coachingPoints}</label>
+            <Textarea value={draft.coachingPoints} onChange={set("coachingPoints")} rows={2} readOnly={ro} />
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <div>
           <label className="text-xs font-medium text-muted-foreground">Players</label>
-          <Input value={draft.players} onChange={set("players")} readOnly={ro} />
+          <Input value={draft.players} onChange={set("players")} readOnly={ro} placeholder="e.g. 16, 10 + 2 GK, All" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Size</label>
-          <Input value={draft.size} onChange={set("size")} readOnly={ro} />
+          <Input value={draft.size} onChange={set("size")} readOnly={ro} placeholder="e.g. 18x20m" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Timing</label>
-          <Input value={draft.timing} onChange={set("timing")} readOnly={ro} />
+          <Input value={draft.timing} onChange={set("timing")} readOnly={ro} placeholder="e.g. 10m" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Scoring</label>
-          <Input value={draft.scoring} onChange={set("scoring")} readOnly={ro} />
+          <Input value={draft.scoring} onChange={set("scoring")} readOnly={ro} placeholder="e.g. big goal, small gates, end-zone, no. of passes" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Intensity</label>
-          <Input value={draft.intensity} onChange={set("intensity")} readOnly={ro} />
+          <Input value={draft.intensity} onChange={set("intensity")} readOnly={ro} placeholder="e.g. Low / Medium / High" />
         </div>
       </div>
     </div>
