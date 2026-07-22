@@ -55,6 +55,10 @@ Warmup (standard, reused; + optional passing activation/ball mastery extra) → 
   4. **Main part** — usually same messages as the Introduction; has rules (pairable with the ask), plus size etc. → enough data to generate a diagram or match the uploaded plan's diagram.
   5. **End game** — ask the coach whether it's a small/medium/big-game cycle (or "what's your plan/size for the big game"); a matching diagram likely already exists in the library.
 - Matching strategy implied: use the rules + coaching-message text of intro/main practices as the pairing key against library practices, not just titles.
+- **Mix and match intro/main:** the same main part need not always pair with its original intro — different intro setups share very similar messages with some mains; recombining over time adds variety. Match on message similarity, not on original session pairing.
+- Passing activations: coach will upload separately when needed (added ~2 since the first pptx import).
+- Auto-pairing agreed: agent does a first automated matching pass, coach reviews a tick/fix list — not manual from scratch.
+- **Build scope agreed (Jul 2026):** start with 16+ / professional development phase (includes seniors). Tactical learning phase possible later — its coaching messages live in 'coach plan' docs, rules/shape/player numbers in 'session plan' docs. Technical (youngest) phase parked — skill practices won't fit current diagram style.
 
 ## Coach-assistant GPT (idea noted Jul 2026 — not started)
 - Coach has a custom ChatGPT GPT: a complete football development curriculum (series of documents) used for the Belconnen female program; intended for every club that uses this product.
