@@ -177,7 +177,8 @@ function drawPlayers(
       x: x - r, y: y - r, w: r * 2, h: r * 2,
       // In B/W print mode, navy "key role" players (man-marking, zonal, crowd-the-keeper,
       // attack-the-goal) get a 15% grey fill so they still stand out on paper.
-      fill: { color: mono ? (p.color === "172554" ? "D9D9D9" : "FFFFFF") : (p.color ?? SKY_DARK) },
+      // and the red opposition taker gets 50% grey so she reads as "them" at a glance.
+      fill: { color: mono ? (p.color === "172554" ? "D9D9D9" : p.color === "B54A4A" ? "808080" : "FFFFFF") : (p.color ?? SKY_DARK) },
       line: { color: mono ? "000000" : PAPER, width: 1.25 },
       fontSize: r > 0.18 ? 10 : 8.5, color: mono ? "000000" : PAPER, bold: true,
       align: "center", valign: "middle",
