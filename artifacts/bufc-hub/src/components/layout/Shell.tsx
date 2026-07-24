@@ -8,11 +8,11 @@ const navItems = [
   { href: "/season-stats", label: "Season Stats", icon: BarChart3 },
   { href: "/gps", label: "GPS Insights", icon: Navigation2 },
   { href: "/testing", label: "Testing", icon: Activity },
-  { href: "/library", label: "Session Library", icon: BookOpen },
-  { href: "/sessions", label: "Session Planner", icon: ClipboardList },
-  { href: "/reflections", label: "Reflections", icon: BookHeart },
   { href: "/match-prep", label: "Match Prep", icon: Trophy },
+  { href: "/reflections", label: "Reflections", icon: BookHeart },
   { href: "/assistant", label: "Coach Assistant", icon: Bot },
+  { href: "/sessions", label: "Session Planner", icon: ClipboardList },
+  { href: "/library", label: "Session Library", icon: BookOpen },
   { href: "/data-entry", label: "Data Entry", icon: Edit3 },
 ];
 

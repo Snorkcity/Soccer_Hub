@@ -39,6 +39,7 @@ const SUGGESTIONS = [
 export default function CoachAssistant() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -87,6 +88,8 @@ export default function CoachAssistant() {
     const content = (text ?? input).trim();
     if (!content || busy) return;
     setInput("");
+    // Shrink the input pill back to one line after sending.
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setError(null);
     const history = [...messages, { role: "user" as const, content }];
     setMessages([...history, { role: "assistant", content: "" }]);
@@ -232,31 +235,46 @@ export default function CoachAssistant() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="mt-3 flex items-end gap-2">
+      {/* ChatGPT-style pill input: one rounded container, auto-growing text,
+          round buttons inside. text-base stops iOS zooming in on focus. */}
+      <div className="mt-3 flex items-end gap-1.5 rounded-3xl border bg-background px-3 py-1.5 focus-within:ring-1 focus-within:ring-ring">
         <Textarea
-          rows={2}
+          ref={inputRef}
+          rows={1}
           value={input}
-          placeholder={listening ? "Listening — speak now, tap the mic again when done..." : "Ask about a session, cycle, framework or matchday routine..."}
-          onChange={(e) => setInput(e.target.value)}
+          placeholder={listening ? "Listening — tap the mic when done..." : "Ask the assistant..."}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // Grow with the text, up to ~5 lines.
+            const el = e.target;
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void send();
             }
           }}
-          className="resize-none"
+          className="resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-1 py-2 min-h-0 max-h-32 text-base md:text-sm"
         />
         {speechSupported && (
           <Button
-            variant={listening ? "destructive" : "outline"}
+            size="icon"
+            variant={listening ? "destructive" : "ghost"}
             onClick={toggleMic}
-            className="h-10"
+            className="h-9 w-9 shrink-0 rounded-full mb-0.5"
             title={listening ? "Listening — tap to stop" : "Dictate with your voice"}
           >
-            {listening ? <Mic className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
+            <Mic className={listening ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
           </Button>
         )}
-        <Button onClick={() => void send()} disabled={busy || !input.trim()} className="h-10">
+        <Button
+          size="icon"
+          onClick={() => void send()}
+          disabled={busy || !input.trim()}
+          className="h-9 w-9 shrink-0 rounded-full mb-0.5"
+        >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
