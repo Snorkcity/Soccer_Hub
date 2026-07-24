@@ -194,45 +194,47 @@ export default function Sessions() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="rounded-lg border divide-y">
           {(sessions ?? []).map((s) => (
-            <Card
+            <div
               key={s.id}
-              className="cursor-pointer hover:ring-2 hover:ring-primary/50 transition-shadow"
+              className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate(`/sessions/${s.id}`)}
             >
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium leading-tight">{s.title || "Untitled session"}</p>
-                  {isAdmin && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Delete "${s.title || "Untitled session"}"? This can't be undone.`)) {
-                          deleteMutation.mutate({ id: s.id });
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  {s.sessionDate && (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" /> {s.sessionDate}
-                    </span>
-                  )}
-                  {s.team && <Badge variant="secondary" className="text-[10px]">{s.team}</Badge>}
-                  {s.sessionNumber && <Badge variant="outline" className="text-[10px]">{s.sessionNumber}</Badge>}
-                  <Badge variant="outline" className="text-[10px]">{s.partCount} part{s.partCount === 1 ? "" : "s"}</Badge>
-                </div>
-                {s.theme && <p className="text-xs text-muted-foreground line-clamp-1">{s.theme}</p>}
-              </CardContent>
-            </Card>
+              <span className="text-sm font-medium truncate min-w-0 flex-1">
+                {s.title || "Untitled session"}
+                {s.theme && (
+                  <span className="ml-2 font-normal text-muted-foreground hidden md:inline">{s.theme}</span>
+                )}
+              </span>
+              {s.team && <Badge variant="secondary" className="text-[10px] shrink-0">{s.team}</Badge>}
+              {s.sessionNumber && (
+                <Badge variant="outline" className="text-[10px] shrink-0 hidden sm:inline-flex">{s.sessionNumber}</Badge>
+              )}
+              <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                {s.partCount} part{s.partCount === 1 ? "" : "s"}
+              </span>
+              {s.sessionDate && (
+                <span className="text-xs text-muted-foreground shrink-0 inline-flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3" /> {s.sessionDate}
+                </span>
+              )}
+              {isAdmin && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Delete "${s.title || "Untitled session"}"? This can't be undone.`)) {
+                      deleteMutation.mutate({ id: s.id });
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       )}
