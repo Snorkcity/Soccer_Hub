@@ -332,15 +332,22 @@ async function syncRounds(): Promise<void> {
 
   // Anchor season/team on an existing fixture rather than hardcoded IDs
   // (IDs differ between the dev and prod databases).
-  const anchor = await db.execute(
-    sql`SELECT season_id, team_id FROM matches WHERE match_id = 'R13-BEL-MAJ' LIMIT 1`,
-  );
-  if (anchor.rows.length === 0) {
-    logger.warn("rounds sync: anchor fixture R13-BEL-MAJ not found — skipping (will retry next boot)");
+  const anchor = await db.execute(sql`
+    SELECT m.season_id, m.team_id
+    FROM matches m
+    JOIN seasons s ON s.id = m.season_id
+    WHERE m.match_id = 'R13-BEL-MAJ' AND s.year = '2026'
+  `);
+  if (anchor.rows.length !== 1) {
+    logger.warn(
+      { found: anchor.rows.length },
+      "rounds sync: expected exactly one 2026 anchor fixture R13-BEL-MAJ — skipping (will retry next boot)",
+    );
     return;
   }
   const seasonId = Number(anchor.rows[0].season_id);
   const teamId = Number(anchor.rows[0].team_id);
+  logger.info({ seasonId, teamId }, "rounds sync: resolved 2026 season/team anchor");
   const FOCUS = "Belconnen";
 
   let inserted = 0;
