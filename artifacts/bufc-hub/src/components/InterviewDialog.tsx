@@ -263,7 +263,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
               quietSince = 0;
             } else if (hasSpoken) {
               if (!quietSince) quietSince = now;
-              else if (now - quietSince > 2800 && rec.state === "recording") rec.stop();
+              else if (now - quietSince > 2000 && rec.state === "recording") rec.stop();
             }
           }, 200);
           cleanupSilence = () => {
