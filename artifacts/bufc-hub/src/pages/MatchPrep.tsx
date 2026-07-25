@@ -707,7 +707,8 @@ export default function MatchPrep() {
                   <PlayerSelect
                     circle
                     navy={(store === "spAgainstZonal" && (role === "Zone (4)" || role === "Front of zone")) ||
-                      (store === "spAgainst" && role === "Man marking")}
+                      (store === "spAgainst" && role === "Man marking") ||
+                      role === "Attack the goal" || role === "Crowd the keeper"}
                     title={`${role}${coords.length > 1 ? ` ${i + 1}` : ""}${current ? ` — ${current}` : ""}`}
                     value={current}
                     onChange={(v) => setSpot(role, i, v)}
