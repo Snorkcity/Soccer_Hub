@@ -44,22 +44,6 @@ export default function Home() {
       color: "text-chart-3"
     },
     {
-      title: "Session Library",
-      description: "The full practice library — activations, main parts, end games, and past write-ups.",
-      icon: BookOpen,
-      href: "/library",
-      stat: "580+ Practices",
-      color: "text-chart-4"
-    },
-    {
-      title: "Session Planner",
-      description: "Plan training sessions, pick practices for each part, and print session sheets.",
-      icon: ClipboardList,
-      href: "/sessions",
-      stat: "4-Part Sessions",
-      color: "text-chart-5"
-    },
-    {
       title: "Match Prep",
       description: "Build the weekly pre-match deck — starting XI, corners, and free kicks.",
       icon: Presentation,
@@ -74,6 +58,30 @@ export default function Home() {
       href: "/reflections",
       stat: "New",
       color: "text-chart-2"
+    },
+    {
+      title: "Coach Assistant",
+      description: "Ask questions of the full football development curriculum, right here in the hub.",
+      icon: Bot,
+      href: "/assistant",
+      stat: "U11 to 16+ curriculum",
+      color: "text-chart-2"
+    },
+    {
+      title: "Session Planner",
+      description: "Plan training sessions, pick practices for each part, and print session sheets.",
+      icon: ClipboardList,
+      href: "/sessions",
+      stat: "4-Part Sessions",
+      color: "text-chart-5"
+    },
+    {
+      title: "Session Library",
+      description: "The full practice library — activations, main parts, end games, and past write-ups.",
+      icon: BookOpen,
+      href: "/library",
+      stat: "580+ Practices",
+      color: "text-chart-4"
     },
     {
       title: "Data Entry",
@@ -122,25 +130,6 @@ export default function Home() {
               </Card>
             </Link>
           ))}
-          <Link href="/assistant">
-            <Card className="h-full hover-elevate transition-all border-l-4 border-l-transparent hover:border-l-primary cursor-pointer group">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <Bot className="h-8 w-8 text-chart-2" />
-                  <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1" />
-                </div>
-                <CardTitle className="mt-4">Coach Assistant</CardTitle>
-                <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                  Ask questions of the full football development curriculum, right here in the hub.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xs font-medium text-primary/80 bg-primary/10 inline-flex items-center px-2.5 py-0.5 rounded-full">
-                  U11 to 16+ curriculum
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
         </div>
       </div>
 
