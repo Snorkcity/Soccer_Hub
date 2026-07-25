@@ -135,11 +135,10 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     dateQuestion: "First up — when was the session? Today, or another day?",
     fields: [
       { id: "theme", label: "What was the theme?" },
-      { id: "rhythm", label: "Did the session flow well between each part?" },
       { id: "wentWell", label: "What went well?" },
       { id: "challenges", label: "What was challenging?" },
-      { id: "learnings", label: "What did I learn about the players or myself?" },
-      { id: "nextTime", label: "What will I do differently next session?" },
+      { id: "learnings", label: "What did I learn — about the players, myself, or the size of the practices?" },
+      { id: "nextTime", label: "Is there anything you would do differently next time?" },
     ],
   },
   match_reflection: {

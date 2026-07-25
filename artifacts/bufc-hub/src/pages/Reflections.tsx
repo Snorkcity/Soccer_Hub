@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -89,6 +89,7 @@ export default function Reflections() {
   const [reflContent, setReflContent] = useState<Record<string, string>>({});
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [fromInterview, setFromInterview] = useState(false);
+  const savedByVoiceRef = useRef(false);
 
   function openNewReflection(kind: JournalStandaloneKind) {
     setReflId(null);
@@ -388,7 +389,9 @@ export default function Reflections() {
         open={interviewOpen}
         onOpenChange={(o) => {
           setInterviewOpen(o);
-          if (!o) setReflOpen(true); // back to the editor either way
+          // Back to the editor — unless the coach already saved by voice.
+          if (!o && !savedByVoiceRef.current) setReflOpen(true);
+          savedByVoiceRef.current = false;
         }}
         def={reflDef}
         onComplete={(content, entryDate) => {
@@ -401,6 +404,25 @@ export default function Reflections() {
           });
           if (entryDate) setReflDate(entryDate);
           setFromInterview(true);
+        }}
+        onSaveDirect={(content, entryDate) => {
+          // Spoken "yes" at the end — save straight away, no editor stop.
+          savedByVoiceRef.current = true;
+          const merged = { ...reflContent };
+          for (const [k, v] of Object.entries(content)) {
+            if (v.trim()) merged[k] = v;
+          }
+          const date = entryDate || reflDate || undefined;
+          if (reflId == null) {
+            createRefl.mutate({
+              data: { kind: reflKind, title: reflTitle || undefined, entryDate: date, content: merged, source: "voice" as const },
+            });
+          } else {
+            updateRefl.mutate({
+              id: reflId,
+              data: { title: reflTitle || null, entryDate: date ?? null, content: merged },
+            });
+          }
         }}
       />
     </div>

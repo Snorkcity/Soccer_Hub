@@ -34,7 +34,7 @@ type Stage =
   | "writing"      // final write-up
   | "error";
 
-type Phase = "date" | "answer" | "confirm";
+type Phase = "date" | "answer" | "confirm" | "save";
 
 interface Props {
   open: boolean;
@@ -42,6 +42,12 @@ interface Props {
   def: JournalKindDef;
   /** Called with the drafted content; parent shows it in the editor for review. */
   onComplete: (content: Record<string, string>, entryDate?: string) => void;
+  /**
+   * When provided, the interviewer ends by asking "Ready to save this
+   * reflection?" — a spoken yes saves straight away via this callback, and
+   * anything else falls back to onComplete (review in the editor).
+   */
+  onSaveDirect?: (content: Record<string, string>, entryDate?: string) => void;
 }
 
 // Rotating check-in prompts so she doesn't repeat herself between questions.
@@ -69,7 +75,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export default function InterviewDialog({ open, onOpenChange, def, onComplete }: Props) {
+export default function InterviewDialog({ open, onOpenChange, def, onComplete, onSaveDirect }: Props) {
   const { toast } = useToast();
   const [stage, setStage] = useState<Stage>("intro");
   const [fieldIdx, setFieldIdx] = useState(0);
@@ -330,6 +336,31 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
         return;
       }
 
+      if (phase === "save") {
+        const res = await turn.mutateAsync({
+          data: {
+            phase: "answer",
+            question: "Ready to save this reflection?",
+            audioBase64,
+            audioMimeType: blob.type || "audio/webm",
+          },
+        });
+        if (stale(token)) return;
+        const heard = (res.transcript ?? "").toLowerCase();
+        const saidYes =
+          /\b(yes|yeah|yep|yup|sure|save|ready|go|ok|okay|absolutely|definitely)\b/.test(heard) &&
+          !/\b(no|not|don't|dont|wait|hold|change|edit|review)\b/.test(heard);
+        const content = draftContentRef.current ?? {};
+        if (saidYes && onSaveDirect) {
+          speakOnly("Saved. Good work, coach.");
+          onSaveDirect(content, entryDateRef.current);
+        } else {
+          onComplete(content, entryDateRef.current);
+        }
+        onOpenChange(false);
+        return;
+      }
+
       const res = await turn.mutateAsync({
         data: {
           phase: phase === "confirm" ? "confirm" : "answer",
@@ -411,6 +442,9 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
     await nextField();
   }
 
+  // Drafted write-up held while she asks "ready to save?"
+  const draftContentRef = useRef<Record<string, string> | null>(null);
+
   async function finish() {
     const token = sessionRef.current;
     setStage("writing");
@@ -428,6 +462,13 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete }:
       }));
       const res = await writeup.mutateAsync({ data: { kind: def.kind, title: def.title, qa } });
       if (stale(token)) return;
+      if (onSaveDirect) {
+        // Ask out loud — a spoken "yes" saves without touching the screen.
+        draftContentRef.current = res.content;
+        setPhase("save");
+        await say("Ready to save this reflection?");
+        return;
+      }
       onComplete(res.content, entryDateRef.current);
       onOpenChange(false);
     } catch {
