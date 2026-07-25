@@ -26,3 +26,6 @@ This app is normally hosted on Replit, where the platform router serves the Vite
 - Server only listens AFTER startup migrations: any slow data sync before listen eats into the healthcheck window (now 300s). Batch inserts (jsonb_to_recordset) — row-at-a-time over the network blew the 120s window.
 - Practice-library data reaches prod via committed snapshot lib/db/src/data/library-sync.json + one-shot startup sync gated by seed_markers key (bump SYNC_VERSION after regenerating snapshot from dev). No prod DB URL needed anymore.
 - Prod service vars: DATABASE_URL, PORT, ADMIN_PASSWORD, SESSION_SECRET (coach manages these himself in Railway; changing SESSION_SECRET logs everyone out — useful kill-switch). OPENAI_API_KEY still NOT set — screenshot reader inactive in prod until added.
+
+## Dev→prod data carry-over (Jul 2026)
+- No prod credentials work from Replit: Railway ADMIN_PASSWORD and SESSION_SECRET differ from dev's (coach manages them), so the prod API can't be driven from here and no prod DB URL is held. Moving data prod-ward = ship a snapshot JSON (lib/db/src/data/*.json) + marker-gated one-shot sync in api-server startupMigrations (pattern: rounds-sync). Skip-if-exists per fixture keeps it add-only; anchor season/team by joining seasons.year='2026' (seasons.year is TEXT), never LIMIT 1 without a season filter.
