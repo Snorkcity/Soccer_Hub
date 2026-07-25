@@ -497,9 +497,13 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const s = mono
       ? lightSlide(pptx, kicker, title, `${input.round} v ${input.opponent} · ${input.matchDate}`)
       : darkSlide(pptx, kicker, title);
-    const bw = 7.4;
-    const bh = H - 2.55;
-    const plot = drawBoxView(s, MX + 0.2, 2.05, bw, bh, mono);
+    // Print copies get a bigger field: tighter top/bottom margins and a
+    // narrower role column, so the diagram dominates the A4 page.
+    const boxX = mono ? 0.35 : MX + 0.2;
+    const boxY = mono ? 1.7 : 2.05;
+    const bw = mono ? 8.9 : 7.4;
+    const bh = mono ? H - 2.0 : H - 2.55;
+    const plot = drawBoxView(s, boxX, boxY, bw, bh, mono);
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
     void attacking;
     // Ball beside the right corner taker — shows the setup for a right-sided corner.
@@ -510,8 +514,9 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       fill: { color: mono ? "000000" : PAPER }, line: { color: "1F2937", width: 1 },
     });
     // Initials in the circles are enough on set-piece diagrams — no names underneath.
-    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: 0.19, names: false, mono });
-    roleColumn(s, MX + bw + 0.75, W - MX - (MX + bw + 0.75), groups, mono);
+    drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: mono ? 0.21 : 0.19, names: false, mono });
+    const colX = mono ? boxX + bw + 0.45 : MX + bw + 0.75;
+    roleColumn(s, colX, W - (mono ? 0.35 : MX) - colX, groups, mono);
     if (!mono) footer(s, foot);
   };
   const hasVar2 = !!input.cornersFor2 && (input.cornersFor2.groups.length > 0 || input.cornersFor2.players.length > 0);
