@@ -275,8 +275,161 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE practices ADD COLUMN IF NOT EXISTS reviewed_at timestamp`);
 
   await syncPracticeLibrary();
+  await syncRounds();
 
   logger.info("Startup migrations applied");
+}
+
+/**
+ * One-shot match-data sync: carries rounds entered in dev across to prod
+ * (2026-07: rounds 14 & 15). Gated by a marker so it runs once per snapshot
+ * version; skips any fixture whose match_id already exists this season, so
+ * re-runs and already-entered data are never touched. Mirrors the Data Entry
+ * dual-write rules: league tables always, legacy Belconnen tables when
+ * Belconnen plays. Snapshot: lib/db/src/data/rounds-sync.json.
+ */
+const ROUNDS_SYNC_VERSION = "rounds-sync-v1-r14-r15";
+
+async function syncRounds(): Promise<void> {
+  const marker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = ${ROUNDS_SYNC_VERSION}`,
+  );
+  if (marker.rows.length > 0) return;
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const candidates = [
+    path.resolve(process.cwd(), "lib/db/src/data/rounds-sync.json"),
+    path.resolve(process.cwd(), "../../lib/db/src/data/rounds-sync.json"),
+  ];
+  const file = candidates.find((c) => fs.existsSync(c));
+  if (!file) {
+    logger.warn({ candidates }, "rounds-sync.json not found — skipping rounds sync");
+    return;
+  }
+
+  const snap = JSON.parse(fs.readFileSync(file, "utf8")) as {
+    leagueMatches: Array<{
+      matchId: string; matchDate: string | null; homeTeam: string; awayTeam: string;
+      homeGoals: number; awayGoals: number; halfScore: string | null;
+    }>;
+    belconnenExtras: Record<string, {
+      venue: string | null; formation: string | null; oppFormation: string | null;
+      conditions: string | null; possession: string | null; shots: number | null;
+      passes: number | null; oppShots: number | null; oppPasses: number | null;
+    }>;
+    goals: Array<{
+      matchId: string; scorerTeam: string; minuteScored: number | null; scorer: string | null;
+      assist: string | null; goalType: string | null; assistType: string | null;
+      howPenetrated: string | null; buildupLane: string | null; firstTimeFinish: boolean | null;
+      finishType: string | null; passString: string | null; goalX: string | null; goalY: string | null;
+    }>;
+    playerStats: Array<{
+      matchId: string; playerName: string; minsPlayed: number | null; position: string | null;
+      discipline: string | null; started: boolean; appearance: boolean; club: string; year: string | null;
+    }>;
+  };
+
+  // Anchor season/team on an existing fixture rather than hardcoded IDs
+  // (IDs differ between the dev and prod databases).
+  const anchor = await db.execute(
+    sql`SELECT season_id, team_id FROM matches WHERE match_id = 'R13-BEL-MAJ' LIMIT 1`,
+  );
+  if (anchor.rows.length === 0) {
+    logger.warn("rounds sync: anchor fixture R13-BEL-MAJ not found — skipping (will retry next boot)");
+    return;
+  }
+  const seasonId = Number(anchor.rows[0].season_id);
+  const teamId = Number(anchor.rows[0].team_id);
+  const FOCUS = "Belconnen";
+
+  let inserted = 0;
+  for (const m of snap.leagueMatches) {
+    const exists = await db.execute(
+      sql`SELECT 1 FROM league_matches WHERE match_id = ${m.matchId} AND season_id = ${seasonId}`,
+    );
+    if (exists.rows.length > 0) continue; // already entered — leave untouched
+
+    const fullScore = `${m.homeGoals}-${m.awayGoals}`;
+    const isHome = m.homeTeam === FOCUS;
+    const isAway = m.awayTeam === FOCUS;
+    const goals = snap.goals.filter((g) => g.matchId === m.matchId);
+    const players = snap.playerStats.filter((p) => p.matchId === m.matchId);
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO league_matches (match_id, match_date, home_team, away_team, full_score, half_score, home_goals, away_goals, season_id)
+        VALUES (${m.matchId}, ${m.matchDate}, ${m.homeTeam}, ${m.awayTeam}, ${fullScore}, ${m.halfScore}, ${m.homeGoals}, ${m.awayGoals}, ${seasonId})
+      `);
+
+      let belMatchId: number | null = null;
+      if (isHome || isAway) {
+        const x = snap.belconnenExtras[m.matchId] ?? {
+          venue: null, formation: null, oppFormation: null, conditions: null,
+          possession: null, shots: null, passes: null, oppShots: null, oppPasses: null,
+        };
+        const scored = isHome ? m.homeGoals : m.awayGoals;
+        const conceded = isHome ? m.awayGoals : m.homeGoals;
+        const res = await tx.execute(sql`
+          INSERT INTO matches (match_id, match_date, venue, opponent, half_score, full_score, goals_scored, goals_conceded,
+            clean_sheet, formation, opp_formation, conditions, possession, shots, passes, opp_shots, opp_passes, team_id, season_id)
+          VALUES (${m.matchId}, ${m.matchDate}, ${x.venue}, ${isHome ? m.awayTeam : m.homeTeam}, ${m.halfScore}, ${fullScore},
+            ${scored}, ${conceded}, ${conceded === 0}, ${x.formation}, ${x.oppFormation}, ${x.conditions}, ${x.possession},
+            ${x.shots}, ${x.passes}, ${x.oppShots}, ${x.oppPasses}, ${teamId}, ${seasonId})
+          RETURNING id
+        `);
+        belMatchId = Number(res.rows[0].id);
+      }
+
+      for (const g of goals) {
+        await tx.execute(sql`
+          INSERT INTO league_goals (match_id, match_date, home_team, away_team, scorer_team, minute_scored, scorer, assist,
+            goal_type, assist_type, how_penetrated, buildup_lane, first_time_finish, finish_type, pass_string, goal_x, goal_y, season_id)
+          VALUES (${m.matchId}, ${m.matchDate}, ${m.homeTeam}, ${m.awayTeam}, ${g.scorerTeam}, ${g.minuteScored}, ${g.scorer}, ${g.assist},
+            ${g.goalType}, ${g.assistType}, ${g.howPenetrated}, ${g.buildupLane}, ${g.firstTimeFinish}, ${g.finishType}, ${g.passString},
+            ${g.goalX}, ${g.goalY}, ${seasonId})
+        `);
+        if (belMatchId != null) {
+          await tx.execute(sql`
+            INSERT INTO goals (match_id, match_date, home_team, away_team, scorer_team, minute_scored, scorer, assist,
+              goal_type, assist_type, how_penetrated, buildup_lane, first_time_finish, finish_type, pass_string, goal_x, goal_y, team_id, season_id)
+            VALUES (${belMatchId}, ${m.matchDate}, ${m.homeTeam}, ${m.awayTeam}, ${g.scorerTeam}, ${g.minuteScored}, ${g.scorer}, ${g.assist},
+              ${g.goalType}, ${g.assistType}, ${g.howPenetrated}, ${g.buildupLane}, ${g.firstTimeFinish}, ${g.finishType}, ${g.passString},
+              ${g.goalX}, ${g.goalY}, ${teamId}, ${seasonId})
+          `);
+        }
+      }
+
+      for (const p of players) {
+        await tx.execute(sql`
+          INSERT INTO league_player_stats (match_id, player_name, mins_played, position, discipline, started, appearance, country, year, season_id)
+          VALUES (${m.matchId}, ${p.playerName}, ${p.minsPlayed}, ${p.position}, ${p.discipline}, ${p.started}, ${p.appearance}, ${p.club}, ${p.year}, ${seasonId})
+        `);
+        if (belMatchId != null) {
+          const found = await tx.execute(
+            sql`SELECT id FROM players WHERE name = ${p.playerName} AND country = ${p.club} LIMIT 1`,
+          );
+          let playerId: number;
+          if (found.rows.length > 0) {
+            playerId = Number(found.rows[0].id);
+          } else {
+            const created = await tx.execute(sql`
+              INSERT INTO players (name, position, country) VALUES (${p.playerName}, ${p.position}, ${p.club}) RETURNING id
+            `);
+            playerId = Number(created.rows[0].id);
+          }
+          await tx.execute(sql`
+            INSERT INTO player_stats (match_id, player_id, player_name, mins_played, position, discipline, started, appearance, country, year)
+            VALUES (${belMatchId}, ${playerId}, ${p.playerName}, ${p.minsPlayed}, ${p.position}, ${p.discipline}, ${p.started}, ${p.appearance}, ${p.club}, ${p.year})
+          `);
+        }
+      }
+    });
+    inserted++;
+  }
+
+  await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${ROUNDS_SYNC_VERSION}) ON CONFLICT DO NOTHING`);
+  logger.info({ inserted, total: snap.leagueMatches.length }, "Rounds sync complete");
 }
 
 /**
