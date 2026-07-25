@@ -21,6 +21,8 @@ export interface JournalField {
   question?: string;
   hint?: string;
   short?: boolean; // one-line input instead of textarea
+  /** Factual question — the interviewer never asks a follow-up probe. */
+  noProbe?: boolean;
 }
 
 export interface JournalKindDef {
@@ -134,7 +136,7 @@ export const KIND_DEFS: Record<JournalKind, JournalKindDef> = {
     quickInterview: true,
     dateQuestion: "First up — when was the session? Today, or another day?",
     fields: [
-      { id: "theme", label: "What was the theme?" },
+      { id: "theme", label: "What was the theme?", noProbe: true },
       { id: "wentWell", label: "What went well?" },
       { id: "challenges", label: "What was challenging?" },
       { id: "learnings", label: "What did I learn — about the players, myself, or the size of the practices?" },

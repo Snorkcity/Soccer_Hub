@@ -225,7 +225,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
   }
 
   async function start() {
-    setProbeUsed(!!def.quickInterview); // quick mode: never probe
+    setProbeUsed(!!def.quickInterview || !!fields[0]?.noProbe); // quick mode / factual field: never probe
     confirmAsksRef.current = 0;
     if (def.dateQuestion) {
       setPhase("date");
@@ -426,7 +426,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
     }
     setFieldIdx(next);
     setPhase("answer");
-    setProbeUsed(!!def.quickInterview); // quick mode: never probe
+    setProbeUsed(!!def.quickInterview || !!fields[next]?.noProbe); // quick mode / factual field: never probe
     confirmAsksRef.current = 0;
     await say(questionText(next));
   }
