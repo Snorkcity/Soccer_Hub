@@ -277,6 +277,7 @@ export async function runStartupMigrations(): Promise<void> {
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();
+  await syncJournalEntries();
 
   logger.info("Startup migrations applied");
 }
@@ -548,6 +549,61 @@ async function syncPlayerSheets(): Promise<void> {
 
   await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${PLAYER_SHEETS_SYNC_VERSION}) ON CONFLICT DO NOTHING`);
   logger.info({ sheetsAdded: added }, "Player-sheets sync complete");
+}
+
+/**
+ * One-shot journal carry-over: copies standalone reflections written in dev
+ * (2026-07) into prod. Add-only: an entry is skipped when one with the same
+ * kind + entry_date + title already exists, so anything entered in prod is
+ * never duplicated or touched. Snapshot: lib/db/src/data/journal-sync.json.
+ */
+const JOURNAL_SYNC_VERSION = "journal-sync-v1";
+
+async function syncJournalEntries(): Promise<void> {
+  const marker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = ${JOURNAL_SYNC_VERSION}`,
+  );
+  if (marker.rows.length > 0) return;
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const candidates = [
+    path.resolve(process.cwd(), "lib/db/src/data/journal-sync.json"),
+    path.resolve(process.cwd(), "../../lib/db/src/data/journal-sync.json"),
+  ];
+  const file = candidates.find((c) => fs.existsSync(c));
+  if (!file) {
+    logger.warn({ candidates }, "journal-sync.json not found — skipping journal sync");
+    return;
+  }
+  const snap = JSON.parse(fs.readFileSync(file, "utf8")) as {
+    entries: Array<{
+      kind: string; title: string | null; entry_date: string | null; source: string | null;
+      content: unknown; created_at: string; updated_at: string;
+    }>;
+  };
+
+  let added = 0;
+  for (const e of snap.entries) {
+    const dup = await db.execute(sql`
+      SELECT 1 FROM journal_entries
+      WHERE cycle_id IS NULL
+        AND kind = ${e.kind}
+        AND entry_date IS NOT DISTINCT FROM ${e.entry_date}
+        AND title IS NOT DISTINCT FROM ${e.title}
+      LIMIT 1
+    `);
+    if (dup.rows.length > 0) continue;
+    await db.execute(sql`
+      INSERT INTO journal_entries (kind, title, entry_date, source, content, created_at, updated_at)
+      VALUES (${e.kind}, ${e.title}, ${e.entry_date}, ${e.source}, ${JSON.stringify(e.content)}::jsonb,
+        ${e.created_at}::timestamp, ${e.updated_at}::timestamp)
+    `);
+    added++;
+  }
+
+  await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${JOURNAL_SYNC_VERSION}) ON CONFLICT DO NOTHING`);
+  logger.info({ added, total: snap.entries.length }, "Journal sync complete");
 }
 
 /**
