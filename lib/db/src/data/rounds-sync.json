@@ -2277,6 +2277,182 @@
    "appearance": true,
    "club": "Belconnen",
    "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Summers",
+   "minsPlayed": 90,
+   "position": "GK",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Churchill",
+   "minsPlayed": 73,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Bourke",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Berkeley",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Raymond",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": "Yellow",
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Zakman",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Barac",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Cameron",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Hill",
+   "minsPlayed": 90,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Miro",
+   "minsPlayed": 58,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "N.DeMarco",
+   "minsPlayed": 58,
+   "position": null,
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "McGhie",
+   "minsPlayed": 0,
+   "position": null,
+   "discipline": null,
+   "started": false,
+   "appearance": false,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Oliver",
+   "minsPlayed": 32,
+   "position": null,
+   "discipline": "Yellow",
+   "started": false,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Mcqueenie",
+   "minsPlayed": 17,
+   "position": null,
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "S.DeMarco",
+   "minsPlayed": 32,
+   "position": null,
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Croatia",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Robertson",
+   "minsPlayed": 0,
+   "position": null,
+   "discipline": null,
+   "started": false,
+   "appearance": false,
+   "club": "Croatia",
+   "year": "2026"
   }
  ]
 }

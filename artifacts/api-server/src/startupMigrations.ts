@@ -446,7 +446,7 @@ async function syncRounds(): Promise<void> {
  * the Belconnen sheet for R15-BEL-CRO added after rounds-sync-v1 shipped).
  * Never touches a match+club that already has any rows. Marker-gated.
  */
-const PLAYER_SHEETS_SYNC_VERSION = "player-sheets-sync-v1";
+const PLAYER_SHEETS_SYNC_VERSION = "player-sheets-sync-v2";
 
 async function syncPlayerSheets(): Promise<void> {
   const marker = await db.execute(
