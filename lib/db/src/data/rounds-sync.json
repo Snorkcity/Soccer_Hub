@@ -2112,6 +2112,171 @@
    "appearance": false,
    "club": "Tuggeranong",
    "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Mati",
+   "minsPlayed": 90,
+   "position": "GK",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Ailish",
+   "minsPlayed": 90,
+   "position": "CB",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Bronte",
+   "minsPlayed": 90,
+   "position": "RB",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Stefi",
+   "minsPlayed": 90,
+   "position": "LB",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Anneke",
+   "minsPlayed": 66,
+   "position": "CM",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "DC",
+   "minsPlayed": 87,
+   "position": "F",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Izzy",
+   "minsPlayed": 90,
+   "position": "DM",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Leila",
+   "minsPlayed": 90,
+   "position": "AM",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Alina",
+   "minsPlayed": 62,
+   "position": "F",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Skelly",
+   "minsPlayed": 90,
+   "position": "F",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Isla",
+   "minsPlayed": 66,
+   "position": "CB",
+   "discipline": null,
+   "started": true,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Sammy",
+   "minsPlayed": 24,
+   "position": "ST",
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Sage",
+   "minsPlayed": 3,
+   "position": "LB",
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "Lily",
+   "minsPlayed": 28,
+   "position": "F",
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
+  },
+  {
+   "matchId": "R15-BEL-CRO",
+   "playerName": "EJ",
+   "minsPlayed": 24,
+   "position": "F",
+   "discipline": null,
+   "started": false,
+   "appearance": true,
+   "club": "Belconnen",
+   "year": "2026"
   }
  ]
 }

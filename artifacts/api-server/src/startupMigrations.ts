@@ -276,6 +276,7 @@ export async function runStartupMigrations(): Promise<void> {
 
   await syncPracticeLibrary();
   await syncRounds();
+  await syncPlayerSheets();
 
   logger.info("Startup migrations applied");
 }
@@ -437,6 +438,116 @@ async function syncRounds(): Promise<void> {
 
   await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${ROUNDS_SYNC_VERSION}) ON CONFLICT DO NOTHING`);
   logger.info({ inserted, total: snap.leagueMatches.length }, "Rounds sync complete");
+}
+
+/**
+ * One-shot player-sheet top-up: adds club sheets from the rounds snapshot to
+ * fixtures that already exist but have NO rows yet for that match+club (e.g.
+ * the Belconnen sheet for R15-BEL-CRO added after rounds-sync-v1 shipped).
+ * Never touches a match+club that already has any rows. Marker-gated.
+ */
+const PLAYER_SHEETS_SYNC_VERSION = "player-sheets-sync-v1";
+
+async function syncPlayerSheets(): Promise<void> {
+  const marker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = ${PLAYER_SHEETS_SYNC_VERSION}`,
+  );
+  if (marker.rows.length > 0) return;
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const candidates = [
+    path.resolve(process.cwd(), "lib/db/src/data/rounds-sync.json"),
+    path.resolve(process.cwd(), "../../lib/db/src/data/rounds-sync.json"),
+  ];
+  const file = candidates.find((c) => fs.existsSync(c));
+  if (!file) {
+    logger.warn({ candidates }, "rounds-sync.json not found — skipping player-sheets sync");
+    return;
+  }
+  const snap = JSON.parse(fs.readFileSync(file, "utf8")) as {
+    playerStats: Array<{
+      matchId: string; playerName: string; minsPlayed: number | null; position: string | null;
+      discipline: string | null; started: boolean; appearance: boolean; club: string; year: string | null;
+    }>;
+  };
+
+  const anchor = await db.execute(sql`
+    SELECT m.season_id, m.team_id
+    FROM matches m
+    JOIN seasons s ON s.id = m.season_id
+    WHERE m.match_id = 'R13-BEL-MAJ' AND s.year = '2026'
+  `);
+  if (anchor.rows.length !== 1) {
+    logger.warn({ found: anchor.rows.length }, "player-sheets sync: no unique 2026 anchor — skipping (will retry next boot)");
+    return;
+  }
+  const seasonId = Number(anchor.rows[0].season_id);
+  const teamId = Number(anchor.rows[0].team_id);
+
+  // Group snapshot rows by match+club
+  const sheets = new Map<string, typeof snap.playerStats>();
+  for (const p of snap.playerStats) {
+    const key = `${p.matchId}\u0000${p.club}`;
+    const arr = sheets.get(key) ?? [];
+    arr.push(p);
+    sheets.set(key, arr);
+  }
+
+  let added = 0;
+  for (const [key, rows] of sheets) {
+    const [matchId, club] = key.split("\u0000");
+    const fixture = await db.execute(
+      sql`SELECT home_team, away_team FROM league_matches WHERE match_id = ${matchId} AND season_id = ${seasonId}`,
+    );
+    if (fixture.rows.length !== 1) continue; // fixture not in this DB — nothing to top up
+    const existing = await db.execute(sql`
+      SELECT 1 FROM league_player_stats
+      WHERE match_id = ${matchId} AND season_id = ${seasonId} AND country = ${club} LIMIT 1
+    `);
+    if (existing.rows.length > 0) continue; // sheet already present — leave untouched
+
+    const isBelconnenGame =
+      fixture.rows[0].home_team === "Belconnen" || fixture.rows[0].away_team === "Belconnen";
+
+    await db.transaction(async (tx) => {
+      let belMatchId: number | null = null;
+      if (isBelconnenGame) {
+        const bel = await tx.execute(sql`
+          SELECT id FROM matches WHERE match_id = ${matchId} AND season_id = ${seasonId} AND team_id = ${teamId}
+        `);
+        belMatchId = bel.rows.length === 1 ? Number(bel.rows[0].id) : null;
+      }
+      for (const p of rows) {
+        await tx.execute(sql`
+          INSERT INTO league_player_stats (match_id, player_name, mins_played, position, discipline, started, appearance, country, year, season_id)
+          VALUES (${matchId}, ${p.playerName}, ${p.minsPlayed}, ${p.position}, ${p.discipline}, ${p.started}, ${p.appearance}, ${p.club}, ${p.year}, ${seasonId})
+        `);
+        if (belMatchId != null) {
+          const found = await tx.execute(
+            sql`SELECT id FROM players WHERE name = ${p.playerName} AND country = ${p.club} LIMIT 1`,
+          );
+          let playerId: number;
+          if (found.rows.length > 0) {
+            playerId = Number(found.rows[0].id);
+          } else {
+            const created = await tx.execute(sql`
+              INSERT INTO players (name, position, country) VALUES (${p.playerName}, ${p.position}, ${p.club}) RETURNING id
+            `);
+            playerId = Number(created.rows[0].id);
+          }
+          await tx.execute(sql`
+            INSERT INTO player_stats (match_id, player_id, player_name, mins_played, position, discipline, started, appearance, country, year)
+            VALUES (${belMatchId}, ${playerId}, ${p.playerName}, ${p.minsPlayed}, ${p.position}, ${p.discipline}, ${p.started}, ${p.appearance}, ${p.club}, ${p.year})
+          `);
+        }
+      }
+    });
+    added++;
+  }
+
+  await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${PLAYER_SHEETS_SYNC_VERSION}) ON CONFLICT DO NOTHING`);
+  logger.info({ sheetsAdded: added }, "Player-sheets sync complete");
 }
 
 /**
