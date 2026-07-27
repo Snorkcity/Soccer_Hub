@@ -2614,26 +2614,26 @@ export default function SeasonStats() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Opponent</TableHead>
-                          <TableHead className="text-center">H/A</TableHead>
-                          <TableHead className="text-center">Result</TableHead>
-                          <TableHead className="text-center">Score</TableHead>
+                          <TableHead className="h-8 py-1">Date</TableHead>
+                          <TableHead className="h-8 py-1">Opponent</TableHead>
+                          <TableHead className="h-8 py-1 text-center">H/A</TableHead>
+                          <TableHead className="h-8 py-1 text-center">Result</TableHead>
+                          <TableHead className="h-8 py-1 text-center">Score</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {profile.matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).map(m => {
                           const color = m.result === "W" ? "text-[hsl(var(--chart-3))]" : m.result === "L" ? "text-[hsl(var(--chart-4))]" : "text-muted-foreground";
                           return (
-                            <TableRow key={m.matchId}>
-                              <TableCell className="text-muted-foreground">{m.matchDate ?? "—"}</TableCell>
-                              <TableCell className="font-medium flex items-center gap-2">
+                            <TableRow key={m.matchId} className="text-sm">
+                              <TableCell className="py-1.5 text-muted-foreground">{m.matchDate ?? "—"}</TableCell>
+                              <TableCell className="py-1.5 font-medium flex items-center gap-2">
                                 <span className="inline-block h-2 w-2 rounded-full" style={{ background: clubColorMap[m.opponent] ?? "#888888" }} />
                                 {m.opponent}
                               </TableCell>
-                              <TableCell className="text-center text-muted-foreground">{m.homeAway}</TableCell>
-                              <TableCell className={cn("text-center font-bold", color)}>{m.result}</TableCell>
-                              <TableCell className="text-center font-medium">{m.scored} – {m.conceded}</TableCell>
+                              <TableCell className="py-1.5 text-center text-muted-foreground">{m.homeAway}</TableCell>
+                              <TableCell className={cn("py-1.5 text-center font-bold", color)}>{m.result}</TableCell>
+                              <TableCell className="py-1.5 text-center font-medium">{m.scored} – {m.conceded}</TableCell>
                             </TableRow>
                           );
                         })}
