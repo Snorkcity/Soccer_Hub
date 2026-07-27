@@ -43,6 +43,10 @@ import {
   GetOpponentPlayerDnaResponse,
   GetOpponentFirstSubQueryParams,
   GetOpponentFirstSubResponse,
+  GetClutchGoalsQueryParams,
+  GetClutchGoalsResponse,
+  GetOpponentClutchGoalsQueryParams,
+  GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs.
@@ -1547,6 +1551,174 @@ router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void>
   });
 
   res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: Array.from(allOpponents).sort(), players }));
+});
+
+// ─── Clutch goals (big goals in close matches) ─────────────────────────────────
+//
+// A "close match" finished level or was decided by one goal. Replay its goals in
+// minute order and classify each one:
+//   equaliser — levelled the score
+//   drawSaver — the FINAL equaliser of a drawn match (upgrade from equaliser)
+//   goAhead   — took the team from level to in front
+//   winner    — the LAST go-ahead goal by the side that won by one (upgrade)
+// Own goals are team goals, not player goals — they move the score during the
+// replay but are never credited to a player.
+type ClutchCat = "winner" | "drawSaver" | "equaliser" | "goAhead";
+type ClutchGoalIn = { teamA: boolean; scorer: string | null; minute: number | null; ord: number };
+
+function classifyClutchGoals(goals: ClutchGoalIn[]): Map<number, ClutchCat> {
+  const sorted = goals.slice().sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0) || a.ord - b.ord);
+  const cats = new Map<number, ClutchCat>();
+  let a = 0, b = 0;
+  let lastEqualiser: number | null = null;
+  let lastGoAheadA: number | null = null, lastGoAheadB: number | null = null;
+  for (const g of sorted) {
+    const wasLevel = a === b;
+    if (g.teamA) a++; else b++;
+    if (a === b) { cats.set(g.ord, "equaliser"); lastEqualiser = g.ord; }
+    else if (wasLevel) {
+      cats.set(g.ord, "goAhead");
+      if (g.teamA) lastGoAheadA = g.ord; else lastGoAheadB = g.ord;
+    }
+  }
+  if (a === b && lastEqualiser != null) cats.set(lastEqualiser, "drawSaver");
+  if (a === b + 1 && lastGoAheadA != null) cats.set(lastGoAheadA, "winner");
+  if (b === a + 1 && lastGoAheadB != null) cats.set(lastGoAheadB, "winner");
+  return cats;
+}
+
+type ClutchAcc = Map<string, {
+  playerName: string; club: string;
+  winners: number; drawSavers: number; equalisers: number; goAheads: number;
+  goals: Array<{ category: ClutchCat; opponent: string; minute: number | null; result: string }>;
+}>;
+
+const CLUTCH_FIELD: Record<ClutchCat, "winners" | "drawSavers" | "equalisers" | "goAheads"> = {
+  winner: "winners", drawSaver: "drawSavers", equaliser: "equalisers", goAhead: "goAheads",
+};
+
+function creditClutch(
+  acc: ClutchAcc, playerName: string, club: string, cat: ClutchCat,
+  opponent: string, minute: number | null, result: string,
+) {
+  const key = `${playerName}|${club}`;
+  const row = acc.get(key) ?? { playerName, club, winners: 0, drawSavers: 0, equalisers: 0, goAheads: 0, goals: [] };
+  row[CLUTCH_FIELD[cat]] += 1;
+  row.goals.push({ category: cat, opponent, minute, result });
+  acc.set(key, row);
+}
+
+function clutchPlayers(acc: ClutchAcc) {
+  return Array.from(acc.values())
+    .map(p => ({ ...p, total: p.winners + p.drawSavers + p.equalisers + p.goAheads }))
+    .sort((x, y) => y.winners - x.winners || y.drawSavers - x.drawSavers || y.total - x.total);
+}
+
+// Focus-team version: Belconnen matches, roster-based ours/theirs classification.
+router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
+  const query = GetClutchGoalsQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId, lastN } = query.data;
+
+  let matches = await db
+    .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate, goalsScored: matchesTable.goalsScored, goalsConceded: matchesTable.goalsConceded })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  if (lastN != null && lastN > 0) {
+    matches = matches.slice().sort((x, y) => (y.matchDate ?? "").localeCompare(x.matchDate ?? "")).slice(0, lastN);
+  }
+  const close = matches.filter(m => Math.abs((m.goalsScored ?? 0) - (m.goalsConceded ?? 0)) <= 1);
+  if (!close.length) { res.json(GetClutchGoalsResponse.parse({ closeMatches: 0, players: [] })); return; }
+  const closeById = new Map(close.map(m => [m.id, m]));
+
+  const [goals, stats] = await Promise.all([
+    db.select({ matchId: goalsTable.matchId, scorer: goalsTable.scorer, scorerTeam: goalsTable.scorerTeam, minuteScored: goalsTable.minuteScored, id: goalsTable.id })
+      .from(goalsTable)
+      .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, close.map(m => m.id)))),
+    db.select({ playerName: playerStatsTable.playerName })
+      .from(playerStatsTable)
+      .where(and(inArray(playerStatsTable.matchId, close.map(m => m.id)), eq(playerStatsTable.club, FOCUS_CLUB))),
+  ]);
+  const roster = new Set(stats.map(s => s.playerName));
+
+  const byMatch = new Map<number, Array<typeof goals[number]>>();
+  for (const g of goals) (byMatch.get(g.matchId) ?? byMatch.set(g.matchId, []).get(g.matchId)!).push(g);
+
+  const acc: ClutchAcc = new Map();
+  for (const [matchId, mGoals] of byMatch) {
+    const m = closeById.get(matchId);
+    if (!m) continue;
+    const input: ClutchGoalIn[] = mGoals.map(g => ({
+      teamA: isFocusGoal(g.scorer, g.scorerTeam, roster), scorer: g.scorer, minute: g.minuteScored, ord: g.id,
+    }));
+    const cats = classifyClutchGoals(input);
+    const gs = m.goalsScored ?? 0, gc = m.goalsConceded ?? 0;
+    const result = `${gs > gc ? "W" : gs < gc ? "L" : "D"} ${gs}-${gc} v ${m.opponent ?? "?"}`;
+    for (const g of input) {
+      const cat = cats.get(g.ord);
+      if (!cat || !g.teamA || !g.scorer || g.scorer === "OG" || !roster.has(g.scorer)) continue;
+      creditClutch(acc, g.scorer, FOCUS_CLUB, cat, m.opponent ?? "?", g.minute, result);
+    }
+  }
+  res.json(GetClutchGoalsResponse.parse({ closeMatches: close.length, players: clutchPlayers(acc) }));
+});
+
+// League version: any club or __ALL__, computed from the whole-league tables.
+router.get("/analytics/opponent-clutch-goals", async (req, res): Promise<void> => {
+  const query = GetOpponentClutchGoalsQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate, homeGoals: leagueMatchesTable.homeGoals, awayGoals: leagueMatchesTable.awayGoals })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+  let windowed = relevant;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((x, y) => y.localeCompare(x)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      windowed = relevant.filter(m => dateSet.has(m.matchDate ?? ""));
+    } else {
+      windowed = relevant.slice().sort((x, y) => (y.matchDate ?? "").localeCompare(x.matchDate ?? "")).slice(0, lastN);
+    }
+  }
+  const close = windowed.filter(m => Math.abs((m.homeGoals ?? 0) - (m.awayGoals ?? 0)) <= 1);
+  if (!close.length) { res.json(GetOpponentClutchGoalsResponse.parse({ closeMatches: 0, players: [] })); return; }
+  const closeById = new Map(close.map(m => [m.matchId, m]));
+
+  const goals = await db
+    .select({ matchId: leagueGoalsTable.matchId, scorer: leagueGoalsTable.scorer, scorerTeam: leagueGoalsTable.scorerTeam, minuteScored: leagueGoalsTable.minuteScored, id: leagueGoalsTable.id })
+    .from(leagueGoalsTable)
+    .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, close.map(m => m.matchId))));
+
+  const byMatch = new Map<string, Array<typeof goals[number]>>();
+  for (const g of goals) (byMatch.get(g.matchId) ?? byMatch.set(g.matchId, []).get(g.matchId)!).push(g);
+
+  const acc: ClutchAcc = new Map();
+  for (const [matchId, mGoals] of byMatch) {
+    const m = closeById.get(matchId);
+    if (!m || !m.homeTeam || !m.awayTeam) continue;
+    const input = mGoals
+      .filter(g => g.scorerTeam === m.homeTeam || g.scorerTeam === m.awayTeam)
+      .map(g => ({ teamA: g.scorerTeam === m.homeTeam, scorer: g.scorer, minute: g.minuteScored, ord: g.id, scorerTeam: g.scorerTeam! }));
+    const cats = classifyClutchGoals(input);
+    for (const g of input) {
+      const cat = cats.get(g.ord);
+      if (!cat || !g.scorer || g.scorer === "OG") continue;
+      if (!isAll && g.scorerTeam !== club) continue;
+      const opponent = g.teamA ? m.awayTeam : m.homeTeam;
+      const gf = g.teamA ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
+      const ga = g.teamA ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
+      const result = `${gf > ga ? "W" : gf < ga ? "L" : "D"} ${gf}-${ga} v ${opponent}`;
+      creditClutch(acc, g.scorer, g.scorerTeam, cat, opponent, g.minute, result);
+    }
+  }
+  res.json(GetOpponentClutchGoalsResponse.parse({ closeMatches: close.length, players: clutchPlayers(acc) }));
 });
 
 // ─── Opponent Goal Combos (a selected club's assist→scorer partnerships) ───────

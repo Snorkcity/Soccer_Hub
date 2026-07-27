@@ -27,6 +27,7 @@ import type {
   AuthStatus,
   ClubInfo,
   ClubInput,
+  ClutchGoalsResponse,
   DeleteEntryPlayerStatsParams,
   EntryAthleticTestsSaveRequest,
   EntryAthleticTestsSaveResponse,
@@ -47,6 +48,7 @@ import type {
   ExtractPlayersResponse,
   FirstSubResponse,
   GetAssistsByOpponentParams,
+  GetClutchGoalsParams,
   GetGoalBreakdownParams,
   GetGoalCombosParams,
   GetGoalOptionsParams,
@@ -56,6 +58,7 @@ import type {
   GetGpsLoadSummaryParams,
   GetLeagueLadderParams,
   GetOpponentClubsParams,
+  GetOpponentClutchGoalsParams,
   GetOpponentFirstSubParams,
   GetOpponentGoalBreakdownParams,
   GetOpponentGoalCombosParams,
@@ -3483,6 +3486,174 @@ export function useGetOpponentOnfieldImpact<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentOnfieldImpactQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClutchGoalsUrl = (params: GetClutchGoalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/clutch-goals?${stringifiedParams}` : `/api/analytics/clutch-goals`
+}
+
+/**
+ * @summary Focus-team players' big goals in close matches (winner, draw-saver, equaliser, go-ahead)
+ */
+export const getClutchGoals = async (params: GetClutchGoalsParams, options?: RequestInit): Promise<ClutchGoalsResponse> => {
+
+  return customFetch<ClutchGoalsResponse>(getGetClutchGoalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClutchGoalsQueryKey = (params?: GetClutchGoalsParams,) => {
+    return [
+    `/api/analytics/clutch-goals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetClutchGoalsQueryOptions = <TData = Awaited<ReturnType<typeof getClutchGoals>>, TError = ErrorType<unknown>>(params: GetClutchGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClutchGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClutchGoalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClutchGoals>>> = ({ signal }) => getClutchGoals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClutchGoals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClutchGoalsQueryResult = NonNullable<Awaited<ReturnType<typeof getClutchGoals>>>
+export type GetClutchGoalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Focus-team players' big goals in close matches (winner, draw-saver, equaliser, go-ahead)
+ */
+
+export function useGetClutchGoals<TData = Awaited<ReturnType<typeof getClutchGoals>>, TError = ErrorType<unknown>>(
+ params: GetClutchGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClutchGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClutchGoalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOpponentClutchGoalsUrl = (params: GetOpponentClutchGoalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/opponent-clutch-goals?${stringifiedParams}` : `/api/analytics/opponent-clutch-goals`
+}
+
+/**
+ * @summary League players' big goals in close matches, scoped to a club or league-wide
+ */
+export const getOpponentClutchGoals = async (params: GetOpponentClutchGoalsParams, options?: RequestInit): Promise<ClutchGoalsResponse> => {
+
+  return customFetch<ClutchGoalsResponse>(getGetOpponentClutchGoalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpponentClutchGoalsQueryKey = (params?: GetOpponentClutchGoalsParams,) => {
+    return [
+    `/api/analytics/opponent-clutch-goals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOpponentClutchGoalsQueryOptions = <TData = Awaited<ReturnType<typeof getOpponentClutchGoals>>, TError = ErrorType<unknown>>(params: GetOpponentClutchGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentClutchGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpponentClutchGoalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpponentClutchGoals>>> = ({ signal }) => getOpponentClutchGoals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpponentClutchGoals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpponentClutchGoalsQueryResult = NonNullable<Awaited<ReturnType<typeof getOpponentClutchGoals>>>
+export type GetOpponentClutchGoalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary League players' big goals in close matches, scoped to a club or league-wide
+ */
+
+export function useGetOpponentClutchGoals<TData = Awaited<ReturnType<typeof getOpponentClutchGoals>>, TError = ErrorType<unknown>>(
+ params: GetOpponentClutchGoalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentClutchGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpponentClutchGoalsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

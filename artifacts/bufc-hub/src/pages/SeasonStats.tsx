@@ -14,6 +14,10 @@ import {
   useGetOpponentPlayersByOpponent,
   useGetOpponentOnfieldImpact,
   getGetOpponentOnfieldImpactQueryKey,
+  useGetClutchGoals,
+  getGetClutchGoalsQueryKey,
+  useGetOpponentClutchGoals,
+  getGetOpponentClutchGoalsQueryKey,
   useGetGoalCombos,
   useGetOpponentGoalCombos,
   useGetOpponentPlayerDna,
@@ -1282,6 +1286,16 @@ export default function SeasonStats() {
     query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactL3Params) },
   });
 
+  // Clutch goals — big goals in close matches (team + league versions)
+  const clutchParams = { teamId: tId, seasonId: sId };
+  const { data: clutchData } = useGetClutchGoals(clutchParams, {
+    query: { enabled: isReady, queryKey: getGetClutchGoalsQueryKey(clutchParams) },
+  });
+  const oppClutchParams = { teamId: tId, seasonId: sId, club: selectedClub };
+  const { data: oppClutchData } = useGetOpponentClutchGoals(oppClutchParams, {
+    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentClutchGoalsQueryKey(oppClutchParams) },
+  });
+
   // Combo threat for the selected club: their assist→scorer partnerships (full + L3)
   const oppCombosParams = { teamId: tId, seasonId: sId, club: selectedClub };
   const { data: oppCombosFull } = useGetOpponentGoalCombos(oppCombosParams, {
@@ -2400,6 +2414,14 @@ export default function SeasonStats() {
             </ChartCard>
           </div>
 
+          {/* 5b — Big-Game Goals (clutch) */}
+          <ClutchChart
+            title="Big-Game Goals — Who Delivers When It Counts"
+            src={clutchData}
+            sn={sn}
+            showClub={false}
+          />
+
           {/* 6 & 7 — Starts & Appearances + Total Minutes Played */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <ChartCard
@@ -2877,6 +2899,15 @@ export default function SeasonStats() {
                 hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
                 hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+              />
+
+              {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
+              <ClutchChart
+                title={`${isAll ? "League" : selectedClub} — Big-Game Goals — Who Delivers When It Counts`}
+                src={oppClutchData}
+                sn={{}}
+                showClub={isAll}
+                maxBars={isAll ? 20 : undefined}
               />
 
               {/* 17c. Scoring DNA — one of the club's players (whole-league data) */}
@@ -4115,6 +4146,92 @@ function OppPlayerStackChart({
         </ResponsiveContainer>
       )}
     </ChartCard>
+  );
+}
+
+// ── Clutch goals (big goals in close matches) — Player tab + Opponent Insights ──
+type ClutchSrc = {
+  closeMatches: number;
+  players: Array<{
+    playerName: string; club: string;
+    winners: number; drawSavers: number; equalisers: number; goAheads: number; total: number;
+    goals: Array<{ category: string; opponent: string; minute?: number | null; result: string }>;
+  }>;
+};
+
+const CLUTCH_LABELS: Record<string, string> = {
+  winner: "Winner", drawSaver: "Draw-saver", equaliser: "Equaliser", goAhead: "Go-ahead goal",
+};
+
+function ClutchChart({ title, src, sn, showClub, maxBars }: {
+  title: string; src?: ClutchSrc; sn: Record<string, string>; showClub: boolean; maxBars?: number;
+}) {
+  const data = useMemo(() => {
+    const rows = (src?.players ?? []).map(p => ({
+      name: sn[p.playerName] ?? p.playerName,
+      fullName: p.playerName,
+      club: p.club,
+      winners: p.winners, drawSavers: p.drawSavers, equalisers: p.equalisers, goAheads: p.goAheads,
+      total: p.total, goals: p.goals,
+    })).sort((a, b) => b.total - a.total || b.winners - a.winners);
+    const sliced = maxBars ? rows.slice(0, maxBars) : rows;
+    const nameCounts = new Map<string, number>();
+    for (const r of sliced) nameCounts.set(r.name, (nameCounts.get(r.name) ?? 0) + 1);
+    return sliced.map(r => (nameCounts.get(r.name)! > 1 ? { ...r, name: `${r.name} (${r.club.slice(0, 3)})` } : r));
+  }, [src, sn, maxBars]);
+
+  return (
+    <ChartCard
+      tall
+      title={title}
+      description={`Goals that mattered in tight games (${src?.closeMatches ?? 0} matches decided by one goal or drawn)`}
+      tooltip="Only matches that finished level or were decided by a single goal count. Each goal is classified by replaying the game: Winner = the goal that put the side in front for the last time in a 1-goal win; Draw-saver = the final equaliser in a draw; Equaliser = levelled the score mid-game; Go-ahead = took the lead but wasn't the eventual winner. Hover a bar to see each goal."
+    >
+      {data.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          No big goals in close matches yet.
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+            <YAxis {...AXIS_STYLE} allowDecimals={false} />
+            <Tooltip content={<ClutchTooltip showClub={showClub} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="winners"    name="Winner"     stackId="a" fill={C3} />
+            <Bar dataKey="drawSavers" name="Draw-saver" stackId="a" fill={C5} />
+            <Bar dataKey="equalisers" name="Equaliser"  stackId="a" fill={C2} />
+            <Bar dataKey="goAheads"   name="Go-ahead"   stackId="a" fill={C1} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+function ClutchTooltip({ active, payload, showClub }: {
+  active?: boolean;
+  payload?: Array<{ payload: { fullName: string; club: string; total: number; goals: Array<{ category: string; opponent: string; minute?: number | null; result: string }> } }>;
+  showClub: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[220px] space-y-2">
+      <div>
+        <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+        {showClub && <div className="text-muted-foreground mt-0.5">{d.club}</div>}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        {d.goals.map((g, i) => (
+          <div key={i} className="flex justify-between gap-4">
+            <span className="text-muted-foreground">{CLUTCH_LABELS[g.category] ?? g.category}{g.minute != null ? ` · ${g.minute}'` : ""}</span>
+            <span>{g.result}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

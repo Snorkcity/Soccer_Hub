@@ -857,6 +857,39 @@ export interface OpponentOnfieldImpactResponse {
   players: OpponentOnfieldImpactPlayer[];
 }
 
+export type ClutchGoalDetailCategory = typeof ClutchGoalDetailCategory[keyof typeof ClutchGoalDetailCategory];
+
+
+export const ClutchGoalDetailCategory = {
+  winner: 'winner',
+  drawSaver: 'drawSaver',
+  equaliser: 'equaliser',
+  goAhead: 'goAhead',
+} as const;
+
+export interface ClutchGoalDetail {
+  category: ClutchGoalDetailCategory;
+  opponent: string;
+  minute?: number | null;
+  result: string;
+}
+
+export interface ClutchPlayer {
+  playerName: string;
+  club: string;
+  winners: number;
+  drawSavers: number;
+  equalisers: number;
+  goAheads: number;
+  total: number;
+  goals: ClutchGoalDetail[];
+}
+
+export interface ClutchGoalsResponse {
+  closeMatches: number;
+  players: ClutchPlayer[];
+}
+
 export interface GoalCombo {
   assister: string;
   scorer: string;
@@ -2283,6 +2316,19 @@ lastN?: number;
 };
 
 export type GetOpponentOnfieldImpactParams = {
+teamId: number;
+seasonId: number;
+club: string;
+lastN?: number;
+};
+
+export type GetClutchGoalsParams = {
+teamId: number;
+seasonId: number;
+lastN?: number;
+};
+
+export type GetOpponentClutchGoalsParams = {
 teamId: number;
 seasonId: number;
 club: string;

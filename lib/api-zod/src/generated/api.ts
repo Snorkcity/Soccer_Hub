@@ -1272,6 +1272,65 @@ export const GetOpponentOnfieldImpactResponse = zod.object({
 
 
 /**
+ * @summary Focus-team players' big goals in close matches (winner, draw-saver, equaliser, go-ahead)
+ */
+export const GetClutchGoalsQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetClutchGoalsResponse = zod.object({
+  "closeMatches": zod.number(),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string(),
+  "winners": zod.number(),
+  "drawSavers": zod.number(),
+  "equalisers": zod.number(),
+  "goAheads": zod.number(),
+  "total": zod.number(),
+  "goals": zod.array(zod.object({
+  "category": zod.enum(['winner', 'drawSaver', 'equaliser', 'goAhead']),
+  "opponent": zod.string(),
+  "minute": zod.number().nullish(),
+  "result": zod.string()
+}))
+}))
+})
+
+
+/**
+ * @summary League players' big goals in close matches, scoped to a club or league-wide
+ */
+export const GetOpponentClutchGoalsQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetOpponentClutchGoalsResponse = zod.object({
+  "closeMatches": zod.number(),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string(),
+  "winners": zod.number(),
+  "drawSavers": zod.number(),
+  "equalisers": zod.number(),
+  "goAheads": zod.number(),
+  "total": zod.number(),
+  "goals": zod.array(zod.object({
+  "category": zod.enum(['winner', 'drawSaver', 'equaliser', 'goAhead']),
+  "opponent": zod.string(),
+  "minute": zod.number().nullish(),
+  "result": zod.string()
+}))
+}))
+})
+
+
+/**
  * @summary Focus team's assist->scorer goal partnerships (combo threat)
  */
 export const GetGoalCombosQueryParams = zod.object({

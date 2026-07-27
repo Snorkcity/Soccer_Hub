@@ -980,6 +980,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpponentOnfieldImpactResponse"
 
+  /analytics/clutch-goals:
+    get:
+      operationId: getClutchGoals
+      tags: [analytics]
+      summary: Focus-team players' big goals in close matches (winner, draw-saver, equaliser, go-ahead)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-player clutch-goal counts from matches decided by one goal or drawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClutchGoalsResponse"
+
+  /analytics/opponent-clutch-goals:
+    get:
+      operationId: getOpponentClutchGoals
+      tags: [analytics]
+      summary: League players' big goals in close matches, scoped to a club or league-wide
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-player clutch-goal counts from close league matches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClutchGoalsResponse"
+
   /analytics/goal-combos:
     get:
       operationId: getGoalCombos
@@ -2883,6 +2939,43 @@ components:
           items:
             $ref: "#/components/schemas/OpponentOnfieldImpactPlayer"
       required: [opponents, players]
+
+    # ── Clutch goals (big goals in close matches) ──────────────────────────────
+
+    ClutchGoalDetail:
+      type: object
+      properties:
+        category: { type: string, enum: [winner, drawSaver, equaliser, goAhead] }
+        opponent: { type: string }
+        minute:   { type: integer, nullable: true }
+        result:   { type: string }
+      required: [category, opponent, result]
+
+    ClutchPlayer:
+      type: object
+      properties:
+        playerName:  { type: string }
+        club:        { type: string }
+        winners:     { type: integer }
+        drawSavers:  { type: integer }
+        equalisers:  { type: integer }
+        goAheads:    { type: integer }
+        total:       { type: integer }
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClutchGoalDetail"
+      required: [playerName, club, winners, drawSavers, equalisers, goAheads, total, goals]
+
+    ClutchGoalsResponse:
+      type: object
+      properties:
+        closeMatches: { type: integer }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClutchPlayer"
+      required: [closeMatches, players]
 
     # ── Goal Combos (assist → scorer partnerships) ─────────────────────────────
 
