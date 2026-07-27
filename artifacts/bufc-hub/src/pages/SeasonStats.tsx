@@ -2178,7 +2178,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<MinsPerGoalTooltip hiddenOpponents={hiddenOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
                       onClick={(e) => toggleOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
@@ -2246,7 +2246,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<AssistStackedTooltip hiddenOpponents={hiddenAssistOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
                       onClick={(e) => toggleAssistOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
@@ -2314,7 +2314,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<ContribTooltip hiddenOpponents={hiddenContribOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
                       onClick={(e) => toggleContribOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
@@ -2472,7 +2472,7 @@ export default function SeasonStats() {
                       <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
                       <YAxis {...AXIS_STYLE} allowDecimals={false} />
                       <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
                       <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
                       <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -4201,7 +4201,7 @@ function ClutchChart({ title, src, sn, showClub, maxBars }: {
             <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
             <YAxis {...AXIS_STYLE} allowDecimals={false} />
             <Tooltip content={<ClutchTooltip showClub={showClub} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
             <Bar dataKey="winners"    name="Winner"     stackId="a" fill={C3} />
             <Bar dataKey="drawSavers" name="Draw-saver" stackId="a" fill={C5} />
             <Bar dataKey="equalisers" name="Equaliser"  stackId="a" fill={C2} />
