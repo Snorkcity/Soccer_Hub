@@ -52,6 +52,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
 
 const FOCUS_CLUB = "Belconnen";
@@ -1375,6 +1376,7 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
   const [entries, setEntries] = useState<GpsEntry[]>([]);
   const [ignoredSplits, setIgnoredSplits] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [pasteText, setPasteText] = useState("");
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
@@ -1389,11 +1391,22 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
   const save = useSaveEntryGpsSessions();
 
   async function handleFile(file: File) {
+    await parseInput(() => file.arrayBuffer(), file.name);
+  }
+
+  async function handlePaste(text: string) {
+    await parseInput(async () => text, "pasted rows");
+  }
+
+  async function parseInput(getData: () => Promise<string | ArrayBuffer>, label: string) {
     setParsing(true); setOk(null); setErr(null);
-    setEntries([]); setIgnoredSplits(0); setFileName(file.name);
+    setEntries([]); setIgnoredSplits(0); setFileName(label);
     try {
       const XLSX = await import("xlsx");
-      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const data = await getData();
+      const wb = typeof data === "string"
+        ? XLSX.read(data, { type: "string" })
+        : XLSX.read(data, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       if (!sheet) throw new Error("The file has no sheets in it");
       const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
@@ -1443,7 +1456,9 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
         }
         // Keep whole-game and half rows; drop thirds/extra-time splits the charts ignore.
         // Store the canonical lowercase literal — downstream chart logic matches exactly.
-        const split = (row.splitName ?? "game").toLowerCase();
+        // Raw Catapult exports call the whole-match split "all" — treat it as "game".
+        let split = (row.splitName ?? "game").toLowerCase();
+        if (split === "all") split = "game";
         if (!(split === "game" || split === "1st.half" || split === "2nd.half")) { ignored++; continue; }
         row.splitName = split;
         // Pre-fill minutes from the Duration column (secs) when the sheet has no Mins column
@@ -1529,7 +1544,7 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
       setOk(`Saved ${totalSaved} rows for ${roundsSaved.join(" and ")}`
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
-      setEntries([]); setIgnoredSplits(0); setFileName(null);
+      setEntries([]); setIgnoredSplits(0); setFileName(null); setPasteText("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       // Saves run one round at a time — tell the coach exactly what did and didn't go in
@@ -1562,6 +1577,24 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
               className="cursor-pointer file:mr-3 file:cursor-pointer"
               onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
             />
+          </Field>
+          <Field label="…or paste one game's rows (copied from Excel or the CSV, header row included)">
+            <div className="space-y-2">
+              <Textarea
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                placeholder={"Player Name\tSplit Name\tDistance (km)\t…"}
+                rows={4}
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button" variant="secondary" size="sm"
+                disabled={parsing || pasteText.trim() === ""}
+                onClick={() => void handlePaste(pasteText)}
+              >
+                Read pasted rows
+              </Button>
+            </div>
           </Field>
           {fileMode ? (
             <div className="text-sm text-muted-foreground">
