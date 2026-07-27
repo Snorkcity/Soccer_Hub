@@ -716,7 +716,7 @@ function PlayerAccelCountCard({ bundles, player }: { bundles: Bundle[]; player: 
               <XAxis dataKey="label" {...AXIS} angle={-40} textAnchor="end" interval={0} />
               <YAxis {...AXIS} fontSize={11} />
               <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
               <Bar dataKey="accShow" name="Accelerations" fill={C_ACC} radius={[3, 3, 0, 0]} />
               <Bar dataKey="decShow" name="Decelerations" fill={C_DEC} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -768,7 +768,7 @@ function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: strin
                 </div>
               );
             }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
             <Bar dataKey="acc" name="Max acceleration" fill={C_ACC} radius={[3, 3, 0, 0]} />
             <Bar dataKey="dec" name="Max deceleration" fill={C_DEC} radius={[3, 3, 0, 0]} />
           </BarChart>
@@ -1009,7 +1009,7 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
               <XAxis dataKey="label" {...AXIS} angle={-45} textAnchor="end" interval={0} />
               <YAxis {...AXIS} fontSize={11} />
               <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
               <Bar dataKey="accShow" name="Accelerations" fill={C_ACC} radius={[3, 3, 0, 0]} />
               <Bar dataKey="decShow" name="Decelerations" fill={C_DEC} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -1059,7 +1059,7 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
                 </div>
               );
             }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
             <Bar dataKey="acc" name="Max acceleration" fill={C_ACC} radius={[3, 3, 0, 0]} />
             <Bar dataKey="dec" name="Max deceleration" fill={C_DEC} radius={[3, 3, 0, 0]} />
           </BarChart>
