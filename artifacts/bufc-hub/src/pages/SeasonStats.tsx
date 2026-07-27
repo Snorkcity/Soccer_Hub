@@ -1831,27 +1831,44 @@ export default function SeasonStats() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-8">#</TableHead>
-                      <TableHead>Team</TableHead>
-                      <TableHead className="text-right">P</TableHead>
-                      <TableHead className="text-right">W</TableHead>
-                      <TableHead className="text-right">D</TableHead>
-                      <TableHead className="text-right">L</TableHead>
-                      <TableHead className="text-right">GD</TableHead>
-                      <TableHead className="text-right font-bold">PTS</TableHead>
+                      <TableHead className="h-8 py-1 w-8">#</TableHead>
+                      <TableHead className="h-8 py-1">Team</TableHead>
+                      <TableHead className="h-8 py-1 text-right">P</TableHead>
+                      <TableHead className="h-8 py-1 text-right">W</TableHead>
+                      <TableHead className="h-8 py-1 text-right">D</TableHead>
+                      <TableHead className="h-8 py-1 text-right">L</TableHead>
+                      <TableHead className="h-8 py-1 text-right">GD</TableHead>
+                      <TableHead className="h-8 py-1 text-right font-bold">PTS</TableHead>
+                      <TableHead className="h-8 py-1 pl-4">Form</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ladder?.map((entry, idx) => (
-                      <TableRow key={entry.teamName} className={entry.isFocusTeam ? "bg-primary/10 hover:bg-primary/20" : ""}>
-                        <TableCell className="font-medium">{idx + 1}</TableCell>
-                        <TableCell className={entry.isFocusTeam ? "font-bold text-primary" : ""}>{entry.teamName}</TableCell>
-                        <TableCell className="text-right">{entry.played}</TableCell>
-                        <TableCell className="text-right">{entry.won}</TableCell>
-                        <TableCell className="text-right">{entry.drawn}</TableCell>
-                        <TableCell className="text-right">{entry.lost}</TableCell>
-                        <TableCell className="text-right">{entry.goalDiff > 0 ? `+${entry.goalDiff}` : entry.goalDiff}</TableCell>
-                        <TableCell className="text-right font-bold">{entry.points}</TableCell>
+                      <TableRow key={entry.teamName} className={cn("text-sm", entry.isFocusTeam ? "bg-primary/10 hover:bg-primary/20" : "")}>
+                        <TableCell className="py-1.5 font-medium">{idx + 1}</TableCell>
+                        <TableCell className={cn("py-1.5", entry.isFocusTeam ? "font-bold text-primary" : "")}>{entry.teamName}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.played}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.won}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.drawn}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.lost}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.goalDiff > 0 ? `+${entry.goalDiff}` : entry.goalDiff}</TableCell>
+                        <TableCell className="py-1.5 text-right font-bold">{entry.points}</TableCell>
+                        <TableCell className="py-1.5 pl-4">
+                          <div className="flex items-center gap-1">
+                            {entry.form.map((f, i) => (
+                              <span
+                                key={i}
+                                title={`${f.round}: ${f.result} ${f.score} v ${f.opponent}`}
+                                className={cn(
+                                  "inline-flex h-[18px] w-[18px] items-center justify-center rounded-sm text-[10px] font-bold text-white cursor-default",
+                                  f.result === "W" ? "bg-[hsl(var(--chart-3))]" : f.result === "L" ? "bg-[hsl(var(--chart-4))]" : "bg-muted-foreground/60",
+                                )}
+                              >
+                                {f.result}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

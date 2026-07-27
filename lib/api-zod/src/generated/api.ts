@@ -862,7 +862,13 @@ export const GetLeagueLadderResponseItem = zod.object({
   "goalsAgainst": zod.number(),
   "goalDiff": zod.number(),
   "points": zod.number(),
-  "isFocusTeam": zod.boolean()
+  "isFocusTeam": zod.boolean(),
+  "form": zod.array(zod.object({
+  "round": zod.string(),
+  "result": zod.enum(['W', 'D', 'L']),
+  "opponent": zod.string(),
+  "score": zod.string()
+})).describe('Last 5 league results, most recent first')
 })
 export const GetLeagueLadderResponse = zod.array(GetLeagueLadderResponseItem)
 

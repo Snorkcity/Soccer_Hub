@@ -323,7 +323,26 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
     else              { home.drawn++; away.drawn++; }
   }
 
+  // Form: last 5 league results per club, most recent first
+  type FormEntry = { round: string; result: "W" | "D" | "L"; opponent: string; score: string };
+  const formByClub: Record<string, FormEntry[]> = {};
+  const played = matches
+    .filter(m => /^R\d/.test(m.matchId) && m.homeGoals != null && m.awayGoals != null)
+    .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""));
+  for (const m of played) {
+    const round = m.matchId.split("-")[0];
+    const hg = m.homeGoals!, ag = m.awayGoals!;
+    const add = (club: string, opp: string, gf: number, ga: number) => {
+      const arr = (formByClub[club] ??= []);
+      if (arr.length >= 5) return;
+      arr.push({ round, result: gf > ga ? "W" : gf < ga ? "L" : "D", opponent: opp, score: `${gf}–${ga}` });
+    };
+    add(m.homeTeam, m.awayTeam, hg, ag);
+    add(m.awayTeam, m.homeTeam, ag, hg);
+  }
+
   const ladder = Object.entries(standings).map(([teamName, s]) => ({
+    form: formByClub[teamName] ?? [],
     teamName,
     played: s.played,
     won: s.won,

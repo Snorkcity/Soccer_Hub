@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { LadderFormEntry } from './ladderFormEntry';
 
 export interface LadderEntry {
   teamName: string;
@@ -17,4 +18,6 @@ export interface LadderEntry {
   goalDiff: number;
   points: number;
   isFocusTeam: boolean;
+  /** Last 5 league results, most recent first */
+  form: LadderFormEntry[];
 }

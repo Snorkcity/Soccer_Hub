@@ -131,6 +131,8 @@ export * from './journalReflectionCreateRequestSource';
 export * from './journalReflectionUpdateRequest';
 export * from './journalReflectionUpdateRequestContent';
 export * from './ladderEntry';
+export * from './ladderFormEntry';
+export * from './ladderFormEntryResult';
 export * from './leagueInfo';
 export * from './leagueInput';
 export * from './leagueMatchInfo';

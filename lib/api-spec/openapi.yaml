@@ -2696,7 +2696,21 @@ components:
         goalDiff:      { type: integer }
         points:        { type: integer }
         isFocusTeam:   { type: boolean }
-      required: [teamName, played, won, drawn, lost, goalsFor, goalsAgainst, goalDiff, points, isFocusTeam]
+        form:
+          type: array
+          description: Last 5 league results, most recent first
+          items:
+            $ref: "#/components/schemas/LadderFormEntry"
+      required: [teamName, played, won, drawn, lost, goalsFor, goalsAgainst, goalDiff, points, isFocusTeam, form]
+
+    LadderFormEntry:
+      type: object
+      properties:
+        round:    { type: string }
+        result:   { type: string, enum: [W, D, L] }
+        opponent: { type: string }
+        score:    { type: string }
+      required: [round, result, opponent, score]
 
     TeamForm:
       type: object

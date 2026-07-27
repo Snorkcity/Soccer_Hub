@@ -658,6 +658,22 @@ export interface OpponentLeaderboardResponse {
   matches: MatchHistoryEntry[];
 }
 
+export type LadderFormEntryResult = typeof LadderFormEntryResult[keyof typeof LadderFormEntryResult];
+
+
+export const LadderFormEntryResult = {
+  W: 'W',
+  D: 'D',
+  L: 'L',
+} as const;
+
+export interface LadderFormEntry {
+  round: string;
+  result: LadderFormEntryResult;
+  opponent: string;
+  score: string;
+}
+
 export interface LadderEntry {
   teamName: string;
   played: number;
@@ -669,6 +685,8 @@ export interface LadderEntry {
   goalDiff: number;
   points: number;
   isFocusTeam: boolean;
+  /** Last 5 league results, most recent first */
+  form: LadderFormEntry[];
 }
 
 export interface FormResult {
