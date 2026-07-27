@@ -1856,16 +1856,21 @@ export default function SeasonStats() {
                         <TableCell className="py-1.5 pl-4">
                           <div className="flex items-center gap-1">
                             {entry.form.map((f, i) => (
-                              <span
-                                key={i}
-                                title={`${f.round}: ${f.result} ${f.score} v ${f.opponent}`}
-                                className={cn(
-                                  "inline-flex h-[18px] w-[18px] items-center justify-center rounded-sm text-[10px] font-bold text-white cursor-default",
-                                  f.result === "W" ? "bg-[hsl(var(--chart-3))]" : f.result === "L" ? "bg-[hsl(var(--chart-4))]" : "bg-muted-foreground/60",
-                                )}
-                              >
-                                {f.result}
-                              </span>
+                              <RadixTooltip key={i}>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={cn(
+                                      "inline-flex h-[18px] w-[18px] items-center justify-center rounded-sm text-[10px] font-bold text-white cursor-default",
+                                      f.result === "W" ? "bg-[hsl(var(--chart-3))]" : f.result === "L" ? "bg-[hsl(var(--chart-4))]" : "bg-muted-foreground/60",
+                                    )}
+                                  >
+                                    {f.result}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  <span className="font-semibold">{f.round}:</span> {f.result === "W" ? "Won" : f.result === "L" ? "Lost" : "Drew"} {f.score} v {f.opponent}
+                                </TooltipContent>
+                              </RadixTooltip>
                             ))}
                           </div>
                         </TableCell>
