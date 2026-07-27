@@ -60,6 +60,7 @@ import type {
   GetOpponentGoalBreakdownParams,
   GetOpponentGoalCombosParams,
   GetOpponentLeaderboardParams,
+  GetOpponentOnfieldImpactParams,
   GetOpponentPlayerDnaParams,
   GetOpponentPlayersByOpponentParams,
   GetOpponentProfileParams,
@@ -126,6 +127,7 @@ import type {
   MatchUpdate,
   OpponentGoalBreakdownResponse,
   OpponentLeaderboardResponse,
+  OpponentOnfieldImpactResponse,
   OpponentPlayersByOpponentResponse,
   OpponentProfileResponse,
   Player,
@@ -3397,6 +3399,90 @@ export function useGetOpponentPlayersByOpponent<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentPlayersByOpponentQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOpponentOnfieldImpactUrl = (params: GetOpponentOnfieldImpactParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/opponent-onfield-impact?${stringifiedParams}` : `/api/analytics/opponent-onfield-impact`
+}
+
+/**
+ * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
+ */
+export const getOpponentOnfieldImpact = async (params: GetOpponentOnfieldImpactParams, options?: RequestInit): Promise<OpponentOnfieldImpactResponse> => {
+
+  return customFetch<OpponentOnfieldImpactResponse>(getGetOpponentOnfieldImpactUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpponentOnfieldImpactQueryKey = (params?: GetOpponentOnfieldImpactParams,) => {
+    return [
+    `/api/analytics/opponent-onfield-impact`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOpponentOnfieldImpactQueryOptions = <TData = Awaited<ReturnType<typeof getOpponentOnfieldImpact>>, TError = ErrorType<unknown>>(params: GetOpponentOnfieldImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentOnfieldImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpponentOnfieldImpactQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpponentOnfieldImpact>>> = ({ signal }) => getOpponentOnfieldImpact(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpponentOnfieldImpact>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpponentOnfieldImpactQueryResult = NonNullable<Awaited<ReturnType<typeof getOpponentOnfieldImpact>>>
+export type GetOpponentOnfieldImpactQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
+ */
+
+export function useGetOpponentOnfieldImpact<TData = Awaited<ReturnType<typeof getOpponentOnfieldImpact>>, TError = ErrorType<unknown>>(
+ params: GetOpponentOnfieldImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentOnfieldImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpponentOnfieldImpactQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

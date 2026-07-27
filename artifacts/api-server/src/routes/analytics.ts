@@ -25,6 +25,8 @@ import {
   GetAssistsByOpponentResponse,
   GetOpponentGoalBreakdownQueryParams,
   GetOpponentGoalBreakdownResponse,
+  GetOpponentOnfieldImpactQueryParams,
+  GetOpponentOnfieldImpactResponse,
   GetOpponentProfileQueryParams,
   GetPlayerTimelineQueryParams,
   GetPlayerTimelineResponse,
@@ -1393,6 +1395,101 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
+});
+
+// ─── Opponent On-Field Impact (team GD while a player appeared, by opponent) ───
+//
+// Binary appearance model (same as the Belconnen player-leaderboard chart): a
+// player who featured in a match is credited with the WHOLE match's goals
+// for/against. Broken down per opponent so the client can exclude selected
+// opponents ("take out the easy games") and recompute totals.
+
+router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void> => {
+  const query = GetOpponentOnfieldImpactQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({
+      matchId: leagueMatchesTable.matchId,
+      homeTeam: leagueMatchesTable.homeTeam,
+      awayTeam: leagueMatchesTable.awayTeam,
+      matchDate: leagueMatchesTable.matchDate,
+      homeGoals: leagueMatchesTable.homeGoals,
+      awayGoals: leagueMatchesTable.awayGoals,
+    })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  if (!matches.length) { res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: [], players: [] })); return; }
+
+  const matchInfo = new Map<string, typeof matches[number]>();
+  for (const m of matches) matchInfo.set(m.matchId, m);
+
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+
+  // "Last N rounds" window — same convention as the other opponent endpoints.
+  let relevantIds: Set<string>;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      relevantIds = new Set(relevant.filter(m => dateSet.has(m.matchDate ?? "")).map(m => m.matchId));
+    } else {
+      relevantIds = new Set(
+        relevant.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN).map(m => m.matchId),
+      );
+    }
+  } else {
+    relevantIds = new Set(relevant.map(m => m.matchId));
+  }
+  if (relevantIds.size === 0) { res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: [], players: [] })); return; }
+
+  const ps = await db
+    .select({
+      playerName: leaguePlayerStatsTable.playerName,
+      matchId: leaguePlayerStatsTable.matchId,
+      minsPlayed: leaguePlayerStatsTable.minsPlayed,
+      appearance: leaguePlayerStatsTable.appearance,
+      club: leaguePlayerStatsTable.club,
+    })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, Array.from(relevantIds))));
+
+  // (player|club) → opponent → { gf, ga, mins, apps }
+  type Entry = { gf: number; ga: number; mins: number; apps: number };
+  const byPlayer = new Map<string, { playerName: string; club: string; byOpponent: Record<string, Entry> }>();
+  const allOpponents = new Set<string>();
+
+  for (const r of ps) {
+    if (!r.playerName || !r.club) continue;
+    if (!r.appearance) continue; // bench without coming on — no on-field impact
+    if (!isAll && r.club !== club) continue;
+    const info = matchInfo.get(r.matchId);
+    if (!info) continue;
+    let opp: string | null = null;
+    let gf = 0, ga = 0;
+    if (info.homeTeam === r.club) { opp = info.awayTeam; gf = info.homeGoals ?? 0; ga = info.awayGoals ?? 0; }
+    else if (info.awayTeam === r.club) { opp = info.homeTeam; gf = info.awayGoals ?? 0; ga = info.homeGoals ?? 0; }
+    if (!opp) continue;
+    allOpponents.add(opp);
+    const key = `${r.playerName}|${r.club}`;
+    const row = byPlayer.get(key) ?? { playerName: r.playerName, club: r.club, byOpponent: {} };
+    const e = (row.byOpponent[opp] ??= { gf: 0, ga: 0, mins: 0, apps: 0 });
+    e.gf += gf;
+    e.ga += ga;
+    e.mins += r.minsPlayed ?? 0;
+    e.apps += 1;
+    byPlayer.set(key, row);
+  }
+
+  const players = Array.from(byPlayer.values()).sort((x, y) => {
+    const gd = (p: typeof x) => Object.values(p.byOpponent).reduce((s, e) => s + e.gf - e.ga, 0);
+    return gd(y) - gd(x);
+  });
+
+  res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: Array.from(allOpponents).sort(), players }));
 });
 
 // ─── Opponent Goal Combos (a selected club's assist→scorer partnerships) ───────

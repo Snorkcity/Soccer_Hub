@@ -950,6 +950,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpponentPlayersByOpponentResponse"
 
+  /analytics/opponent-onfield-impact:
+    get:
+      operationId: getOpponentOnfieldImpact
+      tags: [analytics]
+      summary: Per-player on-field impact (team GD while player appeared), broken down by opponent faced
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Club players' on-field goal difference broken down by opponent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpponentOnfieldImpactResponse"
+
   /analytics/goal-combos:
     get:
       operationId: getGoalCombos
@@ -2818,6 +2848,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OpponentPlayerByOpponentPlayer"
+      required: [opponents, players]
+
+    # ── Opponent On-Field Impact (GD while player appeared, by opponent) ───────
+
+    OpponentOnfieldImpactEntry:
+      type: object
+      properties:
+        gf:   { type: integer }
+        ga:   { type: integer }
+        mins: { type: integer }
+        apps: { type: integer }
+      required: [gf, ga, mins, apps]
+
+    OpponentOnfieldImpactPlayer:
+      type: object
+      properties:
+        playerName: { type: string }
+        club:       { type: string }
+        byOpponent:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/OpponentOnfieldImpactEntry"
+      required: [playerName, club, byOpponent]
+
+    OpponentOnfieldImpactResponse:
+      type: object
+      properties:
+        opponents:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpponentOnfieldImpactPlayer"
       required: [opponents, players]
 
     # ── Goal Combos (assist → scorer partnerships) ─────────────────────────────

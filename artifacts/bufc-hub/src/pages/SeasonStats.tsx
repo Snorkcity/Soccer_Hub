@@ -12,6 +12,8 @@ import {
   useGetAssistsByOpponent,
   useGetOpponentProfile,
   useGetOpponentPlayersByOpponent,
+  useGetOpponentOnfieldImpact,
+  getGetOpponentOnfieldImpactQueryKey,
   useGetGoalCombos,
   useGetOpponentGoalCombos,
   useGetOpponentPlayerDna,
@@ -1174,6 +1176,11 @@ export default function SeasonStats() {
   const [oppAssistSort, setOppAssistSort]   = useState<"total" | "mpg">("total");
   const [oppContribSort, setOppContribSort] = useState<"total" | "mpg">("total");
   const [oppGoalL3, setOppGoalL3]       = useState(false);
+  // Opponent Insights — On-Field Impact chart
+  const [hiddenImpactOpp, setHiddenImpactOpp] = useState<Set<string>>(new Set());
+  const [oppImpactMetric, setOppImpactMetric] = useState<"per90" | "total">("per90");
+  const [oppImpactMinMins, setOppImpactMinMins] = useState<0 | 90 | 150 | 180>(150);
+  const [oppImpactL3, setOppImpactL3] = useState(false);
   const [oppAssistL3, setOppAssistL3]   = useState(false);
   const [oppContribL3, setOppContribL3] = useState(false);
   const [oppStartsL3, setOppStartsL3]   = useState(false); // squad: starts & appearances
@@ -1262,6 +1269,16 @@ export default function SeasonStats() {
   const oppPlayersL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
   const { data: oppPlayersL3 } = useGetOpponentPlayersByOpponent(oppPlayersL3Params, {
     query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentPlayersByOpponentQueryKey(oppPlayersL3Params) },
+  });
+
+  // On-field impact (team GD while a player appeared), per opponent (full + L3)
+  const oppImpactParams = { teamId: tId, seasonId: sId, club: selectedClub };
+  const { data: oppImpactFull } = useGetOpponentOnfieldImpact(oppImpactParams, {
+    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactParams) },
+  });
+  const oppImpactL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
+  const { data: oppImpactL3Data } = useGetOpponentOnfieldImpact(oppImpactL3Params, {
+    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactL3Params) },
   });
 
   // Combo threat for the selected club: their assist→scorer partnerships (full + L3)
@@ -1379,6 +1396,7 @@ export default function SeasonStats() {
   const toggleOppGoalOpp    = mkOppToggle(setHiddenOppGoalOpp);
   const toggleOppAssistOpp  = mkOppToggle(setHiddenOppAssistOpp);
   const toggleOppContribOpp = mkOppToggle(setHiddenOppContribOpp);
+  const toggleImpactOpp     = mkOppToggle(setHiddenImpactOpp);
 
   // ── All opponents for Goal Contributions chart ────────────────────────────
   const allContribOpponents = useMemo(() => {
@@ -1720,6 +1738,7 @@ export default function SeasonStats() {
   useEffect(() => {
     setScPieOpp("__all"); setGcPieOpp("__all");
     setHiddenOppGoalOpp(new Set()); setHiddenOppAssistOpp(new Set()); setHiddenOppContribOpp(new Set());
+    setHiddenImpactOpp(new Set());
   }, [selectedClub]);
   const profileScoredPie = useMemo(
     () => (scPieOpp !== "__all" && profileOpponents.includes(scPieOpp) ? profileScored.filter(g => g.opponent === scPieOpp) : profileScored),
@@ -2842,6 +2861,18 @@ export default function SeasonStats() {
                 lastN={oppContribL3} onLastN={() => setOppContribL3(v => !v)}
                 sort={oppContribSort} onSort={setOppContribSort}
                 hidden={hiddenOppContribOpp} onToggle={toggleOppContribOpp}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+              />
+
+              {/* 17d. On-Field Impact — team GD while the player was in the side */}
+              <OppImpactChart
+                clubLabel={isAll ? "League" : selectedClub}
+                isAll={isAll}
+                srcFull={oppImpactFull} srcL3={oppImpactL3Data}
+                lastN={oppImpactL3} onLastN={() => setOppImpactL3(v => !v)}
+                metric={oppImpactMetric} onMetric={setOppImpactMetric}
+                minMins={oppImpactMinMins} onMinMins={setOppImpactMinMins}
+                hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
               />
 
@@ -4081,6 +4112,164 @@ function OppPlayerStackChart({
         </ResponsiveContainer>
       )}
     </ChartCard>
+  );
+}
+
+// ── Opponent Insights: On-Field Impact (binary appearance model, per-opponent) ──
+// Legend chips are plain buttons OUTSIDE Recharts' <Legend> — Recharts' own
+// legend won't re-render on external hidden-state changes.
+type OppImpactSrc = {
+  opponents: string[];
+  players: Array<{
+    playerName: string; club: string;
+    byOpponent: Record<string, { gf: number; ga: number; mins: number; apps: number }>;
+  }>;
+};
+
+function OppImpactChart({
+  clubLabel, isAll, srcFull, srcL3, lastN, onLastN, metric, onMetric, minMins, onMinMins, hidden, onToggle, colorMap, sn, maxBars,
+}: {
+  clubLabel: string; isAll: boolean;
+  srcFull?: OppImpactSrc; srcL3?: OppImpactSrc;
+  lastN: boolean; onLastN: () => void;
+  metric: "per90" | "total"; onMetric: (v: "per90" | "total") => void;
+  minMins: 0 | 90 | 150 | 180; onMinMins: (v: 0 | 90 | 150 | 180) => void;
+  hidden: Set<string>; onToggle: (opp: string) => void;
+  colorMap: Record<string, string>; sn: Record<string, string>; maxBars?: number;
+}) {
+  const src = lastN ? srcL3 : srcFull;
+  const opponents = src?.opponents ?? [];
+
+  const data = useMemo(() => {
+    const rows = (src?.players ?? []).map(p => {
+      let gf = 0, ga = 0, mins = 0, apps = 0;
+      for (const [opp, e] of Object.entries(p.byOpponent)) {
+        if (hidden.has(opp)) continue;
+        gf += e.gf; ga += e.ga; mins += e.mins; apps += e.apps;
+      }
+      const gd = gf - ga;
+      const per90 = mins > 0 ? (gd / mins) * 90 : 0;
+      return {
+        name: sn[p.playerName] ?? p.playerName,
+        fullName: p.playerName,
+        club: p.club,
+        value: metric === "per90" ? per90 : gd,
+        gd, per90, gf, ga, mins, apps,
+      };
+    }).filter(r => r.mins > 0 && r.mins >= minMins);
+    rows.sort((a, b) => b.value - a.value);
+    const sliced = maxBars ? rows.slice(0, maxBars) : rows;
+    // League view can surface the same short name from two clubs — disambiguate.
+    const nameCounts = new Map<string, number>();
+    for (const r of sliced) nameCounts.set(r.name, (nameCounts.get(r.name) ?? 0) + 1);
+    return sliced.map(r => (nameCounts.get(r.name)! > 1 ? { ...r, name: `${r.name} (${r.club.slice(0, 3)})` } : r));
+  }, [src, hidden, metric, minMins, sn, maxBars]);
+
+  return (
+    <ChartCard
+      tall
+      title={`${clubLabel} — On-Field Impact — ${metric === "per90" ? "Per 90" : "Season Total"}${lastN ? " — Last 3 Rounds" : ""}`}
+      description="Team goal difference while the player was in the side — click a club below to take those games out"
+      tooltip="Plus/minus: goals the player's team scored minus conceded across every match the player appeared in. Click a club chip to exclude games against that club (e.g. take out the easy ones) — the figures recalculate from the remaining games. Per-90 normalises for playing time."
+      controls={
+        <div className="flex flex-wrap items-center gap-2">
+          <PillGroup
+            options={[{ value: "per90", label: "Per 90" }, { value: "total", label: "Season Total" }]}
+            value={metric}
+            onChange={v => onMetric(v as "per90" | "total")}
+          />
+          <PillGroup
+            options={[
+              { value: "0",   label: "All" },
+              { value: "90",  label: "90+ mins" },
+              { value: "150", label: "150+ mins" },
+              { value: "180", label: "180+ mins" },
+            ]}
+            value={String(minMins)}
+            onChange={v => onMinMins(Number(v) as 0 | 90 | 150 | 180)}
+          />
+          <button
+            onClick={onLastN}
+            className={cn(
+              "px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors",
+              lastN
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+            )}
+          >
+            Last 3 rounds
+          </button>
+        </div>
+      }
+      footer={
+        <div className="flex flex-wrap gap-2 justify-center">
+          {opponents.map(opp => (
+            <button
+              key={opp}
+              onClick={() => onToggle(opp)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] border transition-colors",
+                hidden.has(opp)
+                  ? "border-border text-muted-foreground line-through opacity-60"
+                  : "border-border text-foreground hover:border-foreground/40",
+              )}
+            >
+              <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: colorMap[opp] ?? "#888888" }} />
+              {opp}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {data.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          No appearances match this selection.
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+            <YAxis {...AXIS_STYLE} tickFormatter={(v: number) => metric === "per90" ? v.toFixed(1) : String(v)} />
+            <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeWidth={1} />
+            <Tooltip content={<OppImpactTooltip isAll={isAll} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Bar dataKey="value" name="GD" radius={[4, 4, 0, 0]}>
+              {data.map((d, i) => (
+                <Cell key={i} fill={d.gd > 0 ? C3 : d.gd < 0 ? C4 : C1} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+function OppImpactTooltip({ active, payload, isAll }: {
+  active?: boolean;
+  payload?: Array<{ payload: { fullName: string; club: string; gd: number; per90: number; gf: number; ga: number; mins: number; apps: number } }>;
+  isAll: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  const gdSign = (v: number) => (v > 0 ? `+${v}` : String(v));
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[200px] space-y-2">
+      <div>
+        <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+        {isAll && <div className="text-muted-foreground mt-0.5">{d.club}</div>}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        <div className="flex justify-between gap-6 font-semibold">
+          <span className="text-muted-foreground">On-field GD</span>
+          <span>{gdSign(d.gd)}</span>
+        </div>
+        <div className="flex justify-between gap-6"><span className="text-muted-foreground">GD per 90</span><span>{gdSign(+d.per90.toFixed(2))}</span></div>
+        <div className="flex justify-between gap-6"><span className="text-muted-foreground">Team goals for</span><span>{d.gf}</span></div>
+        <div className="flex justify-between gap-6"><span className="text-muted-foreground">Team goals against</span><span>{d.ga}</span></div>
+        <div className="flex justify-between gap-6"><span className="text-muted-foreground">Minutes / Apps</span><span>{d.mins} · {d.apps}</span></div>
+      </div>
+    </div>
   );
 }
 

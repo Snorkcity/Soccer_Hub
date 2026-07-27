@@ -1247,6 +1247,31 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
 
 
 /**
+ * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
+ */
+export const GetOpponentOnfieldImpactQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetOpponentOnfieldImpactResponse = zod.object({
+  "opponents": zod.array(zod.string()),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string(),
+  "byOpponent": zod.record(zod.string(), zod.object({
+  "gf": zod.number(),
+  "ga": zod.number(),
+  "mins": zod.number(),
+  "apps": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary Focus team's assist->scorer goal partnerships (combo threat)
  */
 export const GetGoalCombosQueryParams = zod.object({

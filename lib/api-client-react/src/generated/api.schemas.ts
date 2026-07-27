@@ -837,6 +837,26 @@ export interface OpponentPlayersByOpponentResponse {
   players: OpponentPlayerByOpponentPlayer[];
 }
 
+export interface OpponentOnfieldImpactEntry {
+  gf: number;
+  ga: number;
+  mins: number;
+  apps: number;
+}
+
+export type OpponentOnfieldImpactPlayerByOpponent = {[key: string]: OpponentOnfieldImpactEntry};
+
+export interface OpponentOnfieldImpactPlayer {
+  playerName: string;
+  club: string;
+  byOpponent: OpponentOnfieldImpactPlayerByOpponent;
+}
+
+export interface OpponentOnfieldImpactResponse {
+  opponents: string[];
+  players: OpponentOnfieldImpactPlayer[];
+}
+
 export interface GoalCombo {
   assister: string;
   scorer: string;
@@ -2256,6 +2276,13 @@ player: string;
 };
 
 export type GetOpponentPlayersByOpponentParams = {
+teamId: number;
+seasonId: number;
+club: string;
+lastN?: number;
+};
+
+export type GetOpponentOnfieldImpactParams = {
 teamId: number;
 seasonId: number;
 club: string;
