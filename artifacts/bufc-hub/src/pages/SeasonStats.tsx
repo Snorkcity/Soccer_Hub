@@ -1178,6 +1178,7 @@ export default function SeasonStats() {
   const [oppGoalL3, setOppGoalL3]       = useState(false);
   // Opponent Insights — On-Field Impact chart
   const [hiddenImpactOpp, setHiddenImpactOpp] = useState<Set<string>>(new Set());
+  const [hiddenImpactClubs, setHiddenImpactClubs] = useState<Set<string>>(new Set()); // __ALL__ view: hide a club's players
   const [oppImpactMetric, setOppImpactMetric] = useState<"per90" | "total">("per90");
   const [oppImpactMinMins, setOppImpactMinMins] = useState<0 | 90 | 150 | 180>(150);
   const [oppImpactL3, setOppImpactL3] = useState(false);
@@ -1397,6 +1398,7 @@ export default function SeasonStats() {
   const toggleOppAssistOpp  = mkOppToggle(setHiddenOppAssistOpp);
   const toggleOppContribOpp = mkOppToggle(setHiddenOppContribOpp);
   const toggleImpactOpp     = mkOppToggle(setHiddenImpactOpp);
+  const toggleImpactClub    = mkOppToggle(setHiddenImpactClubs);
 
   // ── All opponents for Goal Contributions chart ────────────────────────────
   const allContribOpponents = useMemo(() => {
@@ -1738,7 +1740,7 @@ export default function SeasonStats() {
   useEffect(() => {
     setScPieOpp("__all"); setGcPieOpp("__all");
     setHiddenOppGoalOpp(new Set()); setHiddenOppAssistOpp(new Set()); setHiddenOppContribOpp(new Set());
-    setHiddenImpactOpp(new Set());
+    setHiddenImpactOpp(new Set()); setHiddenImpactClubs(new Set());
   }, [selectedClub]);
   const profileScoredPie = useMemo(
     () => (scPieOpp !== "__all" && profileOpponents.includes(scPieOpp) ? profileScored.filter(g => g.opponent === scPieOpp) : profileScored),
@@ -2873,6 +2875,7 @@ export default function SeasonStats() {
                 metric={oppImpactMetric} onMetric={setOppImpactMetric}
                 minMins={oppImpactMinMins} onMinMins={setOppImpactMinMins}
                 hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
+                hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
               />
 
@@ -4127,7 +4130,7 @@ type OppImpactSrc = {
 };
 
 function OppImpactChart({
-  clubLabel, isAll, srcFull, srcL3, lastN, onLastN, metric, onMetric, minMins, onMinMins, hidden, onToggle, colorMap, sn, maxBars,
+  clubLabel, isAll, srcFull, srcL3, lastN, onLastN, metric, onMetric, minMins, onMinMins, hidden, onToggle, hiddenClubs, onToggleClub, colorMap, sn, maxBars,
 }: {
   clubLabel: string; isAll: boolean;
   srcFull?: OppImpactSrc; srcL3?: OppImpactSrc;
@@ -4135,13 +4138,20 @@ function OppImpactChart({
   metric: "per90" | "total"; onMetric: (v: "per90" | "total") => void;
   minMins: 0 | 90 | 150 | 180; onMinMins: (v: 0 | 90 | 150 | 180) => void;
   hidden: Set<string>; onToggle: (opp: string) => void;
+  hiddenClubs: Set<string>; onToggleClub: (clubName: string) => void;
   colorMap: Record<string, string>; sn: Record<string, string>; maxBars?: number;
 }) {
   const src = lastN ? srcL3 : srcFull;
   const opponents = src?.opponents ?? [];
+  const playerClubs = useMemo(
+    () => Array.from(new Set((src?.players ?? []).map(p => p.club))).sort(),
+    [src],
+  );
 
   const data = useMemo(() => {
-    const rows = (src?.players ?? []).map(p => {
+    const rows = (src?.players ?? [])
+      .filter(p => !(isAll && hiddenClubs.has(p.club)))
+      .map(p => {
       let gf = 0, ga = 0, mins = 0, apps = 0;
       for (const [opp, e] of Object.entries(p.byOpponent)) {
         if (hidden.has(opp)) continue;
@@ -4163,14 +4173,14 @@ function OppImpactChart({
     const nameCounts = new Map<string, number>();
     for (const r of sliced) nameCounts.set(r.name, (nameCounts.get(r.name) ?? 0) + 1);
     return sliced.map(r => (nameCounts.get(r.name)! > 1 ? { ...r, name: `${r.name} (${r.club.slice(0, 3)})` } : r));
-  }, [src, hidden, metric, minMins, sn, maxBars]);
+  }, [src, hidden, hiddenClubs, isAll, metric, minMins, sn, maxBars]);
 
   return (
     <ChartCard
       tall
       title={`${clubLabel} — On-Field Impact — ${metric === "per90" ? "Per 90" : "Season Total"}${lastN ? " — Last 3 Rounds" : ""}`}
       description="Team goal difference while the player was actually on the pitch — click a club below to take those games out"
-      tooltip="Plus/minus: goals the player's team scored minus conceded during the minutes the player was on the field (worked out from goal minutes, whether they started, and minutes played). A sub who is later subbed off again is assumed to play through to full time. Click a club chip to exclude games against that club (e.g. take out the easy ones) — the figures recalculate from the remaining games. Per-90 normalises for playing time."
+      tooltip="Plus/minus: goals the player's team scored minus conceded during the minutes the player was on the field (worked out from goal minutes, whether they started, and minutes played). A sub who is later subbed off again is assumed to play through to full time. Click a club chip to exclude games against that club (e.g. take out the easy ones) — the figures recalculate from the remaining games. In the league-wide view there's also a 'Hide players from' row to remove a club's own players from the chart. Per-90 normalises for playing time."
       controls={
         <div className="flex flex-wrap items-center gap-2">
           <PillGroup
@@ -4202,22 +4212,45 @@ function OppImpactChart({
         </div>
       }
       footer={
-        <div className="flex flex-wrap gap-2 justify-center">
-          {opponents.map(opp => (
-            <button
-              key={opp}
-              onClick={() => onToggle(opp)}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] border transition-colors",
-                hidden.has(opp)
-                  ? "border-border text-muted-foreground line-through opacity-60"
-                  : "border-border text-foreground hover:border-foreground/40",
-              )}
-            >
-              <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: colorMap[opp] ?? "#888888" }} />
-              {opp}
-            </button>
-          ))}
+        <div className="space-y-1.5">
+          {isAll && (
+            <div className="flex flex-wrap gap-2 justify-center items-center">
+              <span className="text-[10px] text-muted-foreground font-medium">Hide players from:</span>
+              {playerClubs.map(c => (
+                <button
+                  key={c}
+                  onClick={() => onToggleClub(c)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] border transition-colors",
+                    hiddenClubs.has(c)
+                      ? "border-border text-muted-foreground line-through opacity-60"
+                      : "border-border text-foreground hover:border-foreground/40",
+                  )}
+                >
+                  <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: colorMap[c] ?? "#888888" }} />
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 justify-center items-center">
+            {isAll && <span className="text-[10px] text-muted-foreground font-medium">Take out games against:</span>}
+            {opponents.map(opp => (
+              <button
+                key={opp}
+                onClick={() => onToggle(opp)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] border transition-colors",
+                  hidden.has(opp)
+                    ? "border-border text-muted-foreground line-through opacity-60"
+                    : "border-border text-foreground hover:border-foreground/40",
+                )}
+              >
+                <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: colorMap[opp] ?? "#888888" }} />
+                {opp}
+              </button>
+            ))}
+          </div>
         </div>
       }
     >
