@@ -1566,7 +1566,10 @@ router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void>
 type ClutchCat = "winner" | "drawSaver" | "equaliser" | "goAhead";
 type ClutchGoalIn = { teamA: boolean; scorer: string | null; minute: number | null; ord: number };
 
-function classifyClutchGoals(goals: ClutchGoalIn[]): Map<number, ClutchCat> {
+// finalA/finalB are the OFFICIAL recorded scoreline — goal-event rows can be
+// incomplete (seed gaps), so the drawSaver/winner upgrades trust the official
+// result, and are only applied when the replay agrees with it.
+function classifyClutchGoals(goals: ClutchGoalIn[], finalA: number, finalB: number): Map<number, ClutchCat> {
   const sorted = goals.slice().sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0) || a.ord - b.ord);
   const cats = new Map<number, ClutchCat>();
   let a = 0, b = 0;
@@ -1581,9 +1584,11 @@ function classifyClutchGoals(goals: ClutchGoalIn[]): Map<number, ClutchCat> {
       if (g.teamA) lastGoAheadA = g.ord; else lastGoAheadB = g.ord;
     }
   }
-  if (a === b && lastEqualiser != null) cats.set(lastEqualiser, "drawSaver");
-  if (a === b + 1 && lastGoAheadA != null) cats.set(lastGoAheadA, "winner");
-  if (b === a + 1 && lastGoAheadB != null) cats.set(lastGoAheadB, "winner");
+  const replayMatchesOfficial = a === finalA && b === finalB;
+  if (!replayMatchesOfficial) return cats; // incomplete goal rows — keep in-game categories only
+  if (finalA === finalB && lastEqualiser != null) cats.set(lastEqualiser, "drawSaver");
+  if (finalA === finalB + 1 && lastGoAheadA != null) cats.set(lastGoAheadA, "winner");
+  if (finalB === finalA + 1 && lastGoAheadB != null) cats.set(lastGoAheadB, "winner");
   return cats;
 }
 
@@ -1627,7 +1632,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
   if (lastN != null && lastN > 0) {
     matches = matches.slice().sort((x, y) => (y.matchDate ?? "").localeCompare(x.matchDate ?? "")).slice(0, lastN);
   }
-  const close = matches.filter(m => Math.abs((m.goalsScored ?? 0) - (m.goalsConceded ?? 0)) <= 1);
+  const close = matches.filter(m => m.goalsScored != null && m.goalsConceded != null && Math.abs(m.goalsScored - m.goalsConceded) <= 1);
   if (!close.length) { res.json(GetClutchGoalsResponse.parse({ closeMatches: 0, players: [] })); return; }
   const closeById = new Map(close.map(m => [m.id, m]));
 
@@ -1651,8 +1656,8 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
     const input: ClutchGoalIn[] = mGoals.map(g => ({
       teamA: isFocusGoal(g.scorer, g.scorerTeam, roster), scorer: g.scorer, minute: g.minuteScored, ord: g.id,
     }));
-    const cats = classifyClutchGoals(input);
     const gs = m.goalsScored ?? 0, gc = m.goalsConceded ?? 0;
+    const cats = classifyClutchGoals(input, gs, gc);
     const result = `${gs > gc ? "W" : gs < gc ? "L" : "D"} ${gs}-${gc} v ${m.opponent ?? "?"}`;
     for (const g of input) {
       const cat = cats.get(g.ord);
@@ -1687,7 +1692,7 @@ router.get("/analytics/opponent-clutch-goals", async (req, res): Promise<void> =
       windowed = relevant.slice().sort((x, y) => (y.matchDate ?? "").localeCompare(x.matchDate ?? "")).slice(0, lastN);
     }
   }
-  const close = windowed.filter(m => Math.abs((m.homeGoals ?? 0) - (m.awayGoals ?? 0)) <= 1);
+  const close = windowed.filter(m => m.homeGoals != null && m.awayGoals != null && Math.abs(m.homeGoals - m.awayGoals) <= 1);
   if (!close.length) { res.json(GetOpponentClutchGoalsResponse.parse({ closeMatches: 0, players: [] })); return; }
   const closeById = new Map(close.map(m => [m.matchId, m]));
 
@@ -1706,7 +1711,7 @@ router.get("/analytics/opponent-clutch-goals", async (req, res): Promise<void> =
     const input = mGoals
       .filter(g => g.scorerTeam === m.homeTeam || g.scorerTeam === m.awayTeam)
       .map(g => ({ teamA: g.scorerTeam === m.homeTeam, scorer: g.scorer, minute: g.minuteScored, ord: g.id, scorerTeam: g.scorerTeam! }));
-    const cats = classifyClutchGoals(input);
+    const cats = classifyClutchGoals(input, m.homeGoals ?? 0, m.awayGoals ?? 0);
     for (const g of input) {
       const cat = cats.get(g.ord);
       if (!cat || !g.scorer || g.scorer === "OG") continue;
