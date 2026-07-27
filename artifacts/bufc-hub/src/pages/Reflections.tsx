@@ -13,6 +13,10 @@ import {
   useDeleteJournalReflection,
   useGetAuthStatus,
   getGetAuthStatusQueryKey,
+  useListTeams,
+  useListSeasons,
+  useListMatches,
+  getListMatchesQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +33,17 @@ import InterviewDialog from "@/components/InterviewDialog";
 import { KIND_DEFS, filledCount, parseEntryDate, type JournalStandaloneKind } from "@/lib/journalFields";
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "21.07.2026" → Date, or null. */
+function entryDateToDate(raw: string): Date | null {
+  const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 function formatCaptured(iso: string): string {
   const d = new Date(iso);
@@ -79,6 +94,38 @@ export default function Reflections() {
       onError: () => toast({ title: "Couldn't delete the cycle", variant: "destructive" }),
     },
   });
+
+  // Team/season/match context — only used to auto-title match reflections
+  // (round + opponent looked up by game date).
+  const { data: teams } = useListTeams();
+  const { data: seasons } = useListSeasons();
+  const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
+  const seasonId = (seasons?.find((s) => s.isActive) ?? seasons?.[0])?.id;
+  const matchParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
+  const { data: matches } = useListMatches(matchParams, {
+    query: { enabled: !!teamId && !!seasonId, queryKey: getListMatchesQueryKey(matchParams) },
+  });
+
+  /**
+   * Default title when the coach hasn't typed one:
+   *   training →  "Thu-21_Jul-Training_Reflection"
+   *   match    →  "R16-Wanderers-25_Jul-Reflection" (fixture found by game date)
+   */
+  function autoTitle(kind: JournalStandaloneKind, entryDate: string | undefined): string | undefined {
+    const d = entryDate ? entryDateToDate(entryDate) : null;
+    if (!d) return undefined;
+    const dayMon = `${d.getDate()}_${MONTHS[d.getMonth()]}`;
+    if (kind === "session_reflection") {
+      return `${DAYS[d.getDay()]}-${dayMon}-Training_Reflection`;
+    }
+    const iso = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+    const match = matches?.find((m) => m.matchDate === iso);
+    if (match) {
+      const round = match.matchId.match(/^R\d+/i)?.[0]?.toUpperCase();
+      return [round, match.opponent, dayMon, "Reflection"].filter(Boolean).join("-");
+    }
+    return `Match-${dayMon}-Reflection`;
+  }
 
   // ── Standalone reflection editor ──
   const [reflOpen, setReflOpen] = useState(false);
@@ -142,7 +189,7 @@ export default function Reflections() {
   function saveReflection() {
     if (reflId == null) {
       createRefl.mutate({
-        data: { kind: reflKind, title: reflTitle || undefined, entryDate: reflDate || undefined, content: reflContent, ...(fromInterview ? { source: "voice" as const } : {}) },
+        data: { kind: reflKind, title: reflTitle || autoTitle(reflKind, reflDate || undefined), entryDate: reflDate || undefined, content: reflContent, ...(fromInterview ? { source: "voice" as const } : {}) },
       });
     } else {
       updateRefl.mutate({
@@ -422,7 +469,7 @@ export default function Reflections() {
           if (reflId == null) {
             createRefl.mutate(
               {
-                data: { kind: reflKind, title: reflTitle || undefined, entryDate: date, content: merged, source: "voice" as const },
+                data: { kind: reflKind, title: reflTitle || autoTitle(reflKind, date), entryDate: date, content: merged, source: "voice" as const },
               },
               { onError },
             );
