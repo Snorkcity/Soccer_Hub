@@ -1397,12 +1397,16 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
 });
 
-// ─── Opponent On-Field Impact (team GD while a player appeared, by opponent) ───
+// ─── Opponent On-Field Impact (team GD while a player was on the pitch) ────────
 //
-// Binary appearance model (same as the Belconnen player-leaderboard chart): a
-// player who featured in a match is credited with the WHOLE match's goals
-// for/against. Broken down per opponent so the client can exclude selected
-// opponents ("take out the easy games") and recompute totals.
+// Minute-window attribution: league_goals carries the minute of every goal and
+// league_player_stats carries started + minsPlayed, so a player is only credited
+// with goals scored while they were actually on the field:
+//   - starter who played M mins  → on for minutes [0, M]
+//   - sub who played M mins      → on for minutes [L-M, L] (L = match length)
+// Known approximation: a sub who is later subbed off again is assumed to play
+// through to full time (only total minutes are recorded). Broken down per
+// opponent so the client can exclude selected opponents and recompute.
 
 router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void> => {
   const query = GetOpponentOnfieldImpactQueryParams.safeParse(req.query);
@@ -1446,16 +1450,40 @@ router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void>
   }
   if (relevantIds.size === 0) { res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: [], players: [] })); return; }
 
-  const ps = await db
-    .select({
-      playerName: leaguePlayerStatsTable.playerName,
-      matchId: leaguePlayerStatsTable.matchId,
-      minsPlayed: leaguePlayerStatsTable.minsPlayed,
-      appearance: leaguePlayerStatsTable.appearance,
-      club: leaguePlayerStatsTable.club,
-    })
-    .from(leaguePlayerStatsTable)
-    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, Array.from(relevantIds))));
+  const relevantList = Array.from(relevantIds);
+  const [ps, goalRows] = await Promise.all([
+    db.select({
+        playerName: leaguePlayerStatsTable.playerName,
+        matchId: leaguePlayerStatsTable.matchId,
+        minsPlayed: leaguePlayerStatsTable.minsPlayed,
+        started: leaguePlayerStatsTable.started,
+        appearance: leaguePlayerStatsTable.appearance,
+        club: leaguePlayerStatsTable.club,
+      })
+      .from(leaguePlayerStatsTable)
+      .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, relevantList))),
+    db.select({
+        matchId: leagueGoalsTable.matchId,
+        scorerTeam: leagueGoalsTable.scorerTeam,
+        minuteScored: leagueGoalsTable.minuteScored,
+      })
+      .from(leagueGoalsTable)
+      .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, relevantList))),
+  ]);
+
+  // Goals grouped per match, and each match's effective length (covers stoppage-time
+  // minutes if either the goal minute or someone's recorded minutes exceed 90).
+  const goalsByMatch = new Map<string, Array<{ team: string; minute: number | null }>>();
+  const matchLen = new Map<string, number>();
+  for (const g of goalRows) {
+    if (!g.scorerTeam) continue;
+    (goalsByMatch.get(g.matchId) ?? goalsByMatch.set(g.matchId, []).get(g.matchId)!)
+      .push({ team: g.scorerTeam, minute: g.minuteScored });
+    if (g.minuteScored != null) matchLen.set(g.matchId, Math.max(matchLen.get(g.matchId) ?? 90, g.minuteScored));
+  }
+  for (const r of ps) {
+    if (r.minsPlayed != null) matchLen.set(r.matchId, Math.max(matchLen.get(r.matchId) ?? 90, r.minsPlayed));
+  }
 
   // (player|club) → opponent → { gf, ga, mins, apps }
   type Entry = { gf: number; ga: number; mins: number; apps: number };
@@ -1468,18 +1496,30 @@ router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void>
     if (!isAll && r.club !== club) continue;
     const info = matchInfo.get(r.matchId);
     if (!info) continue;
-    let opp: string | null = null;
-    let gf = 0, ga = 0;
-    if (info.homeTeam === r.club) { opp = info.awayTeam; gf = info.homeGoals ?? 0; ga = info.awayGoals ?? 0; }
-    else if (info.awayTeam === r.club) { opp = info.homeTeam; gf = info.awayGoals ?? 0; ga = info.homeGoals ?? 0; }
+    const opp = info.homeTeam === r.club ? info.awayTeam : info.awayTeam === r.club ? info.homeTeam : null;
     if (!opp) continue;
     allOpponents.add(opp);
+
+    // On-field window for this appearance.
+    const L = matchLen.get(r.matchId) ?? 90;
+    const mins = r.minsPlayed ?? 0;
+    const winStart = r.started ? 0 : Math.max(0, L - mins);
+    const winEnd = r.started ? mins : L;
+
+    let gf = 0, ga = 0;
+    for (const g of goalsByMatch.get(r.matchId) ?? []) {
+      // Goals with no recorded minute (shouldn't happen) count for everyone who played.
+      const on = g.minute == null || mins <= 0 ? mins > 0 : g.minute >= winStart && g.minute <= winEnd;
+      if (!on) continue;
+      if (g.team === r.club) gf += 1; else ga += 1;
+    }
+
     const key = `${r.playerName}|${r.club}`;
     const row = byPlayer.get(key) ?? { playerName: r.playerName, club: r.club, byOpponent: {} };
     const e = (row.byOpponent[opp] ??= { gf: 0, ga: 0, mins: 0, apps: 0 });
     e.gf += gf;
     e.ga += ga;
-    e.mins += r.minsPlayed ?? 0;
+    e.mins += mins;
     e.apps += 1;
     byPlayer.set(key, row);
   }

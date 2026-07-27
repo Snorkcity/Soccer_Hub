@@ -4169,8 +4169,8 @@ function OppImpactChart({
     <ChartCard
       tall
       title={`${clubLabel} — On-Field Impact — ${metric === "per90" ? "Per 90" : "Season Total"}${lastN ? " — Last 3 Rounds" : ""}`}
-      description="Team goal difference while the player was in the side — click a club below to take those games out"
-      tooltip="Plus/minus: goals the player's team scored minus conceded across every match the player appeared in. Click a club chip to exclude games against that club (e.g. take out the easy ones) — the figures recalculate from the remaining games. Per-90 normalises for playing time."
+      description="Team goal difference while the player was actually on the pitch — click a club below to take those games out"
+      tooltip="Plus/minus: goals the player's team scored minus conceded during the minutes the player was on the field (worked out from goal minutes, whether they started, and minutes played). A sub who is later subbed off again is assumed to play through to full time. Click a club chip to exclude games against that club (e.g. take out the easy ones) — the figures recalculate from the remaining games. Per-90 normalises for playing time."
       controls={
         <div className="flex flex-wrap items-center gap-2">
           <PillGroup
