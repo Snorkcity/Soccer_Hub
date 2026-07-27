@@ -413,15 +413,27 @@ export default function Reflections() {
             if (v.trim()) merged[k] = v;
           }
           const date = entryDate || reflDate || undefined;
+          // Mirror into editor state so a failed save can reopen the editor
+          // with everything the coach said still in place — never lose answers.
+          setReflContent(merged);
+          if (date) setReflDate(date);
+          setFromInterview(true);
+          const onError = () => setReflOpen(true);
           if (reflId == null) {
-            createRefl.mutate({
-              data: { kind: reflKind, title: reflTitle || undefined, entryDate: date, content: merged, source: "voice" as const },
-            });
+            createRefl.mutate(
+              {
+                data: { kind: reflKind, title: reflTitle || undefined, entryDate: date, content: merged, source: "voice" as const },
+              },
+              { onError },
+            );
           } else {
-            updateRefl.mutate({
-              id: reflId,
-              data: { title: reflTitle || null, entryDate: date ?? null, content: merged },
-            });
+            updateRefl.mutate(
+              {
+                id: reflId,
+                data: { title: reflTitle || null, entryDate: date ?? null, content: merged },
+              },
+              { onError },
+            );
           }
         }}
       />
