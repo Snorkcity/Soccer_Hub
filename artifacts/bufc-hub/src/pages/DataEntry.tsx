@@ -1545,6 +1545,7 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
       setEntries([]); setIgnoredSplits(0); setFileName(null); setPasteText("");
+      setMatchDate(""); setRoundCode(""); setSquad("1sts"); setOpponent("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       // Saves run one round at a time — tell the coach exactly what did and didn't go in
