@@ -501,11 +501,24 @@ function LastNToggle({ lastN, setLastN }: { lastN: boolean; setLastN: (b: boolea
 
 function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundles: Bundle[]; player: string }) {
   const [lastN, setLastN] = useState(false);
+  const [per90, setPer90] = useState(false);
+  // Per-90 only makes sense for additive volumes — Top Speed / Distance-per-min are already rates.
+  const canPer90 = metric.additive;
+  const norm = canPer90 && per90;
 
   const seasonAvg = useMemo(() => {
+    if (norm) {
+      // Weighted per-90: total volume across the season ÷ total minutes, ×90.
+      let sumV = 0, sumM = 0;
+      for (const b of bundles) {
+        const v = bundleTotal(b, metric), m = bundleMins(b);
+        if (v != null && m != null && m > 0) { sumV += v; sumM += m; }
+      }
+      return sumM > 0 ? (sumV / sumM) * 90 : null;
+    }
     const vals = bundles.map(b => bundleTotal(b, metric)).filter((v): v is number => v != null);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-  }, [bundles, metric]);
+  }, [bundles, metric, norm]);
 
   const shown = lastN ? bundles.slice(-4) : bundles;
 
@@ -513,6 +526,18 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
     const v1 = b.h1 ? metric.value(b.h1) : null;
     const v2 = b.h2 ? metric.value(b.h2) : null;
     const total = bundleTotal(b, metric);
+    const mins = bundleMins(b);
+    if (norm) {
+      // One bar per game scaled to a 90-minute rate; halves aren't stacked in
+      // this mode (each half is its own rate — they don't sum to the game rate).
+      const rate = total != null && mins != null && mins > 0 ? (total / mins) * 90 : null;
+      return {
+        round: b.key, opponent: b.opponent, date: b.date, mins,
+        h1: null as number | null, h2: null as number | null,
+        single: rate, total: rate, rawTotal: total,
+        m1: null as number | null, m2: null as number | null,
+      };
+    }
     // Only stack when BOTH halves are present — a lone half would render the
     // missing one as a false zero and understate the game.
     const stack = metric.additive && v1 != null && v2 != null;
@@ -520,15 +545,16 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
       round: b.key,
       opponent: b.opponent,
       date: b.date,
-      mins: bundleMins(b),
+      mins,
       h1: stack ? v1 : null,
       h2: stack ? v2 : null,
       single: stack ? null : total,
       total,
+      rawTotal: total,
       m1: b.h1?.minsPlayed ?? null,
       m2: b.h2?.minsPlayed ?? null,
     };
-  }), [shown, metric]);
+  }), [shown, metric, norm]);
 
   const anyHalves = data.some(d => d.h1 != null || d.h2 != null);
 
@@ -536,12 +562,22 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
         <div className="space-y-1">
-          <CardTitle className="text-base">{metric.title}{metric.unit ? ` (${metric.unit})` : ""}</CardTitle>
+          <CardTitle className="text-base">{metric.title}{metric.unit ? ` (${metric.unit})` : ""}{norm ? " — per 90 mins" : ""}</CardTitle>
           <CardDescription className="text-xs">
-            Oldest → newest.{metric.additive ? " 1st half at the bottom, 2nd half stacked on top." : ""} Dashed line = {player}'s season average.
+            Oldest → newest.{norm
+              ? " Each game scaled to a 90-minute rate, so short shifts compare fairly with full games."
+              : metric.additive ? " 1st half at the bottom, 2nd half stacked on top." : ""} Dashed line = {player}'s season average{norm ? " (per 90)" : ""}.
           </CardDescription>
         </div>
-        <LastNToggle lastN={lastN} setLastN={setLastN} />
+        <div className="flex items-center gap-2">
+          {canPer90 && (
+            <div className="flex rounded-md border overflow-hidden shrink-0">
+              <Button variant={norm ? "ghost" : "secondary"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer90(false)}>Total</Button>
+              <Button variant={norm ? "secondary" : "ghost"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer90(true)}>Per 90</Button>
+            </div>
+          )}
+          <LastNToggle lastN={lastN} setLastN={setLastN} />
+        </div>
       </CardHeader>
       <CardContent className="h-[280px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -549,7 +585,7 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="round" {...AXIS} angle={-40} textAnchor="end" interval={0} />
             <YAxis {...AXIS} fontSize={11} />
-            <Tooltip content={<PlayerTooltip metric={metric} avg={seasonAvg} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Tooltip content={<PlayerTooltip metric={metric} avg={seasonAvg} per90Mode={norm} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
             {seasonAvg != null && <ReferenceLine y={seasonAvg} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
             <Bar dataKey="h1" stackId="halves" name="1st half" fill={C_H1} hide={!anyHalves} />
             <Bar dataKey="h2" stackId="halves" name="2nd half" fill={C_H2} radius={[3, 3, 0, 0]} hide={!anyHalves} />
@@ -564,18 +600,19 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
 interface PlayerTipPayload {
   round: string; opponent: string | null; mins: number | null;
   h1: number | null; h2: number | null; total: number | null;
+  rawTotal: number | null;
   m1: number | null; m2: number | null;
 }
 
-function PlayerTooltip({ active, payload, metric, avg }: {
+function PlayerTooltip({ active, payload, metric, avg, per90Mode }: {
   active?: boolean; payload?: Array<{ payload: PlayerTipPayload }>;
-  metric: GpsMetric; avg: number | null;
+  metric: GpsMetric; avg: number | null; per90Mode?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const vsAvg = d.total != null && avg ? ((d.total / avg - 1) * 100) : null;
   // Per-90 normalises for time on the pitch — a 30-minute shift can be compared with a full game.
-  const per90 = metric.additive && d.total != null && d.mins ? (d.total / d.mins) * 90 : null;
+  const per90 = !per90Mode && metric.additive && d.total != null && d.mins ? (d.total / d.mins) * 90 : null;
   return (
     <div style={TOOLTIP_BOX}>
       <p className="font-semibold">{d.round}{d.opponent ? ` — vs ${d.opponent}` : ""}</p>
@@ -583,10 +620,17 @@ function PlayerTooltip({ active, payload, metric, avg }: {
       <div className="mt-1 space-y-0.5">
         {d.h1 != null && <p><span style={{ color: C_H1 }}>●</span> 1st half: {fmtV(d.h1, metric.decimals, metric.unit)}{d.m1 ? ` (${Math.round(d.m1)} min)` : ""}</p>}
         {d.h2 != null && <p><span style={{ color: C_H2 }}>●</span> 2nd half: {fmtV(d.h2, metric.decimals, metric.unit)}{d.m2 ? ` (${Math.round(d.m2)} min)` : ""}</p>}
-        <p className="font-medium">Game: {fmtV(d.total, metric.decimals, metric.unit)}</p>
+        {per90Mode ? (
+          <>
+            <p className="font-medium">Per 90: {fmtV(d.total, metric.decimals, metric.unit)}</p>
+            {d.rawTotal != null && <p className="text-muted-foreground">Actual: {fmtV(d.rawTotal, metric.decimals, metric.unit)}</p>}
+          </>
+        ) : (
+          <p className="font-medium">Game: {fmtV(d.total, metric.decimals, metric.unit)}</p>
+        )}
         {per90 != null && <p className="text-muted-foreground">≈ {fmtV(per90, metric.decimals, metric.unit)} per 90 mins</p>}
         {vsAvg != null && (
-          <p className="text-muted-foreground">{vsAvg >= 0 ? "▲" : "▼"} {Math.abs(vsAvg).toFixed(0)}% vs her season average</p>
+          <p className="text-muted-foreground">{vsAvg >= 0 ? "▲" : "▼"} {Math.abs(vsAvg).toFixed(0)}% vs her season average{per90Mode ? " (per 90)" : ""}</p>
         )}
       </div>
     </div>
