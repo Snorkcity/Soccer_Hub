@@ -189,12 +189,6 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   }
 
   const matchIds = matches.map(m => m.id);
-  const matchGoalsScoredMap: Record<number, number>   = {};
-  const matchGoalsConcededMap: Record<number, number> = {};
-  for (const m of matches) {
-    matchGoalsScoredMap[m.id]   = m.goalsScored   ?? 0;
-    matchGoalsConcededMap[m.id] = m.goalsConceded  ?? 0;
-  }
 
   if (matchIds.length === 0) {
     res.json([]);
@@ -213,6 +207,21 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   // Goals for scorer/assist tallying — filter by matchIds so lastN applies to goals too
   const goalConditions = [eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)];
   const goals = await db.select().from(goalsTable).where(and(...goalConditions));
+
+  // Minute-window on-field GD (same model as the Opponent Insights impact chart):
+  // classify each goal as ours/theirs via the roster (never trust scorerTeam
+  // spelling alone), group per match, and work out each match's effective length.
+  const seasonRoster = new Set(stats.map(s => s.playerName));
+  const goalsByMatch = new Map<number, Array<{ ours: boolean; minute: number | null }>>();
+  const matchLen = new Map<number, number>();
+  for (const g of goals) {
+    (goalsByMatch.get(g.matchId) ?? goalsByMatch.set(g.matchId, []).get(g.matchId)!)
+      .push({ ours: isFocusGoal(g.scorer, g.scorerTeam, seasonRoster), minute: g.minuteScored });
+    if (g.minuteScored != null) matchLen.set(g.matchId, Math.max(matchLen.get(g.matchId) ?? 90, g.minuteScored));
+  }
+  for (const s of stats) {
+    if (s.minsPlayed != null) matchLen.set(s.matchId, Math.max(matchLen.get(s.matchId) ?? 90, s.minsPlayed));
+  }
 
   // Aggregate per player — keyed by playerId to avoid name-collision bugs
   type PlayerEntry = {
@@ -235,9 +244,17 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     const e = playerMap[s.playerId];
     if (s.appearance) {
       e.appearances++;
-      // Attribute the full match result for every match the player appeared in
-      e.goalsFor      += matchGoalsScoredMap[s.matchId]   ?? 0;
-      e.goalsConceded += matchGoalsConcededMap[s.matchId] ?? 0;
+      // Minute-window attribution: starter on [0, M]; sub on [L-M, L].
+      // (A sub later subbed off again is assumed to play through to full time.)
+      const L = matchLen.get(s.matchId) ?? 90;
+      const mins = s.minsPlayed ?? 0;
+      const winStart = s.started ? 0 : Math.max(0, L - mins);
+      const winEnd = s.started ? mins : L;
+      for (const g of goalsByMatch.get(s.matchId) ?? []) {
+        const on = g.minute == null || mins <= 0 ? mins > 0 : g.minute >= winStart && g.minute <= winEnd;
+        if (!on) continue;
+        if (g.ours) e.goalsFor++; else e.goalsConceded++;
+      }
     }
     if (s.started) e.starts++;
     e.minsPlayed += s.minsPlayed ?? 0;
