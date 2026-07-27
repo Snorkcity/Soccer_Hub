@@ -2351,7 +2351,7 @@ export default function SeasonStats() {
             <ChartCard
               title={`On-Field Impact — ${effMetric === "per90" ? "Per 90" : "Season Total"}`}
               description={`Team goal difference while player is on the pitch · ${effMetric === "per90" ? "per 90 mins" : "season total"}`}
-              tooltip="Plus/minus: team goals scored minus team goals conceded in every match the player appeared in. Higher is better. Switch between raw season total and per-90 to normalise for playing time."
+              tooltip="Plus/minus: team goals scored minus conceded during the minutes the player was on the field (worked out from goal minutes, whether they started, and minutes played). A sub who is later subbed off again is assumed to play through to full time. Higher is better. Switch between raw season total and per-90 to normalise for playing time."
               controls={
                 <div className="flex flex-wrap gap-2">
                   <PillGroup

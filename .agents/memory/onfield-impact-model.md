@@ -8,4 +8,4 @@ Rule: starter who played M mins is on for [0, M]; a sub is on for [L−M, L] whe
 
 **Why:** coach explicitly asked for this refinement — goal minutes exist for every league goal and started+minsPlayed for every appearance, so binary credit was needlessly coarse.
 
-**How to apply:** if the Player-tab (Belconnen) impact chart is ever revisited, coach may want the same model there. Known approximation (told to coach): a sub who is later subbed off again is assumed to play to full time. Data quirk: 2 league matches have goal-row counts ≠ scoreline (seed gaps); goal rows are treated as truth here.
+**How to apply:** BOTH charts now use this model — the Player-tab leaderboard endpoint (roster-based isFocusGoal classification, Belconnen goals table) and the opponent endpoint (league tables, scorerTeam). Keep them in lockstep if the model changes. Known approximation (told to coach): a sub who is later subbed off again is assumed to play to full time. Data quirk: 2 league matches have goal-row counts ≠ scoreline (seed gaps); goal rows are treated as truth here.
