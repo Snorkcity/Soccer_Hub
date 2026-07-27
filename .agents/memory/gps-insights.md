@@ -15,6 +15,7 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 ## GPS match upload (Data Entry tab 6)
 - Catapult CSV parsed client-side; header map verified against the real 109-column export (29 columns used, rest ignored). Two file modes: coach's weekly sheet has her own Round/Opponent/Date/Session Title/Mins columns and holds BOTH squads in one file — upload auto-groups by Round column and saves one request per round with form disabled. Raw exports without a Round column fall back to the form (date/round-code/squad/opponent, `round` = `${code}-${squad}`, 2025+ suffix convention). Her I–M columns (Score/Formations/Conditions/Venue) are ignored by design.
 - Mins played pre-filled from Duration secs ÷ 60 (matches her sheet values exactly), editable per row before save.
+- Paste option: textarea accepts one game's rows (TSV from Excel copy or CSV text) parsed via XLSX string mode; same form fields/flow as file upload. Raw Catapult calls the whole-match split "all" — parser maps it to `game`.
 - splitName MUST be canonicalised to lowercase literals (`game`/`1st.half`/`2nd.half`) before save — charts match exactly; thirds/extra-time and non-game tag rows are dropped at parse. tags always saved as "game".
 - Replace-semantics per (year, round, teamId); POST /entry/gps-sessions.
 
