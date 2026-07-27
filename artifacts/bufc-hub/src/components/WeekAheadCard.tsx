@@ -18,6 +18,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { FileDown, Loader2, Copy, Trash2, Sparkles } from "lucide-react";
@@ -186,7 +187,12 @@ export default function WeekAheadCard() {
   });
   // Sort briefings by the Monday they cover, newest first (fall back to saved time).
   const mondayTime = (r: { data?: unknown; updatedAt: string }): number => {
-    const wk = ((r.data ?? {}) as { weekOf?: string }).weekOf ?? "";
+    const d = (r.data ?? {}) as { weekOf?: string; matchDate?: string };
+    if (d.matchDate) {
+      const t = new Date(`${d.matchDate}T12:00:00`).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+    const wk = d.weekOf ?? "";
     const m = wk.match(/(\d{1,2}) (\w+) (\d{4})/);
     if (m) {
       const t = new Date(`${m[1]} ${m[2]} ${m[3]}`).getTime();
@@ -202,6 +208,8 @@ export default function WeekAheadCard() {
   const [showAllBriefs, setShowAllBriefs] = useState(false);
 
   const [weekOpp, setWeekOpp] = useState("");
+  const [weekRound, setWeekRound] = useState("");
+  const [weekDate, setWeekDate] = useState(""); // yyyy-mm-dd from the date input
   const [drafting, setDrafting] = useState(false);
   // Which saved row is currently building its PowerPoint (row spinner).
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -210,7 +218,24 @@ export default function WeekAheadCard() {
     await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
   }
 
-  type SavedBriefData = { opponent?: string; weekOf?: string; review?: string[]; pointers?: string[] };
+  type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[] };
+
+  /** "Sunday 2 August 2026" from the yyyy-mm-dd date input. */
+  function niceGameDate(iso: string): string {
+    const d = new Date(`${iso}T12:00:00`);
+    return Number.isNaN(d.getTime())
+      ? ""
+      : d.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  }
+
+  /** Saved-list name, matching the pre-match deck style: "R16 v Tuggeranong — Sun 2 Aug". */
+  function briefTitle(round: string, opponent: string, iso: string): string {
+    const d = new Date(`${iso}T12:00:00`);
+    const short = Number.isNaN(d.getTime())
+      ? ""
+      : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+    return `${round || "Week Ahead"} v ${opponent}${short ? ` — ${short}` : ""}`;
+  }
 
   /** "Start new from this" — duplicate a saved briefing for the coming Monday. */
   async function copySaved(r: NonNullable<typeof savedReports>[number]) {
@@ -220,7 +245,7 @@ export default function WeekAheadCard() {
     try {
       await createMatchPrepReport({
         kind: "monday",
-        title: `Week Ahead — vs ${opponent} (${wk})`,
+        title: briefTitle("", opponent, ""),
         opponent,
         data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [] },
       });
@@ -300,15 +325,22 @@ export default function WeekAheadCard() {
       });
 
       // Save straight into the list — downloads happen from the saved rows.
-      const wk = comingMonday();
+      const wk = weekDate ? niceGameDate(weekDate) : comingMonday();
       await createMatchPrepReport({
         kind: "monday",
-        title: `Week Ahead — vs ${weekOpp} (${wk})`,
+        title: briefTitle(weekRound, weekOpp, weekDate),
         opponent: weekOpp,
-        data: { opponent: weekOpp, weekOf: wk, review: brief.review, pointers: brief.pointers },
+        data: {
+          opponent: weekOpp,
+          weekOf: wk,
+          round: weekRound || undefined,
+          matchDate: weekDate || undefined,
+          review: brief.review,
+          pointers: brief.pointers,
+        },
       });
       await refreshList();
-      toast({ title: "Briefing drafted and saved", description: "Download it from the list below." });
+      toast({ title: "Briefing created and saved", description: "Download it from the list below." });
     } catch {
       toast({
         title: "Couldn't draft the briefing",
@@ -346,6 +378,7 @@ export default function WeekAheadCard() {
       const { buildWeekAheadPptx } = await import("@/lib/weekAheadPptx");
       const pptx = buildWeekAheadPptx({
         weekOf: data.weekOf || comingMonday(),
+        round: data.round,
         opponent,
         author: "Belconnen United FC",
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
@@ -377,24 +410,35 @@ export default function WeekAheadCard() {
         <p className="text-sm text-muted-foreground">
           Your Monday briefing as a PowerPoint: last week's reflections reviewed, then the
           coming opponent — their last 3 games, ours, and prep pointers for the week. Pick who
-          you play next, draft it, then download from the saved list below.
+          you play next, add the round and game date, then download from the saved list below.
         </p>
-        <div className="flex gap-2 flex-wrap items-center">
-          <Select value={weekOpp} onValueChange={setWeekOpp}>
-            <SelectTrigger className="w-full sm:w-[240px]">
-              <SelectValue placeholder="This week's opponent…" />
-            </SelectTrigger>
-            <SelectContent>
-              {(oppClubs ?? []).map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex gap-2 flex-wrap items-end">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">This week's opponent</Label>
+            <Select value={weekOpp} onValueChange={setWeekOpp}>
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue placeholder="Pick a club…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(oppClubs ?? []).map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Round</Label>
+            <Input value={weekRound} onChange={(e) => setWeekRound(e.target.value)} placeholder="e.g. R16" className="w-[90px]" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Game date</Label>
+            <Input type="date" value={weekDate} onChange={(e) => setWeekDate(e.target.value)} className="w-[160px]" />
+          </div>
           <Button onClick={() => void generateBrief()} disabled={!weekOpp || drafting}>
             {drafting ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Drafting…</>
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Creating…</>
             ) : (
-              <><Sparkles className="h-4 w-4 mr-1" /> Draft with AI</>
+              <><Sparkles className="h-4 w-4 mr-1" /> Create with AI</>
             )}
           </Button>
         </div>

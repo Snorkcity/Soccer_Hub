@@ -38,6 +38,8 @@ export type WeekAheadSnapshot = Array<[string, string]>;
 
 export interface WeekAheadInput {
   weekOf: string;
+  /** e.g. "R16" — shown on the cover with the game date when provided. */
+  round?: string;
   opponent: string;
   author: string;
   generatedOn: string;
@@ -175,7 +177,7 @@ export function buildWeekAheadPptx(input: WeekAheadInput): PptxGenJS {
       x: MX, y: 3.4, w: W - 2 * MX, h: 0.85, fontSize: 40, align: "center",
     });
     s.addShape("rect", { x: W / 2 - 0.75, y: 4.5, w: 1.5, h: 0.045, fill: { color: SKY_DARK } });
-    s.addText(`Week of ${input.weekOf}`, {
+    s.addText(input.round ? `${input.round} — ${input.weekOf}` : input.weekOf, {
       x: MX, y: 4.7, w: W - 2 * MX, h: 0.4,
       fontSize: 15, color: MUTED, align: "center",
     });
