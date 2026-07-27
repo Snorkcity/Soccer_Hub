@@ -50,15 +50,6 @@ interface Props {
   onSaveDirect?: (content: Record<string, string>, entryDate?: string) => void;
 }
 
-// Rotating check-in prompts so she doesn't repeat herself between questions.
-const CONFIRM_PROMPTS = [
-  "Anything to add?",
-  "OK sure — anything else?",
-  "Sure, I see. Anything else?",
-  "Anything more on that one?",
-  "Got it — anything else?",
-];
-
 // Short conversational lead-ins so the interviewer doesn't sound robotic.
 const LEAD_INS = ["Righto — ", "Okay. ", "Good stuff. ", "Alright — ", "Next one. "];
 
@@ -85,9 +76,6 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
   const [lastHeard, setLastHeard] = useState(""); // last transcript shown to coach
   const answersRef = useRef<Record<string, string[]>>({});
   const entryDateRef = useRef<string | undefined>(undefined);
-  // "Anything else?" is asked at most ONCE per question — after the coach has
-  // added something, we move on rather than nagging him again.
-  const confirmAsksRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -127,6 +115,33 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
     return token !== sessionRef.current;
   }
 
+  // Keep the screen awake while the interview is open — a phone dimming to
+  // sleep kills the mic and the interview with it.
+  useEffect(() => {
+    if (!open || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+    const acquire = async () => {
+      try {
+        lock = await navigator.wakeLock.request("screen");
+        if (cancelled) await lock.release();
+      } catch {
+        // not supported / low battery — nothing we can do
+      }
+    };
+    void acquire();
+    // The lock is dropped when the tab loses visibility — re-grab it on return.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void lock?.release().catch(() => undefined);
+    };
+  }, [open]);
+
   // Quick mode is fully hands-free: whenever we're waiting for an answer,
   // open the mic automatically instead of waiting for a tap.
   useEffect(() => {
@@ -150,6 +165,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
 
   async function say(text: string, nextStage: Stage = "ready") {
     const token = sessionRef.current;
+    stopPlayback(); // never talk over an earlier line (e.g. the write-up one)
     setPrompt(text);
     setStage("speaking");
     try {
@@ -173,19 +189,12 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
     }
   }
 
-  function confirmPrompt(idx: number) {
-    return CONFIRM_PROMPTS[idx % CONFIRM_PROMPTS.length];
-  }
-
-  /** Go to the confirm gate — unless it's already been asked for this question. */
-  async function toConfirm(sayText?: string | null) {
-    if (confirmAsksRef.current >= 1) {
-      await nextField();
-      return;
-    }
-    confirmAsksRef.current += 1;
-    setPhase("confirm");
-    await say(sayText ?? confirmPrompt(fieldIdx));
+  /**
+   * The coach asked for no "anything else?" gate — once an answer's in,
+   * move straight to the next question.
+   */
+  async function toConfirm(_sayText?: string | null) {
+    await nextField();
   }
 
   function questionText(idx: number) {
@@ -209,6 +218,7 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
     const cached = ttsCache.get(text);
     const play = (uri: string) => {
       if (stale(token)) return;
+      stopPlayback();
       const audio = new Audio(uri);
       audioRef.current = audio;
       void audio.play().catch(() => undefined);
@@ -226,7 +236,6 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
 
   async function start() {
     setProbeUsed(!!def.quickInterview || !!fields[0]?.noProbe); // quick mode / factual field: never probe
-    confirmAsksRef.current = 0;
     if (def.dateQuestion) {
       setPhase("date");
       await say(def.dateQuestion);
@@ -296,7 +305,6 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
 
       // While he talks, warm up the audio we'll likely need next — kills the
       // dead air between his answer and the next thing the interviewer says.
-      prefetch(confirmPrompt(fieldIdx));
       if (phase === "date") prefetch(questionText(0));
       else if (fieldIdx + 1 < fields.length) prefetch(questionText(fieldIdx + 1));
     } catch {
@@ -427,7 +435,6 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
     setFieldIdx(next);
     setPhase("answer");
     setProbeUsed(!!def.quickInterview || !!fields[next]?.noProbe); // quick mode / factual field: never probe
-    confirmAsksRef.current = 0;
     await say(questionText(next));
   }
 
