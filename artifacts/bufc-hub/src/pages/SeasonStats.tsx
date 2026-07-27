@@ -2183,7 +2183,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<MinsPerGoalTooltip hiddenOpponents={hiddenOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
                       onClick={(e) => toggleOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
@@ -2251,7 +2251,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<AssistStackedTooltip hiddenOpponents={hiddenAssistOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
                       onClick={(e) => toggleAssistOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
@@ -2319,7 +2319,7 @@ export default function SeasonStats() {
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<ContribTooltip hiddenOpponents={hiddenContribOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
                       onClick={(e) => toggleContribOpponent(e.value as string)}
                       formatter={(value) => (
                         <span style={{
