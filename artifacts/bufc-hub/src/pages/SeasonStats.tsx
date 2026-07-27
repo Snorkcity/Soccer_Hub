@@ -2608,7 +2608,7 @@ export default function SeasonStats() {
                 <Card>
                   <CardHeader>
                     <CardTitle>{selectedClub} — Season Results</CardTitle>
-                    <CardDescription>Every league fixture, with our team highlighted where applicable</CardDescription>
+                    <CardDescription>Every league fixture, most recent first</CardDescription>
                   </CardHeader>
                   <CardContent className="p-0">
                     <Table>
@@ -2622,7 +2622,7 @@ export default function SeasonStats() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {profile.matches.map(m => {
+                        {profile.matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).map(m => {
                           const color = m.result === "W" ? "text-[hsl(var(--chart-3))]" : m.result === "L" ? "text-[hsl(var(--chart-4))]" : "text-muted-foreground";
                           return (
                             <TableRow key={m.matchId}>
@@ -2643,21 +2643,7 @@ export default function SeasonStats() {
                 </Card>
               )}
 
-              {/* 2. Coach behaviour — in-game management (Belconnen only) */}
-              {selectedClub === "Belconnen" && (
-                <ChartCard
-                  title="Coach Behaviour — In-Game Management"
-                  description="Every match plotted by possession (x) vs a control-and-dominance composite (y)"
-                  tooltip="Belconnen only. x = Possession % (midline 50). y = Quadrant Points = 4·GoalsScored + Shots + Passes/10 − 4·GoalsConceded − OppShots − OppPasses/10. Top-right = controlled the game and it paid off. This tactical data is recorded for Belconnen matches only."
-                  auto
-                >
-                  <div className="h-[330px]">
-                    <PhilosophyQuadrant points={quadPoints} colorMap={clubColorMap} />
-                  </div>
-                </ChartCard>
-              )}
-
-              {/* 2b. Coach behaviour — first-substitution patterns (any club; club-relative so hidden league-wide) */}
+              {/* 2. Coach behaviour — first-substitution patterns (any club; club-relative so hidden league-wide) */}
               {!isAll && <FirstSubCard data={firstSub} club={selectedClub} />}
 
               {/* 3. Goals scored by interval */}
