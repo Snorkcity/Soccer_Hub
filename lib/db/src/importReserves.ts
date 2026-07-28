@@ -22,11 +22,29 @@ const dataDir = fs.existsSync(path.resolve(__dirname, "./data/reserves-2026"))
   ? path.resolve(__dirname, "./data/reserves-2026")
   : path.resolve(__dirname, "./src/data/reserves-2026");
 
-const LEAGUE_NAME = "ACT NPLW Reserve";
+const LEAGUE_NAME = "ACT NPLW Reserves";
+const OLD_LEAGUE_NAME = "ACT NPLW Reserve";
 const SEASON_YEAR = "2026";
+const SEASON_LABEL = "2026 Season"; // dropdown shows "ACT NPLW Reserves · 2026 Season"
 const TEAM_NAME = "Belconnen Reserves";
 const OLD_TEAM_NAME = "Belconnen United FC Women's Reserves";
-const FOCUS_CLUB = "BelReserves"; // club string used throughout Luke's sheet
+const FOCUS_CLUB = "Belconnen"; // display name; Luke's sheet says "BelReserves"
+
+// Luke's sheet uses "-Res" suffixed club spellings; the app shows plain club
+// names (per coach). Map at import time so every stored row uses the display
+// name. Applied to Country, Scorer Team, Home/Away Team and Opponent fields.
+const CLUB_MAP: Record<string, string> = {
+  BelReserves: "Belconnen",
+  CroatiaRes: "Croatia",
+  MajuraRes: "Majura",
+  OlympicRes: "Olympic",
+  TuggeranongRes: "Tuggeranong",
+  WanderersRes: "Wanderers",
+};
+function club(v: unknown): string | null {
+  const s = str(v);
+  return s == null ? null : (CLUB_MAP[s] ?? s);
+}
 
 // Scorer/Assist spellings in the league tab that differ from the roster tab.
 // Same rationale as NAME_FIXUPS in seed.ts — map typo → roster spelling.
@@ -72,19 +90,22 @@ async function importReserves() {
 
   // ── League + season (create if missing) ────────────────────────────────────
   let [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.name, LEAGUE_NAME));
+  if (!league) [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.name, OLD_LEAGUE_NAME));
   if (!league) {
     [league] = await db.insert(leaguesTable).values({ name: LEAGUE_NAME, region: "ACT", focusClub: FOCUS_CLUB }).returning();
     console.log(`Created league ${LEAGUE_NAME} (id ${league.id})`);
-  } else if ((league as { focusClub?: string | null }).focusClub !== FOCUS_CLUB) {
-    await db.update(leaguesTable).set({ focusClub: FOCUS_CLUB }).where(eq(leaguesTable.id, league.id));
+  } else if (league.name !== LEAGUE_NAME || (league as { focusClub?: string | null }).focusClub !== FOCUS_CLUB) {
+    await db.update(leaguesTable).set({ name: LEAGUE_NAME, focusClub: FOCUS_CLUB }).where(eq(leaguesTable.id, league.id));
   }
 
   let [season] = await db.select().from(seasonsTable)
     .where(and(eq(seasonsTable.leagueId, league.id), eq(seasonsTable.year, SEASON_YEAR)));
   if (!season) {
     [season] = await db.insert(seasonsTable)
-      .values({ leagueId: league.id, year: SEASON_YEAR, label: `${SEASON_YEAR} Reserves Season`, isActive: true }).returning();
+      .values({ leagueId: league.id, year: SEASON_YEAR, label: SEASON_LABEL, isActive: true }).returning();
     console.log(`Created season ${season.label} (id ${season.id})`);
+  } else if (season.label !== SEASON_LABEL) {
+    await db.update(seasonsTable).set({ label: SEASON_LABEL }).where(eq(seasonsTable.id, season.id));
   }
 
   // ── Team (rename legacy placeholder, enable analytics) ─────────────────────
@@ -98,14 +119,20 @@ async function importReserves() {
     await db.update(teamsTable).set({ name: TEAM_NAME, analyticsEnabled: true }).where(eq(teamsTable.id, team.id));
   }
 
-  // ── Clubs (reserve league's own club rows; names match the data) ───────────
+  // ── Clubs (reserve league's own rows; plain display names, colours mirror firsts)
+  // Rename any rows from earlier imports that still use the sheet spellings.
+  for (const [old, next] of Object.entries(CLUB_MAP)) {
+    await db.update(clubsTable).set({ name: next })
+      .where(and(eq(clubsTable.leagueId, league.id), eq(clubsTable.name, old)));
+    await db.update(playersTable).set({ club: next }).where(eq(playersTable.club, old));
+  }
   const clubRows = [
-    { leagueId: league.id, name: "BelReserves",    primaryColor: "#87CEEB" },
-    { leagueId: league.id, name: "CroatiaRes",     primaryColor: "#DC143C" },
-    { leagueId: league.id, name: "MajuraRes",      primaryColor: "#4169E1" },
-    { leagueId: league.id, name: "OlympicRes",     primaryColor: "#000080" },
-    { leagueId: league.id, name: "TuggeranongRes", primaryColor: "#008000" },
-    { leagueId: league.id, name: "WanderersRes",   primaryColor: "#B22222" },
+    { leagueId: league.id, name: "Belconnen",   primaryColor: "#87CEEB" },
+    { leagueId: league.id, name: "Croatia",     primaryColor: "#DC143C" },
+    { leagueId: league.id, name: "Majura",      primaryColor: "#4169E1" },
+    { leagueId: league.id, name: "Olympic",     primaryColor: "#000080" },
+    { leagueId: league.id, name: "Tuggeranong", primaryColor: "#008000" },
+    { leagueId: league.id, name: "Wanderers",   primaryColor: "#B22222" },
   ];
   const existingClubs = await db.select().from(clubsTable).where(eq(clubsTable.leagueId, league.id));
   const existingClubNames = new Set(existingClubs.map(c => c.name));
@@ -141,9 +168,9 @@ async function importReserves() {
   for (const row of psRows) {
     const name = str(row["Player Name"]);
     if (!name) continue;
-    const key = pKey(name, str(row["Country"]));
+    const key = pKey(name, club(row["Country"]));
     if (playerIdMap.has(key) || newPlayers.has(key)) continue;
-    newPlayers.set(key, { name, position: str(row["Position"]), club: str(row["Country"]) });
+    newPlayers.set(key, { name, position: str(row["Position"]), club: club(row["Country"]) });
   }
   if (newPlayers.size > 0) {
     const inserted = await db.insert(playersTable).values(Array.from(newPlayers.values())).returning();
@@ -156,7 +183,7 @@ async function importReserves() {
     matchId: str(row["Match ID"]) ?? "unknown",
     matchDate: str(row["Match Date"]),
     venue: str(row["Venue"]),
-    opponent: str(row["Opponent"]) ?? "Unknown",
+    opponent: club(row["Opponent"]) ?? "Unknown",
     halfScore: str(row["Half-score"]),
     fullScore: str(row["Full-score"]),
     goalsScored: int(row["Goals Scored"]),
@@ -183,14 +210,14 @@ async function importReserves() {
     const pName = str(row["Player Name"]) ?? "Unknown";
     return {
       matchId: matchIdMap.get(str(row["Match ID"])!)!,
-      playerId: playerIdMap.get(pKey(pName, str(row["Country"]))) ?? 0,
+      playerId: playerIdMap.get(pKey(pName, club(row["Country"]))) ?? 0,
       playerName: pName,
       minsPlayed: int(row["Mins Played"]),
       position: str(row["Position"]),
       discipline: str(row["Discipline"]),
       started: bool(row["Start"]),
       appearance: bool(row["Appearance"]),
-      club: str(row["Country"]),
+      club: club(row["Country"]),
       year: str(row["Year"]),
     };
   });
@@ -201,14 +228,14 @@ async function importReserves() {
 
   // ── Goals in Belconnen Reserves' matches ────────────────────────────────────
   const goalValues = lgRows
-    .filter(row => matchIdMap.has(str(row["Match ID"]) ?? "") && str(row["Scorer Team"]))
+    .filter(row => matchIdMap.has(str(row["Match ID"]) ?? "") && club(row["Scorer Team"]))
     .map(row => ({
       matchId: matchIdMap.get(str(row["Match ID"])!)!,
       recording: str(row["Recording"]),
       matchDate: str(row["Match Date"]),
-      homeTeam: str(row["Home Team"]),
-      awayTeam: str(row["Away Team"]),
-      scorerTeam: str(row["Scorer Team"]),
+      homeTeam: club(row["Home Team"]),
+      awayTeam: club(row["Away Team"]),
+      scorerTeam: club(row["Scorer Team"]),
       minuteScored: int(row["Minute Scored"]),
       scorer: canonName(row["Scorer"]),
       assist: canonName(row["Assist"]),
@@ -243,8 +270,8 @@ async function importReserves() {
     seenLeagueMatch.set(mid, {
       matchId: mid,
       matchDate: str(row["Match Date"]),
-      homeTeam: str(row["Home Team"]) ?? "Unknown",
-      awayTeam: str(row["Away Team"]) ?? "Unknown",
+      homeTeam: club(row["Home Team"]) ?? "Unknown",
+      awayTeam: club(row["Away Team"]) ?? "Unknown",
       fullScore: fscore,
       homeGoals,
       awayGoals,
@@ -256,13 +283,13 @@ async function importReserves() {
 
   // ── League goals (whole league) ─────────────────────────────────────────────
   const leagueGoalValues = lgRows
-    .filter(row => str(row["Match ID"]) && str(row["Scorer Team"]))
+    .filter(row => str(row["Match ID"]) && club(row["Scorer Team"]))
     .map(row => ({
       matchId: str(row["Match ID"])!,
       matchDate: str(row["Match Date"]),
-      homeTeam: str(row["Home Team"]),
-      awayTeam: str(row["Away Team"]),
-      scorerTeam: str(row["Scorer Team"]),
+      homeTeam: club(row["Home Team"]),
+      awayTeam: club(row["Away Team"]),
+      scorerTeam: club(row["Scorer Team"]),
       minuteScored: int(row["Minute Scored"]),
       scorer: canonName(row["Scorer"]),
       assist: canonName(row["Assist"]),
@@ -291,7 +318,7 @@ async function importReserves() {
     discipline: str(row["Discipline"]),
     started: bool(row["Start"]),
     appearance: bool(row["Appearance"]),
-    club: str(row["Country"]),
+    club: club(row["Country"]),
     year: str(row["Year"]),
     seasonId: season.id,
   }));

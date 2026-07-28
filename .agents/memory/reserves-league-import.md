@@ -4,13 +4,13 @@ description: How the ACT NPLW Reserve 2026 season was imported and how the focus
 ---
 
 ## Focus club is per-league now
-- `leagues.focus_club` (nullable text) names the club string used in that league's data ("Belconnen" for ACT NPLW, "BelReserves" for ACT NPLW Reserve). Fallback when null: "Belconnen".
+- `leagues.focus_club` (nullable text) names the club string used in that league's data ("Belconnen" for both ACT NPLW and ACT NPLW Reserves — reserves data is mapped to plain club names at import). Fallback when null: "Belconnen".
 - `artifacts/api-server/src/lib/focusClub.ts` → `focusClubForSeason(seasonId)` (cached). analytics.ts and entry.ts resolve it per handler; never hardcode "Belconnen" in new endpoints. The athletic-tests players list (year+team scoped, no seasonId) still uses the literal deliberately.
 - **Why:** every future league (mens NPL, other clubs as customers) has its own focus-club spelling in the source data.
 
 ## Reserves import
 - `lib/db/src/importReserves.ts` + CSVs in `lib/db/src/data/reserves-2026/` (converted from Luke's xlsx). Additive + idempotent: wipes only its own team+season / season scope, never firsts. Run by esbuild-bundling from artifacts/api-server (no tsx runner).
-- Team "Belconnen Reserves" (renamed from the placeholder row), analyticsEnabled. Club rows keep the data spellings (BelReserves, CroatiaRes, ...), colours mirror the firsts clubs.
+- Team "Belconnen Reserves" (renamed from the placeholder row), analyticsEnabled. Luke's "-Res" club spellings are mapped to plain display names (Belconnen, Croatia, ...) via CLUB_MAP at import time; league renamed "ACT NPLW Reserves", season label "2026 Season" (dropdown convention "League · Label").
 - Players are keyed name+club (players.club → DB column `country`); same surname at two clubs must not share a player row.
 
 ## Excel score-corruption gotcha
