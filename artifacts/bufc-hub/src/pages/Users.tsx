@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, LogOut, Plus, Pencil, Trash2, ShieldCheck, KeyRound, Users as UsersIcon } from "lucide-react";
 
@@ -20,7 +20,21 @@ function errMsg(e: unknown): string {
   return anyE?.data?.error ?? anyE?.error ?? anyE?.message ?? "Something went wrong";
 }
 
-type LeagueRole = "admin" | "viewer" | "none";
+// The tickable per-league modules, in display order. `short` labels are used in
+// the compact access summary shown in the user list.
+const MODULES: { key: string; label: string; short: string }[] = [
+  { key: "season-stats", label: "Season Stats", short: "Stats" },
+  { key: "gps", label: "GPS Insights", short: "GPS" },
+  { key: "testing", label: "Testing", short: "Testing" },
+  { key: "match-prep", label: "Match Prep", short: "Prep" },
+  { key: "reflections", label: "Reflections", short: "Reflect" },
+  { key: "data-entry", label: "Data Entry", short: "Entry" },
+];
+
+// Legacy `role` is derived from modules: data-entry ⇒ admin, otherwise viewer.
+function roleForModules(modules: string[]): "admin" | "viewer" {
+  return modules.includes("data-entry") ? "admin" : "viewer";
+}
 
 interface EditorState {
   id: number | null; // null = creating
@@ -28,7 +42,8 @@ interface EditorState {
   email: string;
   password: string;
   isSuperadmin: boolean;
-  leagueRoles: Record<number, LeagueRole>;
+  // leagueId → set of ticked module keys
+  leagueModules: Record<number, string[]>;
 }
 
 export default function Users() {
@@ -73,20 +88,31 @@ export default function Users() {
 
   function openCreate() {
     setEditorErr(null);
-    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueRoles: {} });
+    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {} });
   }
   function openEdit(u: UserInfo) {
     setEditorErr(null);
-    const roles: Record<number, LeagueRole> = {};
-    for (const a of u.leagues) roles[a.leagueId] = a.role as LeagueRole;
-    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueRoles: roles });
+    const leagueModules: Record<number, string[]> = {};
+    for (const a of u.leagues) leagueModules[a.leagueId] = [...a.modules];
+    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueModules });
+  }
+  function toggleModule(leagueId: number, module: string, on: boolean) {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      const current = new Set(prev.leagueModules[leagueId] ?? []);
+      if (on) current.add(module); else current.delete(module);
+      return { ...prev, leagueModules: { ...prev.leagueModules, [leagueId]: [...current] } };
+    });
   }
   function saveEditor() {
     if (!editor) return;
     setEditorErr(null);
-    const leagueAccess: LeagueAccess[] = Object.entries(editor.leagueRoles)
-      .filter(([, role]) => role === "admin" || role === "viewer")
-      .map(([leagueId, role]) => ({ leagueId: Number(leagueId), role: role as "admin" | "viewer" }));
+    // A league with zero ticked modules is omitted entirely. `role` stays required
+    // in requests and is derived from the ticked modules.
+    const leagueAccess: LeagueAccess[] = Object.entries(editor.leagueModules)
+      .map(([leagueId, modules]) => ({ leagueId: Number(leagueId), modules }))
+      .filter(({ modules }) => modules.length > 0)
+      .map(({ leagueId, modules }) => ({ leagueId, role: roleForModules(modules), modules }));
     if (editor.id === null) {
       createUser.mutate({ data: {
         name: editor.name.trim(), email: editor.email.trim(), password: editor.password,
@@ -134,12 +160,21 @@ export default function Users() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                      {!u.isSuperadmin && (
+                      {u.isSuperadmin ? (
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                          {u.leagues.length === 0 && <span className="text-xs text-muted-foreground italic">No league access</span>}
-                          {u.leagues.map((a) => (
+                          <Badge variant="outline" className="text-xs">Everything</Badge>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {u.leagues.filter((a) => a.modules.length > 0).length === 0 && (
+                            <span className="text-xs text-muted-foreground italic">No league access</span>
+                          )}
+                          {u.leagues.filter((a) => a.modules.length > 0).map((a) => (
                             <Badge key={a.leagueId} variant="outline" className="text-xs">
-                              {leagueName.get(a.leagueId) ?? `League ${a.leagueId}`} · {a.role === "admin" ? "Admin" : "View only"}
+                              {leagueName.get(a.leagueId) ?? `League ${a.leagueId}`} ·{" "}
+                              {a.modules
+                                .map((m) => MODULES.find((x) => x.key === m)?.short ?? m)
+                                .join(", ")}
                             </Badge>
                           ))}
                         </div>
@@ -214,24 +249,30 @@ export default function Users() {
                 <Switch checked={editor.isSuperadmin} onCheckedChange={(v) => setEditor({ ...editor, isSuperadmin: v })} />
               </div>
               {!editor.isSuperadmin && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="text-xs font-medium text-muted-foreground">League access</div>
-                  {(leagues ?? []).map((l) => (
-                    <div key={l.id} className="flex items-center justify-between gap-3">
-                      <span className="text-sm">{l.name}</span>
-                      <Select
-                        value={editor.leagueRoles[l.id] ?? "none"}
-                        onValueChange={(v) => setEditor({ ...editor, leagueRoles: { ...editor.leagueRoles, [l.id]: v as LeagueRole } })}
-                      >
-                        <SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No access</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="viewer">View only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Tick the pages this person can use in each team. Leaving all boxes clear removes their access to that team.
+                  </p>
+                  {(leagues ?? []).map((l) => {
+                    const ticked = new Set(editor.leagueModules[l.id] ?? []);
+                    return (
+                      <div key={l.id} className="rounded-md border border-border p-3 space-y-2">
+                        <div className="text-sm font-medium">{l.name}</div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          {MODULES.map((m) => (
+                            <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox
+                                checked={ticked.has(m.key)}
+                                onCheckedChange={(v) => toggleModule(l.id, m.key, v === true)}
+                              />
+                              <span>{m.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {editorErr && <p className="text-sm text-chart-4">{editorErr}</p>}

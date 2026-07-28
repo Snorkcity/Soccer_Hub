@@ -47,6 +47,8 @@ import {
   type PlayerDnaResponse,
   type FirstSubResponse,
 } from "@workspace/api-client-react";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1125,7 +1127,13 @@ function buildShortNames(players: Array<{ playerName: string }>): Record<string,
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function SeasonStats() {
   const { data: teams } = useListTeams();
-  const { data: seasons } = useListSeasons();
+  const { data: allSeasons } = useListSeasons();
+  const { hasModule } = useLeagueModules();
+  // Only offer seasons of leagues where the user has the season-stats module.
+  const seasons = useMemo(
+    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "season-stats")),
+    [allSeasons, hasModule],
+  );
 
   const [selectedTeamId, setSelectedTeamId] = useState<number | "">("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | "">("");
@@ -1780,6 +1788,11 @@ export default function SeasonStats() {
 
   // Player metrics: per-90 rates for Belconnen + the league-wide view; totals only
   // for an individual opponent (rates off a scouted club can mislead).
+
+  // No season belongs to a league where the user has this page's module.
+  if (allSeasons && seasons.length === 0) {
+    return <NoAccess />;
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

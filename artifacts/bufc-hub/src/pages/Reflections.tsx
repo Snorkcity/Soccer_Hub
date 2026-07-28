@@ -30,6 +30,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
 import InterviewDialog from "@/components/InterviewDialog";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 import { KIND_DEFS, filledCount, parseEntryDate, type JournalStandaloneKind } from "@/lib/journalFields";
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
@@ -84,9 +86,12 @@ export default function Reflections() {
   // Team/season/match context — only used to auto-title match reflections
   // (round + opponent looked up by game date).
   const { data: teams } = useListTeams();
-  const { data: seasons } = useListSeasons();
+  const { data: allSeasons } = useListSeasons();
+  const { hasModule } = useLeagueModules();
+  // Only consider seasons of leagues where the user has the reflections module.
+  const seasons = (allSeasons ?? []).filter((s) => hasModule(s.leagueId, "reflections"));
   const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
-  const seasonId = (seasons?.find((s) => s.isActive) ?? seasons?.[0])?.id;
+  const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
   const matchParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: matches } = useListMatches(matchParams, {
     query: { enabled: !!teamId && !!seasonId, queryKey: getListMatchesQueryKey(matchParams) },
@@ -185,6 +190,9 @@ export default function Reflections() {
   }
 
   const reflDef = KIND_DEFS[reflKind];
+
+  // No season belongs to a league where the user has reflections access.
+  if (allSeasons && seasons.length === 0) return <NoAccess />;
 
   return (
     <div className="p-4 md:p-6 space-y-8">

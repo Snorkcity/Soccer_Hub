@@ -9,5 +9,8 @@ import type { LeagueAccessRole } from './leagueAccessRole';
 
 export interface LeagueAccess {
   leagueId: number;
+  /** Legacy; derived from modules (data-entry ⇒ admin). */
   role: LeagueAccessRole;
+  /** Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry). */
+  modules: string[];
 }

@@ -1616,7 +1616,8 @@ export const LoginResponse = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 }))
 }).optional()
 })
@@ -1645,7 +1646,8 @@ export const ListUsersResponseItem = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })),
   "createdAt": zod.string()
 })
@@ -1662,7 +1664,8 @@ export const CreateUserBody = zod.object({
   "isSuperadmin": zod.boolean().optional(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })).optional()
 })
 
@@ -1673,7 +1676,8 @@ export const CreateUserResponse = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })),
   "createdAt": zod.string()
 })
@@ -1693,7 +1697,8 @@ export const UpdateUserBody = zod.object({
   "isSuperadmin": zod.boolean().optional(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })).optional()
 })
 
@@ -1704,7 +1709,8 @@ export const UpdateUserResponse = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })),
   "createdAt": zod.string()
 })
@@ -1735,7 +1741,8 @@ export const LogoutResponse = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 }))
 }).optional()
 })
@@ -1754,7 +1761,8 @@ export const GetAuthStatusResponse = zod.object({
   "isSuperadmin": zod.boolean(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
-  "role": zod.enum(['admin', 'viewer'])
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 }))
 }).optional()
 })

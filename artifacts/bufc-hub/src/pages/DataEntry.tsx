@@ -54,6 +54,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 
 const FOCUS_CLUB = "Belconnen";
 
@@ -1712,8 +1714,14 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
 function EntryWorkspace() {
   const queryClient = useQueryClient();
   const { data: teams } = useListTeams();
-  const { data: seasons } = useListSeasons();
+  const { data: allSeasons } = useListSeasons();
   const { data: clubs } = useGetClubs();
+  const { hasModule } = useLeagueModules();
+  // Only offer seasons of leagues where the user has the data-entry module.
+  const seasons = useMemo(
+    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "data-entry")),
+    [allSeasons, hasModule],
+  );
 
   const [teamId, setTeamId] = useState<number | null>(null);
   const [seasonId, setSeasonId] = useState<number | null>(null);
@@ -1751,6 +1759,9 @@ function EntryWorkspace() {
     () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),
     [clubs, season],
   );
+
+  // No season belongs to a league where the user has data-entry access.
+  if (allSeasons && seasons.length === 0) return <NoAccess />;
 
   if (!isReady) return <p className="text-muted-foreground text-center py-16">Loading…</p>;
 

@@ -22,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 import { FileDown, CalendarIcon, Loader2, Sparkles, Save, Copy, Trash2, FolderOpen } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -351,9 +353,15 @@ export default function MatchPrep() {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   const { data: teams } = useListTeams({ query: { queryKey: ["listTeams"] } });
-  const { data: seasons } = useListSeasons({ query: { queryKey: ["listSeasons"] } });
+  const { data: allSeasons } = useListSeasons({ query: { queryKey: ["listSeasons"] } });
+  const { hasModule } = useLeagueModules();
+  // Only consider seasons of leagues where the user has the match-prep module.
+  const seasons = useMemo(
+    () => (allSeasons ?? []).filter((s) => hasModule(s.leagueId, "match-prep")),
+    [allSeasons, hasModule],
+  );
   const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
-  const seasonId = (seasons?.find((s) => s.isActive) ?? seasons?.[0])?.id;
+  const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
   const clubsParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: oppClubs } = useGetOpponentClubs(clubsParams, {
     query: { queryKey: getGetOpponentClubsQueryKey(clubsParams), enabled: teamId != null && seasonId != null },
@@ -771,6 +779,9 @@ export default function MatchPrep() {
       </div>
     );
   };
+
+  // No season belongs to a league where the user has match-prep access.
+  if (allSeasons && seasons.length === 0) return <NoAccess />;
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl">

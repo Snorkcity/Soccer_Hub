@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
+import { getSessionUser, hasModule, leagueIdForSeason } from "../middlewares/entryAuth";
 import { eq, and, desc, isNull, inArray, type AnyColumn } from "drizzle-orm";
 import {
   db,
@@ -148,6 +149,18 @@ router.get("/entry/goals", async (req, res): Promise<void> => {
   res.json(ListEntryGoalsResponse.parse({ goals: rows }));
 });
 
+
+// ID-parameter deletes carry no seasonId in the query/body, so the central
+// middleware can't scope them to a league. Re-check here against the row's own
+// season before deleting (prevents cross-league deletes by ID).
+async function canEnterDataForSeason(req: Request, seasonId: number): Promise<boolean> {
+  const user = await getSessionUser(req);
+  if (!user) return false;
+  const leagueId = await leagueIdForSeason(seasonId);
+  if (leagueId == null) return false;
+  return hasModule(user, leagueId, "data-entry");
+}
+
 router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
   const goalId = Number(req.params.goalId);
   if (!Number.isInteger(goalId)) {
@@ -157,6 +170,10 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
   const [goal] = await db.select().from(leagueGoalsTable).where(eq(leagueGoalsTable.id, goalId));
   if (!goal) {
     res.status(404).json({ error: "That goal is already gone" });
+    return;
+  }
+  if (!(await canEnterDataForSeason(req, goal.seasonId))) {
+    res.status(403).json({ error: "You don't have data entry access for this league" });
     return;
   }
 
@@ -636,6 +653,10 @@ router.delete("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
   }
   if (row.seasonId == null) {
     res.status(400).json({ error: "Row has no season — cannot safely mirror-delete" });
+    return;
+  }
+  if (!(await canEnterDataForSeason(req, row.seasonId))) {
+    res.status(403).json({ error: "You don't have data entry access for this league" });
     return;
   }
 

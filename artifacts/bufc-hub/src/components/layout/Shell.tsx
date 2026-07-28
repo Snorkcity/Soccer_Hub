@@ -1,28 +1,40 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, Users, X } from "lucide-react";
-import { useGetAuthStatus } from "@workspace/api-client-react";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
-const navItems = [
+// `module` gates a module-locked item (shown only when the user has that module in
+// at least one league, or is superadmin). `superadmin` gates the Users page.
+// Items with neither are shared and always visible to any signed-in user.
+const navItems: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  module?: string;
+  superadmin?: boolean;
+}[] = [
   { href: "/", label: "Hub", icon: Home },
-  { href: "/season-stats", label: "Season Stats", icon: BarChart3 },
-  { href: "/gps", label: "GPS Insights", icon: Navigation2 },
-  { href: "/testing", label: "Testing", icon: Activity },
-  { href: "/match-prep", label: "Match Prep", icon: Trophy },
-  { href: "/reflections", label: "Reflections", icon: BookHeart },
+  { href: "/season-stats", label: "Season Stats", icon: BarChart3, module: "season-stats" },
+  { href: "/gps", label: "GPS Insights", icon: Navigation2, module: "gps" },
+  { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
+  { href: "/match-prep", label: "Match Prep", icon: Trophy, module: "match-prep" },
+  { href: "/reflections", label: "Reflections", icon: BookHeart, module: "reflections" },
   { href: "/assistant", label: "Coach Assistant", icon: Bot },
   { href: "/sessions", label: "Session Planner", icon: ClipboardList },
   { href: "/library", label: "Session Library", icon: BookOpen },
-  { href: "/data-entry", label: "Data Entry", icon: Edit3 },
-  { href: "/users", label: "Users", icon: Users },
+  { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
+  { href: "/users", label: "Users", icon: Users, superadmin: true },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { data: auth } = useGetAuthStatus();
-  const isSuperadmin = auth?.authenticated === true && auth.user?.isSuperadmin === true;
-  const visibleItems = navItems.filter((item) => item.href !== "/users" || isSuperadmin);
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const visibleItems = navItems.filter((item) => {
+    if (item.superadmin) return isSuperadmin;
+    if (item.module) return hasModuleAnywhere(item.module);
+    return true;
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 

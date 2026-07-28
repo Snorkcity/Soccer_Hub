@@ -57,6 +57,14 @@ export async function runStartupMigrations(): Promise<void> {
   // ── User accounts (2026-07): real logins replace the shared club password ──
   await runUserAccountsMigration();
 
+  // Per-league module tick-boxes (2026-07): user_league_access.modules lists the
+  // pages a user may use in that league. Backfill from the legacy role: admins
+  // get everything, viewers everything except data entry.
+  await db.execute(sql`ALTER TABLE user_league_access ADD COLUMN IF NOT EXISTS modules jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  await db.execute(sql`UPDATE user_league_access SET modules = '["season-stats","gps","testing","match-prep","reflections","data-entry"]'::jsonb WHERE modules = '[]'::jsonb AND role = 'admin'`);
+  await db.execute(sql`UPDATE user_league_access SET modules = '["season-stats","gps","testing","match-prep","reflections"]'::jsonb WHERE modules = '[]'::jsonb AND role = 'viewer'`);
+
+
   // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table
   await db.execute(sql`ALTER TABLE league_matches ADD COLUMN IF NOT EXISTS half_score text`);
   await db.execute(sql`

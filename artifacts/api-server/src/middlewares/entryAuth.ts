@@ -20,13 +20,18 @@ const SESSION_DAYS = 30;
 
 export type SessionRole = "admin" | "viewer";
 
+export interface LeagueGrant {
+  role: SessionRole; // legacy; kept for display/back-compat
+  modules: Set<string>;
+}
+
 export interface SessionUser {
   id: number;
   email: string;
   name: string;
   isSuperadmin: boolean;
-  /** leagueId → role */
-  leagues: Map<number, SessionRole>;
+  /** leagueId → grant */
+  leagues: Map<number, LeagueGrant>;
 }
 
 function secret(): string {
@@ -101,7 +106,10 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
         email: rows[0].email,
         name: rows[0].name,
         isSuperadmin: rows[0].isSuperadmin,
-        leagues: new Map(access.map((a) => [a.leagueId, a.role as SessionRole])),
+        leagues: new Map(access.map((a) => [a.leagueId, {
+          role: a.role as SessionRole,
+          modules: new Set(Array.isArray(a.modules) ? a.modules : []),
+        }])),
       };
     }
   }
@@ -109,19 +117,80 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
   return user;
 }
 
-/** Effective app-wide role for back-compat UI checks: admin if the user can write anywhere. */
+/** Effective app-wide role for back-compat UI checks: admin if the user can enter data anywhere. */
 export function effectiveRole(user: SessionUser): SessionRole {
   if (user.isSuperadmin) return "admin";
-  for (const role of user.leagues.values()) if (role === "admin") return "admin";
+  for (const g of user.leagues.values()) if (g.modules.has("data-entry")) return "admin";
   return "viewer";
 }
 
 export function canSeeLeague(user: SessionUser, leagueId: number): boolean {
-  return user.isSuperadmin || user.leagues.has(leagueId);
+  if (user.isSuperadmin) return true;
+  const g = user.leagues.get(leagueId);
+  return !!g && g.modules.size > 0;
+}
+
+export function hasModule(user: SessionUser, leagueId: number, module: string): boolean {
+  if (user.isSuperadmin) return true;
+  return user.leagues.get(leagueId)?.modules.has(module) ?? false;
+}
+
+export function hasModuleAnywhere(user: SessionUser, module: string): boolean {
+  if (user.isSuperadmin) return true;
+  for (const g of user.leagues.values()) if (g.modules.has(module)) return true;
+  return false;
 }
 
 export function canWriteLeague(user: SessionUser, leagueId: number): boolean {
-  return user.isSuperadmin || user.leagues.get(leagueId) === "admin";
+  if (user.isSuperadmin) return true;
+  const g = user.leagues.get(leagueId);
+  return !!g && g.modules.size > 0; // per-module write checks happen in requireSession
+}
+
+// Route prefix → module that owns it. A request under one of these prefixes
+// requires the module ticked for the scoped league (or in at least one league
+// when the request carries no league/season scope). Prefixes not listed
+// (analytics, teams, seasons, assistant, sessions, practices, …) stay open to
+// any league member — Match Prep and the shared tools read from them.
+const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
+  ["/entry/athletic-tests", "testing"], // trainer xlsx upload lives under /entry
+  ["/entry/gps-sessions", "gps"],       // GPS import lives under /entry too
+  ["/entry", "data-entry"],
+  ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
+  ["/journal/week-ahead-brief", "match-prep"], // under /journal, not /match-prep
+
+  ["/gps-sessions", "gps"],
+  ["/gps-player-positions", "gps"],
+  ["/athletic-tests", "testing"],
+  ["/match-prep", "match-prep"],
+  ["/journal", "reflections"], // reflection journal routes
+];
+
+// Setup-style writes (creating seasons/teams/clubs) belong to Data Entry, but
+// their GETs feed every page's dropdowns, so the module applies to writes only.
+const WRITE_MODULE_ROUTES: Array<[prefix: string, module: string]> = [
+  ["/seasons", "data-entry"],
+  ["/teams", "data-entry"],
+  ["/clubs", "data-entry"],
+  ["/players", "data-entry"],
+  ["/matches", "data-entry"],
+  ["/goals", "data-entry"],
+  ["/player-stats", "data-entry"],
+];
+
+// Shared tools: writes open to any signed-in user (per coach).
+const SHARED_WRITE_PREFIXES = ["/sessions", "/library", "/assistant", "/auth"];
+
+export function isSharedWritePath(path: string): boolean {
+  return SHARED_WRITE_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+}
+
+export function moduleForPath(path: string, isWrite: boolean): string | null {
+  const routes = isWrite ? [...MODULE_ROUTES, ...WRITE_MODULE_ROUTES] : MODULE_ROUTES;
+  for (const [prefix, module] of routes) {
+    if (path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?")) return module;
+  }
+  return null;
 }
 
 // seasonId → leagueId cache (seasons never change league; tiny table)
@@ -158,6 +227,8 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
     // Central league scoping: any request that names a season or league — in
     // the query string OR the (already-parsed) JSON body — is checked against
     // the user's access. Superadmins skip the check.
+    const isWrite = req.method !== "GET" && req.method !== "HEAD";
+    const module = moduleForPath(req.path, isWrite);
     if (!user.isSuperadmin) {
       const leagueIds = new Set<number>();
       const asId = (v: unknown): number | null => {
@@ -175,16 +246,21 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
           if (fromSeason !== null) leagueIds.add(fromSeason);
         }
       }
-      const isWrite = req.method !== "GET" && req.method !== "HEAD";
       for (const leagueId of leagueIds) {
         if (!canSeeLeague(user, leagueId)) {
           res.status(403).json({ error: "No access to this league" });
           return;
         }
-        if (isWrite && !canWriteLeague(user, leagueId)) {
-          res.status(403).json({ error: "Admin access to this league is required to change data" });
+        // Module-owned routes need that module ticked for the scoped league
+        if (module && !hasModule(user, leagueId, module)) {
+          res.status(403).json({ error: "You don't have access to this page for this league" });
           return;
         }
+      }
+      // Module-owned routes with no league scope: need the module somewhere
+      if (module && leagueIds.size === 0 && !hasModuleAnywhere(user, module)) {
+        res.status(403).json({ error: "You don't have access to this page" });
+        return;
       }
       // Creating a league itself names no existing league — superadmin only.
       if (isWrite && req.path === "/leagues") {
@@ -198,8 +274,12 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
     if (req.path === "/assistant/chat") return next();
     // Account self-service is handled (and further checked) in the auth routes.
     if (req.path.startsWith("/auth/")) return next();
-    if (effectiveRole(user) !== "admin") {
-      res.status(403).json({ error: "Admin access required to change data" });
+    // Module-owned writes were already checked above. Shared tools (session
+    // planner, session library, assistant) are open to any signed-in user.
+    // Anything else falls back to the legacy safety net: must be able to
+    // enter data somewhere.
+    if (!module && !isSharedWritePath(req.path) && effectiveRole(user) !== "admin") {
+      res.status(403).json({ error: "You don't have access to change this data" });
       return;
     }
     next();

@@ -1181,6 +1181,9 @@ export interface AdminLoginBody {
   password: string;
 }
 
+/**
+ * Legacy; derived from modules (data-entry ⇒ admin).
+ */
 export type LeagueAccessRole = typeof LeagueAccessRole[keyof typeof LeagueAccessRole];
 
 
@@ -1191,7 +1194,10 @@ export const LeagueAccessRole = {
 
 export interface LeagueAccess {
   leagueId: number;
+  /** Legacy; derived from modules (data-entry ⇒ admin). */
   role: LeagueAccessRole;
+  /** Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry). */
+  modules: string[];
 }
 
 export interface SessionUserInfo {

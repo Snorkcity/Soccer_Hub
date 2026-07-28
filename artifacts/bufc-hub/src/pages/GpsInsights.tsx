@@ -22,6 +22,8 @@ import { FileDown, Loader2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -151,6 +153,7 @@ const bundleMins = (b: Bundle): number | null =>
 
 export default function GpsInsights() {
   const [year, setYear] = useState("2026");
+  const { hasModuleAnywhere, ready } = useLeagueModules();
 
   // Meta query: all whole-game rows for the year → rounds, squads, player names
   const metaParams = { year, split: "game" };
@@ -158,6 +161,8 @@ export default function GpsInsights() {
     metaParams,
     { query: { queryKey: getListGpsSessionsQueryKey(metaParams) } },
   );
+
+  if (ready && !hasModuleAnywhere("gps")) return <NoAccess />;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

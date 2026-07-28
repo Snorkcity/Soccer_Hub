@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Legacy; derived from modules (data-entry ⇒ admin).
+ */
 export type LeagueAccessRole = typeof LeagueAccessRole[keyof typeof LeagueAccessRole];
 
 

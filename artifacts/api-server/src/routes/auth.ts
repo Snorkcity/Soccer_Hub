@@ -25,7 +25,8 @@ const LoginBody = z.object({
 
 const LeagueAccessInput = z.object({
   leagueId: z.number().int(),
-  role: z.enum(LEAGUE_ROLES),
+  role: z.enum(LEAGUE_ROLES).optional().default("viewer"), // legacy
+  modules: z.array(z.string()).optional().default([]),
 });
 
 const CreateUserBody = z.object({
@@ -58,7 +59,7 @@ async function authStatusPayload(user: SessionUser) {
       email: user.email,
       name: user.name,
       isSuperadmin: user.isSuperadmin,
-      leagues: [...user.leagues.entries()].map(([leagueId, role]) => ({ leagueId, role })),
+      leagues: [...user.leagues.entries()].map(([leagueId, g]) => ({ leagueId, role: g.role, modules: [...g.modules] })),
     },
   };
 }
@@ -72,7 +73,7 @@ async function userInfo(userId: number) {
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role })),
+    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [] })),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -101,7 +102,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const access = await db.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, row.id));
   const user: SessionUser = {
     id: row.id, email: row.email, name: row.name, isSuperadmin: row.isSuperadmin,
-    leagues: new Map(access.map((a) => [a.leagueId, a.role as "admin" | "viewer"])),
+    leagues: new Map(access.map((a) => [a.leagueId, {
+      role: a.role as "admin" | "viewer",
+      modules: new Set<string>(Array.isArray(a.modules) ? a.modules : []),
+    }])),
   };
   logger.info({ userId: row.id, email }, "User logged in");
   res.json(await authStatusPayload(user));
@@ -153,7 +157,7 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role })),
+    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [] })),
     createdAt: row.createdAt.toISOString(),
   })));
 });
@@ -178,7 +182,11 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     .values({ email, name, passwordHash: hashPassword(password), isSuperadmin })
     .returning({ id: usersTable.id });
   if (leagues.length > 0) {
-    await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({ userId: created.id, leagueId: l.leagueId, role: l.role })));
+    await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({
+      userId: created.id, leagueId: l.leagueId,
+      role: l.modules.includes("data-entry") ? "admin" : "viewer",
+      modules: l.modules,
+    })));
   }
   logger.info({ userId: created.id, email }, "User created");
   res.status(201).json(await userInfo(created.id));
@@ -223,7 +231,11 @@ router.patch("/auth/users/:id", async (req, res): Promise<void> => {
   if (leagues) {
     await db.delete(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, id));
     if (leagues.length > 0) {
-      await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({ userId: id, leagueId: l.leagueId, role: l.role })));
+      await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({
+        userId: id, leagueId: l.leagueId,
+        role: l.modules.includes("data-entry") ? "admin" : "viewer",
+        modules: l.modules,
+      })));
     }
   }
   res.json(await userInfo(id));

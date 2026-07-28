@@ -3380,7 +3380,12 @@ components:
         role:
           type: string
           enum: [admin, viewer]
-      required: [leagueId, role]
+          description: Legacy; derived from modules (data-entry ⇒ admin).
+        modules:
+          type: array
+          items: { type: string }
+          description: Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).
+      required: [leagueId, role, modules]
 
     SessionUserInfo:
       type: object

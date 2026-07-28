@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { leaguesTable } from "./leagues";
@@ -18,11 +18,25 @@ export const usersTable = pgTable("users", {
   uniqueIndex("users_email_unique").on(t.email),
 ]);
 
+// Per-league modules a user may use (read AND write within that league).
+// Shared tools (Coach Assistant, Session Planner, Session Library) are open to
+// every signed-in user and are not listed here.
+export const LEAGUE_MODULES = [
+  "season-stats",
+  "gps",
+  "testing",
+  "match-prep",
+  "reflections",
+  "data-entry",
+] as const;
+export type LeagueModule = (typeof LEAGUE_MODULES)[number];
+
 export const userLeagueAccessTable = pgTable("user_league_access", {
   id:       serial("id").primaryKey(),
   userId:   integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
-  role:     text("role").notNull(), // "admin" | "viewer"
+  role:     text("role").notNull(), // legacy "admin" | "viewer" — superseded by modules
+  modules:  jsonb("modules").$type<string[]>().notNull().default([]),
 }, (t) => [
   uniqueIndex("user_league_access_unique").on(t.userId, t.leagueId),
 ]);
