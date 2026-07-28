@@ -43,6 +43,9 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`UPDATE leagues SET name = 'ACT NPLW Reserves', focus_club = 'Belconnen' WHERE name = 'ACT NPLW Reserve'`);
   await db.execute(sql`UPDATE leagues SET focus_club = 'Belconnen' WHERE name = 'ACT NPLW Reserves' AND (focus_club IS NULL OR focus_club = 'BelReserves')`);
   await db.execute(sql`UPDATE seasons SET label = '2026 Season' WHERE label = 'ACT NPLW Reserve 2026'`);
+  // Men's league renamed too (per coach): "ACT NPLM · 2026 Season"
+  await db.execute(sql`UPDATE leagues SET name = 'ACT NPLM' WHERE name = 'ACT NPL Men'`);
+  await db.execute(sql`UPDATE seasons SET label = '2026 Season' WHERE label = 'ACT NPL Men 2026'`);
 
   // Club names are unique per league (same club name can exist in two leagues)
   await db.execute(sql`ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_name_unique`);
