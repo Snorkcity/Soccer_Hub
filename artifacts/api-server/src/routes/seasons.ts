@@ -54,6 +54,9 @@ router.get("/seasons", async (req, res): Promise<void> => {
     })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(leaguesTable.id, seasonsTable.leagueId))
+    // Only active seasons are offered in the app; historical seasons (2024/2025)
+    // live in the legacy app until their data is brought across (per coach).
+    .where(eq(seasonsTable.isActive, true))
     .orderBy(asc(seasonsTable.leagueId), desc(seasonsTable.year));
   const visible = user ? rows.filter((s) => canSeeLeague(user, s.leagueId)) : [];
   res.json(ListSeasonsResponse.parse(visible));
