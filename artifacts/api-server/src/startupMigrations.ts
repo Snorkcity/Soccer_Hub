@@ -278,6 +278,7 @@ export async function runStartupMigrations(): Promise<void> {
   await syncRounds();
   await syncPlayerSheets();
   await syncJournalEntries();
+  await backfillSavedNames();
 
   logger.info("Startup migrations applied");
 }
@@ -719,5 +720,134 @@ async function syncPracticeLibrary(): Promise<void> {
   logger.info(
     { practices: snap.practices.length, variations: snap.variations.length },
     "Practice library sync complete",
+  );
+}
+
+/**
+ * One-shot rename (2026-07): brings pre-standard saved reflections and Week
+ * Ahead briefings in line with the agreed saved-name style
+ * ("Type — R# v Opponent / weekday" + structured round/matchDate).
+ * Titles/metadata only — content and saved timestamps are never touched, and
+ * coach-typed custom titles are left alone (only NULL/empty titles or
+ * machine-generated legacy patterns like "R15-Croatia" / underscore names
+ * are rewritten).
+ */
+const SAVED_NAMES_VERSION = "saved-names-backfill-v1";
+
+async function backfillSavedNames(): Promise<void> {
+  const marker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = ${SAVED_NAMES_VERSION}`,
+  );
+  if (marker.rows.length > 0) return;
+
+  // ── Standalone training reflections: "Training Reflection — <weekday>" ──
+  const training = await db.execute(sql`
+    UPDATE journal_entries
+    SET title = 'Training Reflection — ' || trim(to_char(to_date(entry_date, 'DD.MM.YYYY'), 'Day'))
+    WHERE cycle_id IS NULL
+      AND kind = 'session_reflection'
+      AND entry_date ~ '^\\d{2}\\.\\d{2}\\.\\d{4}$'
+      AND (title IS NULL OR title = '' OR title LIKE '%\\_%' ESCAPE '\\' OR title ~ '^R\\d+')
+  `);
+
+  // ── Standalone match reflections: "Match Reflection — R# v Opponent" ──
+  // Primary source: the matches list, joined on the entry date.
+  const matchRefl = await db.execute(sql`
+    UPDATE journal_entries je
+    SET title = 'Match Reflection — ' || upper(split_part(m.match_id, '-', 1)) || ' v ' || m.opponent
+    FROM matches m
+    WHERE je.cycle_id IS NULL
+      AND je.kind = 'match_reflection'
+      AND je.entry_date ~ '^\\d{2}\\.\\d{2}\\.\\d{4}$'
+      AND m.match_date = to_char(to_date(je.entry_date, 'DD.MM.YYYY'), 'YYYY/MM/DD')
+      AND m.match_id ~ '^R\\d+'
+      AND (je.title IS NULL OR je.title = '' OR je.title LIKE '%\\_%' ESCAPE '\\' OR je.title ~ '^R\\d+-')
+  `);
+  // Fallback for entries with no matching fixture: parse the legacy
+  // "R15-Croatia" style title itself.
+  const matchReflFallback = await db.execute(sql`
+    UPDATE journal_entries
+    SET title = 'Match Reflection — ' || substring(title from '^R\\d+') || ' v ' || regexp_replace(title, '^R\\d+-', '')
+    WHERE cycle_id IS NULL
+      AND kind = 'match_reflection'
+      AND title ~ '^R\\d+-\\S'
+  `);
+
+  // ── Legacy Week Ahead briefings: add structured round + matchDate ──
+  // The saved list only renders the new "Week Ahead — R# v Opponent · date"
+  // row when data.round/matchDate exist; look them up for old rows.
+  const mondays = await db.execute(sql`
+    SELECT id, data FROM match_prep_reports
+    WHERE kind = 'monday'
+      AND (data->>'round') IS NULL
+      AND (data->>'matchDate') IS NULL
+  `);
+  const fixtures = await db.execute(sql`
+    SELECT match_id, match_date, opponent FROM matches WHERE match_id ~ '^R\\d+'
+  `);
+  const fridayRefs = await db.execute(sql`
+    SELECT data->>'opponent' AS opponent, data->>'round' AS round, data->>'matchDate' AS match_date
+    FROM match_prep_reports
+    WHERE kind = 'friday' AND (data->>'round') IS NOT NULL AND (data->>'matchDate') IS NOT NULL
+  `);
+
+  const parseAnyDate = (raw: string | null | undefined): Date | null => {
+    if (!raw) return null;
+    const iso = /^(\d{4})[/-](\d{2})[/-](\d{2})$/.exec(raw.trim());
+    if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    const t = Date.parse(raw.replace(/^[A-Za-z]+,?\s+/, "")); // strip weekday prefix
+    return Number.isNaN(t) ? null : new Date(t);
+  };
+  const toIso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const dayDiff = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
+
+  let briefsUpdated = 0;
+  for (const row of mondays.rows as Array<{ id: number; data: Record<string, unknown> }>) {
+    const data = row.data ?? {};
+    const opponent = typeof data.opponent === "string" ? data.opponent : null;
+    const monday = parseAnyDate(typeof data.weekOf === "string" ? data.weekOf : null);
+    if (!opponent || !monday) continue;
+
+    // Candidate games vs that opponent: real fixtures first, then rounds
+    // recorded on saved Friday match-prep reports (covers games not yet in
+    // the results table). Prefer the game inside the covered fortnight, then
+    // the nearest one within 14 days either side.
+    const candidates: Array<{ round: string; date: Date }> = [];
+    for (const f of fixtures.rows as Array<{ match_id: string; match_date: string; opponent: string }>) {
+      const d = parseAnyDate(f.match_date);
+      if (d && f.opponent === opponent) candidates.push({ round: f.match_id.split("-")[0].toUpperCase(), date: d });
+    }
+    for (const f of fridayRefs.rows as Array<{ opponent: string | null; round: string | null; match_date: string | null }>) {
+      const d = parseAnyDate(f.match_date);
+      if (d && f.round && f.opponent === opponent) candidates.push({ round: f.round.toUpperCase(), date: d });
+    }
+    const best = candidates
+      .map((c) => ({ ...c, diff: dayDiff(c.date, monday) }))
+      .filter((c) => Math.abs(c.diff) <= 14)
+      .sort((a, b) => {
+        const aAhead = a.diff >= 0 ? 0 : 1; // games in the week(s) ahead win
+        const bAhead = b.diff >= 0 ? 0 : 1;
+        return aAhead - bAhead || Math.abs(a.diff) - Math.abs(b.diff);
+      })[0];
+    if (!best) continue;
+
+    await db.execute(sql`
+      UPDATE match_prep_reports
+      SET data = data || ${JSON.stringify({ round: best.round, matchDate: toIso(best.date) })}::jsonb
+      WHERE id = ${row.id}
+    `);
+    briefsUpdated++;
+  }
+
+  await db.execute(sql`INSERT INTO seed_markers (key) VALUES (${SAVED_NAMES_VERSION}) ON CONFLICT DO NOTHING`);
+  logger.info(
+    {
+      trainingRenamed: training.rowCount,
+      matchRenamed: matchRefl.rowCount,
+      matchFallback: matchReflFallback.rowCount,
+      briefsUpdated,
+    },
+    "Saved-name backfill complete",
   );
 }
