@@ -903,6 +903,17 @@ async function runUserAccountsMigration(): Promise<void> {
     )
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS user_league_access_unique ON user_league_access (user_id, league_id)`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash text NOT NULL,
+      expires_at timestamp NOT NULL,
+      used_at timestamp,
+      created_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS password_reset_tokens_hash_unique ON password_reset_tokens (token_hash)`);
 
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;

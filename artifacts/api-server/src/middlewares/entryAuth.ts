@@ -215,7 +215,10 @@ export async function leagueIdForSeason(seasonId: number): Promise<number | null
 export function requireSession(req: Request, res: Response, next: NextFunction): void {
   void (async () => {
     if (req.method === "OPTIONS") return next();
-    if (req.path === "/auth/login" || req.path === "/auth/logout" || req.path === "/auth/me") return next();
+    if (
+      req.path === "/auth/login" || req.path === "/auth/logout" || req.path === "/auth/me" ||
+      req.path === "/auth/forgot-password" || req.path === "/auth/reset-password"
+    ) return next();
     if (req.path === "/healthz") return next(); // deploy health check must stay open
 
     const user = await getSessionUser(req);

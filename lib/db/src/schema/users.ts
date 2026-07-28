@@ -41,6 +41,19 @@ export const userLeagueAccessTable = pgTable("user_league_access", {
   uniqueIndex("user_league_access_unique").on(t.userId, t.leagueId),
 ]);
 
+// One-time password reset tokens. We store only the sha256 hash of the token;
+// the raw token exists only in the email link. Expires after 1 hour, single use.
+export const passwordResetTokensTable = pgTable("password_reset_tokens", {
+  id:        serial("id").primaryKey(),
+  userId:    integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt:    timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("password_reset_tokens_hash_unique").on(t.tokenHash),
+]);
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;

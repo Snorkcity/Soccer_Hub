@@ -1649,6 +1649,31 @@ export const UpdateProfileResponse = zod.object({
 
 
 /**
+ * @summary Request a password reset email (always returns ok)
+ */
+export const ForgotPasswordBody = zod.object({
+  "email": zod.string()
+})
+
+export const ForgotPasswordResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Set a new password using an emailed reset token
+ */
+export const ResetPasswordBody = zod.object({
+  "token": zod.string(),
+  "newPassword": zod.string()
+})
+
+export const ResetPasswordResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Change the signed-in user's password
  */
 export const ChangePasswordBody = zod.object({

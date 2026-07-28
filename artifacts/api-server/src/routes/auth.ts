@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
+import crypto from "node:crypto";
 import { z } from "zod/v4";
-import { db, usersTable, userLeagueAccessTable } from "@workspace/db";
+import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable } from "@workspace/db";
+import { sendEmail, passwordResetEmailHtml } from "../lib/email";
 import { eq, asc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
@@ -177,6 +179,90 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
   await db.update(usersTable)
     .set({ passwordHash: hashPassword(parsed.data.newPassword), updatedAt: new Date() })
     .where(eq(usersTable.id, user.id));
+  res.json({ ok: true });
+});
+
+// ── Forgot / reset password (unauthenticated) ─────────────────────────────────
+
+const ForgotPasswordBody = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+const ResetPasswordBody = z.object({
+  token: z.string().min(20),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashResetToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+/** Base URL for links in emails. Prod is pinned; dev derives from the referer. */
+function appBaseUrl(req: { get(name: string): string | undefined }): string {
+  if (process.env.NODE_ENV === "production") return "https://app.gameinsights.com.au";
+  const referer = req.get("referer");
+  if (referer) {
+    try {
+      const u = new URL(referer);
+      // Keep the path prefix the app is served under (dev path-based routing)
+      return `${u.origin}${u.pathname.replace(/\/$/, "")}`;
+    } catch { /* fall through */ }
+  }
+  return process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:80";
+}
+
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const parsed = ForgotPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter a valid email address" });
+    return;
+  }
+  // Always answer ok — never reveal whether an account exists.
+  res.json({ ok: true });
+  const email = parsed.data.email;
+  try {
+    const [row] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (!row) return;
+    const token = crypto.randomBytes(32).toString("base64url");
+    await db.insert(passwordResetTokensTable).values({
+      userId: row.id,
+      tokenHash: hashResetToken(token),
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+    });
+    const resetUrl = `${appBaseUrl(req)}/?reset_token=${token}`;
+    await sendEmail({
+      to: row.email,
+      subject: "Reset your BUFC Performance Hub password",
+      html: passwordResetEmailHtml(row.name, resetUrl),
+    });
+    logger.info({ userId: row.id }, "Password reset email sent");
+  } catch (err) {
+    logger.error({ err, email }, "Failed to send password reset email");
+  }
+});
+
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const parsed = ResetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const tokenHash = hashResetToken(parsed.data.token);
+  const [row] = await db.select().from(passwordResetTokensTable)
+    .where(eq(passwordResetTokensTable.tokenHash, tokenHash)).limit(1);
+  if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) {
+    res.status(400).json({ error: "That reset link is invalid or has expired. Request a new one." });
+    return;
+  }
+  await db.update(usersTable)
+    .set({ passwordHash: hashPassword(parsed.data.newPassword), updatedAt: new Date() })
+    .where(eq(usersTable.id, row.userId));
+  await db.update(passwordResetTokensTable)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokensTable.id, row.id));
+  logger.info({ userId: row.userId }, "Password reset via email link");
   res.json({ ok: true });
 });
 

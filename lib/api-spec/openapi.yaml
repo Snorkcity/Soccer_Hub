@@ -1272,6 +1272,40 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AuthStatus" }
 
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset email (always returns ok)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        "200":
+          description: Accepted (whether or not the account exists)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using an emailed reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
   /auth/change-password:
     post:
       operationId: changePassword
@@ -3432,6 +3466,19 @@ components:
       properties:
         name: { type: string }
         email: { type: string }
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email: { type: string }
+      required: [email]
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token: { type: string }
+        newPassword: { type: string }
+      required: [token, newPassword]
 
     ChangePasswordRequest:
       type: object
