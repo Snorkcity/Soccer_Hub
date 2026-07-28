@@ -34,9 +34,6 @@ import { KIND_DEFS, filledCount, parseEntryDate, type JournalStandaloneKind } fr
 
 const STANDALONE_KINDS: JournalStandaloneKind[] = ["session_reflection", "match_reflection"];
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 /** "21.07.2026" → Date, or null. */
 function entryDateToDate(raw: string): Date | null {
   const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
@@ -45,17 +42,6 @@ function entryDateToDate(raw: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatCaptured(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
 
 export default function Reflections() {
   const [, navigate] = useLocation();
@@ -114,17 +100,16 @@ export default function Reflections() {
   function autoTitle(kind: JournalStandaloneKind, entryDate: string | undefined): string | undefined {
     const d = entryDate ? entryDateToDate(entryDate) : null;
     if (!d) return undefined;
-    const dayMon = `${d.getDate()}_${MONTHS[d.getMonth()]}`;
     if (kind === "session_reflection") {
-      return `${DAYS[d.getDay()]}-${dayMon}-Training_Reflection`;
+      return `Training Reflection — ${d.toLocaleDateString("en-AU", { weekday: "long" })}`;
     }
     const iso = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
     const match = matches?.find((m) => m.matchDate === iso);
     if (match) {
       const round = match.matchId.match(/^R\d+/i)?.[0]?.toUpperCase();
-      return [round, match.opponent, dayMon, "Reflection"].filter(Boolean).join("-");
+      return `Match Reflection — ${round ? `${round} ` : ""}v ${match.opponent}`;
     }
-    return `Match-${dayMon}-Reflection`;
+    return "Match Reflection";
   }
 
   // ── Standalone reflection editor ──
@@ -311,17 +296,17 @@ export default function Reflections() {
                     <Badge variant="secondary" className="shrink-0">
                       {r.kind === "match_reflection" ? "Match" : "Training"}
                     </Badge>
-                    <span className="text-sm font-medium truncate min-w-0 flex-1">
-                      {r.title || def.title}
+                    <span className="text-sm truncate min-w-0 flex-1">
+                      <span className="font-semibold">{r.title || def.title}</span>
+                      {r.entryDate && (
+                        <span className="text-muted-foreground">
+                          {" "}· {entryDateToDate(r.entryDate)?.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) ?? r.entryDate}
+                        </span>
+                      )}
+                      <span className="text-muted-foreground text-xs"> · saved {new Date(r.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
                     </span>
-                    {r.entryDate && (
-                      <span className="text-xs text-muted-foreground shrink-0">{r.entryDate}</span>
-                    )}
                     <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
                       {filled}/{def.fields.length}
-                    </span>
-                    <span className="text-xs text-muted-foreground shrink-0 hidden md:inline">
-                      captured {formatCaptured(r.createdAt)}
                     </span>
                     {canWrite && (
                       <Button

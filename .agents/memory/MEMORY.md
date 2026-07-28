@@ -38,4 +38,5 @@
 - [Assistant session diagrams](assistant-session-diagrams.md) — parked feature: embed practice-library diagrams in assistant session answers; no diagram beats wrong diagram; matching done with coach.
 - [Coach Assistant](coach-assistant.md) — RAG chat over 14 curriculum docx; embeddings need direct OPENAI_API_KEY (proxy lacks embeddings); chat open to any signed-in role; system prompt rules are non-negotiable.
 - [On-field impact minute-window model](onfield-impact-model.md) — Opponent Insights GD chart credits only goals in the player's minute window (starter 0–M, sub L−M–L); not binary like the Player tab.
+- [Saved-name standard](saved-name-standard.md) — all saved report/doc rows: bold "Type — R# v Opp", muted game date, smaller "saved d MMM"; standard for every new saving feature.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
