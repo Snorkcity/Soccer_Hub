@@ -18,3 +18,9 @@ Applied consistently in both the runtime pool and the drizzle-kit config so `pus
 **Why:** user wanted both dev and prod databases hosted in Railway. Moving dev off Replit's built-in DB means re-seeding the (empty) Railway dev DB: `pnpm --filter @workspace/db run push` then `pnpm dlx tsx lib/db/src/seed.ts` (both honor the DEV_DATABASE_URL override from the shell env).
 
 **How to apply:** if `DATABASE_URL` shows up in `viewEnvVars` `runtimeManaged`, do not try to set it — use the `DEV_DATABASE_URL` override path instead.
+
+## Prod DB direct access (added 2026-07-28)
+- Secret `PROD_DATABASE_URL` = Railway Postgres-Prod **public** URL (host proxy.rlwy.net); `psql "$PROD_DATABASE_URL"` works from Replit for read checks and careful data pushes.
+- Scott changed his prod password via My Account, so $ADMIN_PASSWORD no longer logs into prod — DB access is the way to inspect/fix prod data.
+- Prod gps_sessions count columns are `accel_count_over_4`/`decel_count_over_4` (extra underscore vs what you might guess).
+- Coach uploads weekly GPS via the LIVE site → prod is source of truth; dev DB is a stale snapshot. Check prod before declaring data "missing".
