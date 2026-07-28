@@ -228,13 +228,13 @@ export default function WeekAheadCard() {
       : d.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   }
 
-  /** Saved-list name, matching the pre-match deck style: "R16 v Tuggeranong — Sun 2 Aug". */
+  /** Saved-list name, matching the pre-match deck style: "Week Ahead — R17 v Tuggeranong — 2 August 2026". */
   function briefTitle(round: string, opponent: string, iso: string): string {
     const d = new Date(`${iso}T12:00:00`);
-    const short = Number.isNaN(d.getTime())
+    const nice = Number.isNaN(d.getTime())
       ? ""
-      : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
-    return `${round || "Week Ahead"} v ${opponent}${short ? ` — ${short}` : ""}`;
+      : d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+    return `Week Ahead — ${round ? `${round} ` : ""}v ${opponent}${nice ? ` — ${nice}` : ""}`;
   }
 
   /** "Start new from this" — duplicate a saved briefing for the coming Monday. */
@@ -449,7 +449,22 @@ export default function WeekAheadCard() {
             <div className="space-y-1">
               {(showAllBriefs ? mondayReports : mondayReports.slice(0, 5)).map((r) => (
                 <div key={r.id} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-                  <span className="flex-1 truncate">{r.title}</span>
+                  <span className="flex-1 truncate">
+                    {(() => {
+                      const data = (r.data ?? {}) as SavedBriefData;
+                      if (!data.round && !data.matchDate) return r.title; // legacy briefings keep their saved name
+                      const gameDate = data.matchDate
+                        ? new Date(`${data.matchDate}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                        : "";
+                      return (
+                        <>
+                          <span className="font-semibold">Week Ahead — {data.round || "—"} v {data.opponent ?? r.opponent ?? "?"}</span>
+                          {gameDate && <span className="text-muted-foreground"> · {gameDate}</span>}
+                          <span className="text-muted-foreground text-xs"> · saved {new Date(r.updatedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
+                        </>
+                      );
+                    })()}
+                  </span>
                   <Button variant="ghost" size="sm" className="h-7 px-2" title="Download report" disabled={downloadingId != null} onClick={() => void downloadSaved(r)}>
                     {downloadingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
                   </Button>

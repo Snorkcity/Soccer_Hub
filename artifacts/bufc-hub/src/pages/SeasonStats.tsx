@@ -2473,33 +2473,33 @@ export default function SeasonStats() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Player</TableHead>
-                    <TableHead>Pos</TableHead>
-                    <TableHead className="text-right">Apps</TableHead>
-                    <TableHead className="text-right">Starts</TableHead>
-                    <TableHead className="text-right">Mins</TableHead>
-                    <TableHead className="text-right font-bold text-chart-1">G</TableHead>
-                    <TableHead className="text-right">A</TableHead>
-                    <TableHead className="text-right text-muted-foreground">Mins/G</TableHead>
-                    <TableHead className="text-right text-muted-foreground">Mins/A</TableHead>
-                    <TableHead className="text-right text-yellow-400">Y</TableHead>
-                    <TableHead className="text-right text-red-500">R</TableHead>
+                    <TableHead className="h-8 py-1">Player</TableHead>
+                    <TableHead className="h-8 py-1">Pos</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Apps</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Starts</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Mins</TableHead>
+                    <TableHead className="h-8 py-1 text-right font-bold text-chart-1">G</TableHead>
+                    <TableHead className="h-8 py-1 text-right">A</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/G</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/A</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-yellow-400">Y</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-red-500">R</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {leaderboard?.map(p => (
-                    <TableRow key={p.playerId}>
-                      <TableCell className="font-medium">{p.playerName}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{p.position ?? "—"}</TableCell>
-                      <TableCell className="text-right">{p.appearances}</TableCell>
-                      <TableCell className="text-right">{p.starts}</TableCell>
-                      <TableCell className="text-right">{p.minsPlayed}</TableCell>
-                      <TableCell className="text-right font-bold text-chart-1">{p.goals}</TableCell>
-                      <TableCell className="text-right">{p.assists}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{p.minsPerGoal ? Math.round(p.minsPerGoal) : "—"}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{p.minsPerAssist ? Math.round(p.minsPerAssist) : "—"}</TableCell>
-                      <TableCell className="text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
-                      <TableCell className="text-right text-red-500">{p.redCards || "—"}</TableCell>
+                    <TableRow key={p.playerId} className="text-sm">
+                      <TableCell className="py-1.5 font-medium">{p.playerName}</TableCell>
+                      <TableCell className="py-1.5 text-muted-foreground text-xs">{p.position ?? "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.appearances}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.starts}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.minsPlayed}</TableCell>
+                      <TableCell className="py-1.5 text-right font-bold text-chart-1">{p.goals}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.assists}</TableCell>
+                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerGoal ? Math.round(p.minsPerGoal) : "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerAssist ? Math.round(p.minsPerAssist) : "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-red-500">{p.redCards || "—"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -2940,19 +2940,19 @@ export default function SeasonStats() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12 text-center">#</TableHead>
-                          <TableHead>Player</TableHead>
-                          <TableHead className="text-right">Goals</TableHead>
-                          <TableHead className="text-right">Share</TableHead>
+                          <TableHead className="h-8 py-1 w-12 text-center">#</TableHead>
+                          <TableHead className="h-8 py-1">Player</TableHead>
+                          <TableHead className="h-8 py-1 text-right">Goals</TableHead>
+                          <TableHead className="h-8 py-1 text-right">Share</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {profile.topScorers.map((s, i) => (
-                          <TableRow key={s.scorer}>
-                            <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
-                            <TableCell className="font-medium">{s.scorer}</TableCell>
-                            <TableCell className="text-right font-semibold">{s.goals}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">
+                          <TableRow key={s.scorer} className="text-sm">
+                            <TableCell className="py-1.5 text-center text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell className="py-1.5 font-medium">{s.scorer}</TableCell>
+                            <TableCell className="py-1.5 text-right font-semibold">{s.goals}</TableCell>
+                            <TableCell className="py-1.5 text-right text-muted-foreground">
                               {profile.record.goalsFor ? `${Math.round((s.goals / profile.record.goalsFor) * 100)}%` : "—"}
                             </TableCell>
                           </TableRow>

@@ -283,7 +283,7 @@ export default function MatchPrep() {
         : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
 
-  const deckTitle = () => `${d.round || "Match"} v ${d.opponent || "?"}${d.matchDate ? ` — ${d.matchDate}` : ""}`;
+  const deckTitle = () => `Match Prep — ${d.round || "Match"} v ${d.opponent || "?"}${d.matchDate ? ` — ${d.matchDate}` : ""}`;
 
   // Guard against silently wiping unsaved work: remember the editor state as of
   // the last save/open/fresh-start and prompt before replacing a changed draft.
@@ -820,8 +820,7 @@ export default function MatchPrep() {
               {(showAllDecks ? fridayReports : fridayReports.slice(0, 5)).map((r) => (
                 <div key={r.id} className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${deckReportId === r.id ? "border-primary/60 bg-primary/5" : "border-border"}`}>
                   <span className="flex-1 truncate">
-                    <span className="font-semibold">{((r.data as Partial<Draft>)?.round || "").trim() || "—"}</span>
-                    {" "}v {r.opponent || "?"}
+                    <span className="font-semibold">Match Prep — {((r.data as Partial<Draft>)?.round || "").trim() || "—"} v {r.opponent || "?"}</span>
                     {r.matchDate && <span className="text-muted-foreground"> · {r.matchDate}</span>}
                     <span className="text-muted-foreground text-xs"> · saved {new Date(r.updatedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
                   </span>
