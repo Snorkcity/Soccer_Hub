@@ -48,12 +48,12 @@ function club(v: unknown): string | null {
 
 // Scorer/Assist spellings in the league tab that differ from the roster tab.
 // Same rationale as NAME_FIXUPS in seed.ts — map typo → roster spelling.
-// "Tahli" (CroatiaRes assist, R5) and "Emily" (OlympicRes assist, R4) have no
-// roster match (first names only) and are deliberately left as-is.
 const NAME_FIXUPS: Record<string, string> = {
   Millin: "Milin",              // CroatiaRes
   Mcrae: "McRae",               // OlympicRes
   "Pavier-Jones": "Pavier-jones", // WanderersRes (unprefixed variant)
+  Tahli: "Milin",               // Croatia R5 assist, per coach
+  // "Emily" (Olympic R4 assist) removed from the CSV per coach.
 };
 
 function num(v: unknown): number | null {
