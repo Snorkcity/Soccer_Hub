@@ -18,3 +18,9 @@ description: Real logins replaced the shared club password; per-league admin/vie
 - ID-param deletes (e.g. /entry/goal/:id) carry no seasonId, so handlers self-check the row's league (canEnterDataForSeason) — any NEW id-param write route must do the same or it's a cross-league IDOR.
 - Frontend: useLeagueModules() hook; Shell nav via hasModuleAnywhere; pages filter season dropdowns by hasModule(season.leagueId, module); GPS/Testing whole-page gated (they pick team/year not league).
 - Startup migration ORDER matters: modules ALTER/backfill must run AFTER runUserAccountsMigration creates the table.
+
+## Self-service & password reset (2026-07)
+- My Account page (`/account`, shared nav): self name/email (PATCH /auth/profile) + change password + logout. Profile route must clear the per-request `_sessionUser` cache before re-reading, or the response shows stale data.
+- Forgot-password: POST /auth/forgot-password (always {ok:true}, never reveals account existence) emails a one-hour single-use link; POST /auth/reset-password {token,newPassword}. Tokens stored sha256-hashed in password_reset_tokens (idempotent startup migration). Both routes are in the unauthenticated allow-list in entryAuth.
+- Reset links use `?reset_token=` on the app root (no dedicated route — AuthGate intercepts before auth), so they work under any base path. Base URL: prod pinned to app.gameinsights.com.au, dev derived from Referer.
+- Email sending: Resend REST API with RESEND_API_KEY, from noreply@gameinsights.com.au. Key must ALSO be set on Railway (Replit connectors don't work off-platform — that's why plain API key over the Resend connector). Sending fails 403 until the domain is verified at resend.com/domains.
