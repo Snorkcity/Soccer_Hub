@@ -26,8 +26,11 @@ const LEAGUE_NAME = "ACT NPLW Reserves";
 const OLD_LEAGUE_NAME = "ACT NPLW Reserve";
 const SEASON_YEAR = "2026";
 const SEASON_LABEL = "2026 Season"; // dropdown shows "ACT NPLW Reserves · 2026 Season"
-const TEAM_NAME = "Belconnen Reserves";
-const OLD_TEAM_NAME = "Belconnen United FC Women's Reserves";
+// Reserves data hangs off the SAME "Belconnen" team as the firsts (per coach:
+// only one Belconnen in the team dropdown). The season picker distinguishes
+// firsts vs reserves. Any legacy reserves team rows are removed.
+const TEAM_NAME = "Belconnen";
+const LEGACY_TEAM_NAMES = ["Belconnen Reserves", "Belconnen United FC Women's Reserves"];
 const FOCUS_CLUB = "Belconnen"; // display name; Luke's sheet says "BelReserves"
 
 // Luke's sheet uses "-Res" suffixed club spellings; the app shows plain club
@@ -108,15 +111,26 @@ async function importReserves() {
     await db.update(seasonsTable).set({ label: SEASON_LABEL }).where(eq(seasonsTable.id, season.id));
   }
 
-  // ── Team (rename legacy placeholder, enable analytics) ─────────────────────
-  let [team] = await db.select().from(teamsTable).where(eq(teamsTable.name, TEAM_NAME));
-  if (!team) [team] = await db.select().from(teamsTable).where(eq(teamsTable.name, OLD_TEAM_NAME));
+  // ── Team: reuse the existing Belconnen analytics team ──────────────────────
+  let [team] = await db.select().from(teamsTable)
+    .where(and(eq(teamsTable.name, TEAM_NAME), eq(teamsTable.analyticsEnabled, true)));
   if (!team) {
     [team] = await db.insert(teamsTable)
       .values({ name: TEAM_NAME, gender: "female", ageGroup: "Seniors", analyticsEnabled: true }).returning();
     console.log(`Created team ${TEAM_NAME} (id ${team.id})`);
-  } else {
-    await db.update(teamsTable).set({ name: TEAM_NAME, analyticsEnabled: true }).where(eq(teamsTable.id, team.id));
+  }
+
+  // Remove legacy separate reserves team rows (and any data hung off them)
+  const legacyTeams = await db.select().from(teamsTable).where(inArray(teamsTable.name, LEGACY_TEAM_NAMES));
+  for (const lt of legacyTeams) {
+    const ltMatches = await db.select({ id: matchesTable.id }).from(matchesTable).where(eq(matchesTable.teamId, lt.id));
+    if (ltMatches.length > 0) {
+      await db.delete(playerStatsTable).where(inArray(playerStatsTable.matchId, ltMatches.map(m => m.id)));
+    }
+    await db.delete(goalsTable).where(eq(goalsTable.teamId, lt.id));
+    await db.delete(matchesTable).where(eq(matchesTable.teamId, lt.id));
+    await db.delete(teamsTable).where(eq(teamsTable.id, lt.id));
+    console.log(`Removed legacy team "${lt.name}" (id ${lt.id})`);
   }
 
   // ── Clubs (reserve league's own rows; plain display names, colours mirror firsts)
