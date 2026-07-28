@@ -1,0 +1,262 @@
+Match ID,Recording,Match Date,Venue,Half-score,Full-score,Home Team,Away Team,Scorer Team,Minute Scored,Scorer,Assist,Goal Type,Assist type,How penetrated,Buildup Lane,First-time finish,Finish Type,Pass-string,Goal X,Goal Y
+R1-MAJ-OLY,analysed,2026/03/29,Hawker Synthetic,0-1,0-3,MajuraRes,OlympicRes,OlympicRes,34,Martiniello,Richards,R-MT-DT,Pass,Through,Centre,No,Right Foot,1,48,8.5
+R1-MAJ-OLY,analysed,2026/03/29,Hawker Synthetic,0-1,0-3,MajuraRes,OlympicRes,OlympicRes,57,Martiniello,Richards,R-FT-DT,Cross,Around,Right,Yes,Left Foot,1,44,5.5
+R1-MAJ-OLY,analysed,2026/03/29,Hawker Synthetic,0-1,0-3,MajuraRes,OlympicRes,OlympicRes,66,D.Williams,Mcrae,R-MT-DT,Cross,Around,Left,Yes,Left Foot,2,44,6.5
+R1-TUG-CFC,analysed,2026/04/02,Kambah 2,0-1,0-3,TuggeranongRes,CroatiaRes,CroatiaRes,8,E.Hazilias,,R-FT-AT,,Error,Right,Yes,Left Foot,0,50,2.5
+R1-TUG-CFC,analysed,2026/04/03,Kambah 2,0-1,0-3,TuggeranongRes,CroatiaRes,CroatiaRes,70,Majetic,Hill,SP-C,Pass,Through,Centre,Yes,Left Foot,2,44.9,4.95
+R1-TUG-CFC,analysed,2026/04/04,Kambah 2,0-1,0-3,TuggeranongRes,CroatiaRes,CroatiaRes,86,Zakman,Hill,R-BT-AT,Buildup,Through,Right,Yes,Right Foot,2,45.6,2.73
+R1-WAN-BELR,analysed,2026/03/29,Melrose Synthetic,0-2,1-4,WanderersRes,BelReserves,WanderersRes,48,York,,R-FT-DT,Error,Error,Centre,No,Right Foot,0,33,17
+R1-WAN-BELR,analysed,2026/03/29,Melrose Synthetic,0-2,1-4,WanderersRes,BelReserves,BelReserves,2,Sammy,Maja,R-MT-DT,Cross,Around,Right,Yes,Left Foot,2,50,6
+R1-WAN-BELR,analysed,2026/03/29,Melrose Synthetic,0-2,1-4,WanderersRes,BelReserves,BelReserves,63,Sammy,Molly,R-MT-DT,Shot,Through,Left,Yes,Right Foot,3,62,3
+R1-WAN-BELR,analysed,2026/03/29,Melrose Synthetic,0-2,1-4,WanderersRes,BelReserves,BelReserves,43,Scarlett,Sammy,R-BT-AT,Buildup,Around,Right,Yes,Right Foot,6,50,7
+R1-WAN-BELR,analysed,2026/03/29,Melrose Synthetic,0-2,1-4,WanderersRes,BelReserves,BelReserves,84,OG,Sammy,SP-C,Inswinger,,Right,Yes,Head,2,47,6
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,53,Eden,Ariana,R-BT-AT,Buildup,Over,Left,Yes,Right Foot,9,44,4.8
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,56,Issey,Ariana,R-FT-AT,Pass,Through,Right,No,Right Foot,2,51.4,10.7
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,58,Lily,Ariana,R-BT-AT,Buildup,Through,Left,Yes,Right Foot,8,43.2,3.2
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,71,Siena,Eden,R-MT-DT,Pass,Through,Left,No,Right Foot,2,37.6,13.7
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,34,Lily,Issey,R-FT-DT,Buildup,Over,Right,No,Right Foot,4,34.4,13
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,69,Molly,Lily,R-FT-AT,Buildup,Through,Centre,No,Right Foot,9,49.3,11.3
+R2-BELR-TUG,analysed,2026/04/12,Gunghalin Enclosed,1-0,7-0,BelReserves,TuggeranongRes,BelReserves,88,Lily,Sarah,R-BT-DT,Buildup,Through,Left,No,Right Foot,5,34.6,9.3000000000000007
+R2-CFC-OLY,analysed,2026/04/12,Deakin Stadium,1-0,1-1,CroatiaRes,OlympicRes,CroatiaRes,35,N.DeMarco,,R-FT-AT,,Error,Centre,Yes,Right Foot,0,39.700000000000003,3.3
+R2-CFC-OLY,analysed,2026/04/12,Deakin Stadium,1-0,1-1,CroatiaRes,OlympicRes,OlympicRes,60,Ness,Bongiorno,R-MT-DT,Pass,Through,Right,Yes,Right Foot,1,50,18.3
+R2-MAJ-WAN,analysed,2026/04/12,Hawker Synthetic,0-1,0-4,MajuraRes,WanderersRes,WanderersRes,17,Tomanovits,L.Babic,R-FT-AT,Pass,Through,Centre,No,Left Foot,11,36.4,13.5
+R2-MAJ-WAN,analysed,2026/04/12,Hawker Synthetic,0-1,0-4,MajuraRes,WanderersRes,WanderersRes,51,Bridge,A.Babic,R-MT-AT,Pass,Through,Centre,No,Right Foot,5,62,27.2
+R2-MAJ-WAN,analysed,2026/04/12,Hawker Synthetic,0-1,0-4,MajuraRes,WanderersRes,WanderersRes,63,A.Babic,L.Babic,R-FT-AT,Pass,Through,Centre,No,Left Foot,3,43.9,21.4
+R2-MAJ-WAN,analysed,2026/04/12,Hawker Synthetic,0-1,0-4,MajuraRes,WanderersRes,WanderersRes,84,Bridge,,R-FT-AT,,Error,Centre,No,Right Foot,0,53.1,6.7
+R3-CFC-WAN,analysed,2026/04/19,Deakin Stadium,1-0,1-0,CroatiaRes,WanderersRes,CroatiaRes,14,Milin,,SP-P,,Error,Centre,Yes,Right Foot,0,50,12
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,28,Lily,Eden,R-BT-DT,Buildup,Through,Right,No,Right Foot,4,53.7,8.6999999999999993
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,50,Sage,Gemma,R-FT-AT,Buildup,Through,Left,No,Right Foot,2,15.6,25.6
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,16,Eden,Lily,SP-C,Pass,Through,Centre,No,Right Foot,3,50.1,6.1
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,47,Issey,Lily,R-FT-AT,Buildup,Through,Right,Yes,Right Foot,6,43.8,16.399999999999999
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,18,Eden,Scarlett,R-MT-AT,Buildup,Through,Centre,Yes,Right Foot,5,65.2,10.8
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,52,Eden,Scarlett,R-FT-DT,Pass,Error,Centre,No,Right Foot,3,74.8,10.199999999999999
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,65,Siena,Scarlett,SP-C,Inswinger,Over,Centre,Yes,Right Foot,1,44,6.5
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,12,Eden,Siena,SP-C,Pass,Through,Centre,Yes,Right Foot,1,50.1,5.5
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,39,Scarlett,Siena,R-MT-DT,Buildup,Through,Centre,Yes,Left Foot,3,34,8.3000000000000007
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,40,Lily,Siena,R-BT-DT,Pass,Through,Centre,No,Right Foot,1,59,7.3
+R3-MAJ-BELR,analysed,2026/04/19,AIS Synthetic,0-6,0-11,MajuraRes,BelReserves,BelReserves,61,Eden,Siena,R-FT-AT,Buildup,Through,Left,No,Right Foot,3,41.1,6.5
+R3-TUG-OLY,analysed,2026/04/19,Kambah 2,1-3,1-4,TuggeranongRes,OlympicRes,OlympicRes,12,Hall,D.Williams,R-MT-DT,Buildup,Error,Centre,Yes,Left Foot,3,45.5,1.6
+R3-TUG-OLY,analysed,2026/04/19,Kambah 2,1-3,1-4,TuggeranongRes,OlympicRes,TuggeranongRes,15,Watt,,SP-P,,Error,Centre,Yes,Left Foot,0,50,12
+R3-TUG-OLY,analysed,2026/04/19,Kambah 2,1-3,1-4,TuggeranongRes,OlympicRes,OlympicRes,27,D.Williams,Martiniello,R-MT-DT,Pass,Error,Centre,Yes,Left Foot,2,49.8,1.6
+R3-TUG-OLY,analysed,2026/04/19,Kambah 2,1-3,1-4,TuggeranongRes,OlympicRes,OlympicRes,42,Hall,D.Williams,R-BT-DT,Buildup,Through,Right,Yes,Left Foot,2,45.7,4.2
+R3-TUG-OLY,analysed,2026/04/19,Kambah 2,1-3,1-4,TuggeranongRes,OlympicRes,OlympicRes,82,Wright,McRae,R-MT-DT,Buildup,Through,Left,No,Right Foot,1,32.4,10.3
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,35,Castle,Zakman,R-FT-DT,Through ball,Through,Right,No,Left Foot,5,62.1,18.5
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,40,Boots,Zakman,R-BT-DT,Pass,Over,Left,No,Right Foot,4,9.1,26.3
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,47,E.Hazilias,Zakman,R-MT-DT,Through ball,Through,Centre,No,Left Foot,9,59.6,15.3
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,49,Milin,,R-MT-DT,Error,Over,Centre,No,Right Foot,0,69.400000000000006,32
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,52,Castle,Milin,SP-C,Inswinger,Over,Right,Yes,Head,1,45.4,1.6
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,58,E.Hazilias,Zakman,R-MT-DT,Pass,Over,Centre,Yes,Left Foot,3,37.5,20.9
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,75,Castle,,R-FT-AT,Error,Over,Centre,Yes,Right Foot,0,51.6,4.9000000000000004
+R4-CFC-MAJ,analysed,2026/04/26,Deakin Stadium,2-0,8-0,CroatiaRes,MajuraRes,CroatiaRes,80,Castle,Norris,R-BT-AT,Cross,Over,Right,Yes,Left Foot,3,49.8,6.1
+R4-OLY-BELR,analysed,2026/04/26,O'Connor Enclosed,1-2,1-3,OlympicRes,BelReserves,BelReserves,7,Issey,Elfin,SP-T,Buildup,Over,Right,Yes,Right Foot,1,58,14.3
+R4-OLY-BELR,analysed,2026/04/26,O'Connor Enclosed,1-2,1-3,OlympicRes,BelReserves,BelReserves,74,Isla,ET,SP-C,Inswinger,Over,Right,Yes,Head,1,50.2,2.7
+R4-OLY-BELR,analysed,2026/04/26,O'Connor Enclosed,1-2,1-3,OlympicRes,BelReserves,OlympicRes,16,Hall,Emily,R-BT-DT,Error,Through,Centre,Yes,Right Foot,0,51.2,17.3
+R4-OLY-BELR,analysed,2026/04/26,O'Connor Enclosed,1-2,1-3,OlympicRes,BelReserves,BelReserves,31,Danj,Sammy,R-MT-DT,Pass,Through,Centre,No,Right Foot,4,54.2,29.1
+R4-TUG-WAN,analysed,2026/04/26,Kambah 2,0-2,0-2,TuggeranongRes,WanderersRes,WanderersRes,18,Ibrahim,Tomanovits,R-BT-DT,Cross,Through,Centre,Yes,Right Foot,4,45,2.5
+R4-TUG-WAN,analysed,2026/04/26,Kambah 2,0-2,0-2,TuggeranongRes,WanderersRes,WanderersRes,29,Mckenzie,Ibrahim,R-FT-DT,Through ball,Through,Left,No,Right Foot,2,49.9,10.3
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,89,Lily,Danj,R-MT-AT,Cross,Over,Right,Yes,Head,7,39.1,2.2000000000000002
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,77,Lily,Elfin,R-MT-DT,Pass,Through,Left,No,Right Foot,4,43.5,15.6
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,21,Ariana,Lily,SP-C,Inswinger,Over,Right,Yes,Head,1,45,6
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,59,Danj,Sammy,SP-C,Error,Over,Right,No,Right Foot,0,56.4,18
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,CroatiaRes,33,Castle,Tahli,SP-C,Inswinger,Over,Left,Yes,Head,1,54.2,5.9
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,60,Lily,Scarlett,R-MT-DT,Buildup,Through,Left,No,Right Foot,4,50.1,17.8
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,10,OG,,SP-C,Inswinger,Over,Left,Yes,,1,49.7,0.9
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,46,Danj,,R-FT-DT,Error,Through,Left,No,Left Foot,1,35.9,2.1
+R5-BELR-CFC,analysed,2026/05/03,AIS Grass,2-1,8-1,BelReserves,CroatiaRes,BelReserves,63,Siena,,SP-P,Error,Error,Centre,Yes,Right Foot,0,50,12
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,OlympicRes,10,Hall,Martiniello,R-FT-DT,Error,Through,Right,Yes,Left Foot,0,52.5,3.5
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,WanderersRes,17,Tomanovits,Reilly,R-BT-AT,Through ball,Through,Left,No,Left Foot,6,26.3,18.3
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,WanderersRes,20,OG,,R-FT-AT,Error,Over,Centre,Yes,Left Foot,0,53.7,2.7
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,OlympicRes,35,Martiniello,,R-FT-DT,Error,Through,Centre,No,Right Foot,0,50,5.9
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,OlympicRes,65,Martiniello,N.Cerne,R-MT-AT,Through ball,Through,Centre,Yes,Head,1,47.9,5.7
+R5-OLY-WAN,analysed,2026/05/03,O'Connor Enclosed,2-2,3-3,OlympicRes,WanderersRes,WanderersRes,82,Gidis,McAvoy,R-BT-DT,Through ball,Through,Right,Yes,Right Foot,1,68.400000000000006,20.5
+R5-TUG-MAJ,analysed,2026/05/03,Hawker Synthetic,1-0,2-0,TuggeranongRes,MajuraRes,TuggeranongRes,20,Paul,Ticehurst,R-FT-DT,Pass,Through,Right,No,Right Foot,1,64.400000000000006,12.8
+R5-TUG-MAJ,analysed,2026/05/03,Hawker Synthetic,1-0,2-0,TuggeranongRes,MajuraRes,TuggeranongRes,64,Holden,,SP-P,,Error,Centre,Yes,Right Foot,0,50,12
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,30,Hattie,Eden,R-MT-DT,Cross,Through,Centre,No,Right Foot,3,48.1,2.2999999999999998
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,46,Hattie,Eden,R-MT-AT,Cross,Over,Left,No,Right Foot,3,54.2,0.8
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,49,Hattie,Eden,R-FT-AT,Buildup,Through,Left,Yes,Left Foot,2,57.1,4
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,65,Sammy,Eden,R-FT-AT,Pass,Through,Right,Yes,Left Foot,2,45.9,21.6
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,37,Lily,Hattie,R-FT-DT,Cross,Over,Left,Yes,Right Foot,3,53.3,5.3
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,33,Hattie,Sammy,SP-C,Outswinger,Over,Right,No,Right Foot,1,49.8,17.8
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,88,Eden,Scarlett,SP-C,Outswinger,Over,Right,Yes,Right Foot,0,50.8,6.8
+R6-BELR-WAN,analysed,2026/05/10,McKellar Park,4-0,8-0,BelReserves,WanderersRes,BelReserves,39,Eden,,R-FT-DT,Error,Through,Centre,No,Right Foot,0,46,4.5999999999999996
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,33,E.Hazilias,Milin,R-MT-DT,Pass,Through,Right,No,Left Foot,4,50,14.2
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,38,E.Hazilias,Milin,R-FT-DT,Shot,Over,Right,Yes,Left Foot,3,62.2,5.3
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,42,E.Hazilias,,SP-P,Shot,Through,Right,Yes,Right Foot,0,50,12
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,54,Milin,,R-FT-DT,Shot,Over,Right,No,Right Foot,0,80.2,18.2
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,71,E.Hazilias,Morrison,R-MT-DT,Error,Through,Left,No,Right Foot,,31.7,13
+R6-CFC-TUG,analysed,2026/05/10,Deakin Stadium,3-0,6-0,CroatiaRes,TuggeranongRes,CroatiaRes,84,Hofmeier,Sanders,R-FT-AT,Cross,Through,Left,Yes,Hip,4,44.2,4.2
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,4,OG,,R-MT-DT,Buildup,Through,Right,No,,5,54.5,0.7
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,12,Ness,Hall,R-MT-DT,Pass,Through,Right,No,Right Foot,5,60.1,9.6999999999999993
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,15,Martiniello,Hall,R-FT-DT,Error,Through,Centre,No,Right Foot,2,50.1,7.8
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,24,D'Addario,Hall,R-FT-DT,Pass,Over,Right,Yes,Right Foot,1,97.8,14.5
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,34,Kochevatkin,,SP-P,Shot,Through,Centre,Yes,Right Foot,0,50,12
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,42,McRae,N.Cerne,R-MT-DT,Cross,Through,Left,Yes,Left Foot,2,54.2,3.2
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,56,Mantinaos,,R-FT-AT,Error,Through,Right,Yes,Left Foot,0,44.2,5.0999999999999996
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,69,Pirotta,Martiniello,R-MT-DT,Through ball,Through,Centre,No,Right Foot,3,44.7,13.3
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,74,Pirotta,Van Duren,R-MT-DT,Pass,Over,Centre,No,Left Foot,2,54,24.9
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,89,McRae,Mantinaos,R-MT-DT,Cross,Through,Left,Yes,Right Foot,5,59.1,13.6
+R6-MAJ-OLY,analysed,2026/05/10,Gunghalin Enclosed,0-6,0-11,MajuraRes,OlympicRes,OlympicRes,90,Pirotta,Van Duren,R-MT-DT,Through ball,Through,Centre,Yes,Left Foot,2,51.9,15
+R7-CFC-WAN,analysed,2026/05/17,Deakin Stadium,1-1,3-1,CroatiaRes,WanderersRes,WanderersRes,19,A.Moss,,R-FT-DT,Error,Through,Centre,No,Right Foot,0,63,24.5
+R7-CFC-WAN,analysed,2026/05/17,Deakin Stadium,1-1,3-1,CroatiaRes,WanderersRes,CroatiaRes,23,Wood,Holaj,R-BT-AT,Through ball,Over,Right,No,Right Foot,2,70.5,7.3
+R7-CFC-WAN,analysed,2026/05/17,Deakin Stadium,1-1,3-1,CroatiaRes,WanderersRes,CroatiaRes,47,Milin,Majetic,R-BT-AT,Pass,Over,Centre,No,Right Foot,4,50,19
+R7-CFC-WAN,analysed,2026/05/17,Deakin Stadium,1-1,3-1,CroatiaRes,WanderersRes,CroatiaRes,83,Morrison,Majetic,R-MT-AT,Through ball,Over,Centre,Yes,Right Foot,3,65.2,18.2
+R7-MAJ-BELR,analysed,2026/05/17,Gunghalin Enclosed,0-3,0-3,MajuraRes,BelReserves,,,,,,,,,,,,,
+R7-OLY-TUG,analysed,2026/05/17,O'Connor Enclosed,3-0,3-0,OlympicRes,TuggeranongRes,OlympicRes,16,Chaverra Calle,Ness,R-FT-AT,Cross,Over,Right,No,Right Foot,2,42,2.5
+R7-OLY-TUG,analysed,2026/05/17,O'Connor Enclosed,3-0,3-0,OlympicRes,TuggeranongRes,OlympicRes,43,Chaverra Calle,Bongiorno,R-BT-AT,Pass,Through,Centre,No,Right Foot,13,48.9,12.5
+R7-OLY-TUG,analysed,2026/05/17,O'Connor Enclosed,3-0,3-0,OlympicRes,TuggeranongRes,OlympicRes,75,McRae,Chaverra Calle,R-MT-DT,Pass,Through,Left,No,Left Foot,3,52.4,8
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,3,Sammy,Danj,R-BT-DT,Buildup,Through,Right,No,Right Foot,7,45.8,4.0999999999999996
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,13,Sammy,Eden,R-FT-AT,Pass,Through,Left,No,Left Foot,2,34.1,9.1999999999999993
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,33,OG,,R-BT-AT,Buildup,Through,Right,Yes,,4,55.2,1.3
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,56,Siena,Hattie,R-FT-AT,Pass,Through,Right,No,Right Foot,3,62.5,6.7
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,60,Danj,Siena,R-MT-DT,Pass,Through,Centre,No,,4,63.4,10.7
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,72,Danj,Olive,R-FT-AT,Buildup,Through,Left,No,Right Foot,6,69.400000000000006,21.4
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,75,Danj,Siena,R-FT-DT,Pass,Through,Right,No,Right Foot,3,59.6,17
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,78,Hattie,Siena,R-BT-DT,Through ball,Through,Left,No,Left Foot,5,35.4,13.2
+R8-TUG-BELR,analysed,2026/05/20,Greenway,0-3,0-9,TuggeranongRes,BelReserves,BelReserves,80,Danj,Danj,R-MT-DT,Error,Through,Right,No,Right Foot,0,63.9,3.9
+R8-WAN-MAJ,analysed,2026/05/20,Melrose Synthetic,0-0,4-0,WanderersRes,MajuraRes,WanderersRes,50,Tomanovits,Mckenzie,R-BT-AT,Buildup,Through,Left,No,Left Foot,4,43,6.7
+R8-WAN-MAJ,analysed,2026/05/20,Melrose Synthetic,0-0,4-0,WanderersRes,MajuraRes,WanderersRes,67,Ibrahim,Moss,R-BT-AT,Through ball,Over,Right,No,Right Foot,9,46.8,7.3
+R8-WAN-MAJ,analysed,2026/05/20,Melrose Synthetic,0-0,4-0,WanderersRes,MajuraRes,WanderersRes,75,Ibrahim,Moore,R-MT-DT,Pass,Through,Right,No,Right Foot,7,44.1,10.7
+R8-WAN-MAJ,analysed,2026/05/20,Melrose Synthetic,0-0,4-0,WanderersRes,MajuraRes,WanderersRes,76,Tomanovits,Hyett,R-MT-AT,Error,Through,Right,Yes,Right Foot,8,49.9,5.4
+R8-OLY-CFC,analysed,2026/05/20,AIS Grass,1-0,2-2,OlympicRes,CroatiaRes,OlympicRes,38,N.Cerne,,SP-F,Shot,Over,Left,Yes,Right Foot,0,12.1,28.6
+R8-OLY-CFC,analysed,2026/05/20,AIS Grass,1-0,2-2,OlympicRes,CroatiaRes,OlympicRes,58,McRae,Martiniello,R-FT-AT,Pass,Through,Left,No,Right Foot,1,59.1,12.7
+R8-OLY-CFC,analysed,2026/05/20,AIS Grass,1-0,2-2,OlympicRes,CroatiaRes,CroatiaRes,60,Milin,,SP-P,Shot,Through,Centre,Yes,Right Foot,0,12.1,28.6
+R8-OLY-CFC,analysed,2026/05/20,AIS Grass,1-0,2-2,OlympicRes,CroatiaRes,CroatiaRes,64,Norris,McGhie,R-FT-AT,Pass,Through,Left,No,Right Foot,,50.9,44.1
+R9-BELR-OLY,analysed,2026/05/24,McKellar Park,3-0,4-0,BelReserves,OlympicRes,BelReserves,9,Sammy,Isla,R-FT-DT,Pass,Through,Right,Yes,Left Foot,3,44.2,8.3000000000000007
+R9-BELR-OLY,analysed,2026/05/24,McKellar Park,3-0,4-0,BelReserves,OlympicRes,BelReserves,15,Hattie,Sammy,R-MT-DT,Pass,Through,Centre,No,Right Foot,2,66.8,9.1
+R9-BELR-OLY,analysed,2026/05/24,McKellar Park,3-0,4-0,BelReserves,OlympicRes,BelReserves,25,Hattie,Eden,R-BT-DT,Pass,Through,Left,No,Left Foot,4,56.5,8.6999999999999993
+R9-BELR-OLY,analysed,2026/05/24,McKellar Park,3-0,4-0,BelReserves,OlympicRes,BelReserves,74,Hattie,Ariana,R-MT-DT,Pass,Through,Centre,No,Right Foot,2,41,18.3
+R9-WAN-TUG,analysed,2026/05/24,Melrose Synthetic,1-0,4-0,WanderersRes,TuggeranongRes,WanderersRes,30,S.Pavier-jones,Moss,R-MT-DT,Pass,Over,Left,Yes,Right Foot,4,44.1,16.3
+R9-WAN-TUG,analysed,2026/05/24,Melrose Synthetic,1-0,4-0,WanderersRes,TuggeranongRes,WanderersRes,49,Mckenzie,Tomanovits,R-BT-DT,Cross,Through,Right,Yes,Right Foot,4,50,6.6
+R9-WAN-TUG,analysed,2026/05/24,Melrose Synthetic,1-0,4-0,WanderersRes,TuggeranongRes,WanderersRes,56,Moore,,R-FT-DT,Error,Through,Right,No,Right Foot,1,58.2,9.3000000000000007
+R9-WAN-TUG,analysed,2026/05/24,Melrose Synthetic,1-0,4-0,WanderersRes,TuggeranongRes,WanderersRes,80,Garrett,Hyett,R-BT-DT,Pass,Through,Centre,No,Left Foot,4,53.6,14.9
+R10-OLY-WAN,analysed,2026/05/31,O'Connor Enclosed,1-1,2-1,OlympicRes,WanderersRes,WanderersRes,10,Tomanovits,Gidis,R-FT-DT,Pass,Through,Left,No,Right Foot,2,51.1,17.7
+R10-OLY-WAN,analysed,2026/05/31,O'Connor Enclosed,1-1,2-1,OlympicRes,WanderersRes,OlympicRes,27,Chaverra Calle,Martiniello,R-MT-AT,Pass,Through,Right,No,Right Foot,3,71.7,15.1
+R10-OLY-WAN,analysed,2026/05/31,O'Connor Enclosed,1-1,2-1,OlympicRes,WanderersRes,OlympicRes,66,D.Williams,McRae,R-MT-DT,Error,Through,Left,No,Left Foot,2,28.7,10.5
+R10-TUG-MAJ,analysed,2026/05/31,Gunghalin Enclosed,1-2,1-2,TuggeranongRes,MajuraRes,MajuraRes,7,Sambridge,,R-FT-DT,Error,Through,Centre,Yes,Right Foot,0,44.9,10.6
+R10-TUG-MAJ,analysed,2026/05/31,Gunghalin Enclosed,1-2,1-2,TuggeranongRes,MajuraRes,TuggeranongRes,15,Pedrotti,,R-FT-DT,Error,Over,Centre,No,Right Foot,0,42.8,18.399999999999999
+R10-TUG-MAJ,analysed,2026/05/31,Gunghalin Enclosed,1-2,1-2,TuggeranongRes,MajuraRes,MajuraRes,21,Stannard,Kashan,R-BT-DT,Through ball,Through,Centre,No,Right Foot,2,20.9,22.2
+R10-CFC-BELR,analysed,2026/05/31,Deakin Stadium,0-0,1-1,CroatiaRes,BelReserves,CroatiaRes,54,E.Hazilias,A.Williams,R-BT-DT,Cutback,Over,Centre,Yes,Right Foot,5,50,2.2000000000000002
+R10-CFC-BELR,analysed,2026/05/31,Deakin Stadium,0-0,1-1,CroatiaRes,BelReserves,BelReserves,63,Hattie,,SP-P,Shot,Through,Centre,Yes,Right Foot,0,50,12
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,10,E.Hazilias,A.Williams,SP-T,Error,Over,Left,No,Left Foot,0,37.799999999999997,1.5
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,20,E.Hazilias,A.Williams,R-MT-DT,Through ball,Over,Left,No,Left Foot,1,38.4,9.6999999999999993
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,43,McGhie,E.Hazilias,R-BT-DT,Through ball,Through,Left,No,Left Foot,5,46.3,15
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,50,Castle,Wood,R-BT-DT,Cross,Around,Left,Yes,Right Foot,4,53.6,4.7
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,52,Wood,Milin,R-FT-DT,Cross,Over,Right,Yes,Right Foot,1,52,4.9000000000000004
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,56,Wood,Castle,R-MT-DT,Through ball,Through,Right,No,Left Foot,2,57.8,6.9
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,59,Castle,Wood,R-MT-DT,Through ball,Through,Left,Yes,Right Foot,3,55.7,5.5
+R11-TUG-CFC,analysed,2026/06/14,Kambah 2,0-3,0-8,TuggeranongRes,CroatiaRes,CroatiaRes,73,Castle,Wood,R-BT-AT,Through ball,Through,Left,Yes,Right Foot,3,49.5,1.2
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,24,Bongiorno,Martiniello,R-MT-AT,Cross,Through,Left,Yes,Right Foot,5,63.7,14.8
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,29,Mantinaos,Bongiorno,R-FT-DT,Shot,Through,Left,Yes,Right Foot,4,47.4,1.3
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,34,Mantinaos,Martiniello,SP-C,Outswinger,Over,Right,Yes,Head,1,55,5.4
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,41,Martiniello,Richards,R-FT-AT,Buildup,Through,Right,No,Right Foot,3,65.099999999999994,6.8
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,43,Mantinaos,D.Williams,R-FT-DT,Error,Through,Left,Yes,Right Foot,2,38.799999999999997,9.3000000000000007
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,47,Pirotta,,R-MT-AT,Error,Through,Left,Yes,Right Foot,1,49.3,1.5
+R11-OLY-MAJ,analysed,2026/06/14,O'Connor Enclosed,5-0,7-0,OlympicRes,MajuraRes,OlympicRes,70,Pirotta,Mantinaos,R-MT-DT,Cross,Through,Centre,Yes,Right Foot,3,50.9,4.5
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,WanderersRes,9,York,Howell,R-MT-DT,Pass,Over,Centre,No,Right Foot,1,39.799999999999997,20.3
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,11,Siena,Scarlett,R-FT-AT,Cutback,Through,Centre,Yes,Left Foot,4,50.1,6.4
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,25,Siena,Scarlett,SP-C,Inswinger,Over,Left,Yes,Head,1,53.6,6.5
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,56,Eden,Hattie,R-FT-AT,Cross,Through,Centre,Yes,Right Foot,2,41.1,4.5
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,63,Molly,Scarlett,SP-C,Outswinger,Over,Right,Yes,Head,1,47.1,4.7
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,74,Scarlett,Eden,R-BT-DT,Buildup,Through,Centre,No,Right Foot,8,52.6,4.4000000000000004
+R11-BELR-WAN,analysed,2026/06/14,McKellar Park,2-1,6-1,BelReserves,WanderersRes,BelReserves,88,Hattie,Eden,SP-F,Shot,Over,Left,Yes,Hip,1,53,0.4
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,21,Siena,Lily,R-FT-DT,Cutback,Through,Centre,Yes,Right Foot,3,46.6,6.8
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,24,Sammy,,SP-C,Inswinger,Over,Right,Yes,Head,0,47.2,0.6
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,42,Lily,Hattie,SP-C,Outswinger,Over,Left,No,Right Foot,1,46.3,6.9
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,48,Hattie,Siena,R-BT-DT,Counter,Through,Centre,No,Left Foot,4,37.4,19.8
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,51,Lily,Siena,R-FT-AT,Buildup,Through,Left,Yes,Right Foot,3,57.3,6.8
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,74,Lily,Issey,R-MT-DT,Buildup,Through,Right,No,Right Foot,4,57.3,6.8
+R12-BELR-TUG,analysed,2026/06/21,McKellar Park,3-0,7-0,BelReserves,TuggeranongRes,BelReserves,86,Scarlett,Hattie,R-FT-AT,Pass,Through,Right,No,Right Foot,3,51.6,12.1
+R12-CFC-OLY,analysed,2026/06/21,Deakin Stadium,1-1,2-1,CroatiaRes,OlympicRes,OlympicRes,6,Wright,Bongiorno,R-FT-DT,Pass,Through,Right,No,Left Foot,2,28.8,27.6
+R12-CFC-OLY,analysed,2026/06/21,Deakin Stadium,1-1,2-1,CroatiaRes,OlympicRes,CroatiaRes,43,Wood,Sanders,R-MT-DT,Through ball,Through,Centre,No,Left Foot,2,20,10.1
+R12-CFC-OLY,analysed,2026/06/21,Deakin Stadium,1-1,2-1,CroatiaRes,OlympicRes,CroatiaRes,66,McGhie,,R-FT-DT,Shot,Over,Centre,No,Right Foot,0,31.5,29.1
+R12-MAJ-WAN,error in stream,2026/06/21,Gunghalin Enclosed,0-3,0-4,MajuraRes,WanderersRes,WanderersRes,1,Hassall,,,,,,,,,,
+R12-MAJ-WAN,error in stream,2026/06/21,Gunghalin Enclosed,0-3,0-4,MajuraRes,WanderersRes,WanderersRes,28,Hyett,,,,,,,,,,
+R12-MAJ-WAN,error in stream,2026/06/21,Gunghalin Enclosed,0-3,0-4,MajuraRes,WanderersRes,WanderersRes,36,Pavier-Jones,,,,,,,,,,
+R12-MAJ-WAN,analysed,2026/06/21,Gunghalin Enclosed,0-3,0-4,MajuraRes,WanderersRes,WanderersRes,79,A.Moss,,R-FT-DT,Error,,Centre,Yes,Right Foot,0,53.2,6.6
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,5,Wood,E.Hazilias,R-FT-AT,Buildup,Through,Right,Yes,Right Foot,4,44.7,2.2999999999999998
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,33,A.Williams,Milin,SP-C,Outswinger,Over,Right,Yes,Head,1,49.2,4.3
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,45,Majetic,Gordon,R-FT-AT,Cross,Over,Right,Yes,Right Foot,2,54.6,8.6999999999999993
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,57,Castle,Mckenzie,R-MT-DT,Buildup,Through,Right,Yes,Right Foot,8,60,14
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,66,Cameron,Castle,R-MT-DT,Buildup,Through,Right,No,Right Foot,7,44.8,10
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,68,Milin,,R-FT-DT,Error,Over,Left,Yes,Right Foot,0,64.900000000000006,20.9
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,77,Cameron,,R-FT-AT,Error,Through,Right,Yes,Left Foot,0,49.7,7.9
+R9-MAJ-CFC,analysed,2026/06/25,AIS Grass,0-3,0-8,MajuraRes,CroatiaRes,CroatiaRes,81,Gordon,,R-FT-AT,Error,Through,Left,No,Right Foot,0,55.2,5.2
+R13-TUG-OLY,analysed,2026/06/27,Kambah 2,0-0,1-2,TuggeranongRes,OlympicRes,OlympicRes,50,D.Williams,Chaverra Calle,R-MT-DT,Through ball,Through,Centre,No,Right Foot,1,50.5,17.899999999999999
+R13-TUG-OLY,analysed,2026/06/27,Kambah 2,0-0,1-2,TuggeranongRes,OlympicRes,OlympicRes,58,Dy-Mortimer,,R-FT-DT,Error,Over,Centre,Yes,Left Foot,0,56.6,21.8
+R13-TUG-OLY,analysed,2026/06/27,Kambah 2,0-0,1-2,TuggeranongRes,OlympicRes,TuggeranongRes,72,Watt,,SP-P,Shot,Through,,Yes,Right Foot,0,50,12
+R13-WAN-CFC,analysed,2026/06/27,Melrose Synthetic,1-1,1-4,WanderersRes,CroatiaRes,CroatiaRes,18,Holaj,E.Hazilias,R-FT-AT,Buildup,Over,Centre,No,Right Foot,2,19,19
+R13-WAN-CFC,analysed,2026/06/27,Melrose Synthetic,1-1,1-4,WanderersRes,CroatiaRes,WanderersRes,30,Hyett,Tomanovits,R-MT-DT,Buildup,Through,Centre,Yes,Right Foot,5,61.6,8.3000000000000007
+R13-WAN-CFC,analysed,2026/06/27,Melrose Synthetic,1-1,1-4,WanderersRes,CroatiaRes,CroatiaRes,48,Millin,Mckenzie,R-BT-DT,Buildup,Through,Centre,Yes,Right Foot,7,69.099999999999994,21.1
+R13-WAN-CFC,analysed,2026/06/27,Melrose Synthetic,1-1,1-4,WanderersRes,CroatiaRes,CroatiaRes,50,Castle,Sanders,SP-C,Inswinger,Over,Left,Yes,Head,1,52,3.1
+R13-WAN-CFC,analysed,2026/06/27,Melrose Synthetic,1-1,1-4,WanderersRes,CroatiaRes,CroatiaRes,88,McGhie,,R-MT-DT,Shot,Over,Centre,No,Right Foot,1,39,26
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,8,Hattie,Sammy,SP-C,Inswinger,Over,Right,Yes,Head,1,42,8.1
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,17,Danj,,R-FT-AT,Through ball,Through,Right,No,Right Foot,4,54.4,6.8
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,21,Siena,Sammy,SP-C,Inswinger,Over,Right,Yes,Head,1,40,7
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,23,Siena,Sammy,SP-C,Inswinger,Over,Right,Yes,Left Foot,1,44.7,2
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,27,Hattie,,R-FT-DT,Shot,Over,Left,No,Right Foot,0,21.1,19
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,30,Hattie,Sammy,R-MT-DT,Buildup,Through,Centre,Yes,Right Foot,5,43.2,13.3
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,38,Eden,Siena,R-MT-AT,Buildup,Through,Centre,No,Right Foot,7,45.5,10.8
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,39,Scarlett,Sammy,R-MT-AT,Through ball,Through,Left,No,Right Foot,2,23.4,14.1
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,52,Hattie,Sammy,R-MT-AT,Pass,Through,Centre,Yes,Right Foot,4,58,3.9
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,55,Sage,Scarlett,R-MT-AT,Pass,Through,Left,No,Right Foot,3,34.1,26.5
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,64,Eden,Sybilla,R-FT-AT,Error,Through,Left,Yes,Left Foot,3,54.5,2.4
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,65,Eden,Scarlett,R-MT-AT,Cross,Over,Left,Yes,Head,5,54.1,5.0999999999999996
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,72,Zoe,Aislinn,SP-C,Inswinger,Over,Left,Yes,Knee,1,55.2,14
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,76,Scarlett,Eden,R-FT-AT,Buildup,Through,Left,Yes,Right Foot,6,44.6,3.4
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,77,Sage,Gemma,R-BT-AT,Through ball,Through,Left,No,Right Foot,3,41.3,10.1
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,80,Scarlett,Sage,R-FT-DT,Shot,Over,Left,No,Right Foot,1,31.6,17.899999999999999
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,82,Siena,Aislinn,SP-C,Inswinger,Over,Right,Yes,Hip,1,49.9,1.8
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,83,Aislinn,Eden,R-MT-DT,Pass,Through,Centre,No,Left Foot,3,45.5,6.1
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,84,Eden,Scarlett,R-MT-AT,Error,Through,Left,Yes,Left Foot,4,52.6,5.7
+R13-BELR-MAJ,analysed,2026/06/28,McKellar Park,8-0,20-0,BelReserves,MajuraRes,BelReserves,86,Siena,Sage,R-FT-DT,Pass,Through,Centre,No,Right Foot,2,56.7,7.1
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,32,Bridge,,R-FT-DT,Pass,Through,Left,No,Right Foot,2,50.2,24.5
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,52,Garrett,,R-FT-DT,Pass,Through,Right,No,Left Foot,3,51.7,12.2
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,62,Tomanovits,Bridge,R-MT-DT,Through ball,Through,Centre,Yes,Right Foot,3,65.900000000000006,18.3
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,63,Tomanovits,Hyett,R-MT-AT,Through ball,Through,Centre,No,Left Foot,3,36.200000000000003,18.100000000000001
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,TuggeranongRes,67,Prime,Ireson,R-BT-DT,Counter,Over,Centre,No,Right Foot,1,19.2,3.3
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,78,Tomanovits,Hyett,R-MT-DT,Through ball,Through,Centre,No,Right Foot,2,64.2,7.8
+R14-TUG-WAN,,2026/07/05,AIS Synthetic,0-1,1-6,TuggeranongRes,WanderersRes,WanderersRes,81,Tomanovits,Garrett,R-MT-AT,Cross,Through,Left,Yes,Right Foot,3,54.7,2.2000000000000002
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,18,Sanders,A.Williams,R-BT-DT,Buildup,Through,Centre,No,Right Foot,1,46.1,18.899999999999999
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,29,Milin,Sanders,R-MT-AT,Buildup,Through,Centre,No,Right Foot,5,62.2,17.899999999999999
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,32,Milin,E.Hazilias,R-MT-DT,Through ball,Through,Left,No,Right Foot,2,41.6,4.0999999999999996
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,42,E.Hazilias,Gordon,R-MT-DT,Pass,Through,Right,No,Right Foot,4,48.2,12.4
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,53,Gordon,,R-FT-DT,Error,Through,Centre,No,Right Foot,1,58.2,4.9000000000000004
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,60,Castle,Wood,R-FT-AT,Error,Through,Left,Yes,Left Foot,3,53.8,0.9
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,74,Castle,Wood,R-MT-DT,Cross,Over,Left,Yes,Left Foot,3,46,7.7
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,85,Milin,Wood,R-MT-DT,Pass,Through,Left,No,Right Foot,3,56.7,21.4
+R14-MAJ-CFC,,2026/07/05,Hawker Synthetic,0-4,0-9,MajuraRes,CroatiaRes,CroatiaRes,86,Gordon,E.Hazilias,R-MT-DT,Buildup,Through,Centre,No,Right Foot,2,53.7,18.399999999999999
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,12,Lily,Maja,R-MT-DT,Buildup,Through,Right,Yes,Right Foot,2,55.5,6
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,OlympicRes,16,D.Williams,Mantinaos,R-MT-DT,Through ball,Through,Centre,No,Right Foot,2,41.7,13.8
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,25,Siena,Scarlett,SP-C,Inswinger,Over,Right,Yes,Head,1,45.9,0.7
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,28,Lily,Eden,R-MT-AT,Through ball,Through,Left,No,Right Foot,3,43.7,11.8
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,35,Lily,Issey,R-MT-AT,Buildup,Through,Centre,No,Left Foot,4,60.4,9.5
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,39,Scarlett,Danj,R-MT-AT,Pass,Through,Right,Yes,Left Foot,4,39.299999999999997,7.8
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,42,Danj,Scarlett,SP-C,Error,Through,Right,No,Right Foot,1,53.2,9.1
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,61,Lily,Eden,R-FT-DT,Cross,Over,Right,Yes,Right Foot,2,44.1,0.7
+R14-OLY-BELR,,2026/07/05,South Jerrabomberra,1-6,1-8,OlympicRes,BelReserves,BelReserves,70,OG,,R-FT-AT,Buildup,Through,Left,No,,10,51.3,7.6
+R15-BELR-CFC,,2026/07/12,McKellar Park,2-0,5-0,BelReserves,CroatiaRes,BelReserves,10,Lily,,R-FT-DT,Error,Through,Centre,No,Right Foot,1,38.5,3.9
+R15-BELR-CFC,,2026/07/12,McKellar Park,2-0,5-0,BelReserves,CroatiaRes,BelReserves,13,Scarlett,Siena,R-MT-DT,Through ball,Through,Centre,No,Right Foot,1,63,13.3
+R15-BELR-CFC,,2026/07/12,McKellar Park,2-0,5-0,BelReserves,CroatiaRes,BelReserves,55,Lily,,R-FT-DT,Counter,Over,Right,No,Right Foot,1,84.3,12.8
+R15-BELR-CFC,,2026/07/12,McKellar Park,2-0,5-0,BelReserves,CroatiaRes,BelReserves,63,Scarlett,Molly,R-MT-AT,Pass,Through,Left,No,Right Foot,2,19.100000000000001,17.399999999999999
+R15-BELR-CFC,,2026/07/12,McKellar Park,2-0,5-0,BelReserves,CroatiaRes,BelReserves,84,Molly,Scarlett,R-FT-DT,Pass,Through,Centre,Yes,Right Foot,5,44,25
+R15-MAJ-TUG,,2026/07/12,AIS Synthetic,0-1,0-2,MajuraRes,TuggeranongRes,TuggeranongRes,45,Mitchell,Watt,SP-C,Outswinger,Over,Left,No,Right Foot,1,53.8,5.7
+R15-MAJ-TUG,,2026/07/12,AIS Synthetic,0-1,0-2,MajuraRes,TuggeranongRes,TuggeranongRes,73,Paul,,R-FT-DT,Error,Through,Centre,No,Left Foot,1,48.6,12.9
+R15-WAN-OLY,,2026/07/12,Melrose Synthetic,0-2,0-4,WanderersRes,OlympicRes,OlympicRes,15,Martiniello,Hall,R-MT-DT,Cutback,Through,Right,No,Left Foot,2,52.3,12.7
+R15-WAN-OLY,,2026/07/12,Melrose Synthetic,0-2,0-4,WanderersRes,OlympicRes,OlympicRes,31,OG,,R-FT-AT,Cross,Through,Right,No,,,53.4,2.1
+R15-WAN-OLY,,2026/07/12,Melrose Synthetic,0-2,0-4,WanderersRes,OlympicRes,OlympicRes,50,D.Williams,Richards,R-MT-AT,Through ball,Through,Centre,No,Left Foot,5,43.8,15.5
+R15-WAN-OLY,,2026/07/12,Melrose Synthetic,0-2,0-4,WanderersRes,OlympicRes,OlympicRes,87,S.Pirotta,Van Duren,R-MT-DT,Pass,Through,Right,No,Left Foot,3,63.8,6.6
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,1,D.Williams,Martiniello,R-MT-AT,Pass,Through,Right,No,Right Foot,7,79.900000000000006,19.3
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,17,Chaverra Calle,Hurman,R-MT-AT,Pass,Through,Right,No,Right Foot,4,63.6,8.9
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,21,Chaverra Calle,,R-FT-DT,Cutback,Through,Left,Yes,Right Foot,5,54.6,8.6
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,23,Hurman,Chaverra Calle,R-MT-DT,Pass,Through,Right,Yes,Right Foot,4,56.8,8.1
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,25,Chaverra Calle,Hurman,R-FT-AT,Pass,Through,Left,Yes,Right Foot,4,52.7,6.8
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,38,Hurman,D.Williams,R-FT-AT,Pass,Through,Right,Yes,Left Foot,4,45.2,3.8
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,46,D.Williams,,,,,,,,,,
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,54,Dy-Mortimer,Martiniello,R-FT-DT,Pass,Through,Left,Yes,Left Foot,4,47,11.6
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,65,Martiniello,Richards,R-MT-AT,Through ball,Through,Centre,No,Right Foot,4,55.7,11.9
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,84,Martiniello,,R-MT-AT,Through ball,Through,,No,Right Foot,3,39.6,13.5
+R16-OLY-MAJ,,2026/07/26,O'Connor Enclosed,6-0,11-0,OlympicRes,MajuraRes,OlympicRes,87,Martiniello,Van Duren,R-FT-DT,Pass,Through,Right,Yes,Right Foot,2,52.5,15
+R16-CFC-TUG,,2026/07/26,Deakin Stadium,2-0,4-0,CroatiaRes,TuggeranongRes,CroatiaRes,3,E.Hazilias,Castle,R-FT-AT,Pass,Through,Right,No,Left Foot,1,61.7,18.600000000000001
+R16-CFC-TUG,,2026/07/26,Deakin Stadium,2-0,4-0,CroatiaRes,TuggeranongRes,CroatiaRes,40,Castle,Wood,R-MT-AT,Cross,Around,Left,Yes,Right Foot,5,49.9,10.1
+R16-CFC-TUG,,2026/07/26,Deakin Stadium,2-0,4-0,CroatiaRes,TuggeranongRes,CroatiaRes,67,E.Hazilias,McGhie,R-BT-DT,Through ball,Through,Centre,Yes,Left Foot,7,36.1,12.7
+R16-CFC-TUG,,2026/07/26,Deakin Stadium,2-0,4-0,CroatiaRes,TuggeranongRes,CroatiaRes,90,E.Hazilias,Castle,R-BT-AT,Through ball,Through,Centre,No,Right Foot,7,57.9,13.1

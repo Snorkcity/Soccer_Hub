@@ -43,10 +43,10 @@ import {
   SaveEntryGpsSessionsResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { focusClubForSeason } from "../lib/focusClub";
 
 const router: IRouter = Router();
 
-const FOCUS_CLUB = "Belconnen";
 const n2s = (v: number | null | undefined): string | null => (v == null ? null : String(v));
 
 // ── League fixtures (entry pickers) ──────────────────────────────────────────
@@ -160,11 +160,13 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
     return;
   }
 
+  const focusClub = await focusClubForSeason(goal.seasonId);
+
   // Single transaction: remove league goal + its Belconnen copy together
   const belconnenDeleted = await db.transaction(async (tx) => {
     await tx.delete(leagueGoalsTable).where(eq(leagueGoalsTable.id, goalId));
 
-    if (goal.homeTeam !== FOCUS_CLUB && goal.awayTeam !== FOCUS_CLUB) return false;
+    if (goal.homeTeam !== focusClub && goal.awayTeam !== focusClub) return false;
     // A fixture may exist under several team contexts; consider every mirror partition
     const matchRows = await tx
       .select({ id: matchesTable.id })
@@ -275,6 +277,7 @@ router.post("/entry/match", async (req, res): Promise<void> => {
     return;
   }
 
+  const focusClub = await focusClubForSeason(b.seasonId);
   const fullScore = `${b.homeGoals}-${b.awayGoals}`;
   // Single transaction: the league row and the Belconnen row commit together or not at all
   const { leagueMatch, belconnenMatchId } = await db.transaction(async (tx) => {
@@ -291,8 +294,8 @@ router.post("/entry/match", async (req, res): Promise<void> => {
     }).returning();
 
     let belconnenMatchId: number | null = null;
-    const isHome = b.homeTeam.trim() === FOCUS_CLUB;
-    const isAway = b.awayTeam.trim() === FOCUS_CLUB;
+    const isHome = b.homeTeam.trim() === focusClub;
+    const isAway = b.awayTeam.trim() === focusClub;
     if (isHome || isAway) {
       const goalsScored = isHome ? b.homeGoals : b.awayGoals;
       const goalsConceded = isHome ? b.awayGoals : b.homeGoals;
@@ -371,6 +374,8 @@ router.post("/entry/goal", async (req, res): Promise<void> => {
     passString: b.passString ?? null,
   };
 
+  const focusClub = await focusClubForSeason(b.seasonId);
+
   // Single transaction: league goal + legacy Belconnen copy commit together
   const { leagueGoal, belconnenGoalId } = await db.transaction(async (tx) => {
     const [leagueGoal] = await tx.insert(leagueGoalsTable).values({
@@ -382,7 +387,7 @@ router.post("/entry/goal", async (req, res): Promise<void> => {
     }).returning();
 
     let belconnenGoalId: number | null = null;
-    if (fixture.homeTeam === FOCUS_CLUB || fixture.awayTeam === FOCUS_CLUB) {
+    if (fixture.homeTeam === focusClub || fixture.awayTeam === focusClub) {
       const [match] = await tx
         .select({ id: matchesTable.id })
         .from(matchesTable)
@@ -450,6 +455,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
   }
 
   const year = b.year ?? (fixture.matchDate ? fixture.matchDate.slice(0, 4) : null);
+  const focusClub = await focusClubForSeason(b.seasonId);
 
   // Single transaction: replace (delete+insert) both the league rows and the
   // legacy mirror atomically — a failed insert can never wipe existing rows.
@@ -479,7 +485,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
     // Mirror into the legacy Belconnen-scoped table when this fixture is a
     // Belconnen game (it stores BOTH teams' rows for those games).
     let belconnenCopies = 0;
-    if (fixture.homeTeam === FOCUS_CLUB || fixture.awayTeam === FOCUS_CLUB) {
+    if (fixture.homeTeam === focusClub || fixture.awayTeam === focusClub) {
       const [match] = await tx
         .select({ id: matchesTable.id })
         .from(matchesTable)
@@ -582,6 +588,8 @@ router.delete("/entry/player-stats", async (req, res): Promise<void> => {
     return;
   }
 
+  const focusClub = await focusClubForSeason(seasonId);
+
   const { removed, belconnenRemoved } = await db.transaction(async (tx) => {
     const removed = (await tx
       .delete(leaguePlayerStatsTable)
@@ -593,7 +601,7 @@ router.delete("/entry/player-stats", async (req, res): Promise<void> => {
       .returning({ id: leaguePlayerStatsTable.id })).length;
 
     let belconnenRemoved = 0;
-    if (fixture.homeTeam === FOCUS_CLUB || fixture.awayTeam === FOCUS_CLUB) {
+    if (fixture.homeTeam === focusClub || fixture.awayTeam === focusClub) {
       const matchRows = await tx
         .select({ id: matchesTable.id })
         .from(matchesTable)
@@ -631,6 +639,8 @@ router.delete("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
 
+  const focusClub = await focusClubForSeason(row.seasonId);
+
   // Single transaction: remove the league row + its legacy Belconnen mirror together.
   // The mirror is keyed by playerName+club within the fixture's matches partitions —
   // player names are unique per club per match (enforced on save), so this is exact.
@@ -641,7 +651,7 @@ router.delete("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
       .select()
       .from(leagueMatchesTable)
       .where(and(eq(leagueMatchesTable.matchId, row.matchId), eq(leagueMatchesTable.seasonId, row.seasonId!)));
-    if (!fixture || (fixture.homeTeam !== FOCUS_CLUB && fixture.awayTeam !== FOCUS_CLUB)) return false;
+    if (!fixture || (fixture.homeTeam !== focusClub && fixture.awayTeam !== focusClub)) return false;
 
     const matchRows = await tx
       .select({ id: matchesTable.id })
@@ -807,11 +817,13 @@ router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
     return;
   }
 
-  // Best-effort link to the players table by exact name (nice-to-have; charts key off playerName)
+  // Best-effort link to the players table by exact name (nice-to-have; charts key off playerName).
+  // This endpoint is season-agnostic (keyed by year+team, no seasonId), so the focus club can't be
+  // resolved per-league here — retain the ACT NPLW default. Athletic tests are Belconnen-only today.
   const knownPlayers = await db
     .select({ id: playersTable.id, name: playersTable.name })
     .from(playersTable)
-    .where(eq(playersTable.club, FOCUS_CLUB));
+    .where(eq(playersTable.club, "Belconnen"));
   const idByName = new Map(knownPlayers.map(p => [p.name.toLowerCase(), p.id]));
 
   const { saved, replaced } = await db.transaction(async (tx) => {

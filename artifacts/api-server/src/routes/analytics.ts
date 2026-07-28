@@ -48,11 +48,7 @@ import {
   GetOpponentClutchGoalsQueryParams,
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
-
-// The "focus club" is the club whose players appear on Team/Player Insights tabs.
-// All other clubs are opponents shown on the Opponent Insights tab.
-// TODO: derive from team.clubName once the clubName field is aligned with player_stats.club values.
-const FOCUS_CLUB = "Belconnen";
+import { focusClubForSeason } from "../lib/focusClub";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -68,7 +64,8 @@ const isFocusGoal = (
   scorer: string | null | undefined,
   scorerTeam: string | null | undefined,
   roster: Set<string>,
-): boolean => (!!scorer && roster.has(scorer)) || scorerTeam === FOCUS_CLUB;
+  focusClub: string,
+): boolean => (!!scorer && roster.has(scorer)) || scorerTeam === focusClub;
 
 /**
  * Aggregates assist->scorer partnerships ("combo threat") from a set of goals.
@@ -108,6 +105,7 @@ router.get("/analytics/season-summary", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
@@ -130,13 +128,12 @@ router.get("/analytics/season-summary", async (req, res): Promise<void> => {
   const cleanSheets = matches.filter(m => m.cleanSheet === true).length;
 
   // Top scorer from goals table
-  const focusTeamName = team.name;
   const goals = await db
     .select()
     .from(goalsTable)
     .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId)));
 
-  const focusGoals = goals.filter(g => g.scorerTeam === focusTeamName || g.scorerTeam === "Belconnen" || g.scorerTeam === "BelReserves");
+  const focusGoals = goals.filter(g => g.scorerTeam === focusClub);
   const scorerCounts: Record<string, number> = {};
   for (const g of focusGoals) {
     if (g.scorer) scorerCounts[g.scorer] = (scorerCounts[g.scorer] ?? 0) + 1;
@@ -178,6 +175,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   // Get all matches for this team+season — need both sides for on-field GD (plus/minus)
   let matches = await db
@@ -205,7 +203,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     .from(playerStatsTable)
     .where(and(
       inArray(playerStatsTable.matchId, matchIds),
-      eq(playerStatsTable.club, "Belconnen"),
+      eq(playerStatsTable.club, focusClub),
     ));
 
   // Goals for scorer/assist tallying — filter by matchIds so lastN applies to goals too
@@ -220,7 +218,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   const matchLen = new Map<number, number>();
   for (const g of goals) {
     (goalsByMatch.get(g.matchId) ?? goalsByMatch.set(g.matchId, []).get(g.matchId)!)
-      .push({ ours: isFocusGoal(g.scorer, g.scorerTeam, seasonRoster), minute: g.minuteScored });
+      .push({ ours: isFocusGoal(g.scorer, g.scorerTeam, seasonRoster, focusClub), minute: g.minuteScored });
     if (g.minuteScored != null) matchLen.set(g.matchId, Math.max(matchLen.get(g.matchId) ?? 90, g.minuteScored));
   }
   for (const s of stats) {
@@ -296,6 +294,7 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
     return;
   }
   const { seasonId } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   // Full league standings computed from ALL fixtures (every club, not just Belconnen's games)
   const matches = await db
@@ -352,7 +351,7 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
     goalsAgainst: s.goalsAgainst,
     goalDiff: s.goalsFor - s.goalsAgainst,
     points: s.won * 3 + s.drawn,
-    isFocusTeam: teamName === FOCUS_CLUB,
+    isFocusTeam: teamName === focusClub,
   })).sort((a, b) => b.points - a.points || b.goalDiff - a.goalDiff || b.goalsFor - a.goalsFor);
 
   res.json(GetLeagueLadderResponse.parse(ladder));
@@ -402,6 +401,7 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastNMatches } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) {
@@ -437,7 +437,7 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
     const rosterStats = await db
       .select({ playerName: playerStatsTable.playerName })
       .from(playerStatsTable)
-      .where(and(inArray(playerStatsTable.matchId, seasonMatchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+      .where(and(inArray(playerStatsTable.matchId, seasonMatchIds), eq(playerStatsTable.club, focusClub)));
     for (const s of rosterStats) roster.add(s.playerName);
   }
 
@@ -455,8 +455,8 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
       const min = g.minuteScored ?? 0;
       return min >= interval.start && min <= interval.end;
     });
-    const scored = inInterval.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster)).length;
-    const conceded = inInterval.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster)).length;
+    const scored = inInterval.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub)).length;
+    const conceded = inInterval.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub)).length;
     return {
       interval: interval.label,
       goalsScored: scored,
@@ -478,6 +478,7 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate, matchCode: matchesTable.matchId, goalsScored: matchesTable.goalsScored, goalsConceded: matchesTable.goalsConceded })
@@ -520,7 +521,7 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
   const stats = await db
     .select({ playerName: playerStatsTable.playerName })
     .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, focusClub)));
   const roster = new Set(stats.map(s => s.playerName));
 
   // Filter goals to the (possibly windowed) matchIds so lastN applies to goals too.
@@ -530,7 +531,7 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
     .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
 
   // Scored vs conceded via the shared attribution rule (roster OR our team label).
-  const isOurs = (g: typeof goals[number]) => isFocusGoal(g.scorer, g.scorerTeam, roster);
+  const isOurs = (g: typeof goals[number]) => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub);
   const ourGoals      = goals.filter(isOurs);
   const concededGoals = goals.filter(g => !isOurs(g));
 
@@ -577,6 +578,7 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
   const query = GetGoalCombosQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, matchDate: matchesTable.matchDate })
@@ -593,7 +595,7 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
   const stats = await db
     .select({ playerName: playerStatsTable.playerName })
     .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, focusClub)));
   const roster = new Set(stats.map(s => s.playerName));
 
   const goals = await db
@@ -601,7 +603,7 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
     .from(goalsTable)
     .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
 
-  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
+  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
   res.json(GetGoalCombosResponse.parse(buildCombos(ourGoals)));
 });
 
@@ -805,6 +807,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const query = GetPlayerDnaQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, player, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, matchDate: matchesTable.matchDate, opponent: matchesTable.opponent })
@@ -823,7 +826,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const stats = await db
     .select({ playerName: playerStatsTable.playerName, minsPlayed: playerStatsTable.minsPlayed, appearance: playerStatsTable.appearance })
     .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, focusClub)));
 
   const minsMap = new Map<string, number>();
   const appsMap = new Map<string, number>();
@@ -842,7 +845,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
     })
     .from(goalsTable)
     .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
-  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster));
+  const ourGoals = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
 
   const dnaGoals: DnaGoalRow[] = ourGoals.map(g => ({
     scorer: g.scorer, assist: g.assist, finishType: g.finishType, firstTimeFinish: g.firstTimeFinish,
@@ -930,6 +933,7 @@ router.get("/analytics/opponent-clubs", async (req, res): Promise<void> => {
   const query = GetOpponentClubsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   const matches = await db
     .select({ id: matchesTable.id })
@@ -944,7 +948,7 @@ router.get("/analytics/opponent-clubs", async (req, res): Promise<void> => {
     .from(playerStatsTable)
     .where(and(
       inArray(playerStatsTable.matchId, matchIds),
-      ne(playerStatsTable.club, FOCUS_CLUB),
+      ne(playerStatsTable.club, focusClub),
       isNotNull(playerStatsTable.club),
     ));
 
@@ -1069,6 +1073,7 @@ router.get("/analytics/assists-by-opponent", async (req, res): Promise<void> => 
   const query = GetAssistsByOpponentQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate })
@@ -1088,11 +1093,11 @@ router.get("/analytics/assists-by-opponent", async (req, res): Promise<void> => 
   const matchOpponentMap: Record<number, string> = {};
   for (const m of matches) matchOpponentMap[m.id] = m.opponent;
 
-  // Player stats for Belconnen players — builds roster + per-match minutes
+  // Player stats for focus-team players — builds roster + per-match minutes
   const stats = await db
     .select({ playerName: playerStatsTable.playerName, matchId: playerStatsTable.matchId, minsPlayed: playerStatsTable.minsPlayed })
     .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, FOCUS_CLUB)));
+    .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, focusClub)));
 
   const minsByPlayerOpp: Record<string, Record<string, number>> = {};
   const totalMinsByPlayer: Record<string, number> = {};
@@ -1148,6 +1153,7 @@ router.get("/analytics/opponent-goal-breakdown", async (req, res): Promise<void>
   const query = GetOpponentGoalBreakdownQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, club } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   // Get all matches vs this club
   const allMatches = await db
@@ -1179,7 +1185,7 @@ router.get("/analytics/opponent-goal-breakdown", async (req, res): Promise<void>
   const belStats = await db
     .select({ playerName: playerStatsTable.playerName })
     .from(playerStatsTable)
-    .where(and(inArray(playerStatsTable.matchId, Array.from(clubMatchIds)), eq(playerStatsTable.club, FOCUS_CLUB)));
+    .where(and(inArray(playerStatsTable.matchId, Array.from(clubMatchIds)), eq(playerStatsTable.club, focusClub)));
   const belconnenRoster = new Set(belStats.map(s => s.playerName));
 
   // Load all goals in these matches
@@ -1207,8 +1213,8 @@ router.get("/analytics/opponent-goal-breakdown", async (req, res): Promise<void>
   });
 
   // Scored vs conceded via the shared attribution rule (roster OR our team label).
-  const scored   = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, belconnenRoster)).map(toDetail);
-  const conceded = goals.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, belconnenRoster)).map(toDetail);
+  const scored   = goals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, belconnenRoster, focusClub)).map(toDetail);
+  const conceded = goals.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, belconnenRoster, focusClub)).map(toDetail);
 
   res.json(GetOpponentGoalBreakdownResponse.parse({ scored, conceded }));
 });
@@ -1219,6 +1225,7 @@ router.get("/analytics/goals-by-opponent", async (req, res): Promise<void> => {
   const query = GetGoalsByOpponentQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   // Load matches → optionally trim to last N by date → build matchId→opponent map
   let matches = await db
@@ -1258,7 +1265,7 @@ router.get("/analytics/goals-by-opponent", async (req, res): Promise<void> => {
     .from(playerStatsTable)
     .where(and(
       inArray(playerStatsTable.matchId, matchIds),
-      eq(playerStatsTable.club, FOCUS_CLUB),
+      eq(playerStatsTable.club, focusClub),
     ));
 
   // Aggregate minutes: player → opponent → total mins
@@ -1643,6 +1650,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
   const query = GetClutchGoalsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForSeason(seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate, goalsScored: matchesTable.goalsScored, goalsConceded: matchesTable.goalsConceded })
@@ -1661,7 +1669,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
       .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, close.map(m => m.id)))),
     db.select({ playerName: playerStatsTable.playerName })
       .from(playerStatsTable)
-      .where(and(inArray(playerStatsTable.matchId, close.map(m => m.id)), eq(playerStatsTable.club, FOCUS_CLUB))),
+      .where(and(inArray(playerStatsTable.matchId, close.map(m => m.id)), eq(playerStatsTable.club, focusClub))),
   ]);
   const roster = new Set(stats.map(s => s.playerName));
 
@@ -1673,7 +1681,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
     const m = closeById.get(matchId);
     if (!m) continue;
     const input: ClutchGoalIn[] = mGoals.map(g => ({
-      teamA: isFocusGoal(g.scorer, g.scorerTeam, roster), scorer: g.scorer, minute: g.minuteScored, ord: g.id,
+      teamA: isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub), scorer: g.scorer, minute: g.minuteScored, ord: g.id,
     }));
     const gs = m.goalsScored ?? 0, gc = m.goalsConceded ?? 0;
     const cats = classifyClutchGoals(input, gs, gc);
@@ -1681,7 +1689,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
     for (const g of input) {
       const cat = cats.get(g.ord);
       if (!cat || !g.teamA || !g.scorer || g.scorer === "OG" || !roster.has(g.scorer)) continue;
-      creditClutch(acc, g.scorer, FOCUS_CLUB, cat, m.opponent ?? "?", g.minute, result);
+      creditClutch(acc, g.scorer, focusClub, cat, m.opponent ?? "?", g.minute, result);
     }
   }
   res.json(GetClutchGoalsResponse.parse({ closeMatches: close.length, players: clutchPlayers(acc) }));

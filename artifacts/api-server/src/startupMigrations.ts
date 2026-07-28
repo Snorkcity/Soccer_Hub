@@ -33,6 +33,12 @@ export async function runStartupMigrations(): Promise<void> {
   `);
   await db.execute(sql`ALTER TABLE clubs ALTER COLUMN league_id SET NOT NULL`);
 
+  // Per-league focus club (2026-07): the club whose players fill the Team/Player
+  // Insights tabs. Backfill the known leagues; new leagues can be set later.
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS focus_club text`);
+  await db.execute(sql`UPDATE leagues SET focus_club = 'Belconnen' WHERE name = 'ACT NPLW' AND focus_club IS NULL`);
+  await db.execute(sql`UPDATE leagues SET focus_club = 'BelReserves' WHERE name = 'ACT NPLW Reserve' AND focus_club IS NULL`);
+
   // Club names are unique per league (same club name can exist in two leagues)
   await db.execute(sql`ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_name_unique`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS clubs_league_name_unique ON clubs (league_id, name)`);
