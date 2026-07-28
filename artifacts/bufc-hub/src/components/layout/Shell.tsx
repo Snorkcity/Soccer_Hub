@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, Users, X } from "lucide-react";
+import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, UserRound, Users, X } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
@@ -25,6 +25,7 @@ const navItems: {
   { href: "/library", label: "Session Library", icon: BookOpen },
   { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
   { href: "/users", label: "Users", icon: Users, superadmin: true },
+  { href: "/account", label: "My Account", icon: UserRound },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {

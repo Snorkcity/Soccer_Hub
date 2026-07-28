@@ -1255,6 +1255,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AuthStatus" }
 
+  /auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Update the signed-in user's own name and email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileRequest" }
+      responses:
+        "200":
+          description: Updated auth status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthStatus" }
+
   /auth/change-password:
     post:
       operationId: changePassword
@@ -3409,6 +3426,12 @@ components:
           description: Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.
         user: { $ref: "#/components/schemas/SessionUserInfo" }
       required: [authenticated]
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
 
     ChangePasswordRequest:
       type: object

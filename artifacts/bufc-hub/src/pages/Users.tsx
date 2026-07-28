@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetAuthStatus, useListUsers, getListUsersQueryKey, useCreateUser, useUpdateUser, useDeleteUser,
-  useChangePassword, useLogout, getGetAuthStatusQueryKey, useListLeagues, getListLeaguesQueryKey,
+  useListLeagues, getListLeaguesQueryKey,
   type UserInfo, type LeagueAccess,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, LogOut, Plus, Pencil, Trash2, ShieldCheck, KeyRound, Users as UsersIcon } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ShieldCheck, Users as UsersIcon } from "lucide-react";
 
 function errMsg(e: unknown): string {
   const anyE = e as { data?: { error?: string }; error?: string; message?: string } | undefined;
@@ -74,17 +74,6 @@ export default function Users() {
     onError: (e) => toast({ description: errMsg(e), variant: "destructive" }),
   }});
 
-  // ── My account (any signed-in user) ──
-  const [curPw, setCurPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [pwErr, setPwErr] = useState<string | null>(null);
-  const changePw = useChangePassword({ mutation: {
-    onSuccess: () => { setCurPw(""); setNewPw(""); setPwErr(null); toast({ description: "Password changed" }); },
-    onError: (e) => setPwErr(errMsg(e)),
-  }});
-  const logout = useLogout({ mutation: {
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: getGetAuthStatusQueryKey() }); },
-  }});
 
   function openCreate() {
     setEditorErr(null);
@@ -133,7 +122,7 @@ export default function Users() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-        <p className="text-sm text-muted-foreground">Accounts, league access and your own password.</p>
+        <p className="text-sm text-muted-foreground">Accounts and league access. People change their own password on the My Account page.</p>
       </div>
 
       {isSuperadmin && (
@@ -195,30 +184,6 @@ export default function Users() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg"><KeyRound className="h-4 w-4" />My account</CardTitle>
-          <CardDescription>
-            Signed in as {auth?.user?.name} ({auth?.user?.email})
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form
-            className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
-            onSubmit={(e) => { e.preventDefault(); setPwErr(null); changePw.mutate({ data: { currentPassword: curPw, newPassword: newPw } }); }}
-          >
-            <Input type="password" placeholder="Current password" value={curPw} onChange={(e) => setCurPw(e.target.value)} autoComplete="current-password" />
-            <Input type="password" placeholder="New password (8+ characters)" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
-            <Button type="submit" disabled={changePw.isPending || curPw.length === 0 || newPw.length < 8}>
-              {changePw.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Change password"}
-            </Button>
-          </form>
-          {pwErr && <p className="text-sm text-chart-4">{pwErr}</p>}
-          <Button variant="outline" size="sm" onClick={() => logout.mutate()} className="text-muted-foreground">
-            <LogOut className="h-4 w-4 mr-1.5" />Log out
-          </Button>
-        </CardContent>
-      </Card>
 
       <Dialog open={editor !== null} onOpenChange={(open) => { if (!open) setEditor(null); }}>
         <DialogContent className="sm:max-w-md">

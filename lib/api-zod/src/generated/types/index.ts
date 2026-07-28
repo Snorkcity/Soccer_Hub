@@ -231,6 +231,7 @@ export * from './sessionUpdateRequest';
 export * from './sessionUserInfo';
 export * from './team';
 export * from './teamForm';
+export * from './updateProfileRequest';
 export * from './updateUserRequest';
 export * from './uploadLibraryPracticeRequest';
 export * from './uploadLibraryPracticeRequestCanvas';

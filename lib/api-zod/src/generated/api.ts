@@ -1624,6 +1624,31 @@ export const LoginResponse = zod.object({
 
 
 /**
+ * @summary Update the signed-in user's own name and email
+ */
+export const UpdateProfileBody = zod.object({
+  "name": zod.string().optional(),
+  "email": zod.string().optional()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.'),
+  "user": zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
+  "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
+}))
+}).optional()
+})
+
+
+/**
  * @summary Change the signed-in user's password
  */
 export const ChangePasswordBody = zod.object({

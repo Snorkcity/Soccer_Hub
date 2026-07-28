@@ -121,6 +121,43 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   res.json(user ? await authStatusPayload(user) : { authenticated: false });
 });
 
+const UpdateProfileBody = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120).optional(),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").optional(),
+});
+
+router.patch("/auth/profile", async (req, res): Promise<void> => {
+  const user = await getSessionUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const parsed = UpdateProfileBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const { name, email } = parsed.data;
+  if (email && email !== user.email) {
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (existing && existing.id !== user.id) {
+      res.status(409).json({ error: "That email is already in use" });
+      return;
+    }
+  }
+  await db.update(usersTable)
+    .set({
+      ...(name ? { name } : {}),
+      ...(email ? { email } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(usersTable.id, user.id));
+  logger.info({ userId: user.id }, "User updated own profile");
+  delete (req as { _sessionUser?: unknown })._sessionUser; // drop per-request cache so the response reflects the update
+  const fresh = await getSessionUser(req);
+  res.json(fresh ? await authStatusPayload(fresh) : { authenticated: false });
+});
+
 router.post("/auth/change-password", async (req, res): Promise<void> => {
   const user = await getSessionUser(req);
   if (!user) {
