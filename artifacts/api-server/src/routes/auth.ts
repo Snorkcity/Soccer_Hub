@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod/v4";
 import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable } from "@workspace/db";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
 import {
@@ -201,8 +201,13 @@ function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-/** Create a single-use set-password token and return the raw value for the link. */
+/** Create a single-use set-password token and return the raw value for the link.
+ * Any earlier unused tokens for the user are revoked — only the newest link works. */
 async function createResetToken(userId: number, ttlMs: number): Promise<string> {
+  await db.delete(passwordResetTokensTable).where(and(
+    eq(passwordResetTokensTable.userId, userId),
+    isNull(passwordResetTokensTable.usedAt),
+  ));
   const token = crypto.randomBytes(32).toString("base64url");
   await db.insert(passwordResetTokensTable).values({
     userId,
