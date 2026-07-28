@@ -10,7 +10,7 @@ description: How the ACT NPLW Reserve 2026 season was imported and how the focus
 
 ## Reserves import
 - `lib/db/src/importReserves.ts` + CSVs in `lib/db/src/data/reserves-2026/` (converted from Luke's xlsx). Additive + idempotent: wipes only its own team+season / season scope, never firsts. Run by esbuild-bundling from artifacts/api-server (no tsx runner).
-- Team "Belconnen Reserves" (renamed from the placeholder row), analyticsEnabled. Luke's "-Res" club spellings are mapped to plain display names (Belconnen, Croatia, ...) via CLUB_MAP at import time; league renamed "ACT NPLW Reserves", season label "2026 Season" (dropdown convention "League · Label").
+- Reserves matches hang off the SAME "Belconnen" analytics team as the firsts (one entry in the team dropdown; the season picker distinguishes firsts vs reserves). The import deletes any legacy separate reserves team rows. Luke's "-Res" club spellings are mapped to plain display names (Belconnen, Croatia, ...) via CLUB_MAP at import time; league renamed "ACT NPLW Reserves", season label "2026 Season" (dropdown convention "League · Label").
 - Players are keyed name+club (players.club → DB column `country`); same surname at two clubs must not share a player row.
 
 ## Excel score-corruption gotcha
