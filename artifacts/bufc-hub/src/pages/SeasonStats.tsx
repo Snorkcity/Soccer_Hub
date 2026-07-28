@@ -2175,6 +2175,7 @@ export default function SeasonStats() {
                     </button>
                   </div>
                 }
+                footer={<ClubToggleLegend opponents={allOpponents} hidden={hiddenOpponents} onToggle={toggleOpponent} colorMap={clubColorMap} />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={goalsByOppChartData} margin={{ top: 10, right: 20, left: -20, bottom: 40 }}>
@@ -2182,19 +2183,6 @@ export default function SeasonStats() {
                     <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<MinsPerGoalTooltip hiddenOpponents={hiddenOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
-                      onClick={(e) => toggleOpponent(e.value as string)}
-                      formatter={(value) => (
-                        <span style={{
-                          color: hiddenOpponents.has(value) ? "hsl(var(--muted-foreground))" : undefined,
-                          textDecoration: hiddenOpponents.has(value) ? "line-through" : undefined,
-                          cursor: "pointer",
-                        }}>
-                          {value}
-                        </span>
-                      )}
-                    />
                     {allOpponents.map(opp => (
                       <Bar
                         key={opp}
@@ -2243,6 +2231,7 @@ export default function SeasonStats() {
                     </button>
                   </div>
                 }
+                footer={<ClubToggleLegend opponents={allAssistOpponents} hidden={hiddenAssistOpponents} onToggle={toggleAssistOpponent} colorMap={clubColorMap} />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={assistsChartData} margin={{ top: 10, right: 20, left: -20, bottom: 40 }}>
@@ -2250,19 +2239,6 @@ export default function SeasonStats() {
                     <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<AssistStackedTooltip hiddenOpponents={hiddenAssistOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
-                      onClick={(e) => toggleAssistOpponent(e.value as string)}
-                      formatter={(value) => (
-                        <span style={{
-                          color: hiddenAssistOpponents.has(value) ? "hsl(var(--muted-foreground))" : undefined,
-                          textDecoration: hiddenAssistOpponents.has(value) ? "line-through" : undefined,
-                          cursor: "pointer",
-                        }}>
-                          {value}
-                        </span>
-                      )}
-                    />
                     {allAssistOpponents.map(opp => (
                       <Bar
                         key={opp}
@@ -2311,6 +2287,7 @@ export default function SeasonStats() {
                     </button>
                   </div>
                 }
+                footer={<ClubToggleLegend opponents={allContribOpponents} hidden={hiddenContribOpponents} onToggle={toggleContribOpponent} colorMap={clubColorMap} />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={contribChartData} margin={{ top: 10, right: 20, left: -20, bottom: 40 }}>
@@ -2318,19 +2295,6 @@ export default function SeasonStats() {
                     <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
                     <YAxis {...AXIS_STYLE} allowDecimals={false} />
                     <Tooltip content={<ContribTooltip hiddenOpponents={hiddenContribOpponents} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11, paddingTop: 28 }}
-                      onClick={(e) => toggleContribOpponent(e.value as string)}
-                      formatter={(value) => (
-                        <span style={{
-                          color: hiddenContribOpponents.has(value) ? "hsl(var(--muted-foreground))" : undefined,
-                          textDecoration: hiddenContribOpponents.has(value) ? "line-through" : undefined,
-                          cursor: "pointer",
-                        }}>
-                          {value}
-                        </span>
-                      )}
-                    />
                     {allContribOpponents.map(opp => (
                       <Bar
                         key={opp}
@@ -3603,18 +3567,15 @@ function GoalDetailStackTooltip({ active, label, goals, dim, hidden, shortName }
   );
 }
 
-function OpponentStackChart({ title, description, tooltip, data, opponents, colorMap, hidden, onToggle, angledLabels, controls, tooltipContent }: {
-  title: string; description?: string; tooltip?: string;
-  data: Array<Record<string, string | number>>;
+/** Click-to-hide club legend rendered as plain buttons in the ChartCard footer
+    (Recharts' own <Legend> won't re-render on external state — see memory). */
+function ClubToggleLegend({ opponents, hidden, onToggle, colorMap }: {
   opponents: string[];
-  colorMap: Record<string, string>;
   hidden: Set<string>;
   onToggle: (opp: string) => void;
-  angledLabels?: boolean;
-  controls?: React.ReactNode;
-  tooltipContent?: React.ReactElement;
+  colorMap: Record<string, string>;
 }) {
-  const legend = data.length === 0 ? undefined : (
+  return (
     <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px]">
       {opponents.map(opp => {
         const off = hidden.has(opp);
@@ -3638,6 +3599,22 @@ function OpponentStackChart({ title, description, tooltip, data, opponents, colo
         );
       })}
     </div>
+  );
+}
+
+function OpponentStackChart({ title, description, tooltip, data, opponents, colorMap, hidden, onToggle, angledLabels, controls, tooltipContent }: {
+  title: string; description?: string; tooltip?: string;
+  data: Array<Record<string, string | number>>;
+  opponents: string[];
+  colorMap: Record<string, string>;
+  hidden: Set<string>;
+  onToggle: (opp: string) => void;
+  angledLabels?: boolean;
+  controls?: React.ReactNode;
+  tooltipContent?: React.ReactElement;
+}) {
+  const legend = data.length === 0 ? undefined : (
+    <ClubToggleLegend opponents={opponents} hidden={hidden} onToggle={onToggle} colorMap={colorMap} />
   );
 
   return (
@@ -4106,6 +4083,7 @@ function OppPlayerStackChart({
           </button>
         </div>
       }
+      footer={data.length === 0 ? undefined : <ClubToggleLegend opponents={opponents} hidden={hidden} onToggle={onToggle} colorMap={colorMap} />}
     >
       {data.length === 0 ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -4126,19 +4104,6 @@ function OppPlayerStackChart({
                     : <ContribTooltip hiddenOpponents={hidden} />
               }
               cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 24 }}
-              onClick={(e) => onToggle(e.value as string)}
-              formatter={(value) => (
-                <span style={{
-                  color: hidden.has(value) ? "hsl(var(--muted-foreground))" : undefined,
-                  textDecoration: hidden.has(value) ? "line-through" : undefined,
-                  cursor: "pointer",
-                }}>
-                  {value}
-                </span>
-              )}
             />
             {opponents.map(opp => (
               <Bar
