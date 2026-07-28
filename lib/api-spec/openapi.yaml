@@ -1352,6 +1352,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserInfo" }
 
+  /auth/users/{id}/invite:
+    post:
+      operationId: inviteUser
+      tags: [auth]
+      summary: Email a user an invite / set-password link (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Invite email sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
   /auth/users/{id}:
     patch:
       operationId: updateUser
@@ -3516,7 +3533,7 @@ components:
         leagues:
           type: array
           items: { $ref: "#/components/schemas/LeagueAccess" }
-      required: [email, name, password]
+      required: [email, name]
 
     UpdateUserRequest:
       type: object

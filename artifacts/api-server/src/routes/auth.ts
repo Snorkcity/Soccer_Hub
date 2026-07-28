@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import { z } from "zod/v4";
 import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable } from "@workspace/db";
-import { sendEmail, passwordResetEmailHtml } from "../lib/email";
+import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
 import { eq, asc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
@@ -34,7 +34,8 @@ const LeagueAccessInput = z.object({
 const CreateUserBody = z.object({
   email: z.string().trim().toLowerCase().min(3),
   name: z.string().trim().min(1),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  // Optional: when omitted, the user gets an invite email with a set-password link.
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
   isSuperadmin: z.boolean().optional().default(false),
   leagues: z.array(LeagueAccessInput).optional().default([]),
 });
@@ -194,9 +195,32 @@ const ResetPasswordBody = z.object({
 });
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+/** Create a single-use set-password token and return the raw value for the link. */
+async function createResetToken(userId: number, ttlMs: number): Promise<string> {
+  const token = crypto.randomBytes(32).toString("base64url");
+  await db.insert(passwordResetTokensTable).values({
+    userId,
+    tokenHash: hashResetToken(token),
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
+  return token;
+}
+
+async function sendInviteEmail(req: Parameters<typeof appBaseUrl>[0], user: { id: number; email: string; name: string }): Promise<void> {
+  const token = await createResetToken(user.id, INVITE_TOKEN_TTL_MS);
+  const setUrl = `${appBaseUrl(req)}/?reset_token=${token}`;
+  await sendEmail({
+    to: user.email,
+    subject: "Your BUFC Performance Hub account",
+    html: inviteEmailHtml(user.name, setUrl),
+  });
+  logger.info({ userId: user.id }, "Invite email sent");
 }
 
 /** Base URL for links in emails. Prod is pinned; dev derives from the referer. */
@@ -225,12 +249,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   try {
     const [row] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (!row) return;
-    const token = crypto.randomBytes(32).toString("base64url");
-    await db.insert(passwordResetTokensTable).values({
-      userId: row.id,
-      tokenHash: hashResetToken(token),
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-    });
+    const token = await createResetToken(row.id, RESET_TOKEN_TTL_MS);
     const resetUrl = `${appBaseUrl(req)}/?reset_token=${token}`;
     await sendEmail({
       to: row.email,
@@ -301,8 +320,9 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     res.status(409).json({ error: "A user with that email already exists" });
     return;
   }
+  // No password given → unguessable placeholder; the person sets their own via the invite link.
   const [created] = await db.insert(usersTable)
-    .values({ email, name, passwordHash: hashPassword(password), isSuperadmin })
+    .values({ email, name, passwordHash: hashPassword(password ?? crypto.randomBytes(32).toString("base64url")), isSuperadmin })
     .returning({ id: usersTable.id });
   if (leagues.length > 0) {
     await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({
@@ -312,7 +332,39 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     })));
   }
   logger.info({ userId: created.id, email }, "User created");
+  if (!password) {
+    try {
+      await sendInviteEmail(req, { id: created.id, email, name });
+    } catch (err) {
+      // Account still exists; the superadmin can hit "resend invite" from the Users page.
+      logger.error({ err, userId: created.id }, "Invite email failed after user creation");
+    }
+  }
   res.status(201).json(await userInfo(created.id));
+});
+
+router.post("/auth/users/:id/invite", async (req, res): Promise<void> => {
+  if (!(await requireSuperadmin(req))) {
+    res.status(403).json({ error: "Superadmin access required" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+  const [row] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  try {
+    await sendInviteEmail(req, { id: row.id, email: row.email, name: row.name });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, userId: id }, "Invite email failed");
+    res.status(502).json({ error: "Couldn't send the email — try again in a minute" });
+  }
 });
 
 router.patch("/auth/users/:id", async (req, res): Promise<void> => {

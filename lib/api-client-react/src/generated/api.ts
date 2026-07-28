@@ -4829,6 +4829,77 @@ export const useCreateUser = <TError = ErrorType<unknown>,
       return useMutation(getCreateUserMutationOptions(options));
     }
 
+export const getInviteUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/auth/users/${id}/invite`
+}
+
+/**
+ * @summary Email a user an invite / set-password link (superadmin only)
+ */
+export const inviteUser = async (id: number, options?: RequestInit): Promise<OkResponse> => {
+
+  return customFetch<OkResponse>(getInviteUserUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getInviteUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['inviteUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  inviteUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteUserMutationResult = NonNullable<Awaited<ReturnType<typeof inviteUser>>>
+
+    export type InviteUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Email a user an invite / set-password link (superadmin only)
+ */
+export const useInviteUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getInviteUserMutationOptions(options));
+    }
+
 export const getUpdateUserUrl = (id: number,) => {
 
 

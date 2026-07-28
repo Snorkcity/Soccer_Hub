@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetAuthStatus, useListUsers, getListUsersQueryKey, useCreateUser, useUpdateUser, useDeleteUser,
+  useGetAuthStatus, useListUsers, getListUsersQueryKey, useCreateUser, useUpdateUser, useDeleteUser, useInviteUser,
   useListLeagues, getListLeaguesQueryKey,
   type UserInfo, type LeagueAccess,
 } from "@workspace/api-client-react";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, Pencil, Trash2, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ShieldCheck, MailPlus, Users as UsersIcon } from "lucide-react";
 
 function errMsg(e: unknown): string {
   const anyE = e as { data?: { error?: string }; error?: string; message?: string } | undefined;
@@ -62,7 +62,10 @@ export default function Users() {
 
   const refresh = () => { void queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() }); };
   const createUser = useCreateUser({ mutation: {
-    onSuccess: () => { refresh(); setEditor(null); toast({ description: "User created" }); },
+    onSuccess: (_data, vars) => {
+      refresh(); setEditor(null);
+      toast({ description: vars.data.password ? "User created" : "User created — invite email sent" });
+    },
     onError: (e) => setEditorErr(errMsg(e)),
   }});
   const updateUser = useUpdateUser({ mutation: {
@@ -71,6 +74,10 @@ export default function Users() {
   }});
   const deleteUser = useDeleteUser({ mutation: {
     onSuccess: () => { refresh(); toast({ description: "User deleted" }); },
+    onError: (e) => toast({ description: errMsg(e), variant: "destructive" }),
+  }});
+  const inviteUser = useInviteUser({ mutation: {
+    onSuccess: () => toast({ description: "Invite email sent" }),
     onError: (e) => toast({ description: errMsg(e), variant: "destructive" }),
   }});
 
@@ -104,7 +111,8 @@ export default function Users() {
       .map(({ leagueId, modules }) => ({ leagueId, role: roleForModules(modules), modules }));
     if (editor.id === null) {
       createUser.mutate({ data: {
-        name: editor.name.trim(), email: editor.email.trim(), password: editor.password,
+        name: editor.name.trim(), email: editor.email.trim(),
+        ...(editor.password ? { password: editor.password } : {}),
         isSuperadmin: editor.isSuperadmin, leagues: leagueAccess,
       }});
     } else {
@@ -169,6 +177,11 @@ export default function Users() {
                         </div>
                       )}
                     </div>
+                    <Button
+                      variant="ghost" size="sm" title="Email a set-password link"
+                      disabled={inviteUser.isPending}
+                      onClick={() => { if (window.confirm(`Email ${u.name} a link to set their password?`)) inviteUser.mutate({ id: u.id }); }}
+                    ><MailPlus className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
                     {auth?.user?.id !== u.id && (
                       <Button
@@ -202,9 +215,12 @@ export default function Users() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
-                  {editor.id === null ? "Temporary password (8+ characters)" : "Reset password (leave blank to keep current)"}
+                  {editor.id === null ? "Temporary password (optional)" : "Reset password (leave blank to keep current)"}
                 </label>
                 <Input type="text" value={editor.password} onChange={(e) => setEditor({ ...editor, password: e.target.value })} autoComplete="off" />
+                {editor.id === null && (
+                  <p className="text-xs text-muted-foreground">Leave blank to email them an invite with a set-password link instead.</p>
+                )}
               </div>
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
                 <div>
@@ -247,7 +263,7 @@ export default function Users() {
             <Button variant="outline" onClick={() => setEditor(null)}>Cancel</Button>
             <Button
               onClick={saveEditor}
-              disabled={saving || !editor || editor.name.trim().length === 0 || editor.email.trim().length < 3 || (editor.id === null && editor.password.length < 8)}
+              disabled={saving || !editor || editor.name.trim().length === 0 || editor.email.trim().length < 3 || (editor.password.length > 0 && editor.password.length < 8)}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
             </Button>

@@ -35,6 +35,20 @@ export function passwordResetEmailHtml(name: string, resetUrl: string): string {
   </div>`;
 }
 
+export function inviteEmailHtml(name: string, setUrl: string): string {
+  return `
+  <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+    <h2 style="margin-bottom: 4px;">Welcome to the BUFC Performance Hub</h2>
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>An account has been created for you on the Belconnen United FC Performance Hub. Click below to choose your password and get started.</p>
+    <p style="margin: 24px 0;">
+      <a href="${setUrl}" style="background: #16a34a; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold;">Set your password</a>
+    </p>
+    <p style="font-size: 13px; color: #555;">This link works once and expires in 7 days. After setting your password, log in any time at <a href="https://app.gameinsights.com.au">app.gameinsights.com.au</a> with this email address.</p>
+    <p style="font-size: 13px; color: #555;">If the button doesn't work, copy this link into your browser:<br>${setUrl}</p>
+  </div>`;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

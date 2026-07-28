@@ -10,7 +10,7 @@ import type { LeagueAccess } from './leagueAccess';
 export interface CreateUserRequest {
   email: string;
   name: string;
-  password: string;
+  password?: string;
   isSuperadmin?: boolean;
   leagues?: LeagueAccess[];
 }

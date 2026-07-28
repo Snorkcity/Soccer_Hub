@@ -1710,7 +1710,7 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
 export const CreateUserBody = zod.object({
   "email": zod.string(),
   "name": zod.string(),
-  "password": zod.string(),
+  "password": zod.string().optional(),
   "isSuperadmin": zod.boolean().optional(),
   "leagues": zod.array(zod.object({
   "leagueId": zod.number(),
@@ -1730,6 +1730,18 @@ export const CreateUserResponse = zod.object({
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).')
 })),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Email a user an invite / set-password link (superadmin only)
+ */
+export const InviteUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const InviteUserResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 
