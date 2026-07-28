@@ -1599,15 +1599,126 @@ export const GetGpsLoadSummaryResponse = zod.array(GetGpsLoadSummaryResponseItem
 
 
 /**
- * @summary Log in as the data-entry admin
+ * @summary Log in with email and password
  */
 export const LoginBody = zod.object({
+  "email": zod.string(),
   "password": zod.string()
 })
 
 export const LoginResponse = zod.object({
   "authenticated": zod.boolean(),
-  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.'),
+  "user": zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+}))
+}).optional()
+})
+
+
+/**
+ * @summary Change the signed-in user's password
+ */
+export const ChangePasswordBody = zod.object({
+  "currentPassword": zod.string(),
+  "newPassword": zod.string()
+})
+
+export const ChangePasswordResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary List all user accounts (superadmin only)
+ */
+export const ListUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+})),
+  "createdAt": zod.string()
+})
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary Create a user account (superadmin only)
+ */
+export const CreateUserBody = zod.object({
+  "email": zod.string(),
+  "name": zod.string(),
+  "password": zod.string(),
+  "isSuperadmin": zod.boolean().optional(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+})).optional()
+})
+
+export const CreateUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a user account (superadmin only)
+ */
+export const UpdateUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateUserBody = zod.object({
+  "email": zod.string().optional(),
+  "name": zod.string().optional(),
+  "password": zod.string().optional(),
+  "isSuperadmin": zod.boolean().optional(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+})).optional()
+})
+
+export const UpdateUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a user account (superadmin only)
+ */
+export const DeleteUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteUserResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 
@@ -1616,7 +1727,17 @@ export const LoginResponse = zod.object({
  */
 export const LogoutResponse = zod.object({
   "authenticated": zod.boolean(),
-  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.'),
+  "user": zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+}))
+}).optional()
 })
 
 
@@ -1625,7 +1746,17 @@ export const LogoutResponse = zod.object({
  */
 export const GetAuthStatusResponse = zod.object({
   "authenticated": zod.boolean(),
-  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data; viewer is read-only (future club logins).')
+  "role": zod.enum(['admin', 'viewer']).optional().describe('Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.'),
+  "user": zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "isSuperadmin": zod.boolean(),
+  "leagues": zod.array(zod.object({
+  "leagueId": zod.number(),
+  "role": zod.enum(['admin', 'viewer'])
+}))
+}).optional()
 })
 
 

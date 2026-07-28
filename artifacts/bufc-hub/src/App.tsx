@@ -21,6 +21,7 @@ import Reflections from '@/pages/Reflections';
 import MatchPrep from '@/pages/MatchPrep';
 import CoachAssistant from '@/pages/CoachAssistant';
 import ReflectionCycle from '@/pages/ReflectionCycle';
+import Users from '@/pages/Users';
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ function Router() {
             <Route path="/assistant" component={CoachAssistant} />
             <Route path="/reflections/:id" component={ReflectionCycle} />
             <Route path="/data-entry" component={DataEntry} />
+            <Route path="/users" component={Users} />
             <Route component={NotFound} />
           </Switch>
         </Shell>

@@ -5,8 +5,12 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { LeagueAccess } from './leagueAccess';
 
-export interface AdminLoginBody {
+export interface CreateUserRequest {
   email: string;
+  name: string;
   password: string;
+  isSuperadmin?: boolean;
+  leagues?: LeagueAccess[];
 }

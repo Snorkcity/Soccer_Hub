@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AdminLoginBody {
-  email: string;
-  password: string;
+export interface OkResponse {
+  ok: boolean;
 }

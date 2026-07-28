@@ -1177,11 +1177,33 @@ export interface OpponentProfileResponse {
 }
 
 export interface AdminLoginBody {
+  email: string;
   password: string;
 }
 
+export type LeagueAccessRole = typeof LeagueAccessRole[keyof typeof LeagueAccessRole];
+
+
+export const LeagueAccessRole = {
+  admin: 'admin',
+  viewer: 'viewer',
+} as const;
+
+export interface LeagueAccess {
+  leagueId: number;
+  role: LeagueAccessRole;
+}
+
+export interface SessionUserInfo {
+  id: number;
+  email: string;
+  name: string;
+  isSuperadmin: boolean;
+  leagues: LeagueAccess[];
+}
+
 /**
- * Present when authenticated. Admin can write data; viewer is read-only (future club logins).
+ * Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.
  */
 export type AuthStatusRole = typeof AuthStatusRole[keyof typeof AuthStatusRole];
 
@@ -1193,8 +1215,43 @@ export const AuthStatusRole = {
 
 export interface AuthStatus {
   authenticated: boolean;
-  /** Present when authenticated. Admin can write data; viewer is read-only (future club logins). */
+  /** Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere. */
   role?: AuthStatusRole;
+  user?: SessionUserInfo;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
+export interface UserInfo {
+  id: number;
+  email: string;
+  name: string;
+  isSuperadmin: boolean;
+  leagues: LeagueAccess[];
+  createdAt: string;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  name: string;
+  password: string;
+  isSuperadmin?: boolean;
+  leagues?: LeagueAccess[];
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  name?: string;
+  password?: string;
+  isSuperadmin?: boolean;
+  leagues?: LeagueAccess[];
 }
 
 export interface LeagueMatchInfo {

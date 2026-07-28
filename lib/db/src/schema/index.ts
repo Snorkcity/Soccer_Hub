@@ -19,3 +19,4 @@ export * from "./practiceVariations";
 export * from "./journal";
 export * from "./matchPrepReports";
 export * from "./curriculum";
+export * from "./users";

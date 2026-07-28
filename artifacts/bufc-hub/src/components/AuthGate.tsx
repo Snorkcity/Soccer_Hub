@@ -19,6 +19,7 @@ function errMsg(e: unknown): string {
 
 function LoginScreen() {
   const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const login = useLogin({ mutation: {
@@ -36,19 +37,23 @@ function LoginScreen() {
         </div>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg"><Lock className="h-4 w-4" />Club access</CardTitle>
-            <CardDescription>Enter the club password to view the hub.</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-lg"><Lock className="h-4 w-4" />Sign in</CardTitle>
+            <CardDescription>Log in with your email and password.</CardDescription>
           </CardHeader>
           <CardContent>
             <form
               className="space-y-3"
-              onSubmit={e => { e.preventDefault(); setErr(null); login.mutate({ data: { password } }); }}
+              onSubmit={e => { e.preventDefault(); setErr(null); login.mutate({ data: { email, password } }); }}
             >
               <Input
-                type="password" value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Password" autoFocus autoComplete="current-password"
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="Email" autoFocus autoComplete="username"
               />
-              <Button type="submit" className="w-full" disabled={login.isPending || password.length === 0}>
+              <Input
+                type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="Password" autoComplete="current-password"
+              />
+              <Button type="submit" className="w-full" disabled={login.isPending || password.length === 0 || email.length === 0}>
                 {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Log in"}
               </Button>
               {err && (

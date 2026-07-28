@@ -10,12 +10,15 @@ import {
   CreateLeagueResponse,
 } from "@workspace/api-zod";
 import { pgErrorCode } from "../lib/pgError";
+import { getSessionUser, canSeeLeague } from "../middlewares/entryAuth";
 
 const router: IRouter = Router();
 
-router.get("/leagues", async (_req, res): Promise<void> => {
+router.get("/leagues", async (req, res): Promise<void> => {
+  const user = await getSessionUser(req);
   const rows = await db.select().from(leaguesTable).orderBy(leaguesTable.name);
-  res.json(ListLeaguesResponse.parse(rows));
+  const visible = user ? rows.filter((l) => canSeeLeague(user, l.id)) : [];
+  res.json(ListLeaguesResponse.parse(visible));
 });
 
 router.post("/leagues", async (req, res): Promise<void> => {
@@ -36,7 +39,8 @@ router.post("/leagues", async (req, res): Promise<void> => {
   }
 });
 
-router.get("/seasons", async (_req, res): Promise<void> => {
+router.get("/seasons", async (req, res): Promise<void> => {
+  const user = await getSessionUser(req);
   // Ordered by league id first so the original league's seasons lead the list —
   // frontends that default to "first active season" resolve deterministically.
   const rows = await db
@@ -51,7 +55,8 @@ router.get("/seasons", async (_req, res): Promise<void> => {
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(leaguesTable.id, seasonsTable.leagueId))
     .orderBy(asc(seasonsTable.leagueId), desc(seasonsTable.year));
-  res.json(ListSeasonsResponse.parse(rows));
+  const visible = user ? rows.filter((s) => canSeeLeague(user, s.leagueId)) : [];
+  res.json(ListSeasonsResponse.parse(visible));
 });
 
 router.post("/seasons", async (req, res): Promise<void> => {

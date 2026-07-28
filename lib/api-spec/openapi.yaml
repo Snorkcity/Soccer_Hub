@@ -1242,7 +1242,7 @@ paths:
     post:
       operationId: login
       tags: [auth]
-      summary: Log in as the data-entry admin
+      summary: Log in with email and password
       requestBody:
         required: true
         content:
@@ -1254,6 +1254,89 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuthStatus" }
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the signed-in user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /auth/users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: List all user accounts (superadmin only)
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserInfo" }
+    post:
+      operationId: createUser
+      tags: [auth]
+      summary: Create a user account (superadmin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserInfo" }
+
+  /auth/users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [auth]
+      summary: Update a user account (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserInfo" }
+    delete:
+      operationId: deleteUser
+      tags: [auth]
+      summary: Delete a user account (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
 
   /auth/logout:
     post:
@@ -3286,8 +3369,30 @@ components:
     AdminLoginBody:
       type: object
       properties:
+        email: { type: string }
         password: { type: string }
-      required: [password]
+      required: [email, password]
+
+    LeagueAccess:
+      type: object
+      properties:
+        leagueId: { type: integer }
+        role:
+          type: string
+          enum: [admin, viewer]
+      required: [leagueId, role]
+
+    SessionUserInfo:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        name: { type: string }
+        isSuperadmin: { type: boolean }
+        leagues:
+          type: array
+          items: { $ref: "#/components/schemas/LeagueAccess" }
+      required: [id, email, name, isSuperadmin, leagues]
 
     AuthStatus:
       type: object
@@ -3296,8 +3401,58 @@ components:
         role:
           type: string
           enum: [admin, viewer]
-          description: Present when authenticated. Admin can write data; viewer is read-only (future club logins).
+          description: Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.
+        user: { $ref: "#/components/schemas/SessionUserInfo" }
       required: [authenticated]
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+      required: [currentPassword, newPassword]
+
+    OkResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+
+    UserInfo:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        name: { type: string }
+        isSuperadmin: { type: boolean }
+        leagues:
+          type: array
+          items: { $ref: "#/components/schemas/LeagueAccess" }
+        createdAt: { type: string }
+      required: [id, email, name, isSuperadmin, leagues, createdAt]
+
+    CreateUserRequest:
+      type: object
+      properties:
+        email: { type: string }
+        name: { type: string }
+        password: { type: string }
+        isSuperadmin: { type: boolean }
+        leagues:
+          type: array
+          items: { $ref: "#/components/schemas/LeagueAccess" }
+      required: [email, name, password]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email: { type: string }
+        name: { type: string }
+        password: { type: string }
+        isSuperadmin: { type: boolean }
+        leagues:
+          type: array
+          items: { $ref: "#/components/schemas/LeagueAccess" }
 
     LeagueMatchInfo:
       type: object

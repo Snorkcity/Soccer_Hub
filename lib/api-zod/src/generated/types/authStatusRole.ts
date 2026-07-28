@@ -7,7 +7,7 @@
  */
 
 /**
- * Present when authenticated. Admin can write data; viewer is read-only (future club logins).
+ * Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere.
  */
 export type AuthStatusRole = typeof AuthStatusRole[keyof typeof AuthStatusRole];
 

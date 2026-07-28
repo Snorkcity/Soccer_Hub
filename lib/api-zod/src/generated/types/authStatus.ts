@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AuthStatusRole } from './authStatusRole';
+import type { SessionUserInfo } from './sessionUserInfo';
 
 export interface AuthStatus {
   authenticated: boolean;
-  /** Present when authenticated. Admin can write data; viewer is read-only (future club logins). */
+  /** Present when authenticated. Admin can write data somewhere; viewer is read-only everywhere. */
   role?: AuthStatusRole;
+  user?: SessionUserInfo;
 }

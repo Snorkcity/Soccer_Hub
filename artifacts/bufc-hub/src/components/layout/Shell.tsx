@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, X } from "lucide-react";
+import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, Users, X } from "lucide-react";
+import { useGetAuthStatus } from "@workspace/api-client-react";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 const navItems = [
@@ -14,10 +15,14 @@ const navItems = [
   { href: "/sessions", label: "Session Planner", icon: ClipboardList },
   { href: "/library", label: "Session Library", icon: BookOpen },
   { href: "/data-entry", label: "Data Entry", icon: Edit3 },
+  { href: "/users", label: "Users", icon: Users },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { data: auth } = useGetAuthStatus();
+  const isSuperadmin = auth?.authenticated === true && auth.user?.isSuperadmin === true;
+  const visibleItems = navItems.filter((item) => item.href !== "/users" || isSuperadmin);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -70,7 +75,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         )}
 
         <nav className={`flex-1 overflow-auto p-3 md:p-4 space-y-1 ${mobileOpen ? "block" : "hidden md:block"}`}>
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = location === item.href;
             return (
               <Link

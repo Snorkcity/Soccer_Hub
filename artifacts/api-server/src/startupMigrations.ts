@@ -40,6 +40,9 @@ export async function runStartupMigrations(): Promise<void> {
   // At most one active season per league, enforced by the database
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS seasons_one_active_per_league ON seasons (league_id) WHERE is_active`);
 
+  // ── User accounts (2026-07): real logins replace the shared club password ──
+  await runUserAccountsMigration();
+
   // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table
   await db.execute(sql`ALTER TABLE league_matches ADD COLUMN IF NOT EXISTS half_score text`);
   await db.execute(sql`
@@ -850,4 +853,47 @@ async function backfillSavedNames(): Promise<void> {
     },
     "Saved-name backfill complete",
   );
+}
+
+// ── User accounts ─────────────────────────────────────────────────────────────
+// Creates the users + per-league access tables, then bootstraps the first
+// superadmin from ADMIN_PASSWORD so the owner is never locked out. Runs only
+// when the users table is empty, so it never overwrites real accounts.
+async function runUserAccountsMigration(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id serial PRIMARY KEY,
+      email text NOT NULL,
+      name text NOT NULL,
+      password_hash text NOT NULL,
+      is_superadmin boolean NOT NULL DEFAULT false,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (email)`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS user_league_access (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      league_id integer NOT NULL REFERENCES leagues(id),
+      role text NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS user_league_access_unique ON user_league_access (user_id, league_id)`);
+
+  const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
+  if (existing.rows.length > 0) return;
+  const initialPassword = process.env.ADMIN_PASSWORD;
+  if (!initialPassword) {
+    logger.warn("No users exist and ADMIN_PASSWORD is not set — cannot bootstrap the first superadmin");
+    return;
+  }
+  const { hashPassword } = await import("./lib/passwords");
+  await db.execute(sql`
+    INSERT INTO users (email, name, password_hash, is_superadmin)
+    VALUES ('scott@gameinsights.com.au', 'Scott', ${hashPassword(initialPassword)}, true)
+    ON CONFLICT (email) DO NOTHING
+  `);
+  logger.info("Bootstrapped first superadmin account (scott@gameinsights.com.au) using ADMIN_PASSWORD");
 }
