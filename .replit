@@ -33,3 +33,9 @@ externalPort = 80
 [[ports]]
 localPort = 19679
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+PROD_DB_PUBLIC_HOST = "tokaido.proxy.rlwy.net"
+PROD_DB_PUBLIC_PORT = "20095"
