@@ -19,6 +19,12 @@ description: Real logins replaced the shared club password; per-league admin/vie
 - Frontend: useLeagueModules() hook; Shell nav via hasModuleAnywhere; pages filter season dropdowns by hasModule(season.leagueId, module); GPS/Testing whole-page gated (they pick team/year not league).
 - Startup migration ORDER matters: modules ALTER/backfill must run AFTER runUserAccountsMigration creates the table.
 
+## Per-user club (2026-07)
+- Access hierarchy is league → club → modules: `user_league_access.club` (nullable) is the person's OWN club in that league; Team/Player insights centre on it. NULL falls back to `leagues.focus_club`.
+- Server resolution: `focusClubForRequest(req, seasonId)` in api-server lib/focusClub — user grant club wins, else cached league default. ALL analytics + data-entry focus-club call sites use it; any NEW endpoint needing "our club" must too (never call focusClubForSeason directly from a route).
+- Club is validated against clubs table for that league on user create/update (400 otherwise). Only superadmin can set it (users CRUD is superadmin-only).
+- **Why:** multi-club future — two clubs sharing one league's data, each coach seeing their own club's insights.
+
 ## Self-service & password reset (2026-07)
 - My Account page (`/account`, shared nav): self name/email (PATCH /auth/profile) + change password + logout. Profile route must clear the per-request `_sessionUser` cache before re-reading, or the response shows stale data.
 - Forgot-password: POST /auth/forgot-password (always {ok:true}, never reveals account existence) emails a one-hour single-use link; POST /auth/reset-password {token,newPassword}. Tokens stored sha256-hashed in password_reset_tokens (idempotent startup migration). Both routes are in the unauthenticated allow-list in entryAuth.
