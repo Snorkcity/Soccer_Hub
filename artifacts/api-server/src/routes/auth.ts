@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import { z } from "zod/v4";
-import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable } from "@workspace/db";
+import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
 import { eq, asc, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -81,6 +81,18 @@ async function userInfo(userId: number) {
     leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/** A chosen club must actually be a club of that league; returns an error message or null. */
+async function validateLeagueClubs(leagues: { leagueId: number; club?: string | null }[]): Promise<string | null> {
+  const withClub = leagues.filter((l) => l.club);
+  if (withClub.length === 0) return null;
+  const rows = await db.select({ leagueId: clubsTable.leagueId, name: clubsTable.name }).from(clubsTable);
+  const valid = new Set(rows.map((r) => `${r.leagueId}:${r.name}`));
+  for (const l of withClub) {
+    if (!valid.has(`${l.leagueId}:${l.club}`)) return `"${l.club}" is not a club in that league`;
+  }
+  return null;
 }
 
 async function requireSuperadmin(req: Parameters<typeof getSessionUser>[0]): Promise<SessionUser | null> {
@@ -323,6 +335,11 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     return;
   }
   const { email, name, password, isSuperadmin, leagues } = parsed.data;
+  const clubErr = await validateLeagueClubs(leagues);
+  if (clubErr) {
+    res.status(400).json({ error: clubErr });
+    return;
+  }
   const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
     res.status(409).json({ error: "A user with that email already exists" });
@@ -398,6 +415,13 @@ router.patch("/auth/users/:id", async (req, res): Promise<void> => {
     return;
   }
   const { email, name, password, isSuperadmin, leagues } = parsed.data;
+  if (leagues) {
+    const clubErr = await validateLeagueClubs(leagues);
+    if (clubErr) {
+      res.status(400).json({ error: clubErr });
+      return;
+    }
+  }
   if (email && email !== row.email) {
     const clash = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (clash.length > 0 && clash[0].id !== id) {
