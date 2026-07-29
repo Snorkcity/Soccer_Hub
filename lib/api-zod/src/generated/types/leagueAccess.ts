@@ -13,4 +13,9 @@ export interface LeagueAccess {
   role: LeagueAccessRole;
   /** Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry). */
   modules: string[];
+  /**
+     * The user's own club in this league — Team/Player insights centre on it. Null = league default focus club.
+     * @nullable
+     */
+  club?: string | null;
 }

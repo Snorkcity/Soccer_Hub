@@ -37,6 +37,9 @@ export const userLeagueAccessTable = pgTable("user_league_access", {
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   role:     text("role").notNull(), // legacy "admin" | "viewer" — superseded by modules
   modules:  jsonb("modules").$type<string[]>().notNull().default([]),
+  // The user's own club in this league — Team/Player insights centre on it.
+  // NULL = fall back to the league's default focus club (leagues.focus_club).
+  club:     text("club"),
 }, (t) => [
   uniqueIndex("user_league_access_unique").on(t.userId, t.leagueId),
 ]);

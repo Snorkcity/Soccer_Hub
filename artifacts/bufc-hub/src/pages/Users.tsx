@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetAuthStatus, useListUsers, getListUsersQueryKey, useCreateUser, useUpdateUser, useDeleteUser, useInviteUser,
   useListLeagues, getListLeaguesQueryKey,
+  useGetClubs, getGetClubsQueryKey,
   type UserInfo, type LeagueAccess,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -44,6 +45,8 @@ interface EditorState {
   isSuperadmin: boolean;
   // leagueId → set of ticked module keys
   leagueModules: Record<number, string[]>;
+  // leagueId → the person's own club ("" = league default)
+  leagueClubs: Record<number, string>;
 }
 
 export default function Users() {
@@ -54,6 +57,7 @@ export default function Users() {
 
   const { data: users, isLoading } = useListUsers({ query: { enabled: isSuperadmin, queryKey: getListUsersQueryKey() } });
   const { data: leagues } = useListLeagues({ query: { queryKey: getListLeaguesQueryKey() } });
+  const { data: clubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
 
   const leagueName = useMemo(() => new Map((leagues ?? []).map(l => [l.id, l.name])), [leagues]);
 
@@ -84,13 +88,17 @@ export default function Users() {
 
   function openCreate() {
     setEditorErr(null);
-    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {} });
+    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {}, leagueClubs: {} });
   }
   function openEdit(u: UserInfo) {
     setEditorErr(null);
     const leagueModules: Record<number, string[]> = {};
-    for (const a of u.leagues) leagueModules[a.leagueId] = [...a.modules];
-    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueModules });
+    const leagueClubs: Record<number, string> = {};
+    for (const a of u.leagues) {
+      leagueModules[a.leagueId] = [...a.modules];
+      leagueClubs[a.leagueId] = a.club ?? "";
+    }
+    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueModules, leagueClubs });
   }
   function toggleModule(leagueId: number, module: string, on: boolean) {
     setEditor((prev) => {
@@ -108,7 +116,10 @@ export default function Users() {
     const leagueAccess: LeagueAccess[] = Object.entries(editor.leagueModules)
       .map(([leagueId, modules]) => ({ leagueId: Number(leagueId), modules }))
       .filter(({ modules }) => modules.length > 0)
-      .map(({ leagueId, modules }) => ({ leagueId, role: roleForModules(modules), modules }));
+      .map(({ leagueId, modules }) => ({
+        leagueId, role: roleForModules(modules), modules,
+        club: editor.leagueClubs[leagueId] || null,
+      }));
     if (editor.id === null) {
       createUser.mutate({ data: {
         name: editor.name.trim(), email: editor.email.trim(),
@@ -168,7 +179,8 @@ export default function Users() {
                           )}
                           {u.leagues.filter((a) => a.modules.length > 0).map((a) => (
                             <Badge key={a.leagueId} variant="outline" className="text-xs">
-                              {leagueName.get(a.leagueId) ?? `League ${a.leagueId}`} ·{" "}
+                              {leagueName.get(a.leagueId) ?? `League ${a.leagueId}`}
+                              {a.club ? ` · ${a.club}` : ""} ·{" "}
                               {a.modules
                                 .map((m) => MODULES.find((x) => x.key === m)?.short ?? m)
                                 .join(", ")}
@@ -237,9 +249,25 @@ export default function Users() {
                   </p>
                   {(leagues ?? []).map((l) => {
                     const ticked = new Set(editor.leagueModules[l.id] ?? []);
+                    const leagueClubs = (clubs ?? []).filter((c) => c.leagueId === l.id);
                     return (
                       <div key={l.id} className="rounded-md border border-border p-3 space-y-2">
                         <div className="text-sm font-medium">{l.name}</div>
+                        {ticked.size > 0 && leagueClubs.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground shrink-0">Their club</label>
+                            <select
+                              className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm"
+                              value={editor.leagueClubs[l.id] ?? ""}
+                              onChange={(e) => setEditor({ ...editor, leagueClubs: { ...editor.leagueClubs, [l.id]: e.target.value } })}
+                            >
+                              <option value="">League default{l.focusClub ? ` (${l.focusClub})` : ""}</option>
+                              {leagueClubs.map((c) => (
+                                <option key={c.id} value={c.name}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                           {MODULES.map((m) => (
                             <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">

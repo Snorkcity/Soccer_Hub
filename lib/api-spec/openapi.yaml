@@ -2412,6 +2412,9 @@ components:
         id:     { type: integer }
         name:   { type: string }
         region: { type: string, nullable: true }
+        focusClub:
+          type: ["string", "null"]
+          description: The league's default club for Team/Player insights (used when a user has no club of their own set).
       required: [id, name]
 
     LeagueInput:
@@ -3453,6 +3456,9 @@ components:
           type: array
           items: { type: string }
           description: Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).
+        club:
+          type: ["string", "null"]
+          description: The user's own club in this league — Team/Player insights centre on it. Null = league default focus club.
       required: [leagueId, role, modules]
 
     SessionUserInfo:

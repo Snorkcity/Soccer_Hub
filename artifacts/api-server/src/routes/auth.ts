@@ -29,6 +29,8 @@ const LeagueAccessInput = z.object({
   leagueId: z.number().int(),
   role: z.enum(LEAGUE_ROLES).optional().default("viewer"), // legacy
   modules: z.array(z.string()).optional().default([]),
+  // The user's own club in this league; null/omitted = league default focus club.
+  club: z.string().trim().min(1).nullable().optional(),
 });
 
 const CreateUserBody = z.object({
@@ -62,7 +64,7 @@ async function authStatusPayload(user: SessionUser) {
       email: user.email,
       name: user.name,
       isSuperadmin: user.isSuperadmin,
-      leagues: [...user.leagues.entries()].map(([leagueId, g]) => ({ leagueId, role: g.role, modules: [...g.modules] })),
+      leagues: [...user.leagues.entries()].map(([leagueId, g]) => ({ leagueId, role: g.role, modules: [...g.modules], club: g.club })),
     },
   };
 }
@@ -76,7 +78,7 @@ async function userInfo(userId: number) {
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [] })),
+    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -108,6 +110,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     leagues: new Map(access.map((a) => [a.leagueId, {
       role: a.role as "admin" | "viewer",
       modules: new Set<string>(Array.isArray(a.modules) ? a.modules : []),
+      club: a.club ?? null,
     }])),
   };
   logger.info({ userId: row.id, email }, "User logged in");
@@ -304,7 +307,7 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [] })),
+    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
     createdAt: row.createdAt.toISOString(),
   })));
 });
@@ -334,6 +337,7 @@ router.post("/auth/users", async (req, res): Promise<void> => {
       userId: created.id, leagueId: l.leagueId,
       role: l.modules.includes("data-entry") ? "admin" : "viewer",
       modules: l.modules,
+      club: l.club ?? null,
     })));
   }
   logger.info({ userId: created.id, email }, "User created");
@@ -415,6 +419,7 @@ router.patch("/auth/users/:id", async (req, res): Promise<void> => {
         userId: id, leagueId: l.leagueId,
         role: l.modules.includes("data-entry") ? "admin" : "viewer",
         modules: l.modules,
+        club: l.club ?? null,
       })));
     }
   }

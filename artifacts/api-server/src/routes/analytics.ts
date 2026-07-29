@@ -48,7 +48,7 @@ import {
   GetOpponentClutchGoalsQueryParams,
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
-import { focusClubForSeason } from "../lib/focusClub";
+import { focusClubForRequest } from "../lib/focusClub";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -105,7 +105,7 @@ router.get("/analytics/season-summary", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
@@ -175,7 +175,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   // Get all matches for this team+season — need both sides for on-field GD (plus/minus)
   let matches = await db
@@ -294,7 +294,7 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
     return;
   }
   const { seasonId } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   // Full league standings computed from ALL fixtures (every club, not just Belconnen's games)
   const matches = await db
@@ -401,7 +401,7 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastNMatches } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) {
@@ -478,7 +478,7 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
     return;
   }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate, matchCode: matchesTable.matchId, goalsScored: matchesTable.goalsScored, goalsConceded: matchesTable.goalsConceded })
@@ -578,7 +578,7 @@ router.get("/analytics/goal-combos", async (req, res): Promise<void> => {
   const query = GetGoalCombosQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, matchDate: matchesTable.matchDate })
@@ -807,7 +807,7 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const query = GetPlayerDnaQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, player, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, matchDate: matchesTable.matchDate, opponent: matchesTable.opponent })
@@ -933,7 +933,7 @@ router.get("/analytics/opponent-clubs", async (req, res): Promise<void> => {
   const query = GetOpponentClubsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   const matches = await db
     .select({ id: matchesTable.id })
@@ -1073,7 +1073,7 @@ router.get("/analytics/assists-by-opponent", async (req, res): Promise<void> => 
   const query = GetAssistsByOpponentQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate })
@@ -1153,7 +1153,7 @@ router.get("/analytics/opponent-goal-breakdown", async (req, res): Promise<void>
   const query = GetOpponentGoalBreakdownQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, club } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   // Get all matches vs this club
   const allMatches = await db
@@ -1225,7 +1225,7 @@ router.get("/analytics/goals-by-opponent", async (req, res): Promise<void> => {
   const query = GetGoalsByOpponentQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   // Load matches → optionally trim to last N by date → build matchId→opponent map
   let matches = await db
@@ -1650,7 +1650,7 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
   const query = GetClutchGoalsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
     .select({ id: matchesTable.id, opponent: matchesTable.opponent, matchDate: matchesTable.matchDate, goalsScored: matchesTable.goalsScored, goalsConceded: matchesTable.goalsConceded })

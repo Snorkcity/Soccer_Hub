@@ -44,7 +44,7 @@ import {
   SaveEntryGpsSessionsResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { focusClubForSeason } from "../lib/focusClub";
+import { focusClubForRequest } from "../lib/focusClub";
 
 const router: IRouter = Router();
 
@@ -177,7 +177,7 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
     return;
   }
 
-  const focusClub = await focusClubForSeason(goal.seasonId);
+  const focusClub = await focusClubForRequest(req, goal.seasonId);
 
   // Single transaction: remove league goal + its Belconnen copy together
   const belconnenDeleted = await db.transaction(async (tx) => {
@@ -294,7 +294,7 @@ router.post("/entry/match", async (req, res): Promise<void> => {
     return;
   }
 
-  const focusClub = await focusClubForSeason(b.seasonId);
+  const focusClub = await focusClubForRequest(req, b.seasonId);
   const fullScore = `${b.homeGoals}-${b.awayGoals}`;
   // Single transaction: the league row and the Belconnen row commit together or not at all
   const { leagueMatch, belconnenMatchId } = await db.transaction(async (tx) => {
@@ -391,7 +391,7 @@ router.post("/entry/goal", async (req, res): Promise<void> => {
     passString: b.passString ?? null,
   };
 
-  const focusClub = await focusClubForSeason(b.seasonId);
+  const focusClub = await focusClubForRequest(req, b.seasonId);
 
   // Single transaction: league goal + legacy Belconnen copy commit together
   const { leagueGoal, belconnenGoalId } = await db.transaction(async (tx) => {
@@ -472,7 +472,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
   }
 
   const year = b.year ?? (fixture.matchDate ? fixture.matchDate.slice(0, 4) : null);
-  const focusClub = await focusClubForSeason(b.seasonId);
+  const focusClub = await focusClubForRequest(req, b.seasonId);
 
   // Single transaction: replace (delete+insert) both the league rows and the
   // legacy mirror atomically — a failed insert can never wipe existing rows.
@@ -605,7 +605,7 @@ router.delete("/entry/player-stats", async (req, res): Promise<void> => {
     return;
   }
 
-  const focusClub = await focusClubForSeason(seasonId);
+  const focusClub = await focusClubForRequest(req, seasonId);
 
   const { removed, belconnenRemoved } = await db.transaction(async (tx) => {
     const removed = (await tx
@@ -660,7 +660,7 @@ router.delete("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
 
-  const focusClub = await focusClubForSeason(row.seasonId);
+  const focusClub = await focusClubForRequest(req, row.seasonId);
 
   // Single transaction: remove the league row + its legacy Belconnen mirror together.
   // The mirror is keyed by playerName+club within the fixture's matches partitions —

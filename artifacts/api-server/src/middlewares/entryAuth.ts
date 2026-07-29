@@ -23,6 +23,8 @@ export type SessionRole = "admin" | "viewer";
 export interface LeagueGrant {
   role: SessionRole; // legacy; kept for display/back-compat
   modules: Set<string>;
+  /** The user's own club in this league; null = league default focus club. */
+  club: string | null;
 }
 
 export interface SessionUser {
@@ -109,6 +111,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
         leagues: new Map(access.map((a) => [a.leagueId, {
           role: a.role as SessionRole,
           modules: new Set(Array.isArray(a.modules) ? a.modules : []),
+          club: a.club ?? null,
         }])),
       };
     }

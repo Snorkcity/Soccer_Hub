@@ -64,6 +64,10 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`UPDATE user_league_access SET modules = '["season-stats","gps","testing","match-prep","reflections","data-entry"]'::jsonb WHERE modules = '[]'::jsonb AND role = 'admin'`);
   await db.execute(sql`UPDATE user_league_access SET modules = '["season-stats","gps","testing","match-prep","reflections"]'::jsonb WHERE modules = '[]'::jsonb AND role = 'viewer'`);
 
+  // Per-user club (2026-07): a person's own club within a league — Team/Player
+  // insights centre on it. NULL falls back to the league's focus_club.
+  await db.execute(sql`ALTER TABLE user_league_access ADD COLUMN IF NOT EXISTS club text`);
+
 
   // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table
   await db.execute(sql`ALTER TABLE league_matches ADD COLUMN IF NOT EXISTS half_score text`);

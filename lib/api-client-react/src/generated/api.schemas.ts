@@ -70,6 +70,11 @@ export interface LeagueInfo {
   id: number;
   name: string;
   region?: string | null;
+  /**
+     * The league's default club for Team/Player insights (used when a user has no club of their own set).
+     * @nullable
+     */
+  focusClub?: string | null;
 }
 
 export interface LeagueInput {
@@ -1198,6 +1203,11 @@ export interface LeagueAccess {
   role: LeagueAccessRole;
   /** Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry). */
   modules: string[];
+  /**
+     * The user's own club in this league — Team/Player insights centre on it. Null = league default focus club.
+     * @nullable
+     */
+  club?: string | null;
 }
 
 export interface SessionUserInfo {

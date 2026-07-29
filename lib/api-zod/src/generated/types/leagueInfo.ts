@@ -10,4 +10,9 @@ export interface LeagueInfo {
   id: number;
   name: string;
   region?: string | null;
+  /**
+     * The league's default club for Team/Player insights (used when a user has no club of their own set).
+     * @nullable
+     */
+  focusClub?: string | null;
 }
