@@ -30,3 +30,9 @@ description: Real logins replaced the shared club password; per-league admin/vie
 - Forgot-password: POST /auth/forgot-password (always {ok:true}, never reveals account existence) emails a one-hour single-use link; POST /auth/reset-password {token,newPassword}. Tokens stored sha256-hashed in password_reset_tokens (idempotent startup migration). Both routes are in the unauthenticated allow-list in entryAuth.
 - Reset links use `?reset_token=` on the app root (no dedicated route — AuthGate intercepts before auth), so they work under any base path. Base URL: prod pinned to app.gameinsights.com.au, dev derived from Referer.
 - Email sending: Resend REST API with RESEND_API_KEY, from noreply@gameinsights.com.au. Key must ALSO be set on Railway (Replit connectors don't work off-platform — that's why plain API key over the Resend connector). Sending fails 403 until the domain is verified at resend.com/domains.
+
+## League/club selection UI (2026-07)
+- Season Stats header: League dropdown → seasons of that league → club. Non-superadmins never pick a club (server resolves grant club / league default via focusClubForRequest).
+- Superadmin club switcher sends `X-Focus-Club` header on every request (setDefaultHeaders in api-client-react custom-fetch). Server honours it ONLY for superadmins and only if the club exists in the season's league.
+- **Why:** query keys don't include the header, so a club switch must removeQueries on /analytics/* + invalidate, or stale club data flashes.
+- **How to apply:** any new page that shows focus-club-scoped data should reuse this pattern rather than adding club params to every endpoint.
