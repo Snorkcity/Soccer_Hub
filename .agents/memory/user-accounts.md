@@ -36,3 +36,8 @@ description: Real logins replaced the shared club password; per-league admin/vie
 - Superadmin club switcher sends `X-Focus-Club` header on every request (setDefaultHeaders in api-client-react custom-fetch). Server honours it ONLY for superadmins and only if the club exists in the season's league.
 - **Why:** query keys don't include the header, so a club switch must removeQueries on /analytics/* + invalidate, or stale club data flashes.
 - **How to apply:** any new page that shows focus-club-scoped data should reuse this pattern rather than adding club params to every endpoint.
+
+## App-wide active league (2026-07)
+- League is picked ONCE on the Hub (LeagueContext, localStorage-persisted); it drives sidebar nav, Hub cards, Season Stats. Users with one league see no dropdown. Data Entry keeps its own League·Season select (cross-league on purpose).
+- **Why:** which league is active determines which modules/badges a user sees; Scott wanted a single choice point up front.
+- **How to apply:** new module pages must gate with hasModule(activeLeagueId, module) (route-level, not just nav) and scope their season lists to the active league.
