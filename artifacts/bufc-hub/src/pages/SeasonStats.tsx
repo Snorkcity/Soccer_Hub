@@ -1259,11 +1259,18 @@ export default function SeasonStats() {
     [allClubs, selectedLeagueId],
   );
 
-  // Superadmin club override travels as a header on every API call; changing it
-  // (or leaving/re-entering the page) must refetch everything computed server-side.
+  // Superadmin club override travels as a header on every API call. Query keys
+  // don't know about the header, so on a real switch we REMOVE cached data
+  // (not just invalidate) — otherwise the old club's numbers flash while the
+  // refetch is in flight, or stick around if it fails.
+  const prevViewClub = React.useRef<string>("");
   useEffect(() => {
     setDefaultHeaders(isSuperadmin && viewClub ? { "x-focus-club": viewClub } : {});
-    void queryClient.invalidateQueries();
+    if (prevViewClub.current !== viewClub) {
+      prevViewClub.current = viewClub;
+      queryClient.removeQueries({ predicate: q => String(q.queryKey[0] ?? "").includes("/analytics/") });
+      void queryClient.invalidateQueries();
+    }
     return () => { setDefaultHeaders({}); };
   }, [viewClub, isSuperadmin, queryClient]);
   // A different league means the old club pick is meaningless
