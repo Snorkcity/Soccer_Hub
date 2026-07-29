@@ -56,7 +56,9 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
       const withActive = (seasons ?? []).find(
         s => s.isActive && leagueOptions.some(l => l.id === s.leagueId),
       );
-      setActive(withActive ? withActive.leagueId : leagueOptions[0].id);
+      const repaired = withActive ? withActive.leagueId : leagueOptions[0].id;
+      localStorage.setItem(STORAGE_KEY, String(repaired)); // don't re-repair every reload
+      setActive(repaired);
     }
   }, [leagueOptions, activeLeagueId, seasons]);
 

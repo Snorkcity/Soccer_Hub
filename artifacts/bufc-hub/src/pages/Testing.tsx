@@ -12,6 +12,7 @@ import {
 import { Zap, ShieldAlert, FileDown, Loader2 } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -87,7 +88,8 @@ const avg = (vals: number[]) => (vals.length ? vals.reduce((a, b) => a + b, 0) /
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Testing() {
-  const { hasModuleAnywhere, ready } = useLeagueModules();
+  const { hasModule, ready } = useLeagueModules();
+  const { activeLeagueId } = useActiveLeague();
   const { data: teams } = useListTeams();
   const [teamId, setTeamId] = useState<number | "">("");
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function Testing() {
     [allTests, year],
   );
 
-  if (ready && !hasModuleAnywhere("testing")) return <NoAccess />;
+  if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "testing")) return <NoAccess />;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

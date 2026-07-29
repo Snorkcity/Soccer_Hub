@@ -31,16 +31,16 @@ const navItems: {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
+  const { isSuperadmin, hasModule } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
   // Module items follow the ACTIVE league (picked on the Hub) — switching league
   // changes which pages appear. Fall back to any-league while it's still loading.
   const visibleItems = navItems.filter((item) => {
     if (item.superadmin) return isSuperadmin;
+    // Hide module items until the active league is known — briefly showing too
+    // few is safer than flashing pages the user can't actually open.
     if (item.module) {
-      return activeLeagueId != null
-        ? hasModule(activeLeagueId, item.module)
-        : hasModuleAnywhere(item.module);
+      return activeLeagueId != null && hasModule(activeLeagueId, item.module);
     }
     return true;
   });

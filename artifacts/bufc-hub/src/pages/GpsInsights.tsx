@@ -24,6 +24,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -153,7 +154,8 @@ const bundleMins = (b: Bundle): number | null =>
 
 export default function GpsInsights() {
   const [year, setYear] = useState("2026");
-  const { hasModuleAnywhere, ready } = useLeagueModules();
+  const { hasModule, ready } = useLeagueModules();
+  const { activeLeagueId } = useActiveLeague();
 
   // Meta query: all whole-game rows for the year → rounds, squads, player names
   const metaParams = { year, split: "game" };
@@ -162,7 +164,7 @@ export default function GpsInsights() {
     { query: { queryKey: getListGpsSessionsQueryKey(metaParams) } },
   );
 
-  if (ready && !hasModuleAnywhere("gps")) return <NoAccess />;
+  if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps")) return <NoAccess />;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

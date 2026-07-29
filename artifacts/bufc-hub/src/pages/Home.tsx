@@ -112,7 +112,7 @@ export default function Home() {
   // Cards mirror the sidebar: module cards only for modules the user has in the
   // active league (superadmin sees everything).
   const visibleModules = modules.filter(m =>
-    !m.module || activeLeagueId == null || isSuperadmin || hasModule(activeLeagueId, m.module),
+    !m.module || isSuperadmin || (activeLeagueId != null && hasModule(activeLeagueId, m.module)),
   );
 
   return (
