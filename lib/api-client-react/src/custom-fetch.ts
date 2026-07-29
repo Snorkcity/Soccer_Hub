@@ -44,6 +44,17 @@ export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
 }
 
+let _defaultHeaders: Record<string, string> = {};
+
+/**
+ * Set headers attached to EVERY request (merged under any per-request
+ * headers). Used e.g. for the superadmin "viewing club" (X-Focus-Club).
+ * Pass an empty object to clear.
+ */
+export function setDefaultHeaders(headers: Record<string, string>): void {
+  _defaultHeaders = { ...headers };
+}
+
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
@@ -336,6 +347,9 @@ export async function customFetch<T = unknown>(
   }
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  for (const [k, v] of Object.entries(_defaultHeaders)) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
 
   if (
     typeof init.body === "string" &&

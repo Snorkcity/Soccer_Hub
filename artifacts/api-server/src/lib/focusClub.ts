@@ -1,7 +1,20 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { Request } from "express";
-import { db, seasonsTable, leaguesTable } from "@workspace/db";
+import { db, seasonsTable, leaguesTable, clubsTable } from "@workspace/db";
 import { getSessionUser, leagueIdForSeason } from "../middlewares/entryAuth";
+
+/** True when `club` is a real club of `leagueId` (cached — club lists are tiny and append-only). */
+const clubCheckCache = new Map<string, boolean>();
+async function isClubInLeague(leagueId: number, club: string): Promise<boolean> {
+  const key = `${leagueId}:${club}`;
+  const hit = clubCheckCache.get(key);
+  if (hit !== undefined) return hit;
+  const rows = await db.select({ id: clubsTable.id }).from(clubsTable)
+    .where(and(eq(clubsTable.leagueId, leagueId), eq(clubsTable.name, club))).limit(1);
+  const ok = rows.length > 0;
+  if (ok) clubCheckCache.set(key, true); // only cache positives — a new club can appear later
+  return ok;
+}
 
 // The "focus club" is the club whose players appear on Team/Player Insights tabs
 // for a given season. It is a per-league setting (leagues.focus_club); all other
@@ -44,6 +57,13 @@ export async function focusClubForRequest(req: Request, seasonId: number): Promi
   if (user) {
     const leagueId = await leagueIdForSeason(seasonId);
     if (leagueId !== null) {
+      // Superadmin may steer the focus club per request (X-Focus-Club header,
+      // set by the club dropdown). Ignored unless it names a real club of the
+      // season's league, so a stale header can never break the page.
+      if (user.isSuperadmin) {
+        const override = req.header("x-focus-club")?.trim();
+        if (override && (await isClubInLeague(leagueId, override))) return override;
+      }
       const club = user.leagues.get(leagueId)?.club;
       if (club) return club;
     }

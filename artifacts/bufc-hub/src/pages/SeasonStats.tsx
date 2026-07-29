@@ -1,8 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   useListTeams,
   useListSeasons,
+  useListLeagues, getListLeaguesQueryKey,
+  useGetAuthStatus,
+  setDefaultHeaders,
   useGetSeasonSummary,
   useGetLeagueLadder,
   useGetGoalBreakdown,
@@ -1129,10 +1133,30 @@ export default function SeasonStats() {
   const { data: teams } = useListTeams();
   const { data: allSeasons } = useListSeasons();
   const { hasModule } = useLeagueModules();
+  const { data: auth } = useGetAuthStatus();
+  const { data: allLeagues } = useListLeagues({ query: { queryKey: getListLeaguesQueryKey() } });
+  const { data: allClubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
+  const queryClient = useQueryClient();
+  const isSuperadmin = auth?.authenticated === true && auth.user?.isSuperadmin === true;
   // Only offer seasons of leagues where the user has the season-stats module.
   const seasons = useMemo(
     () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "season-stats")),
     [allSeasons, hasModule],
+  );
+
+  // ── League → season → club selection ──────────────────────────────────────
+  const [selectedLeagueId, setSelectedLeagueId] = useState<number | "">("");
+  // Superadmin-only "viewing club" override ("" = league default)
+  const [viewClub, setViewClub] = useState<string>("");
+  // Leagues the user can pick, in season order (derived from visible seasons)
+  const leagueOptions = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const s of seasons) if (!seen.has(s.leagueId)) seen.set(s.leagueId, s.leagueName);
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [seasons]);
+  const leagueSeasons = useMemo(
+    () => seasons.filter(s => s.leagueId === selectedLeagueId),
+    [seasons, selectedLeagueId],
   );
 
   const [selectedTeamId, setSelectedTeamId] = useState<number | "">("");
@@ -1211,11 +1235,39 @@ export default function SeasonStats() {
       const analytics = teams.find(t => t.analyticsEnabled && t.gender === "female") ?? teams[0];
       setSelectedTeamId(analytics.id);
     }
-    if (seasons?.length && selectedSeasonId === "") {
+    // League first (default: the league with an active season), then the season
+    // within it (active, else newest listed).
+    if (seasons.length && selectedLeagueId === "") {
       const active = seasons.find(s => s.isActive);
-      setSelectedSeasonId(active ? active.id : seasons[0].id);
+      setSelectedLeagueId(active ? active.leagueId : seasons[0].leagueId);
     }
-  }, [teams, seasons, selectedTeamId, selectedSeasonId]);
+    if (selectedLeagueId !== "" && (selectedSeasonId === "" || !leagueSeasons.some(s => s.id === selectedSeasonId))) {
+      if (leagueSeasons.length) {
+        const active = leagueSeasons.find(s => s.isActive);
+        setSelectedSeasonId(active ? active.id : leagueSeasons[0].id);
+      }
+    }
+  }, [teams, seasons, leagueSeasons, selectedTeamId, selectedSeasonId, selectedLeagueId]);
+
+  // The club whose players fill Team/Player insights right now: superadmin's
+  // dropdown pick, else their own club for this league, else the league default.
+  const myGrantClub = auth?.user?.leagues?.find(l => l.leagueId === selectedLeagueId)?.club ?? null;
+  const leagueDefaultClub = allLeagues?.find(l => l.id === selectedLeagueId)?.focusClub ?? "Belconnen";
+  const focusClub = (isSuperadmin && viewClub) || myGrantClub || leagueDefaultClub;
+  const leagueClubs = useMemo(
+    () => (allClubs ?? []).filter(c => c.leagueId === selectedLeagueId),
+    [allClubs, selectedLeagueId],
+  );
+
+  // Superadmin club override travels as a header on every API call; changing it
+  // (or leaving/re-entering the page) must refetch everything computed server-side.
+  useEffect(() => {
+    setDefaultHeaders(isSuperadmin && viewClub ? { "x-focus-club": viewClub } : {});
+    void queryClient.invalidateQueries();
+    return () => { setDefaultHeaders({}); };
+  }, [viewClub, isSuperadmin, queryClient]);
+  // A different league means the old club pick is meaningless
+  useEffect(() => { setViewClub(""); }, [selectedLeagueId]);
 
   const tId = selectedTeamId as number;
   const sId = selectedSeasonId as number;
@@ -1251,7 +1303,7 @@ export default function SeasonStats() {
   useEffect(() => {
     if (!oppClubs) return;
     // Valid selections include the league-wide sentinel and our own club, on top of the opponents.
-    const valid = ["__ALL__", "Belconnen", ...oppClubs];
+    const valid = ["__ALL__", focusClub, ...oppClubs];
     if (!valid.includes(selectedClub)) {
       // Prefer the first opponent club; fall back to the league-wide view so the tab
       // is always usable even when no opponent clubs are returned.
@@ -1800,16 +1852,28 @@ export default function SeasonStats() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Season Stats</h1>
         <div className="flex flex-col sm:flex-row gap-2">
-          {teams && (
+          {isSuperadmin && teams && teams.filter(t => t.analyticsEnabled).length > 1 && (
             <Select value={selectedTeamId.toString()} onValueChange={v => setSelectedTeamId(Number(v))}>
-              <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Select Team" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] max-w-full"><SelectValue placeholder="Select Team" /></SelectTrigger>
               <SelectContent>{teams.filter(t => t.analyticsEnabled).map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
-          {seasons && (
+          {leagueOptions.length > 1 && (
+            <Select value={selectedLeagueId.toString()} onValueChange={v => setSelectedLeagueId(Number(v))}>
+              <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Select League" /></SelectTrigger>
+              <SelectContent>{leagueOptions.map(l => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+          {leagueSeasons.length > 0 && (
             <Select value={selectedSeasonId.toString()} onValueChange={v => setSelectedSeasonId(Number(v))}>
-              <SelectTrigger className="w-[220px] max-w-full"><SelectValue placeholder="Select Season" /></SelectTrigger>
-              <SelectContent>{seasons.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.leagueName} · {s.label}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="w-[160px] max-w-full"><SelectValue placeholder="Select Season" /></SelectTrigger>
+              <SelectContent>{leagueSeasons.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+          {isSuperadmin && leagueClubs.length > 1 && (
+            <Select value={viewClub || leagueDefaultClub} onValueChange={v => setViewClub(v === leagueDefaultClub ? "" : v)}>
+              <SelectTrigger className="w-[170px] max-w-full"><SelectValue placeholder="Club" /></SelectTrigger>
+              <SelectContent>{leagueClubs.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
         </div>
@@ -2127,7 +2191,7 @@ export default function SeasonStats() {
           </div>
           <p className="text-xs text-muted-foreground px-1">
             Conceded goals are attributed by scorer (any goal not scored by a rostered {" "}
-            Belconnen player), so the conceded total can differ slightly from the official goals-against figure.
+            {focusClub} player), so the conceded total can differ slightly from the official goals-against figure.
           </p>
 
           {/* ═══ First Goal Value Index ═══ */}
@@ -2328,7 +2392,7 @@ export default function SeasonStats() {
           {/* Scoring DNA — one player's attacking profile as a radar (pick via dropdown) */}
           <PlayerDnaChart
             title={`Scoring DNA${dnaLastN ? " — Last 3 Rounds" : ""}`}
-            label="Belconnen"
+            label={focusClub}
             srcFull={dnaFull} srcL3={dnaL3}
             lastN={dnaLastN} onLastN={() => setDnaLastN(v => !v)}
             colorMap={clubColorMap}
@@ -2339,8 +2403,8 @@ export default function SeasonStats() {
 
           {/* Combo Threat — our assist→scorer partnerships (who combines for goals) */}
           <ComboThreatChart
-            title={`Combo Threat — Belconnen${comboLastN ? " — Last 3 Rounds" : ""}`}
-            label="Belconnen"
+            title={`Combo Threat — ${focusClub}${comboLastN ? " — Last 3 Rounds" : ""}`}
+            label={focusClub}
             srcFull={goalCombosFull} srcL3={goalCombosL3}
             lastN={comboLastN} onLastN={() => setComboLastN(v => !v)}
             colorMap={clubColorMap} sn={sn} maxBars={12}
@@ -2439,7 +2503,7 @@ export default function SeasonStats() {
               )}
             >
               {tlPlayer ? (
-                <PlayerTimelineChart seasonId={sId} club="Belconnen" player={tlPlayer} onBack={() => setTlPlayer(null)} />
+                <PlayerTimelineChart seasonId={sId} club={focusClub} player={tlPlayer} onBack={() => setTlPlayer(null)} />
               ) : (
                 <div className="relative h-full">
                   <ClickHint />
@@ -2542,7 +2606,7 @@ export default function SeasonStats() {
                 <span className="inline-block h-2.5 w-2.5 rounded-full bg-gradient-to-r from-primary to-accent" />
                 All (league-wide)
               </button>
-              {["Belconnen", ...(oppClubs ?? [])].map(club => (
+              {[focusClub, ...(oppClubs ?? [])].map(club => (
                 <button
                   key={club}
                   onClick={() => setSelectedClub(club)}
