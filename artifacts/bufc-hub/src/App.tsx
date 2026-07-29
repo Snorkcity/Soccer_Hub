@@ -5,6 +5,7 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { Shell } from '@/components/layout/Shell';
 import { AuthGate } from '@/components/AuthGate';
+import { LeagueProvider } from '@/contexts/LeagueContext';
 import { DevBadge } from '@/components/DevBadge';
 
 import Home from '@/pages/Home';
@@ -63,7 +64,9 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <AuthGate>
-            <Router />
+            <LeagueProvider>
+              <Router />
+            </LeagueProvider>
           </AuthGate>
         </WouterRouter>
         <Toaster />

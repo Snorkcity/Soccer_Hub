@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, Trophy, UserRound, Users, X } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 // `module` gates a module-locked item (shown only when the user has that module in
@@ -30,10 +31,17 @@ const navItems: {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
+  const { activeLeagueId } = useActiveLeague();
+  // Module items follow the ACTIVE league (picked on the Hub) — switching league
+  // changes which pages appear. Fall back to any-league while it's still loading.
   const visibleItems = navItems.filter((item) => {
     if (item.superadmin) return isSuperadmin;
-    if (item.module) return hasModuleAnywhere(item.module);
+    if (item.module) {
+      return activeLeagueId != null
+        ? hasModule(activeLeagueId, item.module)
+        : hasModuleAnywhere(item.module);
+    }
     return true;
   });
   const [collapsed, setCollapsed] = useState(false);

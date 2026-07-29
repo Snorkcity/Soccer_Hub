@@ -52,6 +52,7 @@ import {
   type FirstSubResponse,
 } from "@workspace/api-client-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1144,16 +1145,11 @@ export default function SeasonStats() {
     [allSeasons, hasModule],
   );
 
-  // ── League → season → club selection ──────────────────────────────────────
-  const [selectedLeagueId, setSelectedLeagueId] = useState<number | "">("");
+  // ── League (app-wide, picked on the Hub) → season → club ─────────────────
+  const { activeLeagueId } = useActiveLeague();
+  const selectedLeagueId: number | "" = activeLeagueId ?? "";
   // Superadmin-only "viewing club" override ("" = league default)
   const [viewClub, setViewClub] = useState<string>("");
-  // Leagues the user can pick, in season order (derived from visible seasons)
-  const leagueOptions = useMemo(() => {
-    const seen = new Map<number, string>();
-    for (const s of seasons) if (!seen.has(s.leagueId)) seen.set(s.leagueId, s.leagueName);
-    return [...seen.entries()].map(([id, name]) => ({ id, name }));
-  }, [seasons]);
   const leagueSeasons = useMemo(
     () => seasons.filter(s => s.leagueId === selectedLeagueId),
     [seasons, selectedLeagueId],
@@ -1235,12 +1231,7 @@ export default function SeasonStats() {
       const analytics = teams.find(t => t.analyticsEnabled && t.gender === "female") ?? teams[0];
       setSelectedTeamId(analytics.id);
     }
-    // League first (default: the league with an active season), then the season
-    // within it (active, else newest listed).
-    if (seasons.length && selectedLeagueId === "") {
-      const active = seasons.find(s => s.isActive);
-      setSelectedLeagueId(active ? active.leagueId : seasons[0].leagueId);
-    }
+    // Season within the app-wide league (active, else newest listed).
     if (selectedLeagueId !== "" && (selectedSeasonId === "" || !leagueSeasons.some(s => s.id === selectedSeasonId))) {
       if (leagueSeasons.length) {
         const active = leagueSeasons.find(s => s.isActive);
@@ -1848,8 +1839,8 @@ export default function SeasonStats() {
   // Player metrics: per-90 rates for Belconnen + the league-wide view; totals only
   // for an individual opponent (rates off a scouted club can mislead).
 
-  // No season belongs to a league where the user has this page's module.
-  if (allSeasons && seasons.length === 0) {
+  // No season in the active league where the user has this page's module.
+  if (allSeasons && (seasons.length === 0 || (selectedLeagueId !== "" && leagueSeasons.length === 0))) {
     return <NoAccess />;
   }
 
@@ -1863,12 +1854,6 @@ export default function SeasonStats() {
             <Select value={selectedTeamId.toString()} onValueChange={v => setSelectedTeamId(Number(v))}>
               <SelectTrigger className="w-[180px] max-w-full"><SelectValue placeholder="Select Team" /></SelectTrigger>
               <SelectContent>{teams.filter(t => t.analyticsEnabled).map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
-            </Select>
-          )}
-          {leagueOptions.length > 1 && (
-            <Select value={selectedLeagueId.toString()} onValueChange={v => setSelectedLeagueId(Number(v))}>
-              <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Select League" /></SelectTrigger>
-              <SelectContent>{leagueOptions.map(l => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
           {leagueSeasons.length > 0 && (
