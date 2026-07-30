@@ -35,11 +35,13 @@ const DRIBL_HEADERS = {
   Referer: "https://capital.dribl.com/",
 };
 
-// Which Dribl league feed a local league maps to. Extend as leagues are added.
-function driblLeagueNameFor(leagueName: string): string | null {
-  if (/NPLM/i.test(leagueName)) return "NPLM 1st Grade";
-  if (/NPLW.*Reserve/i.test(leagueName)) return "NPLW Reserve Grade";
-  if (/NPLW/i.test(leagueName)) return "NPLW 1st Grade";
+// Which Dribl league + competition a local league maps to. The competition
+// hash filters the fixtures feed down from thousands of rows (every grade in
+// the ACT) to just the NPL games. Extend as leagues are added.
+function driblLeagueFor(leagueName: string): { league: string; competition: string } | null {
+  if (/NPLM/i.test(leagueName)) return { league: "NPLM 1st Grade", competition: "National Premier League Men's" };
+  if (/NPLW.*Reserve/i.test(leagueName)) return { league: "NPLW Reserve Grade", competition: "National Premier League Women's" };
+  if (/NPLW/i.test(leagueName)) return { league: "NPLW 1st Grade", competition: "National Premier League Women's" };
   return null;
 }
 
@@ -68,6 +70,18 @@ async function driblTenant(): Promise<string> {
   if (!id) throw new Error("Could not resolve Dribl tenant for capital.dribl.com");
   tenantCache = id;
   return id;
+}
+
+const competitionHashCache = new Map<string, string>();
+async function driblCompetitionHash(tenant: string, name: string): Promise<string> {
+  const cached = competitionHashCache.get(name);
+  if (cached) return cached;
+  const data = await driblGet("/list/competitions", { tenant });
+  const rows: Array<{ id: string; name?: string; title?: string }> = data?.data ?? [];
+  const pick = rows.find(c => (c.name ?? c.title) === name);
+  if (!pick) throw new Error(`Dribl has no "${name}" competition for Capital Football`);
+  competitionHashCache.set(name, pick.id);
+  return pick.id;
 }
 
 const seasonHashCache = new Map<string, string>();
@@ -100,7 +114,9 @@ function matchClub(driblTeamName: string, clubs: string[]): string | null {
 
 /** Dribl timestamps are UTC; matches are played in ACT. */
 function toLocalDbDate(utc: string): string {
-  const d = new Date(`${utc.replace(" ", "T")}Z`);
+  // /results uses "YYYY-MM-DD HH:MM:SS", /fixtures uses full ISO ("…T…Z")
+  const d = new Date(utc.includes("T") ? utc : `${utc.replace(" ", "T")}Z`);
+  if (Number.isNaN(d.getTime())) return "";
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit",
   });
@@ -124,6 +140,7 @@ type NormFixture = {
   fullRound: string; date: string; status: string;
   homeTeamName: string; awayTeamName: string;
   homeScore: number | null; awayScore: number | null;
+  homeScoreHt?: number | null; awayScoreHt?: number | null;
   matchHashId: string;
 };
 
@@ -191,7 +208,10 @@ async function buildPreview(
     const loggedGoals = goalsByMatch.get(matchId) ?? [];
     const goalsShort = exists && loggedGoals.length < f.homeScore + f.awayScore;
 
-    let halfScore: string | null = null;
+    // The fixtures feed carries HT scores directly — use them even when the
+    // match-centre detail is unavailable.
+    let halfScore: string | null =
+      f.homeScoreHt != null && f.awayScoreHt != null ? `${f.homeScoreHt}-${f.awayScoreHt}` : null;
     const goals: Array<{ scorerTeam: string; scorer: string; minute: number | null; ownGoal: boolean; penalty: boolean }> = [];
     if (home && away && (!exists || goalsShort)) {
       try {
@@ -199,7 +219,7 @@ async function buildPreview(
         if (!detail) {
           needDetail.push(f.matchHashId);
         } else {
-          if (detail.homeScoreHt != null && detail.awayScoreHt != null) {
+          if (halfScore == null && detail.homeScoreHt != null && detail.awayScoreHt != null) {
             halfScore = `${detail.homeScoreHt}-${detail.awayScoreHt}`;
           }
           for (const ev of detail.events) {
@@ -267,12 +287,12 @@ router.get("/entry/dribl-config", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Season not found" });
     return;
   }
-  const driblLeague = driblLeagueNameFor(seasonRow.leagueName);
-  if (!driblLeague) {
-    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet — it currently covers ACT NPLM` });
+  const dribl = driblLeagueFor(seasonRow.leagueName);
+  if (!dribl) {
+    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet` });
     return;
   }
-  res.json(GetDriblConfigResponse.parse({ driblLeague, driblYear: seasonRow.year }));
+  res.json(GetDriblConfigResponse.parse({ driblLeague: dribl.league, driblCompetition: dribl.competition, driblYear: seasonRow.year }));
 });
 
 // Server-side fetch path.
@@ -288,30 +308,37 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Season not found" });
     return;
   }
-  const driblLeague = driblLeagueNameFor(seasonRow.leagueName);
-  if (!driblLeague) {
-    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet — it currently covers ACT NPLM` });
+  const dribl = driblLeagueFor(seasonRow.leagueName);
+  if (!dribl) {
+    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet` });
     return;
   }
+  const driblLeague = dribl.league;
 
   try {
     const tenant = await driblTenant();
     const { hash: seasonHash, title: seasonTitle } = await driblSeasonHash(tenant, seasonRow.year);
+    const competition = await driblCompetitionHash(tenant, dribl.competition);
 
-    // Page through the whole season's results and keep only this league's games
+    // Page through the whole season's fixtures and keep only this league's
+    // games. NOTE: the /results feed silently drops early-season rounds —
+    // /fixtures is the complete list (and carries HT scores in the row).
     const fixtures: NormFixture[] = [];
     let cursor: string | null = null;
-    for (let page = 0; page < 80; page++) {
-      const params: Record<string, string> = { tenant, season: seasonHash, date_range: "all" };
+    for (let page = 0; page < 60; page++) {
+      const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
       if (cursor) params.cursor = cursor;
-      const data = await driblGet("/results", params);
-      for (const row of data?.data ?? []) {
+      const data = await driblGet("/fixtures", params);
+      const rows = data?.data ?? [];
+      if (rows.length === 0) break;
+      for (const row of rows) {
         const a = row.attributes ?? {};
         if (a.league_name === driblLeague && !a.bye_flag) {
           fixtures.push({
             fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
             homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
             homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
+            homeScoreHt: a.home_score_half ?? null, awayScoreHt: a.away_score_half ?? null,
             matchHashId: String(a.match_hash_id ?? ""),
           });
         }
@@ -360,11 +387,12 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Season not found" });
     return;
   }
-  const driblLeague = driblLeagueNameFor(seasonRow.leagueName);
-  if (!driblLeague) {
-    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet — it currently covers ACT NPLM` });
+  const dribl = driblLeagueFor(seasonRow.leagueName);
+  if (!dribl) {
+    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet` });
     return;
   }
+  const driblLeague = dribl.league;
 
   const detailByHash = new Map<string, NormDetail>();
   for (const mc of b.matchCentres ?? []) {

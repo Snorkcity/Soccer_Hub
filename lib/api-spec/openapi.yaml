@@ -3883,9 +3883,10 @@ components:
     DriblConfigResponse:
       type: object
       properties:
-        driblLeague: { type: string }
-        driblYear:   { type: string }
-      required: [driblLeague, driblYear]
+        driblLeague:      { type: string }
+        driblCompetition: { type: string }
+        driblYear:        { type: string }
+      required: [driblLeague, driblCompetition, driblYear]
 
     DriblRawFixture:
       type: object
@@ -3897,6 +3898,8 @@ components:
         awayTeamName: { type: string }
         homeScore:    { type: ["integer", "null"] }
         awayScore:    { type: ["integer", "null"] }
+        homeScoreHt:  { type: ["integer", "null"] }
+        awayScoreHt:  { type: ["integer", "null"] }
         matchHashId:  { type: string }
       required: [fullRound, date, status, homeTeamName, awayTeamName, homeScore, awayScore, matchHashId]
 

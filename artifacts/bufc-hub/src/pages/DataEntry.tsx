@@ -1957,21 +1957,28 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
     const yearSeasons = seasonList.filter(s => String(s.year) === cfg.driblYear);
     const driblSeason = yearSeasons.find(s => s.is_current) ?? yearSeasons[yearSeasons.length - 1];
     if (!driblSeason) throw new Error(`Dribl has no ${cfg.driblYear} season for Capital Football`);
+    const comps: Array<{ id: string; name?: string; title?: string }> =
+      (await driblJson("/list/competitions", { tenant }))?.data ?? [];
+    const competition = comps.find(c => (c.name ?? c.title) === cfg.driblCompetition);
+    if (!competition) throw new Error(`Dribl has no "${cfg.driblCompetition}" competition`);
 
     const fixtures: DriblRawFixture[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < 80; page++) {
-      setPhase(`Reading results from Dribl… (page ${page + 1})`);
-      const params: Record<string, string> = { tenant, season: driblSeason.id, date_range: "all" };
+      setPhase(`Reading fixtures from Dribl… (page ${page + 1})`);
+      const params: Record<string, string> = { tenant, season: driblSeason.id, competition: competition.id, date_range: "all" };
       if (cursor) params.cursor = cursor;
-      const data = await driblJson("/results", params);
-      for (const row of data?.data ?? []) {
+      const data = await driblJson("/fixtures", params);
+      const rows = data?.data ?? [];
+      if (rows.length === 0) break;
+      for (const row of rows) {
         const a = row.attributes ?? {};
         if (a.league_name === cfg.driblLeague && !a.bye_flag) {
           fixtures.push({
             fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
             homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
             homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
+            homeScoreHt: a.home_score_half ?? null, awayScoreHt: a.away_score_half ?? null,
             matchHashId: String(a.match_hash_id ?? ""),
           });
         }

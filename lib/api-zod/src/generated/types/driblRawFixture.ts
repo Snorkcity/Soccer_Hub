@@ -16,5 +16,9 @@ export interface DriblRawFixture {
   homeScore: number | null;
   /** @nullable */
   awayScore: number | null;
+  /** @nullable */
+  homeScoreHt?: number | null;
+  /** @nullable */
+  awayScoreHt?: number | null;
   matchHashId: string;
 }

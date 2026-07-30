@@ -8,5 +8,6 @@
 
 export interface DriblConfigResponse {
   driblLeague: string;
+  driblCompetition: string;
   driblYear: string;
 }

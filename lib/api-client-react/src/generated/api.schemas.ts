@@ -1512,6 +1512,7 @@ export interface DriblPreviewResponse {
 
 export interface DriblConfigResponse {
   driblLeague: string;
+  driblCompetition: string;
   driblYear: string;
 }
 
@@ -1525,6 +1526,10 @@ export interface DriblRawFixture {
   homeScore: number | null;
   /** @nullable */
   awayScore: number | null;
+  /** @nullable */
+  homeScoreHt?: number | null;
+  /** @nullable */
+  awayScoreHt?: number | null;
   matchHashId: string;
 }
 

@@ -2078,6 +2078,7 @@ export const GetDriblConfigQueryParams = zod.object({
 
 export const GetDriblConfigResponse = zod.object({
   "driblLeague": zod.string(),
+  "driblCompetition": zod.string(),
   "driblYear": zod.string()
 })
 
@@ -2102,6 +2103,8 @@ export const AssembleDriblPreviewBody = zod.object({
   "awayTeamName": zod.string(),
   "homeScore": zod.number().nullable(),
   "awayScore": zod.number().nullable(),
+  "homeScoreHt": zod.number().nullish(),
+  "awayScoreHt": zod.number().nullish(),
   "matchHashId": zod.string()
 })).max(assembleDriblPreviewBodyFixturesMax),
   "matchCentres": zod.array(zod.object({
