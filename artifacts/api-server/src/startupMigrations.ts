@@ -353,7 +353,12 @@ export async function runStartupMigrations(): Promise<void> {
   `);
   await db.execute(sql`
     INSERT INTO seasons (year, label, is_active, league_id)
-    SELECT '2026', '2026 Season', true, l.id FROM leagues l
+    -- Active only when the league has no active season yet, so the partial
+    -- unique index seasons_one_active_per_league can never abort boot.
+    SELECT '2026', '2026 Season',
+           NOT EXISTS (SELECT 1 FROM seasons a WHERE a.league_id = l.id AND a.is_active),
+           l.id
+    FROM leagues l
     WHERE l.name = 'ACT NPLM'
       AND NOT EXISTS (SELECT 1 FROM seasons s WHERE s.league_id = l.id AND s.year = '2026')
   `);
