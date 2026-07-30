@@ -318,6 +318,20 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE e.cycle_id = c.id AND e.league_id <> c.league_id
   `);
 
+  // ── Dribl name map (2026-07): permanent full-name → display-name mapping so
+  // same-initial teammates keep stable display names across syncs.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS dribl_name_map (
+      id serial PRIMARY KEY,
+      season_id integer NOT NULL,
+      club text NOT NULL,
+      full_name text NOT NULL,
+      display_name text NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_name_map_unique ON dribl_name_map (season_id, club, full_name)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_name_map_display_unique ON dribl_name_map (season_id, club, display_name)`);
+
   // ── Paid add-ons become tick boxes (2026-07): Session Planner (+ Library)
   // and Coach Assistant were open to every signed-in user — grant them once to
   // every existing league access row so nobody loses anything, then the coach

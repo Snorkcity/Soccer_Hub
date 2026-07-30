@@ -10,7 +10,7 @@
 //        and posts trimmed payloads here for assembly against the database.
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable } from "@workspace/db";
+import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable, driblNameMapTable } from "@workspace/db";
 import {
   GetDriblPreviewQueryParams,
   GetDriblPreviewResponse,
@@ -175,16 +175,31 @@ function nameVariants(full: string, nameFormat: string): string[] {
 }
 
 /**
- * Pick the display name for a player, preferring whatever spelling this club
- * has already saved (so a scorer named "Jack Smith" maps to an existing
- * "Ja.Smith" row instead of creating a second identity as "J.Smith").
+ * Per-club name book: a permanent full-name → display-name mapping (backed by
+ * the dribl_name_map table) so display names stay stable across syncs. The
+ * first player to claim "A.Rakic" keeps it forever; a later same-initial
+ * arrival is pinned to the next free variant ("An.Rakic"). Matches are
+ * processed in date order, so "first" means first to appear in the season.
  */
-function resolveName(full: string, nameFormat: string, known: Set<string> | undefined): string {
+type NameBook = {
+  byFull: Map<string, string>; // lower-cased full name -> display name
+  taken: Set<string>;          // display names already claimed
+  fresh: Array<{ fullName: string; displayName: string }>; // new claims to persist
+};
+
+function claimName(book: NameBook, full: string, nameFormat: string): string {
+  const key = full.trim().toLowerCase();
+  const existing = book.byFull.get(key);
+  if (existing) return existing;
   const variants = nameVariants(full, nameFormat);
-  if (known) {
-    for (const v of variants) if (known.has(v)) return v;
+  let pick = variants[variants.length - 1];
+  for (const v of variants) {
+    if (!book.taken.has(v)) { pick = v; break; }
   }
-  return variants[0];
+  book.byFull.set(key, pick);
+  book.taken.add(pick);
+  book.fresh.push({ fullName: key, displayName: pick });
+  return pick;
 }
 
 /**
@@ -199,7 +214,7 @@ function computeStatsRows(
   teamHashId: string,
   detail: NormDetail | null,
   nameFormat: string,
-  known?: Set<string>,
+  book: NameBook,
 ): Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
   const first = detail?.ftFirstHalf || 45;
   const second = detail?.ftSecondHalf || 45;
@@ -224,33 +239,12 @@ function computeStatsRows(
     const appeared = on != null;
     const mins = appeared ? Math.max(0, Math.min((off ?? duration) - (on ?? 0), duration)) : 0;
     rows.push({
-      playerName: resolveName(full, nameFormat, known),
+      playerName: claimName(book, full, nameFormat),
       minsPlayed: mins,
       started: p.starting,
       appearance: appeared,
       position: p.isGoalkeeper ? "GK" : null,
-      __full: full,
-    } as never);
-  }
-
-  // Same-initial teammates ("J.Smith" twice) — bump the whole duplicate group
-  // to longer first-name prefixes until every name in the sheet is unique.
-  type Row = (typeof rows)[number] & { __full: string };
-  for (let pass = 0; pass < 6; pass++) {
-    const counts = new Map<string, number>();
-    for (const r of rows) counts.set(r.playerName, (counts.get(r.playerName) ?? 0) + 1);
-    const dupNames = new Set([...counts.entries()].filter(([, n]) => n > 1).map(([n]) => n));
-    if (dupNames.size === 0) break;
-    for (const r of rows as Row[]) {
-      if (!dupNames.has(r.playerName)) continue;
-      const variants = nameVariants(r.__full, nameFormat);
-      const idx = variants.indexOf(r.playerName);
-      if (idx >= 0 && idx < variants.length - 1) r.playerName = variants[idx + 1];
-    }
-  }
-  for (const r of rows as Row[]) {
-    known?.add(r.playerName);
-    delete (r as Partial<Row>).__full;
+    });
   }
   return rows;
 }
@@ -325,29 +319,33 @@ async function buildPreview(
     set.add(s.club);
     statsByMatch.set(s.matchId, set);
   }
-  // Player names each club already uses — keeps sync-generated names
-  // consistent with saved rows (incl. disambiguated ones like "Ja.Smith").
-  const nameRows = await db
-    .selectDistinct({ club: leaguePlayerStatsTable.club, playerName: leaguePlayerStatsTable.playerName })
-    .from(leaguePlayerStatsTable)
-    .where(eq(leaguePlayerStatsTable.seasonId, seasonId));
-  const knownNamesByClub = new Map<string, Set<string>>();
-  for (const r of nameRows) {
-    if (!r.club) continue;
-    const set = knownNamesByClub.get(r.club) ?? new Set<string>();
-    set.add(r.playerName);
-    knownNamesByClub.set(r.club, set);
-  }
-  const knownFor = (club: string): Set<string> => {
-    let set = knownNamesByClub.get(club);
-    if (!set) { set = new Set(); knownNamesByClub.set(club, set); }
-    return set;
+  // Permanent full-name → display-name book per club (dribl_name_map table),
+  // seeded so display names stay stable across syncs. Names not yet in the map
+  // (e.g. hand-entered sheets) are claimed by the first Dribl full name that
+  // matches — matches run in date order, so the season's first player wins.
+  const mapRows = await db
+    .select({ club: driblNameMapTable.club, fullName: driblNameMapTable.fullName, displayName: driblNameMapTable.displayName })
+    .from(driblNameMapTable)
+    .where(eq(driblNameMapTable.seasonId, seasonId));
+  const booksByClub = new Map<string, NameBook>();
+  const bookFor = (club: string): NameBook => {
+    let book = booksByClub.get(club);
+    if (!book) { book = { byFull: new Map(), taken: new Set(), fresh: [] }; booksByClub.set(club, book); }
+    return book;
   };
+  for (const r of mapRows) {
+    const book = bookFor(r.club);
+    book.byFull.set(r.fullName, r.displayName);
+    book.taken.add(r.displayName);
+  }
 
   const matches: Array<Record<string, unknown>> = [];
   const needDetail: string[] = [];
   const needLineups: Array<{ match: string; team: string }> = [];
-  for (const f of fixtures) {
+  // Process in date order so name claims ("first player keeps the short name")
+  // follow the season chronologically, whatever order the fixtures feed uses.
+  const orderedFixtures = [...fixtures].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  for (const f of orderedFixtures) {
     if (f.status !== "complete" || f.homeScore == null || f.awayScore == null) continue;
     const home = matchClub(f.homeTeamName, clubs);
     const away = matchClub(f.awayTeamName, clubs);
@@ -393,7 +391,7 @@ async function buildPreview(
             if (players == null) {
               needLineups.push({ match: f.matchHashId, team: teamHash });
             } else if (players.length > 0) {
-              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname", knownFor(w.club));
+              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname", bookFor(w.club));
               if (rows.length > 0) playerStats.push({ club: w.club, exists: false, rows });
             }
           }
@@ -405,7 +403,7 @@ async function buildPreview(
             const creditedClub = ev.ownGoal ? (scorersClub === home ? away : home) : scorersClub;
             goals.push({
               scorerTeam: creditedClub,
-              scorer: ev.ownGoal ? "Own Goal" : resolveName(ev.name, seasonRow.nameFormat ?? "initial-surname", knownNamesByClub.get(scorersClub)),
+              scorer: ev.ownGoal ? "Own Goal" : claimName(bookFor(scorersClub), ev.name, seasonRow.nameFormat ?? "initial-surname"),
               minute: typeof ev.minute === "number" ? Math.min(ev.minute, 130) : null,
               ownGoal: ev.ownGoal,
               penalty: ev.penalty,
@@ -450,6 +448,21 @@ async function buildPreview(
   }
 
   matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
+
+  // Persist any newly claimed display names so they stay stable forever.
+  // Row-by-row with onConflictDoNothing: if a concurrent run already claimed a
+  // full name or display name, that claim wins and this run's alternative is
+  // simply dropped — the next preview reloads the winner and re-derives a free
+  // variant for the loser, so the map converges without ever holding duplicates.
+  for (const [club, book] of booksByClub) {
+    for (const f of book.fresh) {
+      await db
+        .insert(driblNameMapTable)
+        .values({ seasonId, club, fullName: f.fullName, displayName: f.displayName })
+        .onConflictDoNothing();
+    }
+  }
+
   return { matches, needDetail, needLineups };
 }
 
