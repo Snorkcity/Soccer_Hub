@@ -2224,7 +2224,7 @@ function EntryWorkspace() {
 
   const season = seasons?.find(s => s.id === seasonId);
   // Dribl sync is wired up for NPLM (Capital Football runs it on Dribl)
-  const driblAvailable = /NPLM/i.test(season?.leagueName ?? "");
+  const driblAvailable = /NPLM|NPLW/i.test(season?.leagueName ?? "");
   // Only offer clubs that belong to the selected season's league
   const clubNames = useMemo(
     () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),

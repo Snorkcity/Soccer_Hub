@@ -38,6 +38,8 @@ const DRIBL_HEADERS = {
 // Which Dribl league feed a local league maps to. Extend as leagues are added.
 function driblLeagueNameFor(leagueName: string): string | null {
   if (/NPLM/i.test(leagueName)) return "NPLM 1st Grade";
+  if (/NPLW.*Reserve/i.test(leagueName)) return "NPLW Reserve Grade";
+  if (/NPLW/i.test(leagueName)) return "NPLW 1st Grade";
   return null;
 }
 
