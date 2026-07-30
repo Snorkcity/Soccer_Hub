@@ -730,13 +730,15 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
   const raw = parsed.data.imageBase64;
   const dataUrl = raw.startsWith("data:") ? raw : `data:image/png;base64,${raw}`;
 
-  // Naming convention is per league (leagues.name_format): NPLW uses surname-only,
-  // NPLM uses "S.Smith". Default to surname-only when unknown.
-  let nameFormat: string | null = null;
+  // Naming convention is per league (leagues.name_format). Coach's ongoing
+  // standard (2026-07) is "S.Smith" — the default for every league unless the
+  // league explicitly says 'surname' (NPLW + Reserves keep their existing
+  // surname-only history).
+  let nameFormat: string | null = "initial-surname";
   if (parsed.data.leagueId != null) {
     const [league] = await db.select({ nameFormat: leaguesTable.nameFormat })
       .from(leaguesTable).where(eq(leaguesTable.id, parsed.data.leagueId));
-    nameFormat = league?.nameFormat ?? null;
+    nameFormat = league?.nameFormat ?? "initial-surname";
   }
   const nameRule = nameFormat === "initial-surname"
     ? "- playerName: return FIRST-INITIAL DOT SURNAME, e.g. \"S.Smith\" — capital first initial, a dot, no space, then the surname. For hyphenated or multi-word surnames keep the full surname (e.g. \"J.Smith-Jones\", \"P.van Dyk\"). If no first name or initial is visible, return the surname alone and add a warning naming the player."

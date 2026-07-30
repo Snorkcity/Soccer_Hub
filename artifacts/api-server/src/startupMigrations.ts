@@ -346,6 +346,9 @@ export async function runStartupMigrations(): Promise<void> {
   // "S.Smith" (first-initial + surname) instead of surname-only — recorded per
   // league in leagues.name_format and used by the screenshot reader.
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS name_format text`);
+  // Coach standard (2026-07): "S.Smith" everywhere going forward. Only the two
+  // NPLW leagues keep surname-only, matching their already-entered 2026 data.
+  await db.execute(sql`UPDATE leagues SET name_format = 'surname' WHERE name IN ('ACT NPLW', 'ACT NPLW Reserves') AND name_format IS NULL`);
   await db.execute(sql`
     INSERT INTO leagues (name, region, focus_club, name_format)
     VALUES ('ACT NPLM', 'ACT', 'Belconnen', 'initial-surname')
