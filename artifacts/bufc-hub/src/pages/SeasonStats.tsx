@@ -1885,18 +1885,8 @@ export default function SeasonStats() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Season Stats</h1>
         <div className="flex flex-col sm:flex-row gap-2">
-          {isSuperadmin && teams && teams.filter(t => t.analyticsEnabled).length > 1 && (
-            <Select value={selectedTeamId.toString()} onValueChange={v => setSelectedTeamId(Number(v))}>
-              <SelectTrigger className="w-[180px] max-w-full"><SelectValue placeholder="Select Team" /></SelectTrigger>
-              <SelectContent>{teams.filter(t => t.analyticsEnabled).map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}</SelectContent>
-            </Select>
-          )}
-          {leagueSeasons.length > 0 && (
-            <Select value={selectedSeasonId.toString()} onValueChange={v => setSelectedSeasonId(Number(v))}>
-              <SelectTrigger className="w-[160px] max-w-full"><SelectValue placeholder="Select Season" /></SelectTrigger>
-              <SelectContent>{leagueSeasons.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.label}</SelectItem>)}</SelectContent>
-            </Select>
-          )}
+          {/* Season + team follow the Hub's league pick automatically — no
+              dropdowns here (per coach). Data Entry keeps its own selector. */}
           {isSuperadmin && leagueClubs.length > 1 && (
             <Select value={viewClub || leagueDefaultClub} onValueChange={v => setViewClub(v === leagueDefaultClub ? "" : v)}>
               <SelectTrigger className="w-[170px] max-w-full"><SelectValue placeholder="Club" /></SelectTrigger>
