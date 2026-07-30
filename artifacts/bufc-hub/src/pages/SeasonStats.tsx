@@ -228,6 +228,34 @@ function buildPieSegments(goals: ScoredGoalRecord[], kind: "regain" | "setpiece"
 
 const pct = (n: number, d: number) => (d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "—");
 
+// ── Club crest: shows the club logo when available, else falls back to the
+//    colour dot. Broken image URLs also degrade to the dot (onError).
+function ClubCrest({ logoUrl, color, size = 16 }: { logoUrl?: string | null; color?: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  // Reset the broken flag if the URL changes (e.g. club selector re-use).
+  useEffect(() => { setBroken(false); }, [logoUrl]);
+  if (logoUrl && !broken) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        loading="lazy"
+        className="inline-block shrink-0 object-contain"
+        style={{ width: size, height: size }}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <span
+      className="inline-block shrink-0 rounded-full"
+      style={{ width: Math.max(8, size - 6), height: Math.max(8, size - 6), background: color ?? "#888888" }}
+    />
+  );
+}
+
 // Rich per-segment tooltip: count, share of ALL goals, and the group's share.
 // Regain pies group by third (front/middle/back); set-piece pies group as one.
 function GoalTypePieTooltip({ active, payload, grandTotal, segments, groupMode }: {
@@ -1418,6 +1446,13 @@ export default function SeasonStats() {
     return map;
   }, [clubs]);
 
+  // logo map: club name → crest URL (null/undefined when no logo saved)
+  const clubLogoMap = useMemo<Record<string, string | null>>(() => {
+    const map: Record<string, string | null> = {};
+    for (const c of clubs ?? []) map[c.name] = c.logoUrl ?? null;
+    return map;
+  }, [clubs]);
+
   // ── Philosophy Alignment quadrant: one point per match (possession vs points) ─
   const { data: matchList } = useListMatches(analyticsParams, {
     query: { enabled: isReady, queryKey: getListMatchesQueryKey(analyticsParams) },
@@ -1915,7 +1950,12 @@ export default function SeasonStats() {
                     {ladder?.map((entry, idx) => (
                       <TableRow key={entry.teamName} className={cn("text-sm", entry.isFocusTeam ? "bg-primary/10 hover:bg-primary/20" : "")}>
                         <TableCell className="py-1.5 font-medium">{idx + 1}</TableCell>
-                        <TableCell className={cn("py-1.5", entry.isFocusTeam ? "font-bold text-primary" : "")}>{entry.teamName}</TableCell>
+                        <TableCell className={cn("py-1.5", entry.isFocusTeam ? "font-bold text-primary" : "")}>
+                          <div className="flex items-center gap-2">
+                            <ClubCrest logoUrl={clubLogoMap[entry.teamName]} color={clubColorMap[entry.teamName]} size={18} />
+                            {entry.teamName}
+                          </div>
+                        </TableCell>
                         <TableCell className="py-1.5 text-right">{entry.played}</TableCell>
                         <TableCell className="py-1.5 text-right">{entry.won}</TableCell>
                         <TableCell className="py-1.5 text-right">{entry.drawn}</TableCell>
@@ -2609,7 +2649,7 @@ export default function SeasonStats() {
                       : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                   )}
                 >
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: clubColorMap[club] ?? "#888888" }} />
+                  <ClubCrest logoUrl={clubLogoMap[club]} color={clubColorMap[club]} size={18} />
                   {club}
                 </button>
               ))}
@@ -2662,7 +2702,10 @@ export default function SeasonStats() {
               {!isAll && profile.matches.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>{selectedClub} — Season Results</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <ClubCrest logoUrl={clubLogoMap[selectedClub]} color={clubColorMap[selectedClub]} size={22} />
+                      {selectedClub} — Season Results
+                    </CardTitle>
                     <CardDescription>Every league fixture, most recent first</CardDescription>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -2683,7 +2726,7 @@ export default function SeasonStats() {
                             <TableRow key={m.matchId} className="text-sm">
                               <TableCell className="py-1.5 text-muted-foreground">{m.matchDate ?? "—"}</TableCell>
                               <TableCell className="py-1.5 font-medium flex items-center gap-2">
-                                <span className="inline-block h-2 w-2 rounded-full" style={{ background: clubColorMap[m.opponent] ?? "#888888" }} />
+                                <ClubCrest logoUrl={clubLogoMap[m.opponent]} color={clubColorMap[m.opponent]} size={16} />
                                 {m.opponent}
                               </TableCell>
                               <TableCell className="py-1.5 text-center text-muted-foreground">{m.homeAway}</TableCell>
