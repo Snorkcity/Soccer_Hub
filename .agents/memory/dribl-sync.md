@@ -16,3 +16,5 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 **Why:** Dribl runs all AU federated leagues, so this pattern generalises to any club/league later.
 
 **Matching existing games:** never match on the rebuilt match-ID string — hand-entered IDs use their own club codes (e.g. BELR vs BEL). Match on round+home+away (fallback date+home+away) and reuse the existing match ID so top-ups hit the right row.
+
+**Lineups endpoint (cracked from SPA JS):** `GET /matchcentre-match-members/match/{match_hash_id}/team/{home|away_team_hash_id}?tenant=...` → per player: first/last name, jersey, starting, playing, is_captain, is_goalkeeper, role_slug (staff too). Use fixture's `match_hash_id`, not hash_id. Sub minutes aren't here — check match_events for substitution events.

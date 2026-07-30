@@ -1931,6 +1931,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
   const [phase, setPhase] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const [showAlreadyIn, setShowAlreadyIn] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -2131,6 +2132,17 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="secondary">{preview.driblLeague} · {preview.driblSeason}</Badge>
               <span>{preview.matches.length} completed games on Dribl · {importable.length} new</span>
+              {preview.matches.some(m => m.exists && !m.goalsOnly) && (
+                <button
+                  type="button"
+                  className="text-xs underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setShowAlreadyIn(v => !v)}
+                >
+                  {showAlreadyIn
+                    ? "hide the ones already in"
+                    : `show ${preview.matches.filter(m => m.exists && !m.goalsOnly).length} already in`}
+                </button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={importing}>Refresh</Button>
             </div>
 
@@ -2138,7 +2150,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>
             ) : (
               <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
-                {preview.matches.map(m => {
+                {preview.matches.filter(m => showAlreadyIn || !m.exists || m.goalsOnly || m.unmatched.length > 0).map(m => {
                   const canImport = (!m.exists || m.goalsOnly) && m.unmatched.length === 0;
                   return (
                     <div key={`${m.matchId}-${m.driblHome}`} className="flex items-center gap-3 px-3 py-2 text-sm">
