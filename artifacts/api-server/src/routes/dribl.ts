@@ -158,9 +158,40 @@ type NormLineupPlayer = {
 };
 
 /**
+ * All display-name variants for a full name, shortest first: the league's
+ * normal format, then progressively longer first-name prefixes to split
+ * same-initial teammates ("Ja.Smith" vs "Jo.Smith"), and finally the full name.
+ */
+function nameVariants(full: string, nameFormat: string): string[] {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length < 2) return [full.trim()];
+  const surname = parts.slice(1).join(" ");
+  const first = parts[0];
+  const out: string[] = [];
+  if (nameFormat === "surname") out.push(surname);
+  for (let i = 1; i <= first.length; i++) out.push(`${first.slice(0, i)}.${surname}`);
+  out.push(full.trim());
+  return [...new Set(out)];
+}
+
+/**
+ * Pick the display name for a player, preferring whatever spelling this club
+ * has already saved (so a scorer named "Jack Smith" maps to an existing
+ * "Ja.Smith" row instead of creating a second identity as "J.Smith").
+ */
+function resolveName(full: string, nameFormat: string, known: Set<string> | undefined): string {
+  const variants = nameVariants(full, nameFormat);
+  if (known) {
+    for (const v of variants) if (known.has(v)) return v;
+  }
+  return variants[0];
+}
+
+/**
  * Turn one team's Dribl line-up + the match's sub events into per-player stat
  * rows (minutes, started, appearance). Subs are matched by jersey first, name
  * as fallback. Unused bench players get a row with 0 minutes / no appearance.
+ * Same-initial teammates get longer first-name prefixes so names stay unique.
  */
 function computeStatsRows(
   players: NormLineupPlayer[],
@@ -168,6 +199,7 @@ function computeStatsRows(
   teamHashId: string,
   detail: NormDetail | null,
   nameFormat: string,
+  known?: Set<string>,
 ): Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
   const first = detail?.ftFirstHalf || 45;
   const second = detail?.ftSecondHalf || 45;
@@ -192,12 +224,33 @@ function computeStatsRows(
     const appeared = on != null;
     const mins = appeared ? Math.max(0, Math.min((off ?? duration) - (on ?? 0), duration)) : 0;
     rows.push({
-      playerName: formatPlayerName(full, nameFormat),
+      playerName: resolveName(full, nameFormat, known),
       minsPlayed: mins,
       started: p.starting,
       appearance: appeared,
       position: p.isGoalkeeper ? "GK" : null,
-    });
+      __full: full,
+    } as never);
+  }
+
+  // Same-initial teammates ("J.Smith" twice) — bump the whole duplicate group
+  // to longer first-name prefixes until every name in the sheet is unique.
+  type Row = (typeof rows)[number] & { __full: string };
+  for (let pass = 0; pass < 6; pass++) {
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.playerName, (counts.get(r.playerName) ?? 0) + 1);
+    const dupNames = new Set([...counts.entries()].filter(([, n]) => n > 1).map(([n]) => n));
+    if (dupNames.size === 0) break;
+    for (const r of rows as Row[]) {
+      if (!dupNames.has(r.playerName)) continue;
+      const variants = nameVariants(r.__full, nameFormat);
+      const idx = variants.indexOf(r.playerName);
+      if (idx >= 0 && idx < variants.length - 1) r.playerName = variants[idx + 1];
+    }
+  }
+  for (const r of rows as Row[]) {
+    known?.add(r.playerName);
+    delete (r as Partial<Row>).__full;
   }
   return rows;
 }
@@ -272,6 +325,24 @@ async function buildPreview(
     set.add(s.club);
     statsByMatch.set(s.matchId, set);
   }
+  // Player names each club already uses — keeps sync-generated names
+  // consistent with saved rows (incl. disambiguated ones like "Ja.Smith").
+  const nameRows = await db
+    .selectDistinct({ club: leaguePlayerStatsTable.club, playerName: leaguePlayerStatsTable.playerName })
+    .from(leaguePlayerStatsTable)
+    .where(eq(leaguePlayerStatsTable.seasonId, seasonId));
+  const knownNamesByClub = new Map<string, Set<string>>();
+  for (const r of nameRows) {
+    if (!r.club) continue;
+    const set = knownNamesByClub.get(r.club) ?? new Set<string>();
+    set.add(r.playerName);
+    knownNamesByClub.set(r.club, set);
+  }
+  const knownFor = (club: string): Set<string> => {
+    let set = knownNamesByClub.get(club);
+    if (!set) { set = new Set(); knownNamesByClub.set(club, set); }
+    return set;
+  };
 
   const matches: Array<Record<string, unknown>> = [];
   const needDetail: string[] = [];
@@ -322,7 +393,7 @@ async function buildPreview(
             if (players == null) {
               needLineups.push({ match: f.matchHashId, team: teamHash });
             } else if (players.length > 0) {
-              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname");
+              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname", knownFor(w.club));
               if (rows.length > 0) playerStats.push({ club: w.club, exists: false, rows });
             }
           }
@@ -334,7 +405,7 @@ async function buildPreview(
             const creditedClub = ev.ownGoal ? (scorersClub === home ? away : home) : scorersClub;
             goals.push({
               scorerTeam: creditedClub,
-              scorer: ev.ownGoal ? "Own Goal" : formatPlayerName(ev.name, seasonRow.nameFormat ?? "initial-surname"),
+              scorer: ev.ownGoal ? "Own Goal" : resolveName(ev.name, seasonRow.nameFormat ?? "initial-surname", knownNamesByClub.get(scorersClub)),
               minute: typeof ev.minute === "number" ? Math.min(ev.minute, 130) : null,
               ownGoal: ev.ownGoal,
               penalty: ev.penalty,
