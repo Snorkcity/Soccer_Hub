@@ -1,7 +1,8 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { desc, eq } from "drizzle-orm";
 import { db, matchPrepReportsTable, MATCH_PREP_REPORT_KINDS } from "@workspace/db";
 import { CreateMatchPrepReportBody, UpdateMatchPrepReportBody } from "@workspace/api-zod";
+import { mayTouchLeagueRow } from "../middlewares/entryAuth";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ type Row = typeof matchPrepReportsTable.$inferSelect;
 function reportJson(r: Row) {
   return {
     id: r.id,
+    leagueId: r.leagueId,
     kind: r.kind,
     title: r.title,
     opponent: r.opponent,
@@ -25,10 +27,16 @@ function reportJson(r: Row) {
   };
 }
 
-router.get("/match-prep/reports", async (_req, res) => {
+// League-private: reports belong to ONE league; the list requires a leagueId
+// (the central middleware verifies the caller's access to it).
+router.get("/match-prep/reports", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  if (!Number.isInteger(leagueId) || leagueId <= 0)
+    return res.status(400).json({ error: "leagueId is required" });
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
+    .where(eq(matchPrepReportsTable.leagueId, leagueId))
     .orderBy(desc(matchPrepReportsTable.updatedAt), desc(matchPrepReportsTable.id));
   return res.json(rows.map(reportJson));
 });
@@ -36,19 +44,34 @@ router.get("/match-prep/reports", async (_req, res) => {
 router.post("/match-prep/reports", async (req, res) => {
   const parsed = CreateMatchPrepReportBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { kind, title, opponent, matchDate, data } = parsed.data;
+  const { leagueId, kind, title, opponent, matchDate, data } = parsed.data;
   if (!(MATCH_PREP_REPORT_KINDS as readonly string[]).includes(kind))
     return res.status(400).json({ error: "Invalid kind" });
   const [row] = await db
     .insert(matchPrepReportsTable)
-    .values({ kind, title, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
+    .values({ leagueId, kind, title, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
     .returning();
   return res.json(reportJson(row));
 });
 
+/** Loads a report and checks the caller may touch its league; null → respond already sent. */
+async function loadGuarded(req: Request, res: Response, id: number): Promise<Row | null> {
+  const [row] = await db.select().from(matchPrepReportsTable).where(eq(matchPrepReportsTable.id, id)).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Report not found" });
+    return null;
+  }
+  if (!(await mayTouchLeagueRow(req, row.leagueId, "match-prep"))) {
+    res.status(403).json({ error: "No access to this league's reports" });
+    return null;
+  }
+  return row;
+}
+
 router.patch("/match-prep/reports/:id", async (req, res) => {
   const id = parseId(req.params.id);
   if (id == null) return res.status(400).json({ error: "Invalid id" });
+  if (!(await loadGuarded(req, res, id))) return;
   const parsed = UpdateMatchPrepReportBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   const d = parsed.data;
@@ -69,6 +92,7 @@ router.patch("/match-prep/reports/:id", async (req, res) => {
 router.delete("/match-prep/reports/:id", async (req, res) => {
   const id = parseId(req.params.id);
   if (id == null) return res.status(400).json({ error: "Invalid id" });
+  if (!(await loadGuarded(req, res, id))) return;
   const deleted = await db
     .delete(matchPrepReportsTable)
     .where(eq(matchPrepReportsTable.id, id))

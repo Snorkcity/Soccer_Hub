@@ -8,6 +8,7 @@
 import type { EntryGpsSessionRow } from './entryGpsSessionRow';
 
 export interface EntryGpsSessionsSaveRequest {
+  leagueId: number;
   year: string;
   teamId: number;
   /** @minLength 1 */

@@ -51,14 +51,18 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const { playerId, year, teamId, round, playerName, split } = query.data;
+  const { leagueId, playerId, year, teamId, round, playerName, split } = query.data;
+  if (!leagueId) {
+    res.status(400).json({ error: "leagueId is required" });
+    return;
+  }
 
   // Duplicate GPS identities (U17-/U18- eras, nicknames) are merged on read:
   // rows keep their raw name in the DB, but the API serves — and filters by —
   // the canonical name from gps_player_aliases.
   const canonicalName = sql<string>`coalesce(${gpsPlayerAliasesTable.canonical}, ${gpsSessionsTable.playerName})`;
 
-  const conditions = [];
+  const conditions = [eq(gpsSessionsTable.leagueId, leagueId)];
   if (playerId) conditions.push(eq(gpsSessionsTable.playerId, playerId));
   if (year) conditions.push(eq(gpsSessionsTable.year, year));
   if (teamId) conditions.push(eq(gpsSessionsTable.teamId, teamId));
@@ -70,7 +74,7 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     .select({ ...getTableColumns(gpsSessionsTable), playerName: canonicalName })
     .from(gpsSessionsTable)
     .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(gpsSessionsTable.sessionDate);
 
   res.json(ListGpsSessionsResponse.parse(rows.map(mapRow)));

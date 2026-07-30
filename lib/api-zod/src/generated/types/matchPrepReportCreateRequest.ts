@@ -9,6 +9,7 @@ import type { MatchPrepReportCreateRequestData } from './matchPrepReportCreateRe
 import type { MatchPrepReportCreateRequestKind } from './matchPrepReportCreateRequestKind';
 
 export interface MatchPrepReportCreateRequest {
+  leagueId: number;
   kind: MatchPrepReportCreateRequestKind;
   /** @minLength 1 */
   title: string;

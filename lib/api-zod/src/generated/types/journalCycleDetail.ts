@@ -9,6 +9,7 @@ import type { JournalEntry } from './journalEntry';
 
 export interface JournalCycleDetail {
   id: number;
+  leagueId?: number;
   title: string;
   weeksCount: number;
   /** @nullable */

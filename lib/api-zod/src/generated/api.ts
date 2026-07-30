@@ -567,6 +567,7 @@ export const DeleteGoalResponse = zod.void()
  * @summary List GPS sessions
  */
 export const ListGpsSessionsQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
   "playerId": zod.coerce.number().optional(),
   "year": zod.coerce.string().optional(),
   "teamId": zod.coerce.number().optional(),
@@ -577,6 +578,7 @@ export const ListGpsSessionsQueryParams = zod.object({
 
 export const ListGpsSessionsResponseItem = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "sessionDate": zod.string().nullish(),
   "sessionTitle": zod.string().nullish(),
   "playerName": zod.string(),
@@ -620,6 +622,7 @@ export const ListGpsSessionsResponse = zod.array(ListGpsSessionsResponseItem)
  * @summary Create a GPS session record
  */
 export const CreateGpsSessionBody = zod.object({
+  "leagueId": zod.number(),
   "sessionDate": zod.string().nullish(),
   "sessionTitle": zod.string().nullish(),
   "playerName": zod.string(),
@@ -659,6 +662,7 @@ export const CreateGpsSessionBody = zod.object({
 
 export const CreateGpsSessionResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "sessionDate": zod.string().nullish(),
   "sessionTitle": zod.string().nullish(),
   "playerName": zod.string(),
@@ -726,6 +730,7 @@ export const SaveGpsPlayerPositionsResponse = zod.object({
  * @summary List athletic test results
  */
 export const ListAthleticTestsQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
   "playerId": zod.coerce.number().optional(),
   "year": zod.coerce.string().optional(),
   "teamId": zod.coerce.number().optional()
@@ -733,6 +738,7 @@ export const ListAthleticTestsQueryParams = zod.object({
 
 export const ListAthleticTestsResponseItem = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "playerId": zod.number().nullish(),
   "playerName": zod.string(),
   "teamId": zod.number(),
@@ -755,6 +761,7 @@ export const ListAthleticTestsResponse = zod.array(ListAthleticTestsResponseItem
  * @summary Record an athletic test result
  */
 export const CreateAthleticTestBody = zod.object({
+  "leagueId": zod.number(),
   "playerId": zod.number().nullish(),
   "playerName": zod.string(),
   "teamId": zod.number(),
@@ -773,6 +780,7 @@ export const CreateAthleticTestBody = zod.object({
 
 export const CreateAthleticTestResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "playerId": zod.number().nullish(),
   "playerName": zod.string(),
   "teamId": zod.number(),
@@ -2157,6 +2165,7 @@ export const ExtractPlayersFromImageResponse = zod.object({
  * @summary Replace a year's athletic testing results with rows read from the trainer's spreadsheet
  */
 export const SaveEntryAthleticTestsBody = zod.object({
+  "leagueId": zod.number(),
   "year": zod.string(),
   "teamId": zod.number(),
   "rows": zod.array(zod.object({
@@ -2188,6 +2197,7 @@ export const SaveEntryAthleticTestsResponse = zod.object({
 
 
 export const SaveEntryGpsSessionsBody = zod.object({
+  "leagueId": zod.number(),
   "year": zod.string(),
   "teamId": zod.number(),
   "round": zod.string().min(1),
@@ -2800,6 +2810,10 @@ export const ClearSessionPartResponse = zod.object({
 /**
  * @summary List reflection-journal cycles (newest first)
  */
+export const ListJournalCyclesQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
 export const ListJournalCyclesResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
@@ -2821,6 +2835,7 @@ export const createJournalCycleBodyWeeksCountMax = 12;
 
 
 export const CreateJournalCycleBody = zod.object({
+  "leagueId": zod.number(),
   "title": zod.string().min(1),
   "weeksCount": zod.number().min(1).max(createJournalCycleBodyWeeksCountMax),
   "startDate": zod.string().optional(),
@@ -2829,6 +2844,7 @@ export const CreateJournalCycleBody = zod.object({
 
 export const CreateJournalCycleResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "title": zod.string(),
   "weeksCount": zod.number(),
   "startDate": zod.string().nullish(),
@@ -2858,6 +2874,7 @@ export const GetJournalCycleParams = zod.object({
 
 export const GetJournalCycleResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "title": zod.string(),
   "weeksCount": zod.number(),
   "startDate": zod.string().nullish(),
@@ -2899,6 +2916,7 @@ export const UpdateJournalCycleBody = zod.object({
 
 export const UpdateJournalCycleResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "title": zod.string(),
   "weeksCount": zod.number(),
   "startDate": zod.string().nullish(),
@@ -2963,6 +2981,10 @@ export const UpsertJournalEntryResponse = zod.object({
 /**
  * @summary List standalone reflections (newest first)
  */
+export const ListJournalReflectionsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
 export const ListJournalReflectionsResponseItem = zod.object({
   "id": zod.number(),
   "cycleId": zod.number().nullish(),
@@ -2982,6 +3004,7 @@ export const ListJournalReflectionsResponse = zod.array(ListJournalReflectionsRe
  * @summary Create a standalone post-training / post-match reflection
  */
 export const CreateJournalReflectionBody = zod.object({
+  "leagueId": zod.number(),
   "kind": zod.enum(['session_reflection', 'match_reflection']),
   "title": zod.string().optional(),
   "entryDate": zod.string().optional(),
@@ -3045,8 +3068,13 @@ export const DeleteJournalReflectionResponse = zod.object({
 /**
  * @summary List saved Match Prep reports (Monday briefings + Friday decks), newest first
  */
+export const ListMatchPrepReportsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
 export const ListMatchPrepReportsResponseItem = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "kind": zod.enum(['monday', 'friday']),
   "title": zod.string(),
   "opponent": zod.string().nullable(),
@@ -3065,6 +3093,7 @@ export const ListMatchPrepReportsResponse = zod.array(ListMatchPrepReportsRespon
 
 
 export const CreateMatchPrepReportBody = zod.object({
+  "leagueId": zod.number(),
   "kind": zod.enum(['monday', 'friday']),
   "title": zod.string().min(1),
   "opponent": zod.string().optional(),
@@ -3074,6 +3103,7 @@ export const CreateMatchPrepReportBody = zod.object({
 
 export const CreateMatchPrepReportResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "kind": zod.enum(['monday', 'friday']),
   "title": zod.string(),
   "opponent": zod.string().nullable(),
@@ -3103,6 +3133,7 @@ export const UpdateMatchPrepReportBody = zod.object({
 
 export const UpdateMatchPrepReportResponse = zod.object({
   "id": zod.number(),
+  "leagueId": zod.number().optional(),
   "kind": zod.enum(['monday', 'friday']),
   "title": zod.string(),
   "opponent": zod.string().nullable(),

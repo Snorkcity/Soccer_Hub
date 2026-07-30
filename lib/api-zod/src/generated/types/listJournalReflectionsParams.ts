@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListAthleticTestsParams = {
+export type ListJournalReflectionsParams = {
 leagueId: number;
-playerId?: number;
-year?: string;
-teamId?: number;
 };

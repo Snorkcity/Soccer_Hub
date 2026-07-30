@@ -120,8 +120,11 @@ import type {
   ListEntryPlayerStatsParams,
   ListGoalsParams,
   ListGpsSessionsParams,
+  ListJournalCyclesParams,
+  ListJournalReflectionsParams,
   ListLeagueMatchesParams,
   ListLibraryPracticesParams,
+  ListMatchPrepReportsParams,
   ListMatchesParams,
   ListPlayerStatsParams,
   ListPlayersParams,
@@ -1788,7 +1791,7 @@ export const useDeleteGoal = <TError = ErrorType<unknown>,
       return useMutation(getDeleteGoalMutationOptions(options));
     }
 
-export const getListGpsSessionsUrl = (params?: ListGpsSessionsParams,) => {
+export const getListGpsSessionsUrl = (params: ListGpsSessionsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -1806,7 +1809,7 @@ export const getListGpsSessionsUrl = (params?: ListGpsSessionsParams,) => {
 /**
  * @summary List GPS sessions
  */
-export const listGpsSessions = async (params?: ListGpsSessionsParams, options?: RequestInit): Promise<GpsSession[]> => {
+export const listGpsSessions = async (params: ListGpsSessionsParams, options?: RequestInit): Promise<GpsSession[]> => {
 
   return customFetch<GpsSession[]>(getListGpsSessionsUrl(params),
   {
@@ -1828,7 +1831,7 @@ export const getListGpsSessionsQueryKey = (params?: ListGpsSessionsParams,) => {
     }
 
 
-export const getListGpsSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsSessions>>, TError = ErrorType<unknown>>(params?: ListGpsSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListGpsSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsSessions>>, TError = ErrorType<unknown>>(params: ListGpsSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1855,7 +1858,7 @@ export type ListGpsSessionsQueryError = ErrorType<unknown>
  */
 
 export function useListGpsSessions<TData = Awaited<ReturnType<typeof listGpsSessions>>, TError = ErrorType<unknown>>(
- params?: ListGpsSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params: ListGpsSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
@@ -2091,7 +2094,7 @@ export const useSaveGpsPlayerPositions = <TError = ErrorType<unknown>,
       return useMutation(getSaveGpsPlayerPositionsMutationOptions(options));
     }
 
-export const getListAthleticTestsUrl = (params?: ListAthleticTestsParams,) => {
+export const getListAthleticTestsUrl = (params: ListAthleticTestsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -2109,7 +2112,7 @@ export const getListAthleticTestsUrl = (params?: ListAthleticTestsParams,) => {
 /**
  * @summary List athletic test results
  */
-export const listAthleticTests = async (params?: ListAthleticTestsParams, options?: RequestInit): Promise<AthleticTest[]> => {
+export const listAthleticTests = async (params: ListAthleticTestsParams, options?: RequestInit): Promise<AthleticTest[]> => {
 
   return customFetch<AthleticTest[]>(getListAthleticTestsUrl(params),
   {
@@ -2131,7 +2134,7 @@ export const getListAthleticTestsQueryKey = (params?: ListAthleticTestsParams,) 
     }
 
 
-export const getListAthleticTestsQueryOptions = <TData = Awaited<ReturnType<typeof listAthleticTests>>, TError = ErrorType<unknown>>(params?: ListAthleticTestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAthleticTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListAthleticTestsQueryOptions = <TData = Awaited<ReturnType<typeof listAthleticTests>>, TError = ErrorType<unknown>>(params: ListAthleticTestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAthleticTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2158,7 +2161,7 @@ export type ListAthleticTestsQueryError = ErrorType<unknown>
  */
 
 export function useListAthleticTests<TData = Awaited<ReturnType<typeof listAthleticTests>>, TError = ErrorType<unknown>>(
- params?: ListAthleticTestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAthleticTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params: ListAthleticTestsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAthleticTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
@@ -7303,20 +7306,27 @@ export const useClearSessionPart = <TError = ErrorType<unknown>,
       return useMutation(getClearSessionPartMutationOptions(options));
     }
 
-export const getListJournalCyclesUrl = () => {
+export const getListJournalCyclesUrl = (params: ListJournalCyclesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/journal/cycles`
+  return stringifiedParams.length > 0 ? `/api/journal/cycles?${stringifiedParams}` : `/api/journal/cycles`
 }
 
 /**
  * @summary List reflection-journal cycles (newest first)
  */
-export const listJournalCycles = async ( options?: RequestInit): Promise<JournalCycleList> => {
+export const listJournalCycles = async (params: ListJournalCyclesParams, options?: RequestInit): Promise<JournalCycleList> => {
 
-  return customFetch<JournalCycleList>(getListJournalCyclesUrl(),
+  return customFetch<JournalCycleList>(getListJournalCyclesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -7329,23 +7339,23 @@ export const listJournalCycles = async ( options?: RequestInit): Promise<Journal
 
 
 
-export const getListJournalCyclesQueryKey = () => {
+export const getListJournalCyclesQueryKey = (params?: ListJournalCyclesParams,) => {
     return [
-    `/api/journal/cycles`
+    `/api/journal/cycles`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListJournalCyclesQueryOptions = <TData = Awaited<ReturnType<typeof listJournalCycles>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListJournalCyclesQueryOptions = <TData = Awaited<ReturnType<typeof listJournalCycles>>, TError = ErrorType<unknown>>(params: ListJournalCyclesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListJournalCyclesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListJournalCyclesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalCycles>>> = ({ signal }) => listJournalCycles({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalCycles>>> = ({ signal }) => listJournalCycles(params, { signal, ...requestOptions });
 
 
 
@@ -7363,11 +7373,11 @@ export type ListJournalCyclesQueryError = ErrorType<unknown>
  */
 
 export function useListJournalCycles<TData = Awaited<ReturnType<typeof listJournalCycles>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params: ListJournalCyclesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListJournalCyclesQueryOptions(options)
+  const queryOptions = getListJournalCyclesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -7747,20 +7757,27 @@ export const useUpsertJournalEntry = <TError = ErrorType<unknown>,
       return useMutation(getUpsertJournalEntryMutationOptions(options));
     }
 
-export const getListJournalReflectionsUrl = () => {
+export const getListJournalReflectionsUrl = (params: ListJournalReflectionsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/journal/reflections`
+  return stringifiedParams.length > 0 ? `/api/journal/reflections?${stringifiedParams}` : `/api/journal/reflections`
 }
 
 /**
  * @summary List standalone reflections (newest first)
  */
-export const listJournalReflections = async ( options?: RequestInit): Promise<JournalEntryList> => {
+export const listJournalReflections = async (params: ListJournalReflectionsParams, options?: RequestInit): Promise<JournalEntryList> => {
 
-  return customFetch<JournalEntryList>(getListJournalReflectionsUrl(),
+  return customFetch<JournalEntryList>(getListJournalReflectionsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -7773,23 +7790,23 @@ export const listJournalReflections = async ( options?: RequestInit): Promise<Jo
 
 
 
-export const getListJournalReflectionsQueryKey = () => {
+export const getListJournalReflectionsQueryKey = (params?: ListJournalReflectionsParams,) => {
     return [
-    `/api/journal/reflections`
+    `/api/journal/reflections`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListJournalReflectionsQueryOptions = <TData = Awaited<ReturnType<typeof listJournalReflections>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalReflections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListJournalReflectionsQueryOptions = <TData = Awaited<ReturnType<typeof listJournalReflections>>, TError = ErrorType<unknown>>(params: ListJournalReflectionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalReflections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListJournalReflectionsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListJournalReflectionsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalReflections>>> = ({ signal }) => listJournalReflections({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJournalReflections>>> = ({ signal }) => listJournalReflections(params, { signal, ...requestOptions });
 
 
 
@@ -7807,11 +7824,11 @@ export type ListJournalReflectionsQueryError = ErrorType<unknown>
  */
 
 export function useListJournalReflections<TData = Awaited<ReturnType<typeof listJournalReflections>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalReflections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params: ListJournalReflectionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJournalReflections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListJournalReflectionsQueryOptions(options)
+  const queryOptions = getListJournalReflectionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -8038,20 +8055,27 @@ export const useDeleteJournalReflection = <TError = ErrorType<unknown>,
       return useMutation(getDeleteJournalReflectionMutationOptions(options));
     }
 
-export const getListMatchPrepReportsUrl = () => {
+export const getListMatchPrepReportsUrl = (params: ListMatchPrepReportsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/match-prep/reports`
+  return stringifiedParams.length > 0 ? `/api/match-prep/reports?${stringifiedParams}` : `/api/match-prep/reports`
 }
 
 /**
  * @summary List saved Match Prep reports (Monday briefings + Friday decks), newest first
  */
-export const listMatchPrepReports = async ( options?: RequestInit): Promise<MatchPrepReport[]> => {
+export const listMatchPrepReports = async (params: ListMatchPrepReportsParams, options?: RequestInit): Promise<MatchPrepReport[]> => {
 
-  return customFetch<MatchPrepReport[]>(getListMatchPrepReportsUrl(),
+  return customFetch<MatchPrepReport[]>(getListMatchPrepReportsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -8064,23 +8088,23 @@ export const listMatchPrepReports = async ( options?: RequestInit): Promise<Matc
 
 
 
-export const getListMatchPrepReportsQueryKey = () => {
+export const getListMatchPrepReportsQueryKey = (params?: ListMatchPrepReportsParams,) => {
     return [
-    `/api/match-prep/reports`
+    `/api/match-prep/reports`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMatchPrepReportsQueryOptions = <TData = Awaited<ReturnType<typeof listMatchPrepReports>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListMatchPrepReportsQueryOptions = <TData = Awaited<ReturnType<typeof listMatchPrepReports>>, TError = ErrorType<unknown>>(params: ListMatchPrepReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMatchPrepReportsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListMatchPrepReportsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMatchPrepReports>>> = ({ signal }) => listMatchPrepReports({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMatchPrepReports>>> = ({ signal }) => listMatchPrepReports(params, { signal, ...requestOptions });
 
 
 
@@ -8098,11 +8122,11 @@ export type ListMatchPrepReportsQueryError = ErrorType<unknown>
  */
 
 export function useListMatchPrepReports<TData = Awaited<ReturnType<typeof listMatchPrepReports>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params: ListMatchPrepReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchPrepReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListMatchPrepReportsQueryOptions(options)
+  const queryOptions = getListMatchPrepReportsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

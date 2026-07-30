@@ -303,6 +303,21 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE practices ADD COLUMN IF NOT EXISTS review_tags jsonb`);
   await db.execute(sql`ALTER TABLE practices ADD COLUMN IF NOT EXISTS reviewed_at timestamp`);
 
+  // ── League-private coaching data (2026-07, per coach): Match Prep, Reflections,
+  // GPS and Testing rows belong to ONE league; everything saved before this
+  // migration was NPLW firsts data.
+  for (const table of ["match_prep_reports", "journal_cycles", "journal_entries", "gps_sessions", "athletic_tests"]) {
+    await db.execute(sql.raw(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS league_id integer REFERENCES leagues(id)`));
+    await db.execute(sql.raw(`UPDATE ${table} SET league_id = (SELECT id FROM leagues WHERE name = 'ACT NPLW') WHERE league_id IS NULL`));
+    await db.execute(sql.raw(`ALTER TABLE ${table} ALTER COLUMN league_id SET NOT NULL`));
+  }
+  // Cycle entries always inherit their cycle's league
+  await db.execute(sql`
+    UPDATE journal_entries e SET league_id = c.league_id
+    FROM journal_cycles c
+    WHERE e.cycle_id = c.id AND e.league_id <> c.league_id
+  `);
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

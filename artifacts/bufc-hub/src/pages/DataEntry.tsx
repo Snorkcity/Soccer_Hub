@@ -1080,7 +1080,7 @@ function toNum(v: unknown): number | null {
   return null;
 }
 
-function TestingUploadForm({ teamId }: { teamId: number }) {
+function TestingUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number }) {
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [rows, setRows] = useState<TestingRow[]>([]);
   const [skipped, setSkipped] = useState<string[]>([]);
@@ -1200,7 +1200,7 @@ function TestingUploadForm({ teamId }: { teamId: number }) {
             </div>
             <Button
               disabled={save.isPending || !/^\d{4}$/.test(year.trim())}
-              onClick={() => { setOk(null); setErr(null); save.mutate({ data: { year: year.trim(), teamId, rows } }); }}
+              onClick={() => { setOk(null); setErr(null); save.mutate({ data: { leagueId, year: year.trim(), teamId, rows } }); }}
             >
               {save.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
               Save {rows.length} players to {year.trim() || "…"}
@@ -1370,7 +1370,7 @@ function excelDateToDmy(v: unknown): string | null {
   return null;
 }
 
-function GpsUploadForm({ teamId }: { teamId: number }) {
+function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number }) {
   const [matchDate, setMatchDate] = useState("");
   const [roundCode, setRoundCode] = useState("");
   const [squad, setSquad] = useState<string>("1sts");
@@ -1536,7 +1536,7 @@ function GpsUploadForm({ teamId }: { teamId: number }) {
             ? `${dmy.split("/").reverse().join("")}-${round}-${opp ?? "match"}`
             : `${y}${m}${d}-${roundCode.trim()}-${squadLabel}-${opp ?? "match"}`);
         const res = await save.mutateAsync({ data: {
-          year: dmy.slice(6), teamId, round, opponent: opp,
+          leagueId, year: dmy.slice(6), teamId, round, opponent: opp,
           sessionDate: dmy, sessionTitle,
           rows: group.map(g => g.row),
         }});
@@ -1816,13 +1816,13 @@ function EntryWorkspace() {
           <PlayersForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />
         </TabsContent>
         <TabsContent value="testing" className="mt-6">
-          <TestingUploadForm teamId={teamId} />
+          <TestingUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="gps" className="mt-6">
-          <GpsUploadForm teamId={teamId} />
+          <GpsUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
-          <PositionsForm />
+          <PositionsForm leagueId={season?.leagueId ?? 0} />
         </TabsContent>
       </Tabs>
     </div>
@@ -1835,14 +1835,14 @@ function EntryWorkspace() {
 
 const GPS_POSITIONS = ["GK", "Defender", "Midfielder", "Forward"];
 
-function PositionsForm() {
+function PositionsForm({ leagueId }: { leagueId: number }) {
   const queryClient = useQueryClient();
 
   // Every player name that has ever logged a GPS game (all years)
-  const gpsParams = { split: "game" };
+  const gpsParams = { leagueId, split: "game" };
   const { data: gpsRows, isLoading: loadingNames } = useListGpsSessions(
     gpsParams,
-    { query: { queryKey: getListGpsSessionsQueryKey(gpsParams) } },
+    { query: { enabled: leagueId > 0, queryKey: getListGpsSessionsQueryKey(gpsParams) } },
   );
   const names = useMemo(
     () => [...new Set((gpsRows ?? []).map(r => r.playerName).filter((n): n is string => !!n && n !== "Unknown"))].sort(),

@@ -99,10 +99,10 @@ export default function Testing() {
     }
   }, [teams, teamId]);
 
-  const params = { teamId: teamId as number };
+  const params = { leagueId: activeLeagueId ?? 0, teamId: teamId as number };
   const { data: allTests } = useListAthleticTests(
     params,
-    { query: { enabled: teamId !== "", queryKey: getListAthleticTestsQueryKey(params) } },
+    { query: { enabled: teamId !== "" && activeLeagueId != null, queryKey: getListAthleticTestsQueryKey(params) } },
   );
 
   const years = useMemo(() => {

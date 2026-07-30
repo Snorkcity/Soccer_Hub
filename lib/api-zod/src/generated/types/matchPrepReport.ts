@@ -10,6 +10,7 @@ import type { MatchPrepReportKind } from './matchPrepReportKind';
 
 export interface MatchPrepReport {
   id: number;
+  leagueId?: number;
   kind: MatchPrepReportKind;
   title: string;
   /** @nullable */

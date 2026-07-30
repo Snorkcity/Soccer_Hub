@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
@@ -14,8 +14,17 @@ import {
   CreateJournalReflectionBody,
   UpdateJournalReflectionBody,
 } from "@workspace/api-zod";
+import { mayTouchLeagueRow } from "../middlewares/entryAuth";
 
 const router: IRouter = Router();
+
+/** Guard for id-addressed cycle/reflection routes: caller must have the
+ * reflections module in the row's league. Sends the error response itself. */
+async function guardLeague(req: Request, res: Response, leagueId: number): Promise<boolean> {
+  if (await mayTouchLeagueRow(req, leagueId, "reflections")) return true;
+  res.status(403).json({ error: "No access to this league's journal" });
+  return false;
+}
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
@@ -49,6 +58,7 @@ async function loadCycleDetail(id: number) {
   entries.sort((a, b) => (a.weekNo ?? 0) - (b.weekNo ?? 0) || a.kind.localeCompare(b.kind));
   return {
     id: cycle.id,
+    leagueId: cycle.leagueId,
     title: cycle.title,
     weeksCount: cycle.weeksCount,
     startDate: cycle.startDate,
@@ -60,7 +70,10 @@ async function loadCycleDetail(id: number) {
 
 // ── Cycles ────────────────────────────────────────────────────────────────────
 
-router.get("/journal/cycles", async (_req, res) => {
+router.get("/journal/cycles", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  if (!Number.isInteger(leagueId) || leagueId <= 0)
+    return res.status(400).json({ error: "leagueId is required" });
   const rows = await db
     .select({
       id: journalCyclesTable.id,
@@ -72,6 +85,7 @@ router.get("/journal/cycles", async (_req, res) => {
       entryCount: sql<number>`(SELECT count(*)::int FROM journal_entries e WHERE e.cycle_id = ${journalCyclesTable.id})`,
     })
     .from(journalCyclesTable)
+    .where(eq(journalCyclesTable.leagueId, leagueId))
     .orderBy(desc(journalCyclesTable.id));
   return res.json(
     rows.map((r) => ({
@@ -89,10 +103,10 @@ router.get("/journal/cycles", async (_req, res) => {
 router.post("/journal/cycles", async (req, res) => {
   const parsed = CreateJournalCycleBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { title, weeksCount, startDate, notes } = parsed.data;
+  const { leagueId, title, weeksCount, startDate, notes } = parsed.data;
   const [created] = await db
     .insert(journalCyclesTable)
-    .values({ title, weeksCount, startDate: startDate ?? null, notes: notes ?? null })
+    .values({ leagueId, title, weeksCount, startDate: startDate ?? null, notes: notes ?? null })
     .returning({ id: journalCyclesTable.id });
   return res.json(await loadCycleDetail(created.id));
 });
@@ -102,6 +116,7 @@ router.get("/journal/cycles/:id", async (req, res) => {
   if (id == null) return res.status(400).json({ error: "Invalid id" });
   const detail = await loadCycleDetail(id);
   if (!detail) return res.status(404).json({ error: "Cycle not found" });
+  if (!(await guardLeague(req, res, detail.leagueId))) return;
   return res.json(detail);
 });
 
@@ -110,6 +125,9 @@ router.patch("/journal/cycles/:id", async (req, res) => {
   if (id == null) return res.status(400).json({ error: "Invalid id" });
   const parsed = UpdateJournalCycleBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  const [existing] = await db.select({ leagueId: journalCyclesTable.leagueId }).from(journalCyclesTable).where(eq(journalCyclesTable.id, id));
+  if (!existing) return res.status(404).json({ error: "Cycle not found" });
+  if (!(await guardLeague(req, res, existing.leagueId))) return;
   const patch: Partial<typeof journalCyclesTable.$inferInsert> = {};
   const d = parsed.data;
   if (d.title !== undefined) patch.title = d.title;
@@ -129,6 +147,8 @@ router.patch("/journal/cycles/:id", async (req, res) => {
 router.delete("/journal/cycles/:id", async (req, res) => {
   const id = parseId(req.params.id);
   if (id == null) return res.status(400).json({ error: "Invalid id" });
+  const [existing] = await db.select({ leagueId: journalCyclesTable.leagueId }).from(journalCyclesTable).where(eq(journalCyclesTable.id, id));
+  if (existing && !(await guardLeague(req, res, existing.leagueId))) return;
   const deleted = await db
     .delete(journalCyclesTable)
     .where(eq(journalCyclesTable.id, id))
@@ -149,10 +169,11 @@ router.put("/journal/cycles/:id/entries/:week/:kind", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
   const [cycle] = await db
-    .select({ id: journalCyclesTable.id, weeksCount: journalCyclesTable.weeksCount })
+    .select({ id: journalCyclesTable.id, weeksCount: journalCyclesTable.weeksCount, leagueId: journalCyclesTable.leagueId })
     .from(journalCyclesTable)
     .where(eq(journalCyclesTable.id, id));
   if (!cycle) return res.status(404).json({ error: "Cycle not found" });
+  if (!(await guardLeague(req, res, cycle.leagueId))) return;
   if (week > cycle.weeksCount) return res.status(400).json({ error: "Week beyond cycle length" });
 
   const { content, entryDate, source } = parsed.data;
@@ -162,6 +183,7 @@ router.put("/journal/cycles/:id/entries/:week/:kind", async (req, res) => {
     .insert(journalEntriesTable)
     .values({
       cycleId: id,
+      leagueId: cycle.leagueId,
       weekNo: week,
       kind,
       content,
@@ -184,11 +206,14 @@ router.put("/journal/cycles/:id/entries/:week/:kind", async (req, res) => {
 
 // ── Standalone reflections ────────────────────────────────────────────────────
 
-router.get("/journal/reflections", async (_req, res) => {
+router.get("/journal/reflections", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  if (!Number.isInteger(leagueId) || leagueId <= 0)
+    return res.status(400).json({ error: "leagueId is required" });
   const rows = await db
     .select()
     .from(journalEntriesTable)
-    .where(isNull(journalEntriesTable.cycleId))
+    .where(and(isNull(journalEntriesTable.cycleId), eq(journalEntriesTable.leagueId, leagueId)))
     .orderBy(desc(journalEntriesTable.id));
   return res.json(rows.map(entryJson));
 });
@@ -196,12 +221,13 @@ router.get("/journal/reflections", async (_req, res) => {
 router.post("/journal/reflections", async (req, res) => {
   const parsed = CreateJournalReflectionBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { kind, title, entryDate, source, content } = parsed.data;
+  const { leagueId, kind, title, entryDate, source, content } = parsed.data;
   if (!(JOURNAL_STANDALONE_KINDS as readonly string[]).includes(kind))
     return res.status(400).json({ error: "Invalid kind" });
   const [row] = await db
     .insert(journalEntriesTable)
     .values({
+      leagueId,
       kind,
       title: title ?? null,
       entryDate: entryDate ?? null,
@@ -218,6 +244,10 @@ router.patch("/journal/reflections/:id", async (req, res) => {
   const parsed = UpdateJournalReflectionBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   const d = parsed.data;
+  const [existingRefl] = await db.select({ leagueId: journalEntriesTable.leagueId }).from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.id, id), isNull(journalEntriesTable.cycleId)));
+  if (!existingRefl) return res.status(404).json({ error: "Reflection not found" });
+  if (!(await guardLeague(req, res, existingRefl.leagueId))) return;
   const patch: Partial<typeof journalEntriesTable.$inferInsert> = { updatedAt: new Date() };
   if (d.title !== undefined) patch.title = d.title;
   if (d.entryDate !== undefined) patch.entryDate = d.entryDate;
@@ -234,6 +264,9 @@ router.patch("/journal/reflections/:id", async (req, res) => {
 router.delete("/journal/reflections/:id", async (req, res) => {
   const id = parseId(req.params.id);
   if (id == null) return res.status(400).json({ error: "Invalid id" });
+  const [existingRefl] = await db.select({ leagueId: journalEntriesTable.leagueId }).from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.id, id), isNull(journalEntriesTable.cycleId)));
+  if (existingRefl && !(await guardLeague(req, res, existingRefl.leagueId))) return;
   const deleted = await db
     .delete(journalEntriesTable)
     .where(and(eq(journalEntriesTable.id, id), isNull(journalEntriesTable.cycleId)))

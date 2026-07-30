@@ -1,9 +1,11 @@
 import { pgTable, serial, text, integer, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { leaguesTable } from "./leagues";
 
 export const athleticTestsTable = pgTable("athletic_tests", {
   id: serial("id").primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   playerId: integer("player_id"),
   playerName: text("player_name").notNull(),
   teamId: integer("team_id").notNull(),

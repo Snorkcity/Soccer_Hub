@@ -15,6 +15,7 @@ import {
   deleteMatchPrepReport,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -265,8 +266,10 @@ export default function MatchPrep() {
   // Which saved Friday deck we're editing (null = unsaved draft).
   const [deckReportId, setDeckReportId] = useState<number | null>(null);
   const queryClient = useQueryClient();
-  const { data: savedReports } = useListMatchPrepReports({
-    query: { queryKey: getListMatchPrepReportsQueryKey() },
+  const { activeLeagueId } = useActiveLeague();
+  const reportParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: savedReports } = useListMatchPrepReports(reportParams, {
+    query: { enabled: activeLeagueId != null, queryKey: getListMatchPrepReportsQueryKey(reportParams) },
   });
   const [deckSort, setDeckSort] = useState<"game" | "saved">("game");
   // Long seasons mean 20+ saved decks — show the latest few, expand on demand.
@@ -301,6 +304,7 @@ export default function MatchPrep() {
     setSaving(true);
     try {
       const payload = {
+        leagueId: activeLeagueId ?? 0,
         kind: "friday" as const,
         title: deckTitle(),
         opponent: d.opponent,
@@ -313,7 +317,7 @@ export default function MatchPrep() {
         const created = await createMatchPrepReport(payload);
         setDeckReportId(created.id);
       }
-      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(reportParams) });
       markClean(d);
       toast({ title: "Deck saved", description: "Open it again any time from the saved list." });
     } catch {
@@ -340,7 +344,7 @@ export default function MatchPrep() {
     try {
       await deleteMatchPrepReport(id);
       if (deckReportId === id) setDeckReportId(null);
-      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(reportParams) });
     } catch {
       toast({ title: "Couldn't delete that deck", variant: "destructive" });
     }

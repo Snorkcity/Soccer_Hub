@@ -8,6 +8,7 @@
 
 export interface GpsSession {
   id: number;
+  leagueId?: number;
   /** @nullable */
   sessionDate?: string | null;
   /** @nullable */

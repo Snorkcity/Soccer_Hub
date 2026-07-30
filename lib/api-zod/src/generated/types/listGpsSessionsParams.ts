@@ -7,6 +7,7 @@
  */
 
 export type ListGpsSessionsParams = {
+leagueId: number;
 playerId?: number;
 year?: string;
 teamId?: number;

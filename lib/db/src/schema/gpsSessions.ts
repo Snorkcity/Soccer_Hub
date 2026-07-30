@@ -1,9 +1,11 @@
 import { pgTable, serial, text, integer, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { leaguesTable } from "./leagues";
 
 export const gpsSessionsTable = pgTable("gps_sessions", {
   id: serial("id").primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   sessionDate: text("session_date"),
   sessionTitle: text("session_title"),
   playerName: text("player_name").notNull(),

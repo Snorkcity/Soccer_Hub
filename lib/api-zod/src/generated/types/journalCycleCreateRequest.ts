@@ -7,6 +7,7 @@
  */
 
 export interface JournalCycleCreateRequest {
+  leagueId: number;
   /** @minLength 1 */
   title: string;
   /**

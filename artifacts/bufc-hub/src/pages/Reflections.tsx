@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import { useToast } from "@/components/ui/use-toast";
 import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
 import InterviewDialog from "@/components/InterviewDialog";
@@ -53,11 +54,13 @@ export default function Reflections() {
   const { data: auth } = useGetAuthStatus({ query: { queryKey: getGetAuthStatusQueryKey() } });
   const canWrite = auth?.authenticated && auth.role === "admin";
 
-  const { data: cycles, isLoading: cyclesLoading } = useListJournalCycles({
-    query: { queryKey: getListJournalCyclesQueryKey() },
+  const { activeLeagueId } = useActiveLeague();
+  const leagueParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: cycles, isLoading: cyclesLoading } = useListJournalCycles(leagueParams, {
+    query: { enabled: activeLeagueId != null, queryKey: getListJournalCyclesQueryKey(leagueParams) },
   });
-  const { data: reflections, isLoading: reflLoading } = useListJournalReflections({
-    query: { queryKey: getListJournalReflectionsQueryKey() },
+  const { data: reflections, isLoading: reflLoading } = useListJournalReflections(leagueParams, {
+    query: { enabled: activeLeagueId != null, queryKey: getListJournalReflectionsQueryKey(leagueParams) },
   });
 
   // ── New cycle dialog ──
@@ -69,7 +72,7 @@ export default function Reflections() {
   const createCycle = useCreateJournalCycle({
     mutation: {
       onSuccess: (res) => {
-        queryClient.invalidateQueries({ queryKey: getListJournalCyclesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListJournalCyclesQueryKey(leagueParams) });
         setCycleOpen(false);
         navigate(`/reflections/${res.id}`);
       },
@@ -78,7 +81,7 @@ export default function Reflections() {
   });
   const deleteCycle = useDeleteJournalCycle({
     mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListJournalCyclesQueryKey() }),
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListJournalCyclesQueryKey(leagueParams) }),
       onError: () => toast({ title: "Couldn't delete the cycle", variant: "destructive" }),
     },
   });
@@ -156,7 +159,7 @@ export default function Reflections() {
   }
 
   const invalidateRefl = () =>
-    queryClient.invalidateQueries({ queryKey: getListJournalReflectionsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListJournalReflectionsQueryKey(leagueParams) });
   const createRefl = useCreateJournalReflection({
     mutation: {
       onSuccess: () => { invalidateRefl(); setReflOpen(false); },
@@ -179,7 +182,7 @@ export default function Reflections() {
   function saveReflection() {
     if (reflId == null) {
       createRefl.mutate({
-        data: { kind: reflKind, title: reflTitle || autoTitle(reflKind, reflDate || undefined), entryDate: reflDate || undefined, content: reflContent, ...(fromInterview ? { source: "voice" as const } : {}) },
+        data: { leagueId: activeLeagueId ?? 0, kind: reflKind, title: reflTitle || autoTitle(reflKind, reflDate || undefined), entryDate: reflDate || undefined, content: reflContent, ...(fromInterview ? { source: "voice" as const } : {}) },
       });
     } else {
       updateRefl.mutate({
@@ -360,6 +363,7 @@ export default function Reflections() {
               onClick={() =>
                 createCycle.mutate({
                   data: {
+                    leagueId: activeLeagueId ?? 0,
                     title: cycleTitle.trim(),
                     weeksCount: Math.min(12, Math.max(1, Number(cycleWeeks) || 6)),
                     startDate: cycleStart.trim() || undefined,
@@ -462,7 +466,7 @@ export default function Reflections() {
           if (reflId == null) {
             createRefl.mutate(
               {
-                data: { kind: reflKind, title: reflTitle || autoTitle(reflKind, date), entryDate: date, content: merged, source: "voice" as const },
+                data: { leagueId: activeLeagueId ?? 0, kind: reflKind, title: reflTitle || autoTitle(reflKind, date), entryDate: date, content: merged, source: "voice" as const },
               },
               { onError },
             );

@@ -10,6 +10,7 @@ import type { JournalReflectionCreateRequestKind } from './journalReflectionCrea
 import type { JournalReflectionCreateRequestSource } from './journalReflectionCreateRequestSource';
 
 export interface JournalReflectionCreateRequest {
+  leagueId: number;
   kind: JournalReflectionCreateRequestKind;
   title?: string;
   entryDate?: string;

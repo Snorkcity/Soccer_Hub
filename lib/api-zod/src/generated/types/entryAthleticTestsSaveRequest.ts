@@ -8,6 +8,7 @@
 import type { EntryAthleticTestRow } from './entryAthleticTestRow';
 
 export interface EntryAthleticTestsSaveRequest {
+  leagueId: number;
   year: string;
   teamId: number;
   rows: EntryAthleticTestRow[];

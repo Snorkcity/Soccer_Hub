@@ -196,6 +196,18 @@ export function moduleForPath(path: string, isWrite: boolean): string | null {
   return null;
 }
 
+/**
+ * Row-level league guard for id-addressed routes (PATCH/DELETE /x/:id), where
+ * the request itself carries no leagueId for the central check to see. Load
+ * the row's leagueId first, then call this.
+ */
+export async function mayTouchLeagueRow(req: Request, leagueId: number, module: string): Promise<boolean> {
+  const user = await getSessionUser(req);
+  if (!user) return false;
+  if (user.isSuperadmin) return true;
+  return canSeeLeague(user, leagueId) && hasModule(user, leagueId, module);
+}
+
 // seasonId → leagueId cache (seasons never change league; tiny table)
 const seasonLeague = new Map<number, number>();
 export async function leagueIdForSeason(seasonId: number): Promise<number | null> {

@@ -35,9 +35,13 @@ router.get("/athletic-tests", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const { playerId, year, teamId } = query.data;
+  const { leagueId, playerId, year, teamId } = query.data;
+  if (!leagueId) {
+    res.status(400).json({ error: "leagueId is required" });
+    return;
+  }
 
-  const conditions = [];
+  const conditions = [eq(athleticTestsTable.leagueId, leagueId)];
   if (playerId) conditions.push(eq(athleticTestsTable.playerId, playerId));
   if (year) conditions.push(eq(athleticTestsTable.year, year));
   if (teamId) conditions.push(eq(athleticTestsTable.teamId, teamId));
@@ -45,7 +49,7 @@ router.get("/athletic-tests", async (req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(athleticTestsTable)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(athleticTestsTable.playerName);
 
   res.json(ListAthleticTestsResponse.parse(rows.map(mapRow)));

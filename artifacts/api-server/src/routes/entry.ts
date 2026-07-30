@@ -816,7 +816,7 @@ router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { year, teamId, rows } = parsed.data;
+  const { leagueId, year, teamId, rows } = parsed.data;
 
   const cleanRows = rows
     .map(r => ({ ...r, playerName: r.playerName.trim() }))
@@ -850,10 +850,11 @@ router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
   const { saved, replaced } = await db.transaction(async (tx) => {
     const replaced = (await tx
       .delete(athleticTestsTable)
-      .where(and(eq(athleticTestsTable.year, year), eq(athleticTestsTable.teamId, teamId)))
+      .where(and(eq(athleticTestsTable.leagueId, leagueId), eq(athleticTestsTable.year, year), eq(athleticTestsTable.teamId, teamId)))
       .returning({ id: athleticTestsTable.id })).length;
 
     const inserted = await tx.insert(athleticTestsTable).values(cleanRows.map(r => ({
+      leagueId,
       playerId: idByName.get(r.playerName.toLowerCase()) ?? null,
       playerName: r.playerName,
       teamId,
@@ -885,7 +886,7 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { year, teamId, round, opponent, sessionDate, sessionTitle, rows } = parsed.data;
+  const { leagueId, year, teamId, round, opponent, sessionDate, sessionTitle, rows } = parsed.data;
 
   const cleanRows = rows
     .map(r => ({ ...r, playerName: r.playerName.trim() }))
@@ -899,6 +900,7 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
     const replaced = (await tx
       .delete(gpsSessionsTable)
       .where(and(
+        eq(gpsSessionsTable.leagueId, leagueId),
         eq(gpsSessionsTable.year, year),
         eq(gpsSessionsTable.round, round),
         eq(gpsSessionsTable.teamId, teamId),
@@ -906,6 +908,7 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
       .returning({ id: gpsSessionsTable.id })).length;
 
     const inserted = await tx.insert(gpsSessionsTable).values(cleanRows.map(r => ({
+      leagueId,
       playerName: r.playerName,
       playerId: null,
       teamId,

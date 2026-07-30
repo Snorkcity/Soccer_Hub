@@ -7,6 +7,7 @@
  */
 
 export interface AthleticTestInput {
+  leagueId: number;
   /** @nullable */
   playerId?: number | null;
   playerName: string;

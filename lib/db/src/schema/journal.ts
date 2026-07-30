@@ -1,4 +1,5 @@
 import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { leaguesTable } from "./leagues";
 
 /**
  * Reflection journal (A-diploma "reality based journal" + everyday coach
@@ -9,6 +10,7 @@ import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg
  */
 export const journalCyclesTable = pgTable("journal_cycles", {
   id: serial("id").primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   title: text("title").notNull(),
   weeksCount: integer("weeks_count").notNull().default(6),
   startDate: text("start_date"), // coach's format, free text e.g. "3.08.2026"
@@ -33,6 +35,7 @@ export type JournalStandaloneKind = (typeof JOURNAL_STANDALONE_KINDS)[number];
 
 export const journalEntriesTable = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   cycleId: integer("cycle_id").references(() => journalCyclesTable.id, { onDelete: "cascade" }),
   weekNo: integer("week_no"), // 1-based, NULL for standalone reflections
   kind: text("kind").notNull(),

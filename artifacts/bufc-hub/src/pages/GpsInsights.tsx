@@ -158,10 +158,10 @@ export default function GpsInsights() {
   const { activeLeagueId } = useActiveLeague();
 
   // Meta query: all whole-game rows for the year → rounds, squads, player names
-  const metaParams = { year, split: "game" };
+  const metaParams = { leagueId: activeLeagueId ?? 0, year, split: "game" };
   const { data: metaRows, isLoading } = useListGpsSessions(
     metaParams,
-    { query: { queryKey: getListGpsSessionsQueryKey(metaParams) } },
+    { query: { enabled: activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(metaParams) } },
   );
 
   if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps")) return <NoAccess />;
@@ -215,10 +215,11 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
     else if (!player || !names.includes(player)) setPlayer(names[0]);
   }, [names, player]);
 
-  const params = { year, playerName: player };
+  const { activeLeagueId } = useActiveLeague();
+  const params = { leagueId: activeLeagueId ?? 0, year, playerName: player };
   const { data: rows } = useListGpsSessions(
     params,
-    { query: { enabled: !!player, queryKey: getListGpsSessionsQueryKey(params) } },
+    { query: { enabled: !!player && activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(params) } },
   );
 
   const bundles = useMemo(() => {
@@ -301,10 +302,11 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
   const playerSquad = bundles.length ? squadOf(bundles[bundles.length - 1].key) : "1sts";
 
   // Everyone's games this year + positions — only fetched while the dialog is open
-  const allParams = { year };
+  const { activeLeagueId } = useActiveLeague();
+  const allParams = { leagueId: activeLeagueId ?? 0, year };
   const { data: allRows, isLoading: loadingAll } = useListGpsSessions(
     allParams,
-    { query: { enabled: open, queryKey: getListGpsSessionsQueryKey(allParams) } },
+    { query: { enabled: open && activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(allParams) } },
   );
   const { data: positions, isLoading: loadingPos } = useListGpsPlayerPositions(
     { query: { enabled: open, queryKey: getListGpsPlayerPositionsQueryKey() } },
@@ -820,10 +822,11 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
     else if (!round || !rounds.some(r => r.round === round)) setRound(rounds[0].round);
   }, [rounds, round]);
 
-  const params = { year, round };
+  const { activeLeagueId } = useActiveLeague();
+  const params = { leagueId: activeLeagueId ?? 0, year, round };
   const { data: rows } = useListGpsSessions(
     params,
-    { query: { enabled: !!round, queryKey: getListGpsSessionsQueryKey(params) } },
+    { query: { enabled: !!round && activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(params) } },
   );
 
   const bundles = useMemo(() => {

@@ -1,4 +1,5 @@
-import { jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { leaguesTable } from "./leagues";
 
 /** Saved Match Prep reports — Monday "Week Ahead" briefings and Friday pre-match decks. */
 export const MATCH_PREP_REPORT_KINDS = ["monday", "friday"] as const;
@@ -6,6 +7,7 @@ export type MatchPrepReportKind = (typeof MATCH_PREP_REPORT_KINDS)[number];
 
 export const matchPrepReportsTable = pgTable("match_prep_reports", {
   id: serial("id").primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   kind: text("kind").notNull(), // monday | friday
   title: text("title").notNull(), // e.g. "R16 v Canberra Croatia"
   opponent: text("opponent"),

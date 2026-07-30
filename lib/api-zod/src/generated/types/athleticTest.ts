@@ -8,6 +8,7 @@
 
 export interface AthleticTest {
   id: number;
+  leagueId?: number;
   /** @nullable */
   playerId?: number | null;
   playerName: string;

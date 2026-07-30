@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import {
   useListTeams,
   useListSeasons,
@@ -177,13 +178,15 @@ export default function WeekAheadCard() {
       enabled: teamId != null && seasonId != null,
     },
   });
-  const { data: reflections } = useListJournalReflections({
-    query: { queryKey: getListJournalReflectionsQueryKey() },
+  const { activeLeagueId } = useActiveLeague();
+  const leagueParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: reflections } = useListJournalReflections(leagueParams, {
+    query: { enabled: activeLeagueId != null, queryKey: getListJournalReflectionsQueryKey(leagueParams) },
   });
 
   const queryClient = useQueryClient();
-  const { data: savedReports } = useListMatchPrepReports({
-    query: { queryKey: getListMatchPrepReportsQueryKey() },
+  const { data: savedReports } = useListMatchPrepReports(leagueParams, {
+    query: { enabled: activeLeagueId != null, queryKey: getListMatchPrepReportsQueryKey(leagueParams) },
   });
   // Sort briefings by the Monday they cover, newest first (fall back to saved time).
   const mondayTime = (r: { data?: unknown; updatedAt: string }): number => {
@@ -215,7 +218,7 @@ export default function WeekAheadCard() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   async function refreshList() {
-    await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey() });
+    await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(leagueParams) });
   }
 
   type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[] };
@@ -244,6 +247,7 @@ export default function WeekAheadCard() {
     const wk = comingMonday();
     try {
       await createMatchPrepReport({
+        leagueId: activeLeagueId ?? 0,
         kind: "monday",
         title: briefTitle("", opponent, ""),
         opponent,
@@ -327,6 +331,7 @@ export default function WeekAheadCard() {
       // Save straight into the list — downloads happen from the saved rows.
       const wk = weekDate ? niceGameDate(weekDate) : comingMonday();
       await createMatchPrepReport({
+        leagueId: activeLeagueId ?? 0,
         kind: "monday",
         title: briefTitle(weekRound, weekOpp, weekDate),
         opponent: weekOpp,

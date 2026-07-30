@@ -354,6 +354,7 @@ async function seed() {
     const batchSize = 200;
     for (let i = 0; i < gpsRows.length; i += batchSize) {
       const batch = gpsRows.slice(i, i + batchSize).map(row => ({
+        leagueId: actNplw.id,
         sessionDate: str(row["Date"]),
         sessionTitle: str(row["Session Title"]),
         playerName: str(row["Player Name"]) ?? "Unknown",
@@ -411,6 +412,7 @@ async function seed() {
     if (!file) { console.log(`No testing file for ${year}`); continue; }
     const testRows: Record<string, string>[] = parse(fs.readFileSync(path.join(root, file), "utf8"), { columns: true, skip_empty_lines: true });
     const testValues = testRows.map(row => ({
+      leagueId: actNplw.id,
       playerId: playerIdMap.get(str(row["Player"]) ?? "") ?? null,
       playerName: str(row["Player"]) ?? "Unknown",
       teamId: womenFirsts.id,

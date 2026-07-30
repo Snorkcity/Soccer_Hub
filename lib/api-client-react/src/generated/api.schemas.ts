@@ -388,6 +388,7 @@ export interface GpsPlayerPositionsSaveResult {
 
 export interface GpsSession {
   id: number;
+  leagueId?: number;
   /** @nullable */
   sessionDate?: string | null;
   /** @nullable */
@@ -458,6 +459,7 @@ export interface GpsSession {
 }
 
 export interface GpsSessionInput {
+  leagueId: number;
   /** @nullable */
   sessionDate?: string | null;
   /** @nullable */
@@ -529,6 +531,7 @@ export interface GpsSessionInput {
 
 export interface AthleticTest {
   id: number;
+  leagueId?: number;
   /** @nullable */
   playerId?: number | null;
   playerName: string;
@@ -557,6 +560,7 @@ export interface AthleticTest {
 }
 
 export interface AthleticTestInput {
+  leagueId: number;
   /** @nullable */
   playerId?: number | null;
   playerName: string;
@@ -1548,6 +1552,7 @@ export interface EntryAthleticTestRow {
 }
 
 export interface EntryAthleticTestsSaveRequest {
+  leagueId: number;
   year: string;
   teamId: number;
   rows: EntryAthleticTestRow[];
@@ -1616,6 +1621,7 @@ export interface EntryGpsSessionRow {
 }
 
 export interface EntryGpsSessionsSaveRequest {
+  leagueId: number;
   year: string;
   teamId: number;
   /** @minLength 1 */
@@ -2034,6 +2040,7 @@ export type JournalEntryList = JournalEntry[];
 
 export interface JournalCycleDetail {
   id: number;
+  leagueId?: number;
   title: string;
   weeksCount: number;
   /** @nullable */
@@ -2045,6 +2052,7 @@ export interface JournalCycleDetail {
 }
 
 export interface JournalCycleCreateRequest {
+  leagueId: number;
   /** @minLength 1 */
   title: string;
   /**
@@ -2105,6 +2113,7 @@ export const JournalReflectionCreateRequestSource = {
 export type JournalReflectionCreateRequestContent = {[key: string]: string};
 
 export interface JournalReflectionCreateRequest {
+  leagueId: number;
   kind: JournalReflectionCreateRequestKind;
   title?: string;
   entryDate?: string;
@@ -2134,6 +2143,7 @@ export type MatchPrepReportData = { [key: string]: unknown };
 
 export interface MatchPrepReport {
   id: number;
+  leagueId?: number;
   kind: MatchPrepReportKind;
   title: string;
   /** @nullable */
@@ -2156,6 +2166,7 @@ export const MatchPrepReportCreateRequestKind = {
 export type MatchPrepReportCreateRequestData = { [key: string]: unknown };
 
 export interface MatchPrepReportCreateRequest {
+  leagueId: number;
   kind: MatchPrepReportCreateRequestKind;
   /** @minLength 1 */
   title: string;
@@ -2320,6 +2331,7 @@ scorerTeam?: string;
 };
 
 export type ListGpsSessionsParams = {
+leagueId: number;
 playerId?: number;
 year?: string;
 teamId?: number;
@@ -2332,6 +2344,7 @@ split?: string;
 };
 
 export type ListAthleticTestsParams = {
+leagueId: number;
 playerId?: number;
 year?: string;
 teamId?: number;
@@ -2518,5 +2531,17 @@ export type ListLibraryPracticesParams = {
 kind?: string;
 chapter?: string;
 sectionCode?: string;
+};
+
+export type ListJournalCyclesParams = {
+leagueId: number;
+};
+
+export type ListJournalReflectionsParams = {
+leagueId: number;
+};
+
+export type ListMatchPrepReportsParams = {
+leagueId: number;
 };
 

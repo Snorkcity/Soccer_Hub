@@ -459,6 +459,10 @@ paths:
       tags: [gps]
       summary: List GPS sessions
       parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
         - name: playerId
           in: query
           schema: { type: integer }
@@ -547,6 +551,10 @@ paths:
       tags: [testing]
       summary: List athletic test results
       parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
         - name: playerId
           in: query
           schema: { type: integer }
@@ -1980,6 +1988,11 @@ paths:
       operationId: listJournalCycles
       tags: [journal]
       summary: List reflection-journal cycles (newest first)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
       responses:
         "200":
           description: Cycles
@@ -2100,6 +2113,11 @@ paths:
       operationId: listJournalReflections
       tags: [journal]
       summary: List standalone reflections (newest first)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
       responses:
         "200":
           description: Reflections
@@ -2170,6 +2188,11 @@ paths:
       operationId: listMatchPrepReports
       tags: [journal]
       summary: List saved Match Prep reports (Monday briefings + Friday decks), newest first
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
       responses:
         "200":
           description: Saved reports
@@ -2627,6 +2650,7 @@ components:
       type: object
       properties:
         id:                  { type: integer }
+        leagueId:            { type: integer }
         sessionDate:         { type: ["string", "null"] }
         sessionTitle:        { type: ["string", "null"] }
         playerName:          { type: string }
@@ -2667,6 +2691,7 @@ components:
     GpsSessionInput:
       type: object
       properties:
+        leagueId:            { type: integer }
         sessionDate:         { type: ["string", "null"] }
         sessionTitle:        { type: ["string", "null"] }
         playerName:          { type: string }
@@ -2702,7 +2727,7 @@ components:
         accelCountOver4:     { type: ["number", "null"] }
         decelCount34:        { type: ["number", "null"] }
         decelCountOver4:     { type: ["number", "null"] }
-      required: [playerName, teamId, year]
+      required: [leagueId, playerName, teamId, year]
 
     # ── Athletic Tests ────────────────────────────────────────────────────────
 
@@ -2710,6 +2735,7 @@ components:
       type: object
       properties:
         id:            { type: integer }
+        leagueId:      { type: integer }
         playerId:      { type: ["integer", "null"] }
         playerName:    { type: string }
         teamId:        { type: integer }
@@ -2729,6 +2755,7 @@ components:
     AthleticTestInput:
       type: object
       properties:
+        leagueId:      { type: integer }
         playerId:      { type: ["integer", "null"] }
         playerName:    { type: string }
         teamId:        { type: integer }
@@ -2743,7 +2770,7 @@ components:
         split1020:     { type: ["number", "null"] }
         split2030:     { type: ["number", "null"] }
         total30m:      { type: ["number", "null"] }
-      required: [playerName, teamId, year]
+      required: [leagueId, playerName, teamId, year]
 
     # ── Analytics / Summaries ─────────────────────────────────────────────────
 
@@ -3768,12 +3795,13 @@ components:
     EntryAthleticTestsSaveRequest:
       type: object
       properties:
+        leagueId: { type: integer }
         year:   { type: string }
         teamId: { type: integer }
         rows:
           type: array
           items: { $ref: "#/components/schemas/EntryAthleticTestRow" }
-      required: [year, teamId, rows]
+      required: [leagueId, year, teamId, rows]
 
     EntryAthleticTestsSaveResponse:
       type: object
@@ -3817,6 +3845,7 @@ components:
     EntryGpsSessionsSaveRequest:
       type: object
       properties:
+        leagueId:     { type: integer }
         year:         { type: string }
         teamId:       { type: integer }
         round:        { type: string, minLength: 1 }
@@ -3826,7 +3855,7 @@ components:
         rows:
           type: array
           items: { $ref: "#/components/schemas/EntryGpsSessionRow" }
-      required: [year, teamId, round, rows]
+      required: [leagueId, year, teamId, round, rows]
 
     EntryGpsSessionsSaveResponse:
       type: object
@@ -4170,6 +4199,7 @@ components:
       type: object
       properties:
         id:         { type: integer }
+        leagueId:   { type: integer }
         title:      { type: string }
         weeksCount: { type: integer }
         startDate:  { type: ["string", "null"] }
@@ -4183,11 +4213,12 @@ components:
     JournalCycleCreateRequest:
       type: object
       properties:
+        leagueId:   { type: integer }
         title:      { type: string, minLength: 1 }
         weeksCount: { type: integer, minimum: 1, maximum: 12 }
         startDate:  { type: string }
         notes:      { type: string }
-      required: [title, weeksCount]
+      required: [leagueId, title, weeksCount]
 
     JournalCycleUpdateRequest:
       type: object
@@ -4210,6 +4241,7 @@ components:
     JournalReflectionCreateRequest:
       type: object
       properties:
+        leagueId:  { type: integer }
         kind:      { type: string, enum: [session_reflection, match_reflection] }
         title:     { type: string }
         entryDate: { type: string }
@@ -4217,7 +4249,7 @@ components:
         content:
           type: object
           additionalProperties: { type: string }
-      required: [kind, content]
+      required: [leagueId, kind, content]
 
     JournalReflectionUpdateRequest:
       type: object
@@ -4232,6 +4264,7 @@ components:
       type: object
       properties:
         id:        { type: integer }
+        leagueId:  { type: integer }
         kind:      { type: string, enum: [monday, friday] }
         title:     { type: string }
         opponent:  { type: ["string", "null"] }
@@ -4246,6 +4279,7 @@ components:
     MatchPrepReportCreateRequest:
       type: object
       properties:
+        leagueId:  { type: integer }
         kind:      { type: string, enum: [monday, friday] }
         title:     { type: string, minLength: 1 }
         opponent:  { type: string }
@@ -4253,7 +4287,7 @@ components:
         data:
           type: object
           additionalProperties: true
-      required: [kind, title, data]
+      required: [leagueId, kind, title, data]
 
     MatchPrepReportUpdateRequest:
       type: object
