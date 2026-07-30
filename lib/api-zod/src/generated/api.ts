@@ -2139,7 +2139,8 @@ export const DeleteEntryPlayerStatResponse = zod.object({
 
 export const ExtractPlayersFromImageBody = zod.object({
   "imageBase64": zod.string().min(1),
-  "club": zod.string().nullish()
+  "club": zod.string().nullish(),
+  "leagueId": zod.number().nullish()
 })
 
 

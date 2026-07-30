@@ -12,6 +12,9 @@ export const leaguesTable = pgTable("leagues", {
   // seasons in this league; all other clubs are opponents. Null falls back to
   // "Belconnen" in code (see lib/focusClub.ts).
   focusClub: text("focus_club"),
+  // How the AI screenshot reader names players for this league:
+  // null/"surname" = surname only ("Bloggs"); "initial-surname" = "S.Smith".
+  nameFormat: text("name_format"),
 });
 
 export const insertLeagueSchema = createInsertSchema(leaguesTable).omit({ id: true });

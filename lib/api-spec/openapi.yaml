@@ -3869,6 +3869,7 @@ components:
       properties:
         imageBase64: { type: string, minLength: 1 }
         club:        { type: ["string", "null"] }
+        leagueId:    { type: ["integer", "null"] }
       required: [imageBase64]
 
     ExtractPlayersResponse:

@@ -536,8 +536,8 @@ type EditableRow = EntryPlayerRow;
 
 const POSITIONS = ["GK", "LB", "RB", "CB", "LWB", "RWB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "ST", "F"] as const;
 
-function PlayersForm({ teamId, seasonId, fixtures }: {
-  teamId: number; seasonId: number; fixtures: LeagueMatchInfo[];
+function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
+  teamId: number; seasonId: number; leagueId: number; fixtures: LeagueMatchInfo[];
 }) {
   const [matchId, setMatchId] = useState("");
   const [club, setClub] = useState("");
@@ -615,7 +615,7 @@ function PlayersForm({ teamId, seasonId, fixtures }: {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
-      extract.mutate({ data: { imageBase64: dataUrl, club: club || null } });
+      extract.mutate({ data: { imageBase64: dataUrl, club: club || null, leagueId: leagueId || null } });
     };
     reader.readAsDataURL(file);
   };
@@ -1813,7 +1813,7 @@ function EntryWorkspace() {
           <LeagueSetupCard />
         </TabsContent>
         <TabsContent value="players" className="mt-6">
-          <PlayersForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />
+          <PlayersForm teamId={teamId} seasonId={seasonId} leagueId={season?.leagueId ?? 0} fixtures={fixtures ?? []} />
         </TabsContent>
         <TabsContent value="testing" className="mt-6">
           <TestingUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />

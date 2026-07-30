@@ -12,6 +12,7 @@ import {
   playersTable,
   athleticTestsTable,
   gpsSessionsTable,
+  leaguesTable,
 } from "@workspace/db";
 import {
   ListLeagueMatchesQueryParams,
@@ -729,13 +730,25 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
   const raw = parsed.data.imageBase64;
   const dataUrl = raw.startsWith("data:") ? raw : `data:image/png;base64,${raw}`;
 
+  // Naming convention is per league (leagues.name_format): NPLW uses surname-only,
+  // NPLM uses "S.Smith". Default to surname-only when unknown.
+  let nameFormat: string | null = null;
+  if (parsed.data.leagueId != null) {
+    const [league] = await db.select({ nameFormat: leaguesTable.nameFormat })
+      .from(leaguesTable).where(eq(leaguesTable.id, parsed.data.leagueId));
+    nameFormat = league?.nameFormat ?? null;
+  }
+  const nameRule = nameFormat === "initial-surname"
+    ? "- playerName: return FIRST-INITIAL DOT SURNAME, e.g. \"S.Smith\" — capital first initial, a dot, no space, then the surname. For hyphenated or multi-word surnames keep the full surname (e.g. \"J.Smith-Jones\", \"P.van Dyk\"). If no first name or initial is visible, return the surname alone and add a warning naming the player."
+    : "- playerName: return the SURNAME ONLY, e.g. \"Bloggs\" — even when a first name or initial is visible, drop it. For hyphenated or multi-word surnames keep the full surname (e.g. \"Smith-Jones\", \"van Dyk\"). If two players share a surname, keep the first-initial prefix for both (e.g. \"J.Bloggs\", \"K.Bloggs\") and add a warning naming them.";
+
   const prompt = [
     "You are reading a screenshot of a football (soccer) team sheet from the Dribl app or a similar match-day listing.",
     parsed.data.club ? `The screenshot is the team sheet for the club "${parsed.data.club}".` : "",
     "Extract EVERY player row you can see and return STRICT JSON only (no markdown, no commentary) in this exact shape:",
     `{"rows":[{"playerName":"...","minsPlayed":90,"position":"GK","discipline":null,"started":true,"appearance":true}],"warnings":["..."]}`,
     "Rules:",
-    "- playerName: return the SURNAME ONLY, e.g. \"Bloggs\" — even when a first name or initial is visible, drop it. For hyphenated or multi-word surnames keep the full surname (e.g. \"Smith-Jones\", \"van Dyk\"). If two players share a surname, keep the first-initial prefix for both (e.g. \"J.Bloggs\", \"K.Bloggs\") and add a warning naming them.",
+    nameRule,
     "- minsPlayed: compute from the substitution icons next to each player. Dribl shows a RED circular arrow with a minute (e.g. 46') when a player CAME OFF, and a GREEN circular arrow with a minute when a player CAME ON. Apply these rules:",
     "  * Starting lineup, no icons: played the full match — minsPlayed 90.",
     "  * Starting lineup, red icon only: started and was subbed off — minsPlayed = the red minute (e.g. red 32' = 32).",

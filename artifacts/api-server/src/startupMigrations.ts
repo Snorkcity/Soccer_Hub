@@ -341,6 +341,23 @@ export async function runStartupMigrations(): Promise<void> {
     await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('addon-modules-grant-v1') ON CONFLICT DO NOTHING`);
   }
 
+  // ── ACT NPLM 2026 (2026-07, per coach) ─────────────────────────────────────
+  // Men's league starting fresh. Player naming convention differs from NPLW:
+  // "S.Smith" (first-initial + surname) instead of surname-only — recorded per
+  // league in leagues.name_format and used by the screenshot reader.
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS name_format text`);
+  await db.execute(sql`
+    INSERT INTO leagues (name, region, focus_club, name_format)
+    VALUES ('ACT NPLM', 'ACT', 'Belconnen', 'initial-surname')
+    ON CONFLICT (name) DO UPDATE SET name_format = EXCLUDED.name_format WHERE leagues.name_format IS NULL
+  `);
+  await db.execute(sql`
+    INSERT INTO seasons (year, label, is_active, league_id)
+    SELECT '2026', '2026 Season', true, l.id FROM leagues l
+    WHERE l.name = 'ACT NPLM'
+      AND NOT EXISTS (SELECT 1 FROM seasons s WHERE s.league_id = l.id AND s.year = '2026')
+  `);
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

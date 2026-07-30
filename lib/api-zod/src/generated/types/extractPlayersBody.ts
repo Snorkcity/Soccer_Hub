@@ -11,4 +11,6 @@ export interface ExtractPlayersBody {
   imageBase64: string;
   /** @nullable */
   club?: string | null;
+  /** @nullable */
+  leagueId?: number | null;
 }
