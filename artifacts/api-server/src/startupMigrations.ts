@@ -332,7 +332,10 @@ export async function runStartupMigrations(): Promise<void> {
   if (addonMarker.rows.length === 0) {
     await db.execute(sql`
       UPDATE user_league_access
-      SET modules = modules || '["session-planner", "assistant"]'::jsonb
+      SET modules = (
+        SELECT jsonb_agg(DISTINCT m)
+        FROM jsonb_array_elements(modules || '["session-planner", "assistant"]'::jsonb) AS m
+      )
       WHERE NOT (modules @> '["session-planner"]'::jsonb AND modules @> '["assistant"]'::jsonb)
     `);
     await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('addon-modules-grant-v1') ON CONFLICT DO NOTHING`);
