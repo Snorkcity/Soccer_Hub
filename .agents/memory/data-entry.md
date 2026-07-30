@@ -27,3 +27,5 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 - matchDate stored as "YYYY/MM/DD" strings; date input values must be converted.
 - Match ID convention auto-built as `R{round}-{HOME3}-{AWAY3}` client-side, editable.
 - Testing subagent [DB] steps query Replit's DATABASE_URL, NOT the Railway DEV_DATABASE_URL this app uses — its DB assertions are false negatives; verify via psql "$DEV_DATABASE_URL" yourself.
+
+**Per-league name format (2026-07):** `leagues.name_format` — null/'surname' = surname-only (NPLW); 'initial-surname' = "S.Smith" (ACT NPLM). Extract endpoint takes optional leagueId and swaps the prompt naming rule; frontend passes season.leagueId. The create-league UI has no format field yet — new leagues default to surname-only unless set in SQL/migration.
