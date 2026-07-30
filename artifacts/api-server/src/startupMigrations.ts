@@ -640,8 +640,8 @@ async function syncJournalEntries(): Promise<void> {
     `);
     if (dup.rows.length > 0) continue;
     await db.execute(sql`
-      INSERT INTO journal_entries (kind, title, entry_date, source, content, created_at, updated_at)
-      VALUES (${e.kind}, ${e.title}, ${e.entry_date}, ${e.source}, ${JSON.stringify(e.content)}::jsonb,
+      INSERT INTO journal_entries (league_id, kind, title, entry_date, source, content, created_at, updated_at)
+      VALUES ((SELECT id FROM leagues WHERE name = 'ACT NPLW'), ${e.kind}, ${e.title}, ${e.entry_date}, ${e.source}, ${JSON.stringify(e.content)}::jsonb,
         ${e.created_at}::timestamp, ${e.updated_at}::timestamp)
     `);
     added++;
