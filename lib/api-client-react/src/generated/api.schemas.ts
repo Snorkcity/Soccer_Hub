@@ -1448,6 +1448,39 @@ export interface EntryGoalResponse {
   belconnenGoalId: number | null;
 }
 
+export interface DriblPreviewGoal {
+  scorerTeam: string;
+  scorer: string;
+  /** @nullable */
+  minute: number | null;
+  ownGoal: boolean;
+  penalty: boolean;
+}
+
+export interface DriblPreviewMatch {
+  matchId: string;
+  round: number;
+  matchDate: string;
+  homeTeam: string;
+  awayTeam: string;
+  driblHome: string;
+  driblAway: string;
+  homeGoals: number;
+  awayGoals: number;
+  /** @nullable */
+  halfScore: string | null;
+  exists: boolean;
+  goalsOnly: boolean;
+  unmatched: string[];
+  goals: DriblPreviewGoal[];
+}
+
+export interface DriblPreviewResponse {
+  driblSeason: string;
+  driblLeague: string;
+  matches: DriblPreviewMatch[];
+}
+
 export interface GoalTallyResponse {
   homeTeam: string;
   awayTeam: string;
@@ -2539,6 +2572,10 @@ matchId: string;
 export type ListEntryGoalsParams = {
 seasonId: number;
 matchId: string;
+};
+
+export type GetDriblPreviewParams = {
+seasonId: number;
 };
 
 export type ListEntryPlayerStatsParams = {

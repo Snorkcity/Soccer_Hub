@@ -38,6 +38,8 @@ import {
   useCreateSeason,
   useCreateClub,
   useExtractClubsFromLeague,
+  useGetDriblPreview,
+  getGetDriblPreviewQueryKey,
   getListLeaguesQueryKey,
   getListSeasonsQueryKey,
   getGetClubsQueryKey,
@@ -1896,6 +1898,179 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Dribl sync — pull results (and goal scorers/minutes) straight from Dribl
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DriblSyncCard({ teamId, seasonId, onSaved }: {
+  teamId: number; seasonId: number; onSaved: () => void;
+}) {
+  const [fetchRequested, setFetchRequested] = useState(false);
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const { data: preview, isFetching, error: previewError, refetch } = useGetDriblPreview(
+    { seasonId },
+    { query: {
+      enabled: fetchRequested,
+      queryKey: getGetDriblPreviewQueryKey({ seasonId }),
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+    } },
+  );
+
+  const createMatch = useCreateEntryMatch();
+  const createGoal = useCreateEntryGoal();
+
+  const importable = useMemo(
+    () => (preview?.matches ?? []).filter(m => (!m.exists || m.goalsOnly) && m.unmatched.length === 0),
+    [preview],
+  );
+  const selectedMatches = importable.filter(m => !deselected.has(m.matchId));
+
+  const toggle = (matchId: string) => {
+    setDeselected(prev => {
+      const next = new Set(prev);
+      if (next.has(matchId)) next.delete(matchId); else next.add(matchId);
+      return next;
+    });
+  };
+
+  const runImport = async () => {
+    setImporting(true); setOk(null); setErr(null);
+    let savedMatches = 0, savedGoals = 0;
+    const failures: string[] = [];
+    for (const m of selectedMatches) {
+      setProgress(`Saving ${m.matchId} (${savedMatches + 1} of ${selectedMatches.length})…`);
+      try {
+        if (!m.goalsOnly) {
+          await createMatch.mutateAsync({ data: {
+            teamId, seasonId,
+            matchId: m.matchId, matchDate: m.matchDate,
+            homeTeam: m.homeTeam, awayTeam: m.awayTeam,
+            homeGoals: m.homeGoals, awayGoals: m.awayGoals,
+            halfScore: m.halfScore,
+          } });
+        }
+        savedMatches++;
+        for (const g of m.goals) {
+          try {
+            await createGoal.mutateAsync({ data: {
+              teamId, seasonId,
+              matchId: m.matchId,
+              scorerTeam: g.scorerTeam,
+              scorer: g.scorer,
+              minuteScored: g.minute,
+              goalType: g.penalty ? "SP-P" : null,
+            } });
+            savedGoals++;
+          } catch (e) {
+            failures.push(`${m.matchId} goal ${g.scorer} ${g.minute ?? "?"}′: ${errMsg(e)}`);
+          }
+        }
+      } catch (e) {
+        failures.push(`${m.matchId}: ${errMsg(e)}`);
+      }
+    }
+    setProgress(null); setImporting(false);
+    onSaved();
+    void refetch();
+    if (failures.length === 0) {
+      setOk(`Imported ${savedMatches} match${savedMatches === 1 ? "" : "es"} and ${savedGoals} goal${savedGoals === 1 ? "" : "s"} from Dribl`);
+    } else {
+      setOk(savedMatches > 0 ? `Imported ${savedMatches} matches / ${savedGoals} goals — but some rows failed` : null);
+      setErr(failures.slice(0, 5).join(" · ") + (failures.length > 5 ? ` (+${failures.length - 5} more)` : ""));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Sync from Dribl</CardTitle>
+        <CardDescription>
+          Pulls every completed result for this league straight from Dribl — score, half-time score, date and round —
+          and pre-fills goal scorers and minutes where Dribl has them. You add the goal detail (build-up, location)
+          on the Goals tab afterwards. Games already recorded are skipped, so it's always safe to re-sync.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!fetchRequested || (!preview && !isFetching && !previewError) ? (
+          <Button onClick={() => { setFetchRequested(true); setOk(null); setErr(null); }}>
+            <Upload className="h-4 w-4 mr-1.5" />Fetch results from Dribl
+          </Button>
+        ) : isFetching ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />Reading the Dribl match centre — this takes a moment…
+          </div>
+        ) : previewError ? (
+          <div className="space-y-3">
+            <StatusLine ok={null} err={errMsg(previewError)} />
+            <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+          </div>
+        ) : preview ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="secondary">{preview.driblLeague} · {preview.driblSeason}</Badge>
+              <span>{preview.matches.length} completed games on Dribl · {importable.length} new</span>
+              <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={importing}>Refresh</Button>
+            </div>
+
+            {preview.matches.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>
+            ) : (
+              <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
+                {preview.matches.map(m => {
+                  const canImport = (!m.exists || m.goalsOnly) && m.unmatched.length === 0;
+                  return (
+                    <div key={`${m.matchId}-${m.driblHome}`} className="flex items-center gap-3 px-3 py-2 text-sm">
+                      <Checkbox
+                        checked={canImport && !deselected.has(m.matchId)}
+                        disabled={!canImport || importing}
+                        onCheckedChange={() => toggle(m.matchId)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">
+                          R{m.round} · {m.homeTeam || m.driblHome} {m.homeGoals}–{m.awayGoals} {m.awayTeam || m.driblAway}
+                          {m.halfScore && <span className="text-muted-foreground font-normal"> (HT {m.halfScore})</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {m.matchDate} · {m.matchId}
+                          {m.goals.length > 0 && ` · ${m.goals.length} goal${m.goals.length === 1 ? "" : "s"} with scorer + minute`}
+                        </div>
+                      </div>
+                      {m.unmatched.length > 0 ? (
+                        <Badge variant="outline" className="shrink-0 text-chart-4 border-chart-4" title={m.unmatched.join("; ")}>
+                          {m.unmatched.some(u => u.startsWith("Match ID clash")) ? "match ID clash" : "unknown club — add it in League Setup"}
+                        </Badge>
+                      ) : m.exists && m.goalsOnly ? (
+                        <Badge variant="outline" className="shrink-0">match in — {m.goals.length} goal{m.goals.length === 1 ? "" : "s"} missing</Badge>
+                      ) : m.exists ? (
+                        <Badge variant="outline" className="shrink-0">already in</Badge>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {importable.length > 0 && (
+              <Button onClick={() => void runImport()} disabled={importing || selectedMatches.length === 0}>
+                {importing
+                  ? (<><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{progress ?? "Importing…"}</>)
+                  : (<><Plus className="h-4 w-4 mr-1.5" />Import {selectedMatches.length} match{selectedMatches.length === 1 ? "" : "es"}</>)}
+              </Button>
+            )}
+          </div>
+        ) : null}
+        <StatusLine ok={ok} err={err} />
+      </CardContent>
+    </Card>
+  );
+}
+
 function EntryWorkspace() {
   const queryClient = useQueryClient();
   const { data: teams } = useListTeams();
@@ -1939,6 +2114,8 @@ function EntryWorkspace() {
   }});
 
   const season = seasons?.find(s => s.id === seasonId);
+  // Dribl sync is wired up for NPLM (Capital Football runs it on Dribl)
+  const driblAvailable = /NPLM/i.test(season?.leagueName ?? "");
   // Only offer clubs that belong to the selected season's league
   const clubNames = useMemo(
     () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),
@@ -1976,6 +2153,7 @@ function EntryWorkspace() {
 
       <Tabs defaultValue="match" className="w-full">
         <TabsList className="flex w-full flex-wrap h-auto gap-1">
+          {driblAvailable && <TabsTrigger value="dribl">Dribl Sync</TabsTrigger>}
           <TabsTrigger value="match">1 · Match</TabsTrigger>
           <TabsTrigger value="goals">2 · Goals</TabsTrigger>
           <TabsTrigger value="players">3 · Player Stats</TabsTrigger>
@@ -1985,6 +2163,14 @@ function EntryWorkspace() {
           <TabsTrigger value="positions">7 · Positions</TabsTrigger>
         </TabsList>
 
+        {driblAvailable && (
+          <TabsContent value="dribl" className="mt-6">
+            <DriblSyncCard
+              teamId={teamId} seasonId={seasonId}
+              onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="match" className="mt-6">
           <MatchForm
             teamId={teamId} seasonId={seasonId} clubs={clubNames} options={options}

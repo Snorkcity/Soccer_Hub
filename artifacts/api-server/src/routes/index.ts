@@ -19,6 +19,7 @@ import journalRouter from "./journal";
 import matchPrepReportsRouter from "./matchPrepReports";
 import journalInterviewRouter from "./journalInterview";
 import assistantRouter from "./assistant";
+import driblRouter from "./dribl";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(journalRouter);
 router.use(matchPrepReportsRouter);
 router.use(journalInterviewRouter);
 router.use(assistantRouter);
+router.use(driblRouter);
 
 export default router;

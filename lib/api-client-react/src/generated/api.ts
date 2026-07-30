@@ -31,6 +31,7 @@ import type {
   ClutchGoalsResponse,
   CreateUserRequest,
   DeleteEntryPlayerStatsParams,
+  DriblPreviewResponse,
   EntryAthleticTestsSaveRequest,
   EntryAthleticTestsSaveResponse,
   EntryGoalBody,
@@ -54,6 +55,7 @@ import type {
   ForgotPasswordRequest,
   GetAssistsByOpponentParams,
   GetClutchGoalsParams,
+  GetDriblPreviewParams,
   GetGoalBreakdownParams,
   GetGoalCombosParams,
   GetGoalOptionsParams,
@@ -5828,6 +5830,90 @@ export const useCreateEntryGoal = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateEntryGoalMutationOptions(options));
     }
+
+export const getGetDriblPreviewUrl = (params: GetDriblPreviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/dribl-preview?${stringifiedParams}` : `/api/entry/dribl-preview`
+}
+
+/**
+ * @summary Fetch season results from Dribl (Capital Football) and return an import preview
+ */
+export const getDriblPreview = async (params: GetDriblPreviewParams, options?: RequestInit): Promise<DriblPreviewResponse> => {
+
+  return customFetch<DriblPreviewResponse>(getGetDriblPreviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDriblPreviewQueryKey = (params?: GetDriblPreviewParams,) => {
+    return [
+    `/api/entry/dribl-preview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDriblPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getDriblPreview>>, TError = ErrorType<unknown>>(params: GetDriblPreviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDriblPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDriblPreviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDriblPreview>>> = ({ signal }) => getDriblPreview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDriblPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDriblPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getDriblPreview>>>
+export type GetDriblPreviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Fetch season results from Dribl (Capital Football) and return an import preview
+ */
+
+export function useGetDriblPreview<TData = Awaited<ReturnType<typeof getDriblPreview>>, TError = ErrorType<unknown>>(
+ params: GetDriblPreviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDriblPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDriblPreviewQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListEntryPlayerStatsUrl = (params: ListEntryPlayerStatsParams,) => {
   const normalizedParams = new URLSearchParams();

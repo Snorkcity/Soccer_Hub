@@ -2049,6 +2049,41 @@ export const CreateEntryGoalResponse = zod.object({
 
 
 /**
+ * @summary Fetch season results from Dribl (Capital Football) and return an import preview
+ */
+export const GetDriblPreviewQueryParams = zod.object({
+  "seasonId": zod.coerce.number()
+})
+
+export const GetDriblPreviewResponse = zod.object({
+  "driblSeason": zod.string(),
+  "driblLeague": zod.string(),
+  "matches": zod.array(zod.object({
+  "matchId": zod.string(),
+  "round": zod.number(),
+  "matchDate": zod.string(),
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "driblHome": zod.string(),
+  "driblAway": zod.string(),
+  "homeGoals": zod.number(),
+  "awayGoals": zod.number(),
+  "halfScore": zod.string().nullable(),
+  "exists": zod.boolean(),
+  "goalsOnly": zod.boolean(),
+  "unmatched": zod.array(zod.string()),
+  "goals": zod.array(zod.object({
+  "scorerTeam": zod.string(),
+  "scorer": zod.string(),
+  "minute": zod.number().nullable(),
+  "ownGoal": zod.boolean(),
+  "penalty": zod.boolean()
+}))
+}))
+})
+
+
+/**
  * @summary List the player rows saved so far for one club in a fixture (for review/removal)
  */
 export const ListEntryPlayerStatsQueryParams = zod.object({

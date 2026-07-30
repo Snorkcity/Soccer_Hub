@@ -1588,6 +1588,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EntryGoalResponse" }
 
+  /entry/dribl-preview:
+    get:
+      operationId: getDriblPreview
+      tags: [entry]
+      summary: Fetch season results from Dribl (Capital Football) and return an import preview
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Preview of Dribl fixtures mapped to local clubs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblPreviewResponse" }
+
   /entry/player-stats:
     get:
       operationId: listEntryPlayerStats
@@ -3709,6 +3726,49 @@ components:
         leagueGoalId:    { type: integer }
         belconnenGoalId: { type: ["integer", "null"] }
       required: [leagueGoalId, belconnenGoalId]
+
+    DriblPreviewGoal:
+      type: object
+      properties:
+        scorerTeam: { type: string }
+        scorer:     { type: string }
+        minute:     { type: ["integer", "null"] }
+        ownGoal:    { type: boolean }
+        penalty:    { type: boolean }
+      required: [scorerTeam, scorer, minute, ownGoal, penalty]
+
+    DriblPreviewMatch:
+      type: object
+      properties:
+        matchId:    { type: string }
+        round:      { type: integer }
+        matchDate:  { type: string }
+        homeTeam:   { type: string }
+        awayTeam:   { type: string }
+        driblHome:  { type: string }
+        driblAway:  { type: string }
+        homeGoals:  { type: integer }
+        awayGoals:  { type: integer }
+        halfScore:  { type: ["string", "null"] }
+        exists:     { type: boolean }
+        goalsOnly:  { type: boolean }
+        unmatched:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/DriblPreviewGoal" }
+      required: [matchId, round, matchDate, homeTeam, awayTeam, driblHome, driblAway, homeGoals, awayGoals, halfScore, exists, goalsOnly, unmatched, goals]
+
+    DriblPreviewResponse:
+      type: object
+      properties:
+        driblSeason: { type: string }
+        driblLeague: { type: string }
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/DriblPreviewMatch" }
+      required: [driblSeason, driblLeague, matches]
 
     GoalTallyResponse:
       type: object
