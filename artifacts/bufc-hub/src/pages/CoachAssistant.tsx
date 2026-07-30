@@ -36,7 +36,18 @@ const SUGGESTIONS = [
   "What are the U14 phase outcomes?",
 ];
 
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
+
+// Coach Assistant is a paid add-on: shown only with the "assistant" module in some league.
 export default function CoachAssistant() {
+  const { isSuperadmin, hasModuleAnywhere, ready } = useLeagueModules();
+  if (ready && !isSuperadmin && !hasModuleAnywhere("assistant")) return <NoAccess />;
+  if (!ready) return null;
+  return <CoachAssistantInner />;
+}
+
+function CoachAssistantInner() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);

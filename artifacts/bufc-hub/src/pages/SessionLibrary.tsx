@@ -119,7 +119,18 @@ function searchBlob(p: LibraryPractice): string {
   return `${p.title ?? ""} ${p.sectionName ?? ""} ${p.sectionCode ?? ""} ${paras}`.toLowerCase();
 }
 
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
+
+// Session Library is a paid add-on: shown only with the "session-planner" module in some league.
 export default function SessionLibrary() {
+  const { isSuperadmin, hasModuleAnywhere, ready } = useLeagueModules();
+  if (ready && !isSuperadmin && !hasModuleAnywhere("session-planner")) return <NoAccess />;
+  if (!ready) return null;
+  return <SessionLibraryInner />;
+}
+
+function SessionLibraryInner() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: practices, isLoading } = useListLibraryPractices(

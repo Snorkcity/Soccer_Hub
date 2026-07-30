@@ -19,7 +19,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/components/ui/use-toast";
 import { CalendarDays, Plus, Sparkles, Trash2 } from "lucide-react";
 
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
+
+// Session Planner is a paid add-on: shown only with the "session-planner" module in some league.
 export default function Sessions() {
+  const { isSuperadmin, hasModuleAnywhere, ready } = useLeagueModules();
+  if (ready && !isSuperadmin && !hasModuleAnywhere("session-planner")) return <NoAccess />;
+  if (!ready) return null;
+  return <SessionsInner />;
+}
+
+function SessionsInner() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();

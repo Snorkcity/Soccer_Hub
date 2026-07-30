@@ -30,6 +30,8 @@ const MODULES: { key: string; label: string; short: string }[] = [
   { key: "match-prep", label: "Match Prep", short: "Prep" },
   { key: "reflections", label: "Reflections", short: "Reflect" },
   { key: "data-entry", label: "Data Entry", short: "Entry" },
+  { key: "session-planner", label: "Session Planner + Library", short: "Planner" },
+  { key: "assistant", label: "Coach Assistant", short: "Assistant" },
 ];
 
 // Legacy `role` is derived from modules: data-entry ⇒ admin, otherwise viewer.

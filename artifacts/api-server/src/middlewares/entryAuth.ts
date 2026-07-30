@@ -162,6 +162,10 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
   ["/journal/week-ahead-brief", "match-prep"], // under /journal, not /match-prep
 
+  ["/sessions", "session-planner"],
+  ["/library", "session-planner"],
+  ["/assistant", "assistant"],
+
   ["/gps-sessions", "gps"],
   ["/gps-player-positions", "gps"],
   ["/athletic-tests", "testing"],
@@ -181,8 +185,8 @@ const WRITE_MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/player-stats", "data-entry"],
 ];
 
-// Shared tools: writes open to any signed-in user (per coach).
-const SHARED_WRITE_PREFIXES = ["/sessions", "/library", "/assistant", "/auth"];
+// Writes open to any signed-in user.
+const SHARED_WRITE_PREFIXES = ["/auth"];
 
 export function isSharedWritePath(path: string): boolean {
   return SHARED_WRITE_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
@@ -288,14 +292,10 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
     }
 
     if (req.method === "GET" || req.method === "HEAD") return next();
-    // The Coach Assistant is a read-style POST (chat) — open to any signed-in user.
-    if (req.path === "/assistant/chat") return next();
     // Account self-service is handled (and further checked) in the auth routes.
     if (req.path.startsWith("/auth/")) return next();
-    // Module-owned writes were already checked above. Shared tools (session
-    // planner, session library, assistant) are open to any signed-in user.
-    // Anything else falls back to the legacy safety net: must be able to
-    // enter data somewhere.
+    // Module-owned writes were already checked above. Anything else falls
+    // back to the legacy safety net: must be able to enter data somewhere.
     if (!module && !isSharedWritePath(req.path) && effectiveRole(user) !== "admin") {
       res.status(403).json({ error: "You don't have access to change this data" });
       return;

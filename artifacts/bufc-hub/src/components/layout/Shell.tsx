@@ -5,14 +5,15 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
-// `module` gates a module-locked item (shown only when the user has that module in
-// at least one league, or is superadmin). `superadmin` gates the Users page.
-// Items with neither are shared and always visible to any signed-in user.
+// `module` gates a module-locked item to the ACTIVE league. `moduleAnywhere`
+// gates a paid add-on tool shown when the user has it in ANY league (the tools
+// aren't league-scoped). `superadmin` gates the Users page.
 const navItems: {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   module?: string;
+  moduleAnywhere?: string;
   superadmin?: boolean;
 }[] = [
   { href: "/", label: "Hub", icon: Home },
@@ -21,9 +22,9 @@ const navItems: {
   { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
   { href: "/match-prep", label: "Match Prep", icon: Trophy, module: "match-prep" },
   { href: "/reflections", label: "Reflections", icon: BookHeart, module: "reflections" },
-  { href: "/assistant", label: "Coach Assistant", icon: Bot },
-  { href: "/sessions", label: "Session Planner", icon: ClipboardList },
-  { href: "/library", label: "Session Library", icon: BookOpen },
+  { href: "/assistant", label: "Coach Assistant", icon: Bot, moduleAnywhere: "assistant" },
+  { href: "/sessions", label: "Session Planner", icon: ClipboardList, moduleAnywhere: "session-planner" },
+  { href: "/library", label: "Session Library", icon: BookOpen, moduleAnywhere: "session-planner" },
   { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
   { href: "/users", label: "Users", icon: Users, superadmin: true },
   { href: "/account", label: "My Account", icon: UserRound },
@@ -31,7 +32,7 @@ const navItems: {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { isSuperadmin, hasModule } = useLeagueModules();
+  const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
   // Module items follow the ACTIVE league (picked on the Hub) — switching league
   // changes which pages appear. Fall back to any-league while it's still loading.
@@ -42,6 +43,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     if (item.module) {
       return activeLeagueId != null && hasModule(activeLeagueId, item.module);
     }
+    if (item.moduleAnywhere) return isSuperadmin || hasModuleAnywhere(item.moduleAnywhere);
     return true;
   });
   const [collapsed, setCollapsed] = useState(false);

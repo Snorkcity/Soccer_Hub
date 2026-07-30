@@ -11,7 +11,7 @@ export default function Home() {
   const { data: teams } = useListTeams();
   const { data: seasons } = useListSeasons();
   const { activeLeagueId, setActiveLeagueId, leagueOptions } = useActiveLeague();
-  const { isSuperadmin, hasModule } = useLeagueModules();
+  const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
 
   // Everything on the Hub is scoped to the active league
   const leagueSeasons = seasons?.filter(s => s.leagueId === activeLeagueId);
@@ -77,7 +77,8 @@ export default function Home() {
       icon: Bot,
       href: "/assistant",
       stat: "U11 to 16+ curriculum",
-      color: "text-chart-2"
+      color: "text-chart-2",
+      moduleAnywhere: "assistant"
     },
     {
       title: "Session Planner",
@@ -85,7 +86,8 @@ export default function Home() {
       icon: ClipboardList,
       href: "/sessions",
       stat: "4-Part Sessions",
-      color: "text-chart-5"
+      color: "text-chart-5",
+      moduleAnywhere: "session-planner"
     },
     {
       title: "Session Library",
@@ -93,7 +95,8 @@ export default function Home() {
       icon: BookOpen,
       href: "/library",
       stat: "580+ Practices",
-      color: "text-chart-4"
+      color: "text-chart-4",
+      moduleAnywhere: "session-planner"
     },
     {
       title: "Data Entry",
@@ -106,14 +109,17 @@ export default function Home() {
     },
   ] as Array<{
     title: string; description: string; icon: React.ComponentType<{ className?: string }>;
-    href: string; stat: string; color: string; module?: string;
+    href: string; stat: string; color: string; module?: string; moduleAnywhere?: string;
   }>;
 
   // Cards mirror the sidebar: module cards only for modules the user has in the
   // active league (superadmin sees everything).
-  const visibleModules = modules.filter(m =>
-    !m.module || isSuperadmin || (activeLeagueId != null && hasModule(activeLeagueId, m.module)),
-  );
+  const visibleModules = modules.filter(m => {
+    if (isSuperadmin) return true;
+    if (m.module) return activeLeagueId != null && hasModule(activeLeagueId, m.module);
+    if (m.moduleAnywhere) return hasModuleAnywhere(m.moduleAnywhere);
+    return true;
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">

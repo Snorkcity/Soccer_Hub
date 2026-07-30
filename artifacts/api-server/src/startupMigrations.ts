@@ -318,6 +318,26 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE e.cycle_id = c.id AND e.league_id <> c.league_id
   `);
 
+  // ── Paid add-ons become tick boxes (2026-07): Session Planner (+ Library)
+  // and Coach Assistant were open to every signed-in user — grant them once to
+  // every existing league access row so nobody loses anything, then the coach
+  // unticks whoever shouldn't have them. One-shot: later unticks must stick.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS seed_markers (
+      key text PRIMARY KEY,
+      applied_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  const addonMarker = await db.execute(sql`SELECT 1 FROM seed_markers WHERE key = 'addon-modules-grant-v1'`);
+  if (addonMarker.rows.length === 0) {
+    await db.execute(sql`
+      UPDATE user_league_access
+      SET modules = modules || '["session-planner", "assistant"]'::jsonb
+      WHERE NOT (modules @> '["session-planner"]'::jsonb AND modules @> '["assistant"]'::jsonb)
+    `);
+    await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('addon-modules-grant-v1') ON CONFLICT DO NOTHING`);
+  }
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

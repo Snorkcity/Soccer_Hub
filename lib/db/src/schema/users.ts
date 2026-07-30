@@ -19,8 +19,8 @@ export const usersTable = pgTable("users", {
 ]);
 
 // Per-league modules a user may use (read AND write within that league).
-// Shared tools (Coach Assistant, Session Planner, Session Library) are open to
-// every signed-in user and are not listed here.
+// "session-planner" covers the Session Planner AND Session Library;
+// "assistant" is the Coach Assistant — both are paid add-ons (per coach).
 export const LEAGUE_MODULES = [
   "season-stats",
   "gps",
@@ -28,6 +28,8 @@ export const LEAGUE_MODULES = [
   "match-prep",
   "reflections",
   "data-entry",
+  "session-planner",
+  "assistant",
 ] as const;
 export type LeagueModule = (typeof LEAGUE_MODULES)[number];
 
