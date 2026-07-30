@@ -935,25 +935,39 @@ router.get("/analytics/opponent-clubs", async (req, res): Promise<void> => {
   const { teamId, seasonId } = query.data;
   const focusClub = await focusClubForRequest(req, seasonId);
 
-  const matches = await db
-    .select({ id: matchesTable.id })
-    .from(matchesTable)
-    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  // Primary source: the league-wide match tables — every club that has played
+  // this season, regardless of whether team sheets (player stats) were entered.
+  const leagueRows = await db
+    .select({ home: leagueMatchesTable.homeTeam, away: leagueMatchesTable.awayTeam })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  const clubSet = new Set<string>();
+  for (const r of leagueRows) {
+    if (r.home && r.home !== focusClub) clubSet.add(r.home);
+    if (r.away && r.away !== focusClub) clubSet.add(r.away);
+  }
 
-  const matchIds = matches.map(m => m.id);
-  if (matchIds.length === 0) { res.json([]); return; }
+  // Fallback for seasons with no league-table data: clubs seen in team sheets.
+  if (clubSet.size === 0) {
+    const matches = await db
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+    const matchIds = matches.map(m => m.id);
+    if (matchIds.length > 0) {
+      const rows = await db
+        .selectDistinct({ club: playerStatsTable.club })
+        .from(playerStatsTable)
+        .where(and(
+          inArray(playerStatsTable.matchId, matchIds),
+          ne(playerStatsTable.club, focusClub),
+          isNotNull(playerStatsTable.club),
+        ));
+      for (const r of rows) if (r.club) clubSet.add(r.club);
+    }
+  }
 
-  const rows = await db
-    .selectDistinct({ club: playerStatsTable.club })
-    .from(playerStatsTable)
-    .where(and(
-      inArray(playerStatsTable.matchId, matchIds),
-      ne(playerStatsTable.club, focusClub),
-      isNotNull(playerStatsTable.club),
-    ));
-
-  const clubs = rows.map(r => r.club).filter((c): c is string => c !== null).sort();
-  res.json(GetOpponentClubsResponse.parse(clubs));
+  res.json(GetOpponentClubsResponse.parse([...clubSet].sort()));
 });
 
 // ─── Opponent Leaderboard ─────────────────────────────────────────────────────
