@@ -10,6 +10,6 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 - Own goals: event `team_id` is the *scorer's* team; credit the opposite club, scorer saved as "Own Goal". Penalties → goalType `SP-P`.
 - Prod (Railway) IPs ARE blocked by Cloudflare even via curl — the frontend falls back to fetching Dribl from the coach's browser (mc-api sends `Access-Control-Allow-Origin: *`) and POSTs trimmed fixtures/match-centres to `/entry/dribl-preview` (two-phase: server replies `needDetail` hashes, browser fetches those and re-posts). Assembly always happens server-side.
 - Route `/entry/dribl-preview` maps Dribl team names → local clubs by substring match, only fetches matchcentre for new matches OR existing matches whose logged goal count < scoreline (top-up mode dedupes on scorerTeam+minute). Frontend imports via the existing /entry/match + /entry/goal endpoints, so all dual-write/auth logic is reused.
-- Dribl league feed name is derived from our league name (NPLM → "NPLM 1st Grade") in `driblLeagueNameFor` — extend there for NPLW etc.
+- Dribl league feed name is derived from our league name in `driblLeagueNameFor`: NPLM → "NPLM 1st Grade", NPLW → "NPLW 1st Grade", NPLW Reserves → "NPLW Reserve Grade". Extend there for new leagues; check `/NPLW.*Reserve/` style specifics before the broader match.
 
 **Why:** Dribl runs all AU federated leagues, so this pattern generalises to any club/league later.
