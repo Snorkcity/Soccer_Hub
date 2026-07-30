@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { DriblPreviewClubStats } from './driblPreviewClubStats';
 import type { DriblPreviewGoal } from './driblPreviewGoal';
 
 export interface DriblPreviewMatch {
@@ -23,4 +24,6 @@ export interface DriblPreviewMatch {
   goalsOnly: boolean;
   unmatched: string[];
   goals: DriblPreviewGoal[];
+  statsOnly: boolean;
+  playerStats: DriblPreviewClubStats[];
 }

@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { DriblNeedLineup } from './driblNeedLineup';
 import type { DriblPreviewMatch } from './driblPreviewMatch';
 
 export interface DriblPreviewResponse {
@@ -12,4 +13,5 @@ export interface DriblPreviewResponse {
   driblLeague: string;
   matches: DriblPreviewMatch[];
   needDetail: string[];
+  needLineups: DriblNeedLineup[];
 }

@@ -1486,6 +1486,21 @@ export interface DriblPreviewGoal {
   penalty: boolean;
 }
 
+export interface DriblPreviewPlayerRow {
+  playerName: string;
+  minsPlayed: number;
+  started: boolean;
+  appearance: boolean;
+  /** @nullable */
+  position: string | null;
+}
+
+export interface DriblPreviewClubStats {
+  club: string;
+  exists: boolean;
+  rows: DriblPreviewPlayerRow[];
+}
+
 export interface DriblPreviewMatch {
   matchId: string;
   round: number;
@@ -1502,6 +1517,13 @@ export interface DriblPreviewMatch {
   goalsOnly: boolean;
   unmatched: string[];
   goals: DriblPreviewGoal[];
+  statsOnly: boolean;
+  playerStats: DriblPreviewClubStats[];
+}
+
+export interface DriblNeedLineup {
+  match: string;
+  team: string;
 }
 
 export interface DriblPreviewResponse {
@@ -1509,6 +1531,7 @@ export interface DriblPreviewResponse {
   driblLeague: string;
   matches: DriblPreviewMatch[];
   needDetail: string[];
+  needLineups: DriblNeedLineup[];
 }
 
 export interface DriblConfigResponse {
@@ -1543,6 +1566,16 @@ export interface DriblRawEvent {
   name: string;
 }
 
+export interface DriblRawSub {
+  teamId: string;
+  /** @nullable */
+  minute: number | null;
+  outName: string;
+  inName: string;
+  outJersey: string;
+  inJersey: string;
+}
+
 export interface DriblRawMatchCentre {
   matchHashId: string;
   /** @nullable */
@@ -1550,7 +1583,29 @@ export interface DriblRawMatchCentre {
   /** @nullable */
   awayScoreHt: number | null;
   homeTeamHashId: string;
+  awayTeamHashId?: string;
+  /** @nullable */
+  ftFirstHalf?: number | null;
+  /** @nullable */
+  ftSecondHalf?: number | null;
   events: DriblRawEvent[];
+  subs?: DriblRawSub[];
+}
+
+export interface DriblRawLineupPlayer {
+  firstName: string;
+  lastName: string;
+  jersey: string;
+  starting: boolean;
+  playing: boolean;
+  isGoalkeeper: boolean;
+  roleSlug: string;
+}
+
+export interface DriblRawLineup {
+  matchHashId: string;
+  teamHashId: string;
+  players: DriblRawLineupPlayer[];
 }
 
 export interface DriblAssembleBody {
@@ -1561,6 +1616,8 @@ export interface DriblAssembleBody {
   fixtures: DriblRawFixture[];
   /** @maxItems 500 */
   matchCentres?: DriblRawMatchCentre[];
+  /** @maxItems 1000 */
+  lineups?: DriblRawLineup[];
 }
 
 export interface GoalTallyResponse {

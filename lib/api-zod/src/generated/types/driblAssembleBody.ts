@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DriblRawFixture } from './driblRawFixture';
+import type { DriblRawLineup } from './driblRawLineup';
 import type { DriblRawMatchCentre } from './driblRawMatchCentre';
 
 export interface DriblAssembleBody {
@@ -16,4 +17,6 @@ export interface DriblAssembleBody {
   fixtures: DriblRawFixture[];
   /** @maxItems 500 */
   matchCentres?: DriblRawMatchCentre[];
+  /** @maxItems 1000 */
+  lineups?: DriblRawLineup[];
 }

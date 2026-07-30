@@ -2093,6 +2093,8 @@ export const assembleDriblPreviewBodyFixturesMax = 2000;
 
 export const assembleDriblPreviewBodyMatchCentresMax = 500;
 
+export const assembleDriblPreviewBodyLineupsMax = 1000;
+
 
 
 export const AssembleDriblPreviewBody = zod.object({
@@ -2115,14 +2117,38 @@ export const AssembleDriblPreviewBody = zod.object({
   "homeScoreHt": zod.number().nullable(),
   "awayScoreHt": zod.number().nullable(),
   "homeTeamHashId": zod.string(),
+  "awayTeamHashId": zod.string().optional(),
+  "ftFirstHalf": zod.number().nullish(),
+  "ftSecondHalf": zod.number().nullish(),
   "events": zod.array(zod.object({
   "teamId": zod.string(),
   "minute": zod.number().nullable(),
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean(),
   "name": zod.string()
+})),
+  "subs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "minute": zod.number().nullable(),
+  "outName": zod.string(),
+  "inName": zod.string(),
+  "outJersey": zod.string(),
+  "inJersey": zod.string()
+})).optional()
+})).max(assembleDriblPreviewBodyMatchCentresMax).optional(),
+  "lineups": zod.array(zod.object({
+  "matchHashId": zod.string(),
+  "teamHashId": zod.string(),
+  "players": zod.array(zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "jersey": zod.string(),
+  "starting": zod.boolean(),
+  "playing": zod.boolean(),
+  "isGoalkeeper": zod.boolean(),
+  "roleSlug": zod.string()
 }))
-})).max(assembleDriblPreviewBodyMatchCentresMax).optional()
+})).max(assembleDriblPreviewBodyLineupsMax).optional()
 })
 
 export const AssembleDriblPreviewResponse = zod.object({
@@ -2148,9 +2174,25 @@ export const AssembleDriblPreviewResponse = zod.object({
   "minute": zod.number().nullable(),
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean()
+})),
+  "statsOnly": zod.boolean(),
+  "playerStats": zod.array(zod.object({
+  "club": zod.string(),
+  "exists": zod.boolean(),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "minsPlayed": zod.number(),
+  "started": zod.boolean(),
+  "appearance": zod.boolean(),
+  "position": zod.string().nullable()
+}))
 }))
 })),
-  "needDetail": zod.array(zod.string())
+  "needDetail": zod.array(zod.string()),
+  "needLineups": zod.array(zod.object({
+  "match": zod.string(),
+  "team": zod.string()
+}))
 })
 
 
@@ -2184,9 +2226,25 @@ export const GetDriblPreviewResponse = zod.object({
   "minute": zod.number().nullable(),
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean()
+})),
+  "statsOnly": zod.boolean(),
+  "playerStats": zod.array(zod.object({
+  "club": zod.string(),
+  "exists": zod.boolean(),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "minsPlayed": zod.number(),
+  "started": zod.boolean(),
+  "appearance": zod.boolean(),
+  "position": zod.string().nullable()
+}))
 }))
 })),
-  "needDetail": zod.array(zod.string())
+  "needDetail": zod.array(zod.string()),
+  "needLineups": zod.array(zod.object({
+  "match": zod.string(),
+  "team": zod.string()
+}))
 })
 
 

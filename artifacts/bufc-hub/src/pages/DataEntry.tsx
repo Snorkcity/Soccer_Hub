@@ -45,6 +45,7 @@ import {
   assembleDriblPreview,
   type DriblPreviewResponse,
   type DriblRawFixture,
+  type DriblRawLineup,
   type DriblRawMatchCentre,
   getListLeaguesQueryKey,
   getListSeasonsQueryKey,
@@ -2001,6 +2002,9 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
             homeScoreHt: a.home_score_ht ?? null,
             awayScoreHt: a.away_score_ht ?? null,
             homeTeamHashId: String(a.home_team_hash_id ?? ""),
+            awayTeamHashId: String(a.away_team_hash_id ?? ""),
+            ftFirstHalf: typeof a.ft_first_half_duration === "number" ? a.ft_first_half_duration : null,
+            ftSecondHalf: typeof a.ft_second_half_duration === "number" ? a.ft_second_half_duration : null,
             events: (a.match_events ?? [])
               .filter((ev: any) => ev.type === "goal")
               .map((ev: any) => ({
@@ -2010,12 +2014,49 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
                 penalty: Boolean(ev.penalty_kick),
                 name: String(ev.name ?? ""),
               })),
+            subs: (a.match_events ?? [])
+              .filter((ev: any) => ev.type === "sub")
+              .map((ev: any) => ({
+                teamId: String(ev.team_id ?? ""),
+                minute: typeof ev.minute === "number" ? ev.minute : null,
+                outName: String(ev.out_name ?? ""), inName: String(ev.in_name ?? ""),
+                outJersey: String(ev.out_jersey ?? ""), inJersey: String(ev.in_jersey ?? ""),
+              })),
           });
         } catch {
           // skip — that match imports as scoreline only
         }
       }
       result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres });
+
+      // Third pass: fetch line-ups for teams that still need player rows.
+      if (result.needLineups.length > 0) {
+        const lineups: DriblRawLineup[] = [];
+        for (let i = 0; i < result.needLineups.length; i++) {
+          setPhase(`Reading line-up ${i + 1} of ${result.needLineups.length}…`);
+          const need = result.needLineups[i];
+          try {
+            const lu = await driblJson(`/matchcentre-match-members/match/${need.match}/team/${need.team}`, { tenant });
+            const rows = Array.isArray(lu) ? lu : lu?.data ?? [];
+            lineups.push({
+              matchHashId: need.match,
+              teamHashId: need.team,
+              players: rows.map((r: any) => {
+                const a = r?.attributes ?? r ?? {};
+                return {
+                  firstName: String(a.first_name ?? ""), lastName: String(a.last_name ?? ""),
+                  jersey: String(a.jersey ?? ""),
+                  starting: Boolean(a.starting), playing: Boolean(a.playing),
+                  isGoalkeeper: Boolean(a.is_goalkeeper), roleSlug: String(a.role_slug ?? "player"),
+                };
+              }),
+            });
+          } catch {
+            // skip — that team imports without player rows
+          }
+        }
+        result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, lineups });
+      }
     }
     return result;
   };
@@ -2041,9 +2082,10 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
 
   const createMatch = useCreateEntryMatch();
   const createGoal = useCreateEntryGoal();
+  const savePlayerStats = useSaveEntryPlayerStats();
 
   const importable = useMemo(
-    () => (preview?.matches ?? []).filter(m => (!m.exists || m.goalsOnly) && m.unmatched.length === 0),
+    () => (preview?.matches ?? []).filter(m => (!m.exists || m.goalsOnly || m.statsOnly) && m.unmatched.length === 0),
     [preview],
   );
   const selectedMatches = importable.filter(m => !deselected.has(m.matchId));
@@ -2058,12 +2100,12 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
 
   const runImport = async () => {
     setImporting(true); setOk(null); setErr(null);
-    let savedMatches = 0, savedGoals = 0;
+    let savedMatches = 0, savedGoals = 0, savedSheets = 0;
     const failures: string[] = [];
     for (const m of selectedMatches) {
       setProgress(`Saving ${m.matchId} (${savedMatches + 1} of ${selectedMatches.length})…`);
       try {
-        if (!m.goalsOnly) {
+        if (!m.goalsOnly && !m.statsOnly) {
           await createMatch.mutateAsync({ data: {
             teamId, seasonId,
             matchId: m.matchId, matchDate: m.matchDate,
@@ -2088,6 +2130,26 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
             failures.push(`${m.matchId} goal ${g.scorer} ${g.minute ?? "?"}′: ${errMsg(e)}`);
           }
         }
+        for (const ps of m.playerStats) {
+          if (ps.exists || ps.rows.length === 0) continue;
+          try {
+            await savePlayerStats.mutateAsync({ data: {
+              teamId, seasonId,
+              matchId: m.matchId,
+              club: ps.club,
+              rows: ps.rows.map(r => ({
+                playerName: r.playerName,
+                minsPlayed: r.minsPlayed,
+                position: r.position,
+                started: r.started,
+                appearance: r.appearance,
+              })),
+            } });
+            savedSheets++;
+          } catch (e) {
+            failures.push(`${m.matchId} line-up ${ps.club}: ${errMsg(e)}`);
+          }
+        }
       } catch (e) {
         failures.push(`${m.matchId}: ${errMsg(e)}`);
       }
@@ -2096,7 +2158,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
     onSaved();
     void refetch();
     if (failures.length === 0) {
-      setOk(`Imported ${savedMatches} match${savedMatches === 1 ? "" : "es"} and ${savedGoals} goal${savedGoals === 1 ? "" : "s"} from Dribl`);
+      setOk(`Imported ${savedMatches} match${savedMatches === 1 ? "" : "es"}, ${savedGoals} goal${savedGoals === 1 ? "" : "s"} and ${savedSheets} line-up${savedSheets === 1 ? "" : "s"} from Dribl`);
     } else {
       setOk(savedMatches > 0 ? `Imported ${savedMatches} matches / ${savedGoals} goals — but some rows failed` : null);
       setErr(failures.slice(0, 5).join(" · ") + (failures.length > 5 ? ` (+${failures.length - 5} more)` : ""));
@@ -2132,7 +2194,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="secondary">{preview.driblLeague} · {preview.driblSeason}</Badge>
               <span>{preview.matches.length} completed games on Dribl · {importable.length} new</span>
-              {preview.matches.some(m => m.exists && !m.goalsOnly) && (
+              {preview.matches.some(m => m.exists && !m.goalsOnly && !m.statsOnly) && (
                 <button
                   type="button"
                   className="text-xs underline underline-offset-2 hover:text-foreground"
@@ -2140,7 +2202,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
                 >
                   {showAlreadyIn
                     ? "hide the ones already in"
-                    : `show ${preview.matches.filter(m => m.exists && !m.goalsOnly).length} already in`}
+                    : `show ${preview.matches.filter(m => m.exists && !m.goalsOnly && !m.statsOnly).length} already in`}
                 </button>
               )}
               <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={importing}>Refresh</Button>
@@ -2150,8 +2212,8 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>
             ) : (
               <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
-                {preview.matches.filter(m => showAlreadyIn || !m.exists || m.goalsOnly || m.unmatched.length > 0).map(m => {
-                  const canImport = (!m.exists || m.goalsOnly) && m.unmatched.length === 0;
+                {preview.matches.filter(m => showAlreadyIn || !m.exists || m.goalsOnly || m.statsOnly || m.unmatched.length > 0).map(m => {
+                  const canImport = (!m.exists || m.goalsOnly || m.statsOnly) && m.unmatched.length === 0;
                   return (
                     <div key={`${m.matchId}-${m.driblHome}`} className="flex items-center gap-3 px-3 py-2 text-sm">
                       <Checkbox
@@ -2167,6 +2229,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
                         <div className="text-xs text-muted-foreground truncate">
                           {m.matchDate} · {m.matchId}
                           {m.goals.length > 0 && ` · ${m.goals.length} goal${m.goals.length === 1 ? "" : "s"} with scorer + minute`}
+                          {m.playerStats.length > 0 && ` · line-ups: ${m.playerStats.map(ps => `${ps.club} ${ps.rows.length}`).join(", ")}`}
                         </div>
                       </div>
                       {m.unmatched.length > 0 ? (
@@ -2175,6 +2238,8 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
                         </Badge>
                       ) : m.exists && m.goalsOnly ? (
                         <Badge variant="outline" className="shrink-0">match in — {m.goals.length} goal{m.goals.length === 1 ? "" : "s"} missing</Badge>
+                      ) : m.exists && m.statsOnly ? (
+                        <Badge variant="outline" className="shrink-0">match in — line-ups missing</Badge>
                       ) : m.exists ? (
                         <Badge variant="outline" className="shrink-0">already in</Badge>
                       ) : null}

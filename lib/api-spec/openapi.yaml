@@ -3866,7 +3866,38 @@ components:
         goals:
           type: array
           items: { $ref: "#/components/schemas/DriblPreviewGoal" }
-      required: [matchId, round, matchDate, homeTeam, awayTeam, driblHome, driblAway, homeGoals, awayGoals, halfScore, exists, goalsOnly, unmatched, goals]
+        statsOnly: { type: boolean }
+        playerStats:
+          type: array
+          items: { $ref: "#/components/schemas/DriblPreviewClubStats" }
+      required: [matchId, round, matchDate, homeTeam, awayTeam, driblHome, driblAway, homeGoals, awayGoals, halfScore, exists, goalsOnly, unmatched, goals, statsOnly, playerStats]
+
+    DriblPreviewPlayerRow:
+      type: object
+      properties:
+        playerName: { type: string }
+        minsPlayed: { type: integer }
+        started:    { type: boolean }
+        appearance: { type: boolean }
+        position:   { type: ["string", "null"] }
+      required: [playerName, minsPlayed, started, appearance, position]
+
+    DriblPreviewClubStats:
+      type: object
+      properties:
+        club:   { type: string }
+        exists: { type: boolean }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/DriblPreviewPlayerRow" }
+      required: [club, exists, rows]
+
+    DriblNeedLineup:
+      type: object
+      properties:
+        match: { type: string }
+        team:  { type: string }
+      required: [match, team]
 
     DriblPreviewResponse:
       type: object
@@ -3879,7 +3910,10 @@ components:
         needDetail:
           type: array
           items: { type: string }
-      required: [driblSeason, driblLeague, matches, needDetail]
+        needLineups:
+          type: array
+          items: { $ref: "#/components/schemas/DriblNeedLineup" }
+      required: [driblSeason, driblLeague, matches, needDetail, needLineups]
 
     DriblConfigResponse:
       type: object
@@ -3914,6 +3948,17 @@ components:
         name:    { type: string }
       required: [teamId, minute, ownGoal, penalty, name]
 
+    DriblRawSub:
+      type: object
+      properties:
+        teamId:    { type: string }
+        minute:    { type: ["integer", "null"] }
+        outName:   { type: string }
+        inName:    { type: string }
+        outJersey: { type: string }
+        inJersey:  { type: string }
+      required: [teamId, minute, outName, inName, outJersey, inJersey]
+
     DriblRawMatchCentre:
       type: object
       properties:
@@ -3921,10 +3966,38 @@ components:
         homeScoreHt:    { type: ["integer", "null"] }
         awayScoreHt:    { type: ["integer", "null"] }
         homeTeamHashId: { type: string }
+        awayTeamHashId: { type: string }
+        ftFirstHalf:    { type: ["integer", "null"] }
+        ftSecondHalf:   { type: ["integer", "null"] }
         events:
           type: array
           items: { $ref: "#/components/schemas/DriblRawEvent" }
+        subs:
+          type: array
+          items: { $ref: "#/components/schemas/DriblRawSub" }
       required: [matchHashId, homeScoreHt, awayScoreHt, homeTeamHashId, events]
+
+    DriblRawLineupPlayer:
+      type: object
+      properties:
+        firstName:    { type: string }
+        lastName:     { type: string }
+        jersey:       { type: string }
+        starting:     { type: boolean }
+        playing:      { type: boolean }
+        isGoalkeeper: { type: boolean }
+        roleSlug:     { type: string }
+      required: [firstName, lastName, jersey, starting, playing, isGoalkeeper, roleSlug]
+
+    DriblRawLineup:
+      type: object
+      properties:
+        matchHashId: { type: string }
+        teamHashId:  { type: string }
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/DriblRawLineupPlayer" }
+      required: [matchHashId, teamHashId, players]
 
     DriblAssembleBody:
       type: object
@@ -3939,6 +4012,10 @@ components:
           type: array
           maxItems: 500
           items: { $ref: "#/components/schemas/DriblRawMatchCentre" }
+        lineups:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/DriblRawLineup" }
       required: [seasonId, fixtures]
 
     GoalTallyResponse:

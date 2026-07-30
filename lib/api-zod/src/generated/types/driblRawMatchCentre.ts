@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DriblRawEvent } from './driblRawEvent';
+import type { DriblRawSub } from './driblRawSub';
 
 export interface DriblRawMatchCentre {
   matchHashId: string;
@@ -14,5 +15,11 @@ export interface DriblRawMatchCentre {
   /** @nullable */
   awayScoreHt: number | null;
   homeTeamHashId: string;
+  awayTeamHashId?: string;
+  /** @nullable */
+  ftFirstHalf?: number | null;
+  /** @nullable */
+  ftSecondHalf?: number | null;
   events: DriblRawEvent[];
+  subs?: DriblRawSub[];
 }

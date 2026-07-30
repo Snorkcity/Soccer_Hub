@@ -10,7 +10,7 @@
 //        and posts trimmed payloads here for assembly against the database.
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, seasonsTable, leaguesTable, clubsTable } from "@workspace/db";
+import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable } from "@workspace/db";
 import {
   GetDriblPreviewQueryParams,
   GetDriblPreviewResponse,
@@ -145,7 +145,61 @@ type NormFixture = {
 };
 
 type NormEvent = { teamId: string; minute: number | null; ownGoal: boolean; penalty: boolean; name: string };
-type NormDetail = { homeScoreHt: number | null; awayScoreHt: number | null; homeTeamHashId: string; events: NormEvent[] };
+type NormSub = { teamId: string; minute: number | null; outName: string; inName: string; outJersey: string; inJersey: string };
+type NormDetail = {
+  homeScoreHt: number | null; awayScoreHt: number | null;
+  homeTeamHashId: string; awayTeamHashId?: string;
+  ftFirstHalf?: number | null; ftSecondHalf?: number | null;
+  events: NormEvent[]; subs?: NormSub[];
+};
+type NormLineupPlayer = {
+  firstName: string; lastName: string; jersey: string;
+  starting: boolean; playing: boolean; isGoalkeeper: boolean; roleSlug: string;
+};
+
+/**
+ * Turn one team's Dribl line-up + the match's sub events into per-player stat
+ * rows (minutes, started, appearance). Subs are matched by jersey first, name
+ * as fallback. Unused bench players get a row with 0 minutes / no appearance.
+ */
+function computeStatsRows(
+  players: NormLineupPlayer[],
+  subs: NormSub[],
+  teamHashId: string,
+  detail: NormDetail | null,
+  nameFormat: string,
+): Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
+  const first = detail?.ftFirstHalf || 45;
+  const second = detail?.ftSecondHalf || 45;
+  const duration = Math.min(first + second, 130);
+  const teamSubs = subs
+    .filter(s => s.teamId === teamHashId && s.minute != null)
+    .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+
+  const rows: Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> = [];
+  for (const p of players) {
+    if (p.roleSlug && p.roleSlug !== "player") continue; // coaching staff etc.
+    const full = `${p.firstName} ${p.lastName}`.trim();
+    const matchesPlayer = (jersey: string, name: string): boolean =>
+      (jersey !== "" && jersey === p.jersey) || (jersey === "" && name.trim().toLowerCase() === full.toLowerCase());
+    let on: number | null = p.starting ? 0 : null;
+    let off: number | null = null;
+    for (const s of teamSubs) {
+      if (on == null && matchesPlayer(s.inJersey, s.inName)) on = s.minute;
+      else if (on != null && off == null && matchesPlayer(s.outJersey, s.outName)) off = s.minute;
+    }
+    const appeared = on != null;
+    const mins = appeared ? Math.max(0, Math.min((off ?? duration) - (on ?? 0), duration)) : 0;
+    rows.push({
+      playerName: formatPlayerName(full, nameFormat),
+      minsPlayed: mins,
+      started: p.starting,
+      appearance: appeared,
+      position: p.isGoalkeeper ? "GK" : null,
+    });
+  }
+  return rows;
+}
 
 async function loadSeasonRow(seasonId: number): Promise<SeasonRow | undefined> {
   const [row] = await db
@@ -172,7 +226,8 @@ async function buildPreview(
   seasonRow: SeasonRow,
   fixtures: NormFixture[],
   getDetail: (hash: string) => Promise<NormDetail | null>,
-): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[] }> {
+  getLineup?: (matchHash: string, teamHash: string) => Promise<NormLineupPlayer[] | null>,
+): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }> }> {
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
   // Existing matches are matched on round + home + away (with match-date as a
@@ -203,8 +258,23 @@ async function buildPreview(
     goalsByMatch.set(g.matchId, list);
   }
 
+  // Player stats already saved per match+club — line-ups are only offered for
+  // clubs with no rows yet, so hand-entered team sheets are never clobbered.
+  const statsRows = await db
+    .selectDistinct({ matchId: leaguePlayerStatsTable.matchId, club: leaguePlayerStatsTable.club })
+    .from(leaguePlayerStatsTable)
+    .where(eq(leaguePlayerStatsTable.seasonId, seasonId));
+  const statsByMatch = new Map<string, Set<string>>();
+  for (const s of statsRows) {
+    if (!s.club) continue;
+    const set = statsByMatch.get(s.matchId) ?? new Set<string>();
+    set.add(s.club);
+    statsByMatch.set(s.matchId, set);
+  }
+
   const matches: Array<Record<string, unknown>> = [];
   const needDetail: string[] = [];
+  const needLineups: Array<{ match: string; team: string }> = [];
   for (const f of fixtures) {
     if (f.status !== "complete" || f.homeScore == null || f.awayScore == null) continue;
     const home = matchClub(f.homeTeamName, clubs);
@@ -231,16 +301,34 @@ async function buildPreview(
     let halfScore: string | null =
       f.homeScoreHt != null && f.awayScoreHt != null ? `${f.homeScoreHt}-${f.awayScoreHt}` : null;
     const goals: Array<{ scorerTeam: string; scorer: string; minute: number | null; ownGoal: boolean; penalty: boolean }> = [];
-    if (home && away && (!exists || goalsShort)) {
+    // Which clubs still need player rows (line-ups) for this game?
+    const savedStatsClubs = statsByMatch.get(matchId) ?? new Set<string>();
+    const statsWanted: Array<{ club: string; side: "home" | "away" }> = [];
+    if (getLineup && home && !savedStatsClubs.has(home)) statsWanted.push({ club: home, side: "home" });
+    if (getLineup && away && !savedStatsClubs.has(away)) statsWanted.push({ club: away, side: "away" });
+    const playerStats: Array<{ club: string; exists: boolean; rows: unknown[] }> = [];
+    if (home && away && (!exists || goalsShort || statsWanted.length > 0)) {
       try {
         const detail = await getDetail(f.matchHashId);
         if (!detail) {
           needDetail.push(f.matchHashId);
         } else {
+          // Line-ups: one fetch per team that still needs player rows.
+          for (const w of statsWanted) {
+            const teamHash = w.side === "home" ? detail.homeTeamHashId : detail.awayTeamHashId;
+            if (!teamHash) continue;
+            const players = await getLineup!(f.matchHashId, teamHash);
+            if (players == null) {
+              needLineups.push({ match: f.matchHashId, team: teamHash });
+            } else if (players.length > 0) {
+              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname");
+              if (rows.length > 0) playerStats.push({ club: w.club, exists: false, rows });
+            }
+          }
           if (halfScore == null && detail.homeScoreHt != null && detail.awayScoreHt != null) {
             halfScore = `${detail.homeScoreHt}-${detail.awayScoreHt}`;
           }
-          for (const ev of detail.events) {
+          for (const ev of (!exists || goalsShort) ? detail.events : []) {
             const scorersClub = ev.teamId === detail.homeTeamHashId ? home : away;
             const creditedClub = ev.ownGoal ? (scorersClub === home ? away : home) : scorersClub;
             goals.push({
@@ -274,6 +362,8 @@ async function buildPreview(
       halfScore, exists, unmatched,
       goalsOnly: exists && finalGoals.length > 0,
       goals: finalGoals,
+      statsOnly: exists && finalGoals.length === 0 && playerStats.length > 0,
+      playerStats,
     });
   }
 
@@ -288,7 +378,7 @@ async function buildPreview(
   }
 
   matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
-  return { matches, needDetail };
+  return { matches, needDetail, needLineups };
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -365,26 +455,58 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       if (!cursor) break;
     }
 
-    const { matches } = await buildPreview(seasonId, seasonRow, fixtures, async (hash) => {
-      const mc = await driblGet(`/matchcentre/${hash}`, { tenant });
-      const a = mc?.data?.attributes ?? {};
-      return {
-        homeScoreHt: a.home_score_ht ?? null,
-        awayScoreHt: a.away_score_ht ?? null,
-        homeTeamHashId: String(a.home_team_hash_id ?? ""),
-        events: (a.match_events ?? [])
-          .filter((ev: any) => ev.type === "goal")
-          .map((ev: any) => ({
-            teamId: String(ev.team_id ?? ""),
-            minute: typeof ev.minute === "number" ? ev.minute : null,
-            ownGoal: Boolean(ev.own_goal),
-            penalty: Boolean(ev.penalty_kick),
-            name: String(ev.name ?? ""),
-          })),
-      };
-    });
+    const { matches } = await buildPreview(
+      seasonId, seasonRow, fixtures,
+      async (hash) => {
+        const mc = await driblGet(`/matchcentre/${hash}`, { tenant });
+        const a = mc?.data?.attributes ?? {};
+        return {
+          homeScoreHt: a.home_score_ht ?? null,
+          awayScoreHt: a.away_score_ht ?? null,
+          homeTeamHashId: String(a.home_team_hash_id ?? ""),
+          awayTeamHashId: String(a.away_team_hash_id ?? ""),
+          ftFirstHalf: typeof a.ft_first_half_duration === "number" ? a.ft_first_half_duration : null,
+          ftSecondHalf: typeof a.ft_second_half_duration === "number" ? a.ft_second_half_duration : null,
+          events: (a.match_events ?? [])
+            .filter((ev: any) => ev.type === "goal")
+            .map((ev: any) => ({
+              teamId: String(ev.team_id ?? ""),
+              minute: typeof ev.minute === "number" ? ev.minute : null,
+              ownGoal: Boolean(ev.own_goal),
+              penalty: Boolean(ev.penalty_kick),
+              name: String(ev.name ?? ""),
+            })),
+          subs: (a.match_events ?? [])
+            .filter((ev: any) => ev.type === "sub")
+            .map((ev: any) => ({
+              teamId: String(ev.team_id ?? ""),
+              minute: typeof ev.minute === "number" ? ev.minute : null,
+              outName: String(ev.out_name ?? ""), inName: String(ev.in_name ?? ""),
+              outJersey: String(ev.out_jersey ?? ""), inJersey: String(ev.in_jersey ?? ""),
+            })),
+        };
+      },
+      async (matchHash, teamHash) => {
+        try {
+          const lu = await driblGet(`/matchcentre-match-members/match/${matchHash}/team/${teamHash}`, { tenant });
+          const rows = Array.isArray(lu) ? lu : lu?.data ?? [];
+          return rows.map((r: any) => {
+            const a = r?.attributes ?? r ?? {};
+            return {
+              firstName: String(a.first_name ?? ""), lastName: String(a.last_name ?? ""),
+              jersey: String(a.jersey ?? ""),
+              starting: Boolean(a.starting), playing: Boolean(a.playing),
+              isGoalkeeper: Boolean(a.is_goalkeeper), roleSlug: String(a.role_slug ?? "player"),
+            };
+          });
+        } catch (e) {
+          logger.warn({ matchHash, teamHash, err: String(e) }, "Dribl line-up fetch failed — skipping player rows");
+          return [];
+        }
+      },
+    );
 
-    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [] }));
+    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [] }));
   } catch (e) {
     logger.error({ err: String(e) }, "Dribl preview failed");
     res.status(502).json({ error: `Couldn't reach Dribl: ${e instanceof Error ? e.message : String(e)}` });
@@ -417,20 +539,36 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
     detailByHash.set(mc.matchHashId, {
       homeScoreHt: mc.homeScoreHt, awayScoreHt: mc.awayScoreHt,
       homeTeamHashId: mc.homeTeamHashId,
+      awayTeamHashId: mc.awayTeamHashId,
+      ftFirstHalf: mc.ftFirstHalf ?? null,
+      ftSecondHalf: mc.ftSecondHalf ?? null,
       events: mc.events.map((ev: { teamId: string; minute: number | null; ownGoal: boolean; penalty: boolean; name: string }) => ({
         teamId: ev.teamId, minute: ev.minute, ownGoal: ev.ownGoal, penalty: ev.penalty, name: ev.name,
       })),
+      subs: (mc.subs ?? []).map(s => ({
+        teamId: s.teamId, minute: s.minute,
+        outName: s.outName, inName: s.inName,
+        outJersey: s.outJersey, inJersey: s.inJersey,
+      })),
     });
   }
+  const lineupByKey = new Map<string, NormLineupPlayer[]>();
+  for (const lu of b.lineups ?? []) {
+    lineupByKey.set(`${lu.matchHashId}|${lu.teamHashId}`, lu.players.map(p => ({
+      firstName: p.firstName, lastName: p.lastName, jersey: p.jersey,
+      starting: p.starting, playing: p.playing, isGoalkeeper: p.isGoalkeeper, roleSlug: p.roleSlug,
+    })));
+  }
 
-  const { matches, needDetail } = await buildPreview(
+  const { matches, needDetail, needLineups } = await buildPreview(
     b.seasonId, seasonRow, b.fixtures,
     async (hash) => detailByHash.get(hash) ?? null,
+    async (matchHash, teamHash) => lineupByKey.get(`${matchHash}|${teamHash}`) ?? null,
   );
 
   res.json(GetDriblPreviewResponse.parse({
     driblSeason: b.driblSeason ?? seasonRow.year,
-    driblLeague, matches, needDetail,
+    driblLeague, matches, needDetail, needLineups,
   }));
 });
 
