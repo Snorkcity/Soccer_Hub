@@ -175,9 +175,21 @@ async function buildPreview(
 ): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[] }> {
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
-  const existingIds = new Set((await db.select({ matchId: leagueMatchesTable.matchId })
-    .from(leagueMatchesTable)
-    .where(eq(leagueMatchesTable.seasonId, seasonId))).map(r => r.matchId));
+  // Existing matches are matched on round + home + away (with match-date as a
+  // backup), NOT on the match-ID string — hand-entered games use their own club
+  // codes (e.g. BELR vs BEL) so rebuilding the ID from club names won't line up.
+  const existingRows = await db.select({
+    matchId: leagueMatchesTable.matchId,
+    matchDate: leagueMatchesTable.matchDate,
+    homeTeam: leagueMatchesTable.homeTeam,
+    awayTeam: leagueMatchesTable.awayTeam,
+  }).from(leagueMatchesTable).where(eq(leagueMatchesTable.seasonId, seasonId));
+  const existingByKey = new Map<string, string>(); // lookup key -> existing matchId
+  for (const r of existingRows) {
+    const roundFromId = /^R(\d+)-/.exec(r.matchId)?.[1];
+    if (roundFromId) existingByKey.set(`r${roundFromId}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
+    if (r.matchDate) existingByKey.set(`d${r.matchDate}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
+  }
   // Goals already logged per match — so a re-sync can top up missing goals
   // (e.g. after a partial import) without ever duplicating rows.
   const goalRows = await db
@@ -201,8 +213,14 @@ async function buildPreview(
     if (!home) unmatched.push(f.homeTeamName);
     if (!away) unmatched.push(f.awayTeamName);
     const round = parseInt(f.fullRound.replace(/\D/g, ""), 10) || 0;
-    const matchId = home && away ? `R${round}-${clubCode(home)}-${clubCode(away)}` : `R${round}-?`;
-    const exists = existingIds.has(matchId);
+    const localDate = toLocalDbDate(f.date);
+    const existingId = home && away
+      ? existingByKey.get(`r${round}|${home}|${away}`) ?? (localDate ? existingByKey.get(`d${localDate}|${home}|${away}`) : undefined)
+      : undefined;
+    // Reuse the hand-entered match ID when the game is already recorded, so
+    // goal top-ups land on the right row instead of creating a duplicate.
+    const matchId = existingId ?? (home && away ? `R${round}-${clubCode(home)}-${clubCode(away)}` : `R${round}-?`);
+    const exists = existingId != null;
     // For matches already recorded, only re-fetch detail when the logged goal
     // count falls short of the scoreline (a partial import worth topping up).
     const loggedGoals = goalsByMatch.get(matchId) ?? [];
@@ -249,7 +267,7 @@ async function buildPreview(
 
     matches.push({
       matchId, round,
-      matchDate: toLocalDbDate(f.date),
+      matchDate: localDate,
       homeTeam: home ?? "", awayTeam: away ?? "",
       driblHome: f.homeTeamName, driblAway: f.awayTeamName,
       homeGoals: f.homeScore, awayGoals: f.awayScore,

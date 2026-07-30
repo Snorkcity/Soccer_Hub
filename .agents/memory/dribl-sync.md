@@ -14,3 +14,5 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 - Dribl league feed name is derived from our league name in `driblLeagueNameFor`: NPLM → "NPLM 1st Grade", NPLW → "NPLW 1st Grade", NPLW Reserves → "NPLW Reserve Grade". Extend there for new leagues; check `/NPLW.*Reserve/` style specifics before the broader match.
 
 **Why:** Dribl runs all AU federated leagues, so this pattern generalises to any club/league later.
+
+**Matching existing games:** never match on the rebuilt match-ID string — hand-entered IDs use their own club codes (e.g. BELR vs BEL). Match on round+home+away (fallback date+home+away) and reuse the existing match ID so top-ups hit the right row.
