@@ -17,4 +17,5 @@ export interface EntryPlayerStatsBody {
   /** @nullable */
   year?: string | null;
   rows: EntryPlayerRow[];
+  ifMissing?: boolean;
 }

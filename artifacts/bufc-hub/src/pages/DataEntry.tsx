@@ -2137,6 +2137,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               teamId, seasonId,
               matchId: m.matchId,
               club: ps.club,
+              ifMissing: true,
               rows: ps.rows.map(r => ({
                 playerName: r.playerName,
                 minsPlayed: r.minsPlayed,
@@ -2237,7 +2238,9 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
                           {m.unmatched.some(u => u.startsWith("Match ID clash")) ? "match ID clash" : "unknown club — add it in League Setup"}
                         </Badge>
                       ) : m.exists && m.goalsOnly ? (
-                        <Badge variant="outline" className="shrink-0">match in — {m.goals.length} goal{m.goals.length === 1 ? "" : "s"} missing</Badge>
+                        <Badge variant="outline" className="shrink-0">
+                          match in — {m.goals.length} goal{m.goals.length === 1 ? "" : "s"}{m.playerStats.length > 0 ? " + line-ups" : ""} missing
+                        </Badge>
                       ) : m.exists && m.statsOnly ? (
                         <Badge variant="outline" className="shrink-0">match in — line-ups missing</Badge>
                       ) : m.exists ? (

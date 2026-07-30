@@ -10,4 +10,5 @@ export interface EntryPlayerStatsResponse {
   saved: number;
   replaced: number;
   belconnenCopies: number;
+  skipped?: boolean;
 }

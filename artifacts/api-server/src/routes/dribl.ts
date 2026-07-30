@@ -181,7 +181,8 @@ function computeStatsRows(
     if (p.roleSlug && p.roleSlug !== "player") continue; // coaching staff etc.
     const full = `${p.firstName} ${p.lastName}`.trim();
     const matchesPlayer = (jersey: string, name: string): boolean =>
-      (jersey !== "" && jersey === p.jersey) || (jersey === "" && name.trim().toLowerCase() === full.toLowerCase());
+      (jersey !== "" && p.jersey !== "" && jersey === p.jersey) ||
+      name.trim().toLowerCase() === full.toLowerCase();
     let on: number | null = p.starting ? 0 : null;
     let off: number | null = null;
     for (const s of teamSubs) {

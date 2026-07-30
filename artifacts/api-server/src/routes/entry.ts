@@ -480,6 +480,24 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
   const year = b.year ?? (fixture.matchDate ? fixture.matchDate.slice(0, 4) : null);
   const focusClub = await focusClubForRequest(req, b.seasonId);
 
+  // Dribl imports send ifMissing so a sync can never overwrite rows that were
+  // hand-entered (or imported) between preview and import.
+  if (b.ifMissing) {
+    const [existing] = await db
+      .select({ id: leaguePlayerStatsTable.id })
+      .from(leaguePlayerStatsTable)
+      .where(and(
+        eq(leaguePlayerStatsTable.matchId, b.matchId),
+        eq(leaguePlayerStatsTable.seasonId, b.seasonId),
+        eq(leaguePlayerStatsTable.club, b.club),
+      ))
+      .limit(1);
+    if (existing) {
+      res.json(SaveEntryPlayerStatsResponse.parse({ saved: 0, replaced: 0, belconnenCopies: 0, skipped: true }));
+      return;
+    }
+  }
+
   // Single transaction: replace (delete+insert) both the league rows and the
   // legacy mirror atomically — a failed insert can never wipe existing rows.
   const { replaced, belconnenCopies } = await db.transaction(async (tx) => {

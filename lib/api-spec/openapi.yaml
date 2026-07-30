@@ -4086,6 +4086,7 @@ components:
         rows:
           type: array
           items: { $ref: "#/components/schemas/EntryPlayerRow" }
+        ifMissing: { type: boolean }
       required: [teamId, seasonId, matchId, club, rows]
 
     EntryPlayerStatsResponse:
@@ -4094,6 +4095,7 @@ components:
         saved:           { type: integer }
         replaced:        { type: integer }
         belconnenCopies: { type: integer }
+        skipped:         { type: boolean }
       required: [saved, replaced, belconnenCopies]
 
     EntrySavedPlayerRow:

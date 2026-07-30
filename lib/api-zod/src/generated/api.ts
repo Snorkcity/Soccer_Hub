@@ -2309,13 +2309,15 @@ export const SaveEntryPlayerStatsBody = zod.object({
   "discipline": zod.string().nullish(),
   "started": zod.boolean(),
   "appearance": zod.boolean()
-}))
+})),
+  "ifMissing": zod.boolean().optional()
 })
 
 export const SaveEntryPlayerStatsResponse = zod.object({
   "saved": zod.number(),
   "replaced": zod.number(),
-  "belconnenCopies": zod.number()
+  "belconnenCopies": zod.number(),
+  "skipped": zod.boolean().optional()
 })
 
 

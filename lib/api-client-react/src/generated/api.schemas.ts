@@ -1688,12 +1688,14 @@ export interface EntryPlayerStatsBody {
   /** @nullable */
   year?: string | null;
   rows: EntryPlayerRow[];
+  ifMissing?: boolean;
 }
 
 export interface EntryPlayerStatsResponse {
   saved: number;
   replaced: number;
   belconnenCopies: number;
+  skipped?: boolean;
 }
 
 export interface EntrySavedPlayerRow {
