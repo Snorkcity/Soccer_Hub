@@ -14,6 +14,7 @@ export const usersTable = pgTable("users", {
   isSuperadmin: boolean("is_superadmin").default(false).notNull(),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull(),
+  lastLoginAt:  timestamp("last_login_at"),
 }, (t) => [
   uniqueIndex("users_email_unique").on(t.email),
 ]);

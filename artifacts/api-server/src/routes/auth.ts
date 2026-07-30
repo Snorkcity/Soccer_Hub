@@ -115,6 +115,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
   setSessionCookie(res, row.id);
+  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, row.id));
   // Build the status from a fresh session-user shape
   const access = await db.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, row.id));
   const user: SessionUser = {
@@ -321,6 +322,7 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     isSuperadmin: row.isSuperadmin,
     leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
     createdAt: row.createdAt.toISOString(),
+    lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
   })));
 });
 

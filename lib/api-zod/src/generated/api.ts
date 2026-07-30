@@ -1734,7 +1734,8 @@ export const ListUsersResponseItem = zod.object({
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastLoginAt": zod.string().nullable()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
@@ -1766,7 +1767,8 @@ export const CreateUserResponse = zod.object({
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastLoginAt": zod.string().nullable()
 })
 
 
@@ -1813,7 +1815,8 @@ export const UpdateUserResponse = zod.object({
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastLoginAt": zod.string().nullable()
 })
 
 

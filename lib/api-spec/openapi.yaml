@@ -3724,7 +3724,8 @@ components:
           type: array
           items: { $ref: "#/components/schemas/LeagueAccess" }
         createdAt: { type: string }
-      required: [id, email, name, isSuperadmin, leagues, createdAt]
+        lastLoginAt: { type: string, nullable: true }
+      required: [id, email, name, isSuperadmin, leagues, createdAt, lastLoginAt]
 
     CreateUserRequest:
       type: object

@@ -92,6 +92,13 @@ export default function Users() {
     setEditorErr(null);
     setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {}, leagueClubs: {} });
   }
+  function formatLastLogin(iso: string): string {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+    const time = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+    return `${date}, ${time}`;
+  }
+
   function openEdit(u: UserInfo) {
     setEditorErr(null);
     const leagueModules: Record<number, string[]> = {};
@@ -169,7 +176,15 @@ export default function Users() {
                           <Badge variant="secondary" className="gap-1"><ShieldCheck className="h-3 w-3" />Superadmin</Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {u.email}
+                        <span className="mx-1.5 text-border">·</span>
+                        {u.lastLoginAt ? (
+                          <span>Last login {formatLastLogin(u.lastLoginAt)}</span>
+                        ) : (
+                          <span className="italic">Never logged in</span>
+                        )}
+                      </div>
                       {u.isSuperadmin ? (
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           <Badge variant="outline" className="text-xs">Everything</Badge>

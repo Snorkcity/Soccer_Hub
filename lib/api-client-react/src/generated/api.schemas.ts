@@ -1322,6 +1322,7 @@ export interface UserInfo {
   isSuperadmin: boolean;
   leagues: LeagueAccess[];
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface CreateUserRequest {

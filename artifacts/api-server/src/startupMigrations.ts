@@ -982,6 +982,9 @@ async function runUserAccountsMigration(): Promise<void> {
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS password_reset_tokens_hash_unique ON password_reset_tokens (token_hash)`);
 
+  // Last-login tracking (2026-07): stamped on every successful login.
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp`);
+
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;
