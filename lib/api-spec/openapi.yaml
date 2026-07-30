@@ -1612,7 +1612,39 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EntryGoalResponse" }
 
+  /entry/dribl-config:
+    get:
+      operationId: getDriblConfig
+      tags: [entry]
+      summary: What the browser should fetch from Dribl when the server itself is blocked by Cloudflare
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Dribl league feed name and season year for this season
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblConfigResponse" }
+
   /entry/dribl-preview:
+    post:
+      operationId: assembleDriblPreview
+      tags: [entry]
+      summary: Assemble an import preview from browser-fetched Dribl JSON (fallback when the server can't reach Dribl)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DriblAssembleBody" }
+      responses:
+        "200":
+          description: Preview (needDetail lists fixture hashes the browser must fetch match-centre data for)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblPreviewResponse" }
     get:
       operationId: getDriblPreview
       tags: [entry]
@@ -3843,7 +3875,67 @@ components:
         matches:
           type: array
           items: { $ref: "#/components/schemas/DriblPreviewMatch" }
-      required: [driblSeason, driblLeague, matches]
+        needDetail:
+          type: array
+          items: { type: string }
+      required: [driblSeason, driblLeague, matches, needDetail]
+
+    DriblConfigResponse:
+      type: object
+      properties:
+        driblLeague: { type: string }
+        driblYear:   { type: string }
+      required: [driblLeague, driblYear]
+
+    DriblRawFixture:
+      type: object
+      properties:
+        fullRound:    { type: string }
+        date:         { type: string }
+        status:       { type: string }
+        homeTeamName: { type: string }
+        awayTeamName: { type: string }
+        homeScore:    { type: ["integer", "null"] }
+        awayScore:    { type: ["integer", "null"] }
+        matchHashId:  { type: string }
+      required: [fullRound, date, status, homeTeamName, awayTeamName, homeScore, awayScore, matchHashId]
+
+    DriblRawEvent:
+      type: object
+      properties:
+        teamId:  { type: string }
+        minute:  { type: ["integer", "null"] }
+        ownGoal: { type: boolean }
+        penalty: { type: boolean }
+        name:    { type: string }
+      required: [teamId, minute, ownGoal, penalty, name]
+
+    DriblRawMatchCentre:
+      type: object
+      properties:
+        matchHashId:    { type: string }
+        homeScoreHt:    { type: ["integer", "null"] }
+        awayScoreHt:    { type: ["integer", "null"] }
+        homeTeamHashId: { type: string }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/DriblRawEvent" }
+      required: [matchHashId, homeScoreHt, awayScoreHt, homeTeamHashId, events]
+
+    DriblAssembleBody:
+      type: object
+      properties:
+        seasonId:    { type: integer }
+        driblSeason: { type: ["string", "null"] }
+        fixtures:
+          type: array
+          maxItems: 2000
+          items: { $ref: "#/components/schemas/DriblRawFixture" }
+        matchCentres:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/DriblRawMatchCentre" }
+      required: [seasonId, fixtures]
 
     GoalTallyResponse:
       type: object

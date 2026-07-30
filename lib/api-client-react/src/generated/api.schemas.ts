@@ -1507,6 +1507,54 @@ export interface DriblPreviewResponse {
   driblSeason: string;
   driblLeague: string;
   matches: DriblPreviewMatch[];
+  needDetail: string[];
+}
+
+export interface DriblConfigResponse {
+  driblLeague: string;
+  driblYear: string;
+}
+
+export interface DriblRawFixture {
+  fullRound: string;
+  date: string;
+  status: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  /** @nullable */
+  homeScore: number | null;
+  /** @nullable */
+  awayScore: number | null;
+  matchHashId: string;
+}
+
+export interface DriblRawEvent {
+  teamId: string;
+  /** @nullable */
+  minute: number | null;
+  ownGoal: boolean;
+  penalty: boolean;
+  name: string;
+}
+
+export interface DriblRawMatchCentre {
+  matchHashId: string;
+  /** @nullable */
+  homeScoreHt: number | null;
+  /** @nullable */
+  awayScoreHt: number | null;
+  homeTeamHashId: string;
+  events: DriblRawEvent[];
+}
+
+export interface DriblAssembleBody {
+  seasonId: number;
+  /** @nullable */
+  driblSeason?: string | null;
+  /** @maxItems 2000 */
+  fixtures: DriblRawFixture[];
+  /** @maxItems 500 */
+  matchCentres?: DriblRawMatchCentre[];
 }
 
 export interface GoalTallyResponse {
@@ -2600,6 +2648,10 @@ matchId: string;
 export type ListEntryGoalsParams = {
 seasonId: number;
 matchId: string;
+};
+
+export type GetDriblConfigParams = {
+seasonId: number;
 };
 
 export type GetDriblPreviewParams = {

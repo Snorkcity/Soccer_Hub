@@ -11,4 +11,5 @@ export interface DriblPreviewResponse {
   driblSeason: string;
   driblLeague: string;
   matches: DriblPreviewMatch[];
+  needDetail: string[];
 }

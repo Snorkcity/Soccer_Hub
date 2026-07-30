@@ -2070,6 +2070,85 @@ export const CreateEntryGoalResponse = zod.object({
 
 
 /**
+ * @summary What the browser should fetch from Dribl when the server itself is blocked by Cloudflare
+ */
+export const GetDriblConfigQueryParams = zod.object({
+  "seasonId": zod.coerce.number()
+})
+
+export const GetDriblConfigResponse = zod.object({
+  "driblLeague": zod.string(),
+  "driblYear": zod.string()
+})
+
+
+/**
+ * @summary Assemble an import preview from browser-fetched Dribl JSON (fallback when the server can't reach Dribl)
+ */
+export const assembleDriblPreviewBodyFixturesMax = 2000;
+
+export const assembleDriblPreviewBodyMatchCentresMax = 500;
+
+
+
+export const AssembleDriblPreviewBody = zod.object({
+  "seasonId": zod.number(),
+  "driblSeason": zod.string().nullish(),
+  "fixtures": zod.array(zod.object({
+  "fullRound": zod.string(),
+  "date": zod.string(),
+  "status": zod.string(),
+  "homeTeamName": zod.string(),
+  "awayTeamName": zod.string(),
+  "homeScore": zod.number().nullable(),
+  "awayScore": zod.number().nullable(),
+  "matchHashId": zod.string()
+})).max(assembleDriblPreviewBodyFixturesMax),
+  "matchCentres": zod.array(zod.object({
+  "matchHashId": zod.string(),
+  "homeScoreHt": zod.number().nullable(),
+  "awayScoreHt": zod.number().nullable(),
+  "homeTeamHashId": zod.string(),
+  "events": zod.array(zod.object({
+  "teamId": zod.string(),
+  "minute": zod.number().nullable(),
+  "ownGoal": zod.boolean(),
+  "penalty": zod.boolean(),
+  "name": zod.string()
+}))
+})).max(assembleDriblPreviewBodyMatchCentresMax).optional()
+})
+
+export const AssembleDriblPreviewResponse = zod.object({
+  "driblSeason": zod.string(),
+  "driblLeague": zod.string(),
+  "matches": zod.array(zod.object({
+  "matchId": zod.string(),
+  "round": zod.number(),
+  "matchDate": zod.string(),
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "driblHome": zod.string(),
+  "driblAway": zod.string(),
+  "homeGoals": zod.number(),
+  "awayGoals": zod.number(),
+  "halfScore": zod.string().nullable(),
+  "exists": zod.boolean(),
+  "goalsOnly": zod.boolean(),
+  "unmatched": zod.array(zod.string()),
+  "goals": zod.array(zod.object({
+  "scorerTeam": zod.string(),
+  "scorer": zod.string(),
+  "minute": zod.number().nullable(),
+  "ownGoal": zod.boolean(),
+  "penalty": zod.boolean()
+}))
+})),
+  "needDetail": zod.array(zod.string())
+})
+
+
+/**
  * @summary Fetch season results from Dribl (Capital Football) and return an import preview
  */
 export const GetDriblPreviewQueryParams = zod.object({
@@ -2100,7 +2179,8 @@ export const GetDriblPreviewResponse = zod.object({
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean()
 }))
-}))
+})),
+  "needDetail": zod.array(zod.string())
 })
 
 

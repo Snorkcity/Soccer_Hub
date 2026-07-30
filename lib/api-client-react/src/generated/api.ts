@@ -34,6 +34,8 @@ import type {
   ClutchGoalsResponse,
   CreateUserRequest,
   DeleteEntryPlayerStatsParams,
+  DriblAssembleBody,
+  DriblConfigResponse,
   DriblPreviewResponse,
   EntryAthleticTestsSaveRequest,
   EntryAthleticTestsSaveResponse,
@@ -58,6 +60,7 @@ import type {
   ForgotPasswordRequest,
   GetAssistsByOpponentParams,
   GetClutchGoalsParams,
+  GetDriblConfigParams,
   GetDriblPreviewParams,
   GetGoalBreakdownParams,
   GetGoalCombosParams,
@@ -5904,6 +5907,161 @@ export const useCreateEntryGoal = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateEntryGoalMutationOptions(options));
+    }
+
+export const getGetDriblConfigUrl = (params: GetDriblConfigParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/dribl-config?${stringifiedParams}` : `/api/entry/dribl-config`
+}
+
+/**
+ * @summary What the browser should fetch from Dribl when the server itself is blocked by Cloudflare
+ */
+export const getDriblConfig = async (params: GetDriblConfigParams, options?: RequestInit): Promise<DriblConfigResponse> => {
+
+  return customFetch<DriblConfigResponse>(getGetDriblConfigUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDriblConfigQueryKey = (params?: GetDriblConfigParams,) => {
+    return [
+    `/api/entry/dribl-config`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDriblConfigQueryOptions = <TData = Awaited<ReturnType<typeof getDriblConfig>>, TError = ErrorType<unknown>>(params: GetDriblConfigParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDriblConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDriblConfigQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDriblConfig>>> = ({ signal }) => getDriblConfig(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDriblConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDriblConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getDriblConfig>>>
+export type GetDriblConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the browser should fetch from Dribl when the server itself is blocked by Cloudflare
+ */
+
+export function useGetDriblConfig<TData = Awaited<ReturnType<typeof getDriblConfig>>, TError = ErrorType<unknown>>(
+ params: GetDriblConfigParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDriblConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDriblConfigQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssembleDriblPreviewUrl = () => {
+
+
+
+
+  return `/api/entry/dribl-preview`
+}
+
+/**
+ * @summary Assemble an import preview from browser-fetched Dribl JSON (fallback when the server can't reach Dribl)
+ */
+export const assembleDriblPreview = async (driblAssembleBody: DriblAssembleBody, options?: RequestInit): Promise<DriblPreviewResponse> => {
+
+  return customFetch<DriblPreviewResponse>(getAssembleDriblPreviewUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driblAssembleBody)
+  }
+);}
+
+
+
+
+
+export const getAssembleDriblPreviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assembleDriblPreview>>, TError,{data: BodyType<DriblAssembleBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assembleDriblPreview>>, TError,{data: BodyType<DriblAssembleBody>}, TContext> => {
+
+const mutationKey = ['assembleDriblPreview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assembleDriblPreview>>, {data: BodyType<DriblAssembleBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  assembleDriblPreview(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssembleDriblPreviewMutationResult = NonNullable<Awaited<ReturnType<typeof assembleDriblPreview>>>
+    export type AssembleDriblPreviewMutationBody = BodyType<DriblAssembleBody>
+    export type AssembleDriblPreviewMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Assemble an import preview from browser-fetched Dribl JSON (fallback when the server can't reach Dribl)
+ */
+export const useAssembleDriblPreview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assembleDriblPreview>>, TError,{data: BodyType<DriblAssembleBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assembleDriblPreview>>,
+        TError,
+        {data: BodyType<DriblAssembleBody>},
+        TContext
+      > => {
+      return useMutation(getAssembleDriblPreviewMutationOptions(options));
     }
 
 export const getGetDriblPreviewUrl = (params: GetDriblPreviewParams,) => {

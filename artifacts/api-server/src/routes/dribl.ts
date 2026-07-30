@@ -1,11 +1,23 @@
 // ── Dribl sync (Capital Football) ─────────────────────────────────────────────
 // Reads public fixture/result data from the Dribl match-centre API that powers
 // capital.dribl.com and turns it into an import preview for Data Entry.
-// Cloudflare blocks bare requests, so every call sends browser-like headers.
+//
+// Two paths produce the same preview:
+//   GET  /entry/dribl-preview — the server fetches from Dribl itself (works in
+//        dev; Cloudflare may block hosting-provider IPs in production).
+//   POST /entry/dribl-preview — the browser fetches the raw Dribl JSON (home
+//        connections pass Cloudflare; mc-api sends Access-Control-Allow-Origin *)
+//        and posts trimmed payloads here for assembly against the database.
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, leagueMatchesTable, leagueGoalsTable, seasonsTable, leaguesTable, clubsTable } from "@workspace/db";
-import { GetDriblPreviewQueryParams, GetDriblPreviewResponse } from "@workspace/api-zod";
+import {
+  GetDriblPreviewQueryParams,
+  GetDriblPreviewResponse,
+  GetDriblConfigQueryParams,
+  GetDriblConfigResponse,
+  AssembleDriblPreviewBody,
+} from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -31,7 +43,7 @@ function driblLeagueNameFor(leagueName: string): string | null {
 
 // Cloudflare fingerprints Node's TLS stack and returns 403 for fetch/https
 // requests even with browser headers, but curl's fingerprint passes. So all
-// Dribl calls shell out to curl (present on Replit dev and the Railway image).
+// server-side Dribl calls shell out to curl.
 async function driblGet(path: string, params: Record<string, string>): Promise<any> {
   const url = new URL(`${DRIBL_API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -102,15 +114,22 @@ function formatPlayerName(full: string, nameFormat: string): string {
   return `${parts[0][0]}.${surname}`;
 }
 
-router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
-  const query = GetDriblPreviewQueryParams.safeParse(req.query);
-  if (!query.success) {
-    res.status(400).json({ error: query.error.message });
-    return;
-  }
-  const { seasonId } = query.data;
+// ── Shared assembly ───────────────────────────────────────────────────────────
 
-  const [seasonRow] = await db
+type SeasonRow = { year: string; leagueId: number; leagueName: string; nameFormat: string | null };
+
+type NormFixture = {
+  fullRound: string; date: string; status: string;
+  homeTeamName: string; awayTeamName: string;
+  homeScore: number | null; awayScore: number | null;
+  matchHashId: string;
+};
+
+type NormEvent = { teamId: string; minute: number | null; ownGoal: boolean; penalty: boolean; name: string };
+type NormDetail = { homeScoreHt: number | null; awayScoreHt: number | null; homeTeamHashId: string; events: NormEvent[] };
+
+async function loadSeasonRow(seasonId: number): Promise<SeasonRow | undefined> {
+  const [row] = await db
     .select({
       year: seasonsTable.year,
       leagueId: seasonsTable.leagueId,
@@ -120,6 +139,149 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId));
+  return row;
+}
+
+/**
+ * Turn a list of Dribl fixtures into the import preview. `getDetail` supplies
+ * match-centre detail (HT score + goal events) for a fixture hash, or null when
+ * unavailable — in which case the hash is added to `needDetail` so the caller
+ * can fetch it and re-assemble.
+ */
+async function buildPreview(
+  seasonId: number,
+  seasonRow: SeasonRow,
+  fixtures: NormFixture[],
+  getDetail: (hash: string) => Promise<NormDetail | null>,
+): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[] }> {
+  const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
+    .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
+  const existingIds = new Set((await db.select({ matchId: leagueMatchesTable.matchId })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId))).map(r => r.matchId));
+  // Goals already logged per match — so a re-sync can top up missing goals
+  // (e.g. after a partial import) without ever duplicating rows.
+  const goalRows = await db
+    .select({ matchId: leagueGoalsTable.matchId, scorerTeam: leagueGoalsTable.scorerTeam, minuteScored: leagueGoalsTable.minuteScored })
+    .from(leagueGoalsTable)
+    .where(eq(leagueGoalsTable.seasonId, seasonId));
+  const goalsByMatch = new Map<string, Array<{ scorerTeam: string | null; minuteScored: number | null }>>();
+  for (const g of goalRows) {
+    const list = goalsByMatch.get(g.matchId) ?? [];
+    list.push(g);
+    goalsByMatch.set(g.matchId, list);
+  }
+
+  const matches: Array<Record<string, unknown>> = [];
+  const needDetail: string[] = [];
+  for (const f of fixtures) {
+    if (f.status !== "complete" || f.homeScore == null || f.awayScore == null) continue;
+    const home = matchClub(f.homeTeamName, clubs);
+    const away = matchClub(f.awayTeamName, clubs);
+    const unmatched: string[] = [];
+    if (!home) unmatched.push(f.homeTeamName);
+    if (!away) unmatched.push(f.awayTeamName);
+    const round = parseInt(f.fullRound.replace(/\D/g, ""), 10) || 0;
+    const matchId = home && away ? `R${round}-${clubCode(home)}-${clubCode(away)}` : `R${round}-?`;
+    const exists = existingIds.has(matchId);
+    // For matches already recorded, only re-fetch detail when the logged goal
+    // count falls short of the scoreline (a partial import worth topping up).
+    const loggedGoals = goalsByMatch.get(matchId) ?? [];
+    const goalsShort = exists && loggedGoals.length < f.homeScore + f.awayScore;
+
+    let halfScore: string | null = null;
+    const goals: Array<{ scorerTeam: string; scorer: string; minute: number | null; ownGoal: boolean; penalty: boolean }> = [];
+    if (home && away && (!exists || goalsShort)) {
+      try {
+        const detail = await getDetail(f.matchHashId);
+        if (!detail) {
+          needDetail.push(f.matchHashId);
+        } else {
+          if (detail.homeScoreHt != null && detail.awayScoreHt != null) {
+            halfScore = `${detail.homeScoreHt}-${detail.awayScoreHt}`;
+          }
+          for (const ev of detail.events) {
+            const scorersClub = ev.teamId === detail.homeTeamHashId ? home : away;
+            const creditedClub = ev.ownGoal ? (scorersClub === home ? away : home) : scorersClub;
+            goals.push({
+              scorerTeam: creditedClub,
+              scorer: ev.ownGoal ? "Own Goal" : formatPlayerName(ev.name, seasonRow.nameFormat ?? "initial-surname"),
+              minute: typeof ev.minute === "number" ? Math.min(ev.minute, 130) : null,
+              ownGoal: ev.ownGoal,
+              penalty: ev.penalty,
+            });
+          }
+        }
+      } catch (e) {
+        logger.warn({ match: f.matchHashId, err: String(e) }, "Dribl match-centre fetch failed — importing scoreline only");
+      }
+    }
+
+    // Top-up mode: keep only Dribl goals not already logged (matched on
+    // credited team + minute).
+    let finalGoals = goals;
+    if (exists) {
+      const taken = new Set(loggedGoals.map(g => `${g.scorerTeam}|${g.minuteScored ?? "?"}`));
+      finalGoals = goals.filter(g => !taken.has(`${g.scorerTeam}|${g.minute ?? "?"}`));
+    }
+
+    matches.push({
+      matchId, round,
+      matchDate: toLocalDbDate(f.date),
+      homeTeam: home ?? "", awayTeam: away ?? "",
+      driblHome: f.homeTeamName, driblAway: f.awayTeamName,
+      homeGoals: f.homeScore, awayGoals: f.awayScore,
+      halfScore, exists, unmatched,
+      goalsOnly: exists && finalGoals.length > 0,
+      goals: finalGoals,
+    });
+  }
+
+  // Two different Dribl fixtures must never resolve to the same local match
+  // ID — block both from import and say why, rather than silently colliding.
+  const idCounts = new Map<string, number>();
+  for (const m of matches) idCounts.set(m.matchId as string, (idCounts.get(m.matchId as string) ?? 0) + 1);
+  for (const m of matches) {
+    if ((idCounts.get(m.matchId as string) ?? 0) > 1) {
+      (m.unmatched as string[]).push(`Match ID clash: two Dribl fixtures both map to ${m.matchId}`);
+    }
+  }
+
+  matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
+  return { matches, needDetail };
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+// Tells the browser what to fetch from Dribl when the server itself is blocked.
+router.get("/entry/dribl-config", async (req, res): Promise<void> => {
+  const query = GetDriblConfigQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const seasonRow = await loadSeasonRow(query.data.seasonId);
+  if (!seasonRow) {
+    res.status(404).json({ error: "Season not found" });
+    return;
+  }
+  const driblLeague = driblLeagueNameFor(seasonRow.leagueName);
+  if (!driblLeague) {
+    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet — it currently covers ACT NPLM` });
+    return;
+  }
+  res.json(GetDriblConfigResponse.parse({ driblLeague, driblYear: seasonRow.year }));
+});
+
+// Server-side fetch path.
+router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
+  const query = GetDriblPreviewQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId } = query.data;
+  const seasonRow = await loadSeasonRow(seasonId);
   if (!seasonRow) {
     res.status(404).json({ error: "Season not found" });
     return;
@@ -130,129 +292,98 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     return;
   }
 
-  const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
-    .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
-  const existingIds = new Set((await db.select({ matchId: leagueMatchesTable.matchId })
-    .from(leagueMatchesTable)
-    .where(eq(leagueMatchesTable.seasonId, seasonId))).map(r => r.matchId));
-  // Goals already logged per match — so a re-sync can top up missing goals
-  // (e.g. after a partial import) without ever duplicating rows.
-  const goalRows = await db
-    .select({ matchId: leagueGoalsTable.matchId, scorerTeam: leagueGoalsTable.scorerTeam, minuteScored: leagueGoalsTable.minuteScored, scorer: leagueGoalsTable.scorer })
-    .from(leagueGoalsTable)
-    .where(eq(leagueGoalsTable.seasonId, seasonId));
-  const goalsByMatch = new Map<string, Array<{ scorerTeam: string | null; minuteScored: number | null; scorer: string | null }>>();
-  for (const g of goalRows) {
-    const list = goalsByMatch.get(g.matchId) ?? [];
-    list.push(g);
-    goalsByMatch.set(g.matchId, list);
-  }
-
   try {
     const tenant = await driblTenant();
     const { hash: seasonHash, title: seasonTitle } = await driblSeasonHash(tenant, seasonRow.year);
 
-    // Page through the whole season's results and keep only this league's completed games
-    type DriblResult = {
-      full_round: string; date: string; status: string; bye_flag: number;
-      league_name: string; home_team_name: string; away_team_name: string;
-      home_score: number | null; away_score: number | null; match_hash_id: string;
-    };
-    const fixtures: DriblResult[] = [];
+    // Page through the whole season's results and keep only this league's games
+    const fixtures: NormFixture[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < 80; page++) {
       const params: Record<string, string> = { tenant, season: seasonHash, date_range: "all" };
       if (cursor) params.cursor = cursor;
       const data = await driblGet("/results", params);
       for (const row of data?.data ?? []) {
-        const a = row.attributes as DriblResult;
-        if (a.league_name === driblLeague && !a.bye_flag) fixtures.push(a);
+        const a = row.attributes ?? {};
+        if (a.league_name === driblLeague && !a.bye_flag) {
+          fixtures.push({
+            fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
+            homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
+            homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
+            matchHashId: String(a.match_hash_id ?? ""),
+          });
+        }
       }
       cursor = data?.meta?.next_cursor ?? null;
       if (!cursor) break;
     }
 
-    const matches: Array<Record<string, unknown>> = [];
-    for (const f of fixtures) {
-      if (f.status !== "complete" || f.home_score == null || f.away_score == null) continue;
-      const home = matchClub(f.home_team_name, clubs);
-      const away = matchClub(f.away_team_name, clubs);
-      const unmatched: string[] = [];
-      if (!home) unmatched.push(f.home_team_name);
-      if (!away) unmatched.push(f.away_team_name);
-      const round = parseInt(f.full_round.replace(/\D/g, ""), 10) || 0;
-      const matchId = home && away ? `R${round}-${clubCode(home)}-${clubCode(away)}` : `R${round}-?`;
-      const exists = existingIds.has(matchId);
-      // For matches already recorded, only re-fetch detail when the logged goal
-      // count falls short of the scoreline (a partial import worth topping up).
-      const loggedGoals = goalsByMatch.get(matchId) ?? [];
-      const goalsShort = exists && loggedGoals.length < f.home_score + f.away_score;
+    const { matches } = await buildPreview(seasonId, seasonRow, fixtures, async (hash) => {
+      const mc = await driblGet(`/matchcentre/${hash}`, { tenant });
+      const a = mc?.data?.attributes ?? {};
+      return {
+        homeScoreHt: a.home_score_ht ?? null,
+        awayScoreHt: a.away_score_ht ?? null,
+        homeTeamHashId: String(a.home_team_hash_id ?? ""),
+        events: (a.match_events ?? [])
+          .filter((ev: any) => ev.type === "goal")
+          .map((ev: any) => ({
+            teamId: String(ev.team_id ?? ""),
+            minute: typeof ev.minute === "number" ? ev.minute : null,
+            ownGoal: Boolean(ev.own_goal),
+            penalty: Boolean(ev.penalty_kick),
+            name: String(ev.name ?? ""),
+          })),
+      };
+    });
 
-      let halfScore: string | null = null;
-      const goals: Array<Record<string, unknown>> = [];
-      if (home && away && (!exists || goalsShort)) {
-        try {
-          const mc = await driblGet(`/matchcentre/${f.match_hash_id}`, { tenant });
-          const a = mc?.data?.attributes ?? {};
-          if (a.home_score_ht != null && a.away_score_ht != null) {
-            halfScore = `${a.home_score_ht}-${a.away_score_ht}`;
-          }
-          const homeHash = a.home_team_hash_id;
-          for (const ev of a.match_events ?? []) {
-            if (ev.type !== "goal") continue;
-            const scorersClub = ev.team_id === homeHash ? home : away;
-            const creditedClub = ev.own_goal
-              ? (scorersClub === home ? away : home)
-              : scorersClub;
-            goals.push({
-              scorerTeam: creditedClub,
-              scorer: ev.own_goal ? "Own Goal" : formatPlayerName(String(ev.name ?? ""), seasonRow.nameFormat ?? "initial-surname"),
-              minute: typeof ev.minute === "number" ? Math.min(ev.minute, 130) : null,
-              ownGoal: Boolean(ev.own_goal),
-              penalty: Boolean(ev.penalty_kick),
-            });
-          }
-        } catch (e) {
-          logger.warn({ match: f.match_hash_id, err: String(e) }, "Dribl match-centre fetch failed — importing scoreline only");
-        }
-      }
-
-      // Top-up mode: keep only Dribl goals not already logged (matched on
-      // credited team + minute, falling back to scorer when minute is absent).
-      let finalGoals = goals;
-      if (exists) {
-        const taken = new Set(loggedGoals.map(g => `${g.scorerTeam}|${g.minuteScored ?? "?"}`));
-        finalGoals = goals.filter(g => !taken.has(`${g.scorerTeam}|${g.minute ?? "?"}`));
-      }
-
-      matches.push({
-        matchId, round,
-        matchDate: toLocalDbDate(f.date),
-        homeTeam: home ?? "", awayTeam: away ?? "",
-        driblHome: f.home_team_name, driblAway: f.away_team_name,
-        homeGoals: f.home_score, awayGoals: f.away_score,
-        halfScore, exists, unmatched,
-        goalsOnly: exists && finalGoals.length > 0,
-        goals: finalGoals,
-      });
-    }
-
-    // Two different Dribl fixtures must never resolve to the same local match
-    // ID — block both from import and say why, rather than silently colliding.
-    const idCounts = new Map<string, number>();
-    for (const m of matches) idCounts.set(m.matchId as string, (idCounts.get(m.matchId as string) ?? 0) + 1);
-    for (const m of matches) {
-      if ((idCounts.get(m.matchId as string) ?? 0) > 1) {
-        (m.unmatched as string[]).push(`Match ID clash: two Dribl fixtures both map to ${m.matchId}`);
-      }
-    }
-
-    matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
-    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches }));
+    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [] }));
   } catch (e) {
     logger.error({ err: String(e) }, "Dribl preview failed");
     res.status(502).json({ error: `Couldn't reach Dribl: ${e instanceof Error ? e.message : String(e)}` });
   }
+});
+
+// Browser-supplied path: the client fetched the raw Dribl JSON itself and posts
+// trimmed fixtures (and, on the second pass, match-centre detail) for assembly.
+router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
+  const parsed = AssembleDriblPreviewBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const b = parsed.data;
+  const seasonRow = await loadSeasonRow(b.seasonId);
+  if (!seasonRow) {
+    res.status(404).json({ error: "Season not found" });
+    return;
+  }
+  const driblLeague = driblLeagueNameFor(seasonRow.leagueName);
+  if (!driblLeague) {
+    res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet — it currently covers ACT NPLM` });
+    return;
+  }
+
+  const detailByHash = new Map<string, NormDetail>();
+  for (const mc of b.matchCentres ?? []) {
+    detailByHash.set(mc.matchHashId, {
+      homeScoreHt: mc.homeScoreHt, awayScoreHt: mc.awayScoreHt,
+      homeTeamHashId: mc.homeTeamHashId,
+      events: mc.events.map((ev: { teamId: string; minute: number | null; ownGoal: boolean; penalty: boolean; name: string }) => ({
+        teamId: ev.teamId, minute: ev.minute, ownGoal: ev.ownGoal, penalty: ev.penalty, name: ev.name,
+      })),
+    });
+  }
+
+  const { matches, needDetail } = await buildPreview(
+    b.seasonId, seasonRow, b.fixtures,
+    async (hash) => detailByHash.get(hash) ?? null,
+  );
+
+  res.json(GetDriblPreviewResponse.parse({
+    driblSeason: b.driblSeason ?? seasonRow.year,
+    driblLeague, matches, needDetail,
+  }));
 });
 
 export default router;

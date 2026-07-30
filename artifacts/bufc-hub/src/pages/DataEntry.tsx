@@ -40,8 +40,12 @@ import {
   useExtractClubsFromLeague,
   useFillClubBranding,
   useUpdateClub,
-  useGetDriblPreview,
-  getGetDriblPreviewQueryKey,
+  getDriblPreview,
+  getDriblConfig,
+  assembleDriblPreview,
+  type DriblPreviewResponse,
+  type DriblRawFixture,
+  type DriblRawMatchCentre,
   getListLeaguesQueryKey,
   getListSeasonsQueryKey,
   getGetClubsQueryKey,
@@ -1922,22 +1926,110 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 function DriblSyncCard({ teamId, seasonId, onSaved }: {
   teamId: number; seasonId: number; onSaved: () => void;
 }) {
-  const [fetchRequested, setFetchRequested] = useState(false);
+  const [preview, setPreview] = useState<DriblPreviewResponse | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const { data: preview, isFetching, error: previewError, refetch } = useGetDriblPreview(
-    { seasonId },
-    { query: {
-      enabled: fetchRequested,
-      queryKey: getGetDriblPreviewQueryKey({ seasonId }),
-      staleTime: 5 * 60 * 1000,
-      retry: false,
-    } },
-  );
+  // The browser talks to Dribl directly when the server is blocked by
+  // Cloudflare (hosting IPs score badly; home connections are fine, and
+  // mc-api.dribl.com sends Access-Control-Allow-Origin: *).
+  const driblJson = async (path: string, params: Record<string, string>): Promise<any> => {
+    const url = new URL(`https://mc-api.dribl.com/api${path}`);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    const r = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    if (!r.ok) throw new Error(`Dribl ${path} responded ${r.status}`);
+    return r.json();
+  };
+
+  const browserSync = async (): Promise<DriblPreviewResponse> => {
+    setPhase("Server can't reach Dribl — fetching from your browser instead…");
+    const cfg = await getDriblConfig({ seasonId });
+    const tenant: string = (await driblJson("/tenants", { slug: "capital" }))?.data?.id;
+    if (!tenant) throw new Error("Couldn't find Capital Football on Dribl");
+    const seasonList: Array<{ id: string; title: string; year: number; is_current: boolean }> =
+      (await driblJson("/list/seasons", { tenant }))?.data ?? [];
+    const yearSeasons = seasonList.filter(s => String(s.year) === cfg.driblYear);
+    const driblSeason = yearSeasons.find(s => s.is_current) ?? yearSeasons[yearSeasons.length - 1];
+    if (!driblSeason) throw new Error(`Dribl has no ${cfg.driblYear} season for Capital Football`);
+
+    const fixtures: DriblRawFixture[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 80; page++) {
+      setPhase(`Reading results from Dribl… (page ${page + 1})`);
+      const params: Record<string, string> = { tenant, season: driblSeason.id, date_range: "all" };
+      if (cursor) params.cursor = cursor;
+      const data = await driblJson("/results", params);
+      for (const row of data?.data ?? []) {
+        const a = row.attributes ?? {};
+        if (a.league_name === cfg.driblLeague && !a.bye_flag) {
+          fixtures.push({
+            fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
+            homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
+            homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
+            matchHashId: String(a.match_hash_id ?? ""),
+          });
+        }
+      }
+      cursor = data?.meta?.next_cursor ?? null;
+      if (!cursor) break;
+    }
+
+    let result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures });
+    if (result.needDetail.length > 0) {
+      const matchCentres: DriblRawMatchCentre[] = [];
+      for (let i = 0; i < result.needDetail.length; i++) {
+        setPhase(`Reading match detail ${i + 1} of ${result.needDetail.length}…`);
+        const hash = result.needDetail[i];
+        try {
+          const a = (await driblJson(`/matchcentre/${hash}`, { tenant }))?.data?.attributes ?? {};
+          matchCentres.push({
+            matchHashId: hash,
+            homeScoreHt: a.home_score_ht ?? null,
+            awayScoreHt: a.away_score_ht ?? null,
+            homeTeamHashId: String(a.home_team_hash_id ?? ""),
+            events: (a.match_events ?? [])
+              .filter((ev: any) => ev.type === "goal")
+              .map((ev: any) => ({
+                teamId: String(ev.team_id ?? ""),
+                minute: typeof ev.minute === "number" ? ev.minute : null,
+                ownGoal: Boolean(ev.own_goal),
+                penalty: Boolean(ev.penalty_kick),
+                name: String(ev.name ?? ""),
+              })),
+          });
+        } catch {
+          // skip — that match imports as scoreline only
+        }
+      }
+      result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres });
+    }
+    return result;
+  };
+
+  const fetchPreview = async () => {
+    setIsFetching(true); setPreviewError(null); setOk(null); setErr(null); setPhase(null);
+    try {
+      let result: DriblPreviewResponse;
+      try {
+        result = await getDriblPreview({ seasonId });
+      } catch {
+        result = await browserSync();
+      }
+      setPreview(result);
+      setDeselected(new Set());
+    } catch (e) {
+      setPreviewError(errMsg(e));
+    } finally {
+      setIsFetching(false); setPhase(null);
+    }
+  };
+  const refetch = () => { void fetchPreview(); };
 
   const createMatch = useCreateEntryMatch();
   const createGoal = useCreateEntryGoal();
@@ -2014,18 +2106,18 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!fetchRequested || (!preview && !isFetching && !previewError) ? (
-          <Button onClick={() => { setFetchRequested(true); setOk(null); setErr(null); }}>
+        {!preview && !isFetching && !previewError ? (
+          <Button onClick={() => void fetchPreview()}>
             <Upload className="h-4 w-4 mr-1.5" />Fetch results from Dribl
           </Button>
         ) : isFetching ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />Reading the Dribl match centre — this takes a moment…
+            <Loader2 className="h-4 w-4 animate-spin" />{phase ?? "Reading the Dribl match centre — this takes a moment…"}
           </div>
         ) : previewError ? (
           <div className="space-y-3">
-            <StatusLine ok={null} err={errMsg(previewError)} />
-            <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+            <StatusLine ok={null} err={previewError} />
+            <Button variant="outline" onClick={() => void fetchPreview()}>Try again</Button>
           </div>
         ) : preview ? (
           <div className="space-y-4">
