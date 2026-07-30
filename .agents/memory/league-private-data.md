@@ -14,7 +14,7 @@ Match Prep reports, journal cycles/entries (reflections), GPS sessions and athle
 
 **Why:** switching the Hub to Reserves (or a future club) must never show another league's prep files/reflections/GPS/testing.
 
-**Pricing tiers (coach-decided Jul 2026, not yet built):** basic subscription = season stats, match prep, reflections (+ data entry). Paid add-ons, each its own module tick box: Session Planner (with Session Library) and Coach Assistant. Both are currently open to all signed-in users — moving them behind module flags is planned work.
+**Pricing tiers (coach-decided Jul 2026, BUILT):** basic subscription = season stats, match prep, reflections (+ data entry). Paid add-ons are module tick boxes: `session-planner` (Session Planner + Session Library) and `assistant` (Coach Assistant). These two use ANYWHERE semantics — visible if ticked in any of the user's leagues (tools aren't league-scoped); nav/Home use hasModuleAnywhere, server checks module-anywhere for unscoped requests. Existing users were granted both once via a one-shot marker migration (addon-modules-grant-v1) so later unticks stick.
 
 **Coach-confirmed convention (Jul 2026):** within a club's program, GPS and Testing data always live under the FIRSTS league; the reserves league view shows them empty. Reserves coaches who should see GPS/testing get viewer access to the firsts league instead of moving data. Same model applies to future clubs — everything isolated per league-team, firsts holds the physical-performance data.
 
