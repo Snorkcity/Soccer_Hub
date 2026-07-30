@@ -46,6 +46,8 @@ import type {
   EntryPlayerStatsClearResponse,
   EntryPlayerStatsResponse,
   EntrySavedPlayersResponse,
+  ExtractClubsBody,
+  ExtractClubsResponse,
   ExtractPlayersBody,
   ExtractPlayersResponse,
   FirstSubResponse,
@@ -6200,6 +6202,77 @@ export const useExtractPlayersFromImage = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getExtractPlayersFromImageMutationOptions(options));
+    }
+
+export const getExtractClubsFromLeagueUrl = () => {
+
+
+
+
+  return `/api/entry/extract-clubs`
+}
+
+/**
+ * @summary Find a league's clubs with AI — from a ladder screenshot or the league name — with colours and logos for review (saves nothing)
+ */
+export const extractClubsFromLeague = async (extractClubsBody: ExtractClubsBody, options?: RequestInit): Promise<ExtractClubsResponse> => {
+
+  return customFetch<ExtractClubsResponse>(getExtractClubsFromLeagueUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extractClubsBody)
+  }
+);}
+
+
+
+
+
+export const getExtractClubsFromLeagueMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractClubsFromLeague>>, TError,{data: BodyType<ExtractClubsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extractClubsFromLeague>>, TError,{data: BodyType<ExtractClubsBody>}, TContext> => {
+
+const mutationKey = ['extractClubsFromLeague'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extractClubsFromLeague>>, {data: BodyType<ExtractClubsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  extractClubsFromLeague(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtractClubsFromLeagueMutationResult = NonNullable<Awaited<ReturnType<typeof extractClubsFromLeague>>>
+    export type ExtractClubsFromLeagueMutationBody = BodyType<ExtractClubsBody>
+    export type ExtractClubsFromLeagueMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Find a league's clubs with AI — from a ladder screenshot or the league name — with colours and logos for review (saves nothing)
+ */
+export const useExtractClubsFromLeague = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractClubsFromLeague>>, TError,{data: BodyType<ExtractClubsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extractClubsFromLeague>>,
+        TError,
+        {data: BodyType<ExtractClubsBody>},
+        TContext
+      > => {
+      return useMutation(getExtractClubsFromLeagueMutationOptions(options));
     }
 
 export const getSaveEntryAthleticTestsUrl = () => {

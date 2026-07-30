@@ -37,6 +37,7 @@ import {
   useCreateLeague,
   useCreateSeason,
   useCreateClub,
+  useExtractClubsFromLeague,
   getListLeaguesQueryKey,
   getListSeasonsQueryKey,
   getGetClubsQueryKey,
@@ -848,6 +849,179 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
 // League setup — create a league, its season, and its clubs
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface ReviewClub {
+  name: string;
+  fullName: string | null;
+  primaryColor: string;
+  logoUrl: string | null;
+  logoBroken?: boolean;
+}
+
+/** AI club finder: ladder screenshot or league name → editable review table → bulk save. */
+function ClubFinder({ leagueId, existingNames, onSaved }: {
+  leagueId: number | null; existingNames: string[]; onSaved: (added: number) => void;
+}) {
+  const [clubs, setClubs] = useState<ReviewClub[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Clear the review table when the coach switches league
+  useEffect(() => { setClubs([]); setWarnings([]); setOk(null); setErr(null); }, [leagueId]);
+
+  const extract = useExtractClubsFromLeague({ mutation: {
+    onSuccess: (res) => {
+      setClubs(res.clubs.map(c => ({ name: c.name, fullName: c.fullName ?? null, primaryColor: c.primaryColor, logoUrl: c.logoUrl ?? null })));
+      setWarnings(res.warnings);
+      setOk(`Found ${res.clubs.length} clubs — check names, colours and logos, then save`);
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  const createClub = useCreateClub();
+
+  const busy = extract.isPending || saving;
+  const existing = new Set(existingNames.map(n => n.toLowerCase()));
+
+  const runExtract = (imageBase64: string | null) => {
+    if (leagueId == null) return;
+    setOk(null); setErr(null); setClubs([]); setWarnings([]);
+    extract.mutate({ data: { leagueId, imageBase64, leagueName: null } });
+  };
+
+  const onFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => runExtract(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const update = (i: number, patch: Partial<ReviewClub>) =>
+    setClubs(cs => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+
+  const saveAll = async () => {
+    if (leagueId == null) return;
+    setOk(null); setErr(null); setSaving(true);
+    let added = 0;
+    const failed: string[] = [];
+    for (const c of clubs) {
+      if (!c.name.trim() || existing.has(c.name.trim().toLowerCase())) continue;
+      try {
+        await createClub.mutateAsync({ data: {
+          leagueId,
+          name: c.name.trim(),
+          primaryColor: c.primaryColor,
+          logoUrl: c.logoUrl?.trim() || null,
+        }});
+        added += 1;
+      } catch (e) {
+        failed.push(`${c.name}: ${errMsg(e)}`);
+      }
+    }
+    setSaving(false);
+    if (failed.length > 0) setErr(`Saved ${added}, but some failed — ${failed.join("; ")}`);
+    else { setOk(`Added ${added} clubs to the league`); setClubs([]); setWarnings([]); }
+    onSaved(added);
+  };
+
+  const skippedCount = clubs.filter(c => existing.has(c.name.trim().toLowerCase())).length;
+  const toSaveCount = clubs.filter(c => c.name.trim() && !existing.has(c.name.trim().toLowerCase())).length;
+
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <ScanText className="h-4 w-4 text-primary shrink-0" />
+        <p className="text-sm font-medium">Set up clubs automatically</p>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Upload a ladder or fixture screenshot and AI reads off the club list — or let it search from the
+        league name alone. It fills in each club's real colours and logo for you to check before saving.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={fileRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+        />
+        <Button variant="outline" size="sm" disabled={leagueId == null || busy} onClick={() => fileRef.current?.click()}>
+          <Upload className="h-4 w-4 mr-1.5" />Read a ladder screenshot
+        </Button>
+        <Button variant="outline" size="sm" disabled={leagueId == null || busy} onClick={() => runExtract(null)}>
+          <ScanText className="h-4 w-4 mr-1.5" />Find clubs from the league name
+        </Button>
+        {extract.isPending && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Working it out…</span>}
+        {leagueId == null && <span className="text-xs text-muted-foreground">Pick a league first</span>}
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="space-y-1">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-xs text-chart-4"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />{w}</div>
+          ))}
+        </div>
+      )}
+
+      {clubs.length > 0 && (
+        <div className="space-y-2">
+          <div className="rounded-md border bg-background divide-y divide-border/40">
+            {clubs.map((c, i) => {
+              const isDup = existing.has(c.name.trim().toLowerCase());
+              return (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                  <span className="h-8 w-8 shrink-0 rounded border bg-muted/40 flex items-center justify-center overflow-hidden">
+                    {c.logoUrl && !c.logoBroken ? (
+                      <img
+                        src={c.logoUrl} alt="" className="h-full w-full object-contain"
+                        onError={() => update(i, { logoBroken: true })}
+                      />
+                    ) : (
+                      <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: c.primaryColor }} />
+                    )}
+                  </span>
+                  <div className="grid flex-1 gap-1.5 sm:grid-cols-[minmax(120px,1fr)_64px_minmax(160px,1.4fr)] items-center">
+                    <div>
+                      <Input
+                        value={c.name} onChange={e => update(i, { name: e.target.value })}
+                        className={`h-8 ${isDup ? "border-chart-4" : ""}`} placeholder="Short name"
+                      />
+                      {c.fullName && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{c.fullName}</p>}
+                      {isDup && <p className="text-[11px] text-chart-4 mt-0.5">Already in this league — will be skipped</p>}
+                    </div>
+                    <Input
+                      type="color" value={c.primaryColor}
+                      onChange={e => update(i, { primaryColor: e.target.value })}
+                      className="h-8 p-1 cursor-pointer"
+                    />
+                    <Input
+                      value={c.logoUrl ?? ""} onChange={e => update(i, { logoUrl: e.target.value || null, logoBroken: false })}
+                      className="h-8 text-xs" placeholder="Logo URL (optional)"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground"
+                    onClick={() => setClubs(cs => cs.filter((_, j) => j !== i))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button size="sm" disabled={busy || toSaveCount === 0} onClick={() => void saveAll()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
+              Add {toSaveCount} club{toSaveCount === 1 ? "" : "s"}
+            </Button>
+            {skippedCount > 0 && <span className="text-xs text-muted-foreground">{skippedCount} already in the league</span>}
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setClubs([]); setWarnings([]); setOk(null); setErr(null); }}>Clear</Button>
+          </div>
+        </div>
+      )}
+      <StatusLine ok={ok} err={err} />
+    </div>
+  );
+}
+
 function LeagueSetupCard() {
   const queryClient = useQueryClient();
   const { data: leagues } = useListLeagues();
@@ -972,6 +1146,13 @@ function LeagueSetupCard() {
               <Label>League</Label>
               {leagueSelect(clubLeagueId, setClubLeagueId)}
             </div>
+          </div>
+          <ClubFinder
+            leagueId={clubLeagueId ? Number(clubLeagueId) : null}
+            existingNames={(clubs ?? []).filter(c => String(c.leagueId) === clubLeagueId).map(c => c.name)}
+            onSaved={() => invalidate()}
+          />
+          <div className="grid gap-4 sm:grid-cols-[1fr_90px_auto] items-end">
             <div className="space-y-1.5">
               <Label>Club name</Label>
               <Input value={clubName} onChange={e => setClubName(e.target.value)} placeholder="Belconnen" />
@@ -1011,7 +1192,11 @@ function LeagueSetupCard() {
                 <div className="flex items-center gap-2 flex-wrap">
                   {leagueClubs.map(c => (
                     <span key={c.id} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground border rounded-full px-2.5 py-0.5">
-                      <span className="h-2.5 w-2.5 rounded-full inline-block" style={{ backgroundColor: c.primaryColor }} />
+                      {c.logoUrl ? (
+                        <img src={c.logoUrl} alt="" className="h-4 w-4 object-contain" />
+                      ) : (
+                        <span className="h-2.5 w-2.5 rounded-full inline-block" style={{ backgroundColor: c.primaryColor }} />
+                      )}
                       {c.name}
                     </span>
                   ))}

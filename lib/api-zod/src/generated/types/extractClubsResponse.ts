@@ -5,11 +5,9 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { ExtractedClub } from './extractedClub';
 
-export interface ClubInput {
-  leagueId: number;
-  name: string;
-  primaryColor?: string;
-  /** @nullable */
-  logoUrl?: string | null;
+export interface ExtractClubsResponse {
+  clubs: ExtractedClub[];
+  warnings: string[];
 }

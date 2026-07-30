@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ClubInput {
+export interface ExtractClubsBody {
   leagueId: number;
-  name: string;
-  primaryColor?: string;
   /** @nullable */
-  logoUrl?: string | null;
+  imageBase64?: string | null;
+  /** @nullable */
+  leagueName?: string | null;
 }

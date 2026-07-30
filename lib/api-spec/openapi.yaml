@@ -1685,6 +1685,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ExtractPlayersResponse" }
 
+  /entry/extract-clubs:
+    post:
+      operationId: extractClubsFromLeague
+      tags: [entry]
+      summary: Find a league's clubs with AI — from a ladder screenshot or the league name — with colours and logos for review (saves nothing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExtractClubsBody" }
+      responses:
+        "200":
+          description: Extracted clubs for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtractClubsResponse" }
+
   /entry/athletic-tests:
     post:
       operationId: saveEntryAthleticTests
@@ -2996,7 +3013,36 @@ components:
         leagueId:     { type: integer }
         name:         { type: string }
         primaryColor: { type: string }
+        logoUrl:      { type: ["string", "null"] }
       required: [leagueId, name]
+
+    ExtractClubsBody:
+      type: object
+      properties:
+        leagueId:    { type: integer }
+        imageBase64: { type: ["string", "null"] }
+        leagueName:  { type: ["string", "null"] }
+      required: [leagueId]
+
+    ExtractedClub:
+      type: object
+      properties:
+        name:         { type: string }
+        fullName:     { type: ["string", "null"] }
+        primaryColor: { type: string }
+        logoUrl:      { type: ["string", "null"] }
+      required: [name, primaryColor]
+
+    ExtractClubsResponse:
+      type: object
+      properties:
+        clubs:
+          type: array
+          items: { $ref: "#/components/schemas/ExtractedClub" }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [clubs, warnings]
 
     # ── Goals by Opponent ──────────────────────────────────────────────────────
 

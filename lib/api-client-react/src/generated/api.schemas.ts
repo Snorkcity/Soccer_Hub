@@ -801,6 +801,30 @@ export interface ClubInput {
   leagueId: number;
   name: string;
   primaryColor?: string;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface ExtractClubsBody {
+  leagueId: number;
+  /** @nullable */
+  imageBase64?: string | null;
+  /** @nullable */
+  leagueName?: string | null;
+}
+
+export interface ExtractedClub {
+  name: string;
+  /** @nullable */
+  fullName?: string | null;
+  primaryColor: string;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface ExtractClubsResponse {
+  clubs: ExtractedClub[];
+  warnings: string[];
 }
 
 export interface GoalsByOpponentEntry {

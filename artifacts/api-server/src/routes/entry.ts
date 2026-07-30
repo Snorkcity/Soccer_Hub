@@ -39,6 +39,8 @@ import {
   DeleteEntryPlayerStatsResponse,
   ExtractPlayersFromImageBody,
   ExtractPlayersFromImageResponse,
+  ExtractClubsFromLeagueBody,
+  ExtractClubsFromLeagueResponse,
   SaveEntryAthleticTestsBody,
   SaveEntryAthleticTestsResponse,
   SaveEntryGpsSessionsBody,
@@ -819,6 +821,237 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "AI extraction failed");
     res.status(502).json({ error: "Could not read the screenshot — try a clearer image, or enter rows manually" });
+  }
+});
+
+// ── AI club finder ────────────────────────────────────────────────────────────
+// Reads a ladder/fixture screenshot (or works from the league name alone) and
+// returns the club list with short display names, brand colours and logo URLs
+// for the coach to review — nothing is saved here. Logo URLs are verified
+// server-side (must actually serve an image) before being returned.
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+// SSRF guard: logoUrl values come from model output (which could be prompt-
+// injected via the screenshot), so the server only ever fetches from a short
+// allowlist of known logo hosts, over HTTPS, and re-validates every redirect
+// hop against the same policy. Anything else is dropped (the coach can still
+// paste any URL in the UI — the browser, not the server, loads that one).
+const LOGO_HOST_ALLOWLIST = new Set([
+  "upload.wikimedia.org",
+  "commons.wikimedia.org",
+  "en.wikipedia.org",
+]);
+
+/** True when the URL is HTTPS and on an allowlisted logo host. */
+export function isAllowedLogoUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && LOGO_HOST_ALLOWLIST.has(u.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+async function verifyLogoUrl(url: string): Promise<boolean> {
+  let current = url;
+  for (let hop = 0; hop < 3; hop++) {
+    if (!isAllowedLogoUrl(current)) return false;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      try {
+        const res = await fetch(current, {
+          method: "GET",
+          redirect: "manual", // every hop re-checked against the allowlist above
+          signal: controller.signal,
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; BUFC-Hub club setup)" },
+        });
+        if (res.status >= 300 && res.status < 400) {
+          const loc = res.headers.get("location");
+          if (!loc) return false;
+          current = new URL(loc, current).toString();
+          continue;
+        }
+        if (!res.ok) return false;
+        const type = res.headers.get("content-type") ?? "";
+        // Read nothing further — the headers are enough
+        void res.body?.cancel().catch(() => undefined);
+        return type.startsWith("image/");
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch {
+      return false;
+    }
+  }
+  return false; // too many redirects
+}
+
+/** Look a club's crest up on Wikipedia (page image of the best-matching article).
+ * Wikipedia rate-limits aggressively — call this SEQUENTIALLY, never in parallel. */
+async function wikipediaLogoLookup(clubName: string, attempt = 0): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const url = "https://en.wikipedia.org/w/api.php?" + new URLSearchParams({
+        action: "query",
+        generator: "search",
+        gsrsearch: `${clubName} football club`,
+        gsrlimit: "3",
+        prop: "pageimages",
+        piprop: "original|thumbnail",
+        pithumbsize: "400",
+        pilicense: "any", // club crests are usually non-free images — include them
+        format: "json",
+        origin: "*",
+      }).toString();
+      const wikiRes = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "BUFC-Hub club setup (contact: app admin)" },
+      });
+      if (wikiRes.status === 429 && attempt < 2) {
+        await sleep(1500 * (attempt + 1));
+        return wikipediaLogoLookup(clubName, attempt + 1);
+      }
+      if (!wikiRes.ok) return null;
+      const data = await wikiRes.json() as {
+        query?: { pages?: Record<string, {
+          index?: number; title?: string;
+          original?: { source?: string }; thumbnail?: { source?: string };
+        }> };
+      };
+      const pages = Object.values(data.query?.pages ?? {}).sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
+      // Take the best-ranked page whose title shares a distinctive word with the
+      // club name and has a page image. Prefer the thumbnail (PNG-rendered, so
+      // SVG crests still display everywhere) over the original.
+      const stop = new Set(["the", "and", "united", "football", "club", "soccer"]);
+      const words = clubName.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+      for (const p of pages) {
+        const title = (p.title ?? "").toLowerCase();
+        const src = p.thumbnail?.source ?? p.original?.source;
+        if (src && words.some(w => title.includes(w))) return src;
+      }
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
+
+router.post("/entry/extract-clubs", async (req, res): Promise<void> => {
+  const parsed = ExtractClubsFromLeagueBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const b = parsed.data;
+
+  const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "The club finder is not configured on this server (no AI credentials). Add clubs manually." });
+    return;
+  }
+
+  const [league] = await db.select({ name: leaguesTable.name, region: leaguesTable.region })
+    .from(leaguesTable).where(eq(leaguesTable.id, b.leagueId));
+  const leagueLabel = (b.leagueName?.trim() || league?.name || "").trim();
+  if (!b.imageBase64 && !leagueLabel) {
+    res.status(400).json({ error: "Give me a ladder screenshot or a league name to work from" });
+    return;
+  }
+
+  const prompt = [
+    "You are helping set up an Australian football (soccer) league in a club analytics app.",
+    b.imageBase64
+      ? "Attached is a screenshot of a league ladder or fixture list. Extract EVERY club you can see in it."
+      : `List every club competing in this league: "${leagueLabel}"${league?.region ? ` (region: ${league.region})` : ""}. Only include clubs you are confident about; if you are not sure of the exact club list, include the ones you know and add a warning saying the list may be incomplete.`,
+    leagueLabel && b.imageBase64 ? `The league is "${leagueLabel}"${league?.region ? ` (region: ${league.region})` : ""}.` : "",
+    "Return STRICT JSON only (no markdown, no commentary) in this exact shape:",
+    `{"clubs":[{"name":"Monaro","fullName":"Monaro Panthers FC","primaryColor":"#e31b23","logoUrl":"https://..."}],"warnings":["..."]}`,
+    "Rules:",
+    "- name: a SHORT display name — the single distinctive word or pair of words a coach would say, e.g. \"Monaro\" not \"Monaro Panthers FC All Age Men\", \"Belconnen\" not \"Belconnen United FC\", \"West Canberra\" not \"West Canberra Wanderers SC\". Strip FC/SC/United/Wanderers-style suffixes and any age/division wording unless needed to tell two clubs apart.",
+    "- fullName: the club's full official name as written by the league.",
+    "- primaryColor: the club's main real-world kit/brand colour as a 6-digit hex code like \"#005baa\". Use your knowledge of the club; if genuinely unknown, use \"#888888\" and add a warning naming the club.",
+    "- logoUrl: a direct, publicly reachable URL to the club's crest/logo IMAGE file (png/svg/jpg) — for example a Wikipedia/Wikimedia upload URL. Only give a URL you are confident is real; otherwise use null. Never invent URLs.",
+    "- One entry per club — no duplicates, no divisions of the same club listed twice.",
+    "- Add a warning for anything unreadable, ambiguous or uncertain.",
+  ].filter(Boolean).join("\n");
+
+  const content: ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[] =
+    [{ type: "text", text: prompt }];
+  if (b.imageBase64) {
+    const raw = b.imageBase64;
+    content.push({ type: "image_url", image_url: { url: raw.startsWith("data:") ? raw : `data:image/png;base64,${raw}` } });
+  }
+
+  try {
+    const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-5.4",
+        max_completion_tokens: 8192,
+        messages: [{ role: "user", content }],
+      }),
+    });
+    if (!aiRes.ok) {
+      const text = await aiRes.text();
+      logger.error({ status: aiRes.status, text: text.slice(0, 500) }, "AI club extraction request failed");
+      res.status(502).json({ error: "The club finder had a problem — try again, or add clubs manually" });
+      return;
+    }
+    const payload = await aiRes.json() as { choices?: { message?: { content?: string } }[] };
+    let text = payload.choices?.[0]?.message?.content ?? "";
+    text = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    const extracted = JSON.parse(text) as { clubs?: unknown[]; warnings?: unknown[] };
+
+    const warnings = (extracted.warnings ?? []).map(w => String(w)).slice(0, 20);
+    const seen = new Set<string>();
+    const clubs = (extracted.clubs ?? []).map((c) => {
+      const club = c as Record<string, unknown>;
+      const hex = typeof club.primaryColor === "string" && /^#[0-9a-fA-F]{6}$/.test(club.primaryColor.trim())
+        ? club.primaryColor.trim().toLowerCase() : "#888888";
+      return {
+        name: String(club.name ?? "").trim(),
+        fullName: typeof club.fullName === "string" && club.fullName.trim() ? club.fullName.trim() : null,
+        primaryColor: hex,
+        logoUrl: typeof club.logoUrl === "string" && /^https?:\/\//.test(club.logoUrl.trim()) ? club.logoUrl.trim() : null,
+      };
+    }).filter(c => {
+      if (!c.name) return false;
+      const key = c.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Verify every suggested logo actually serves an image; for the ones the AI
+    // couldn't source (or that fail), fall back to a Wikipedia crest lookup.
+    // Sequential on purpose: Wikipedia 429s parallel bursts.
+    for (const c of clubs) {
+      if (c.logoUrl && !(await verifyLogoUrl(c.logoUrl))) c.logoUrl = null;
+      if (!c.logoUrl) {
+        const wiki = await wikipediaLogoLookup(c.fullName ?? c.name);
+        if (wiki && (await verifyLogoUrl(wiki))) c.logoUrl = wiki;
+        await sleep(250);
+      }
+      if (!c.logoUrl) warnings.push(`Couldn't find a logo for ${c.name} — paste a URL in if you have one`);
+    }
+
+    const result = ExtractClubsFromLeagueResponse.safeParse({ clubs, warnings: warnings.slice(0, 25) });
+    if (!result.success) {
+      res.status(502).json({ error: "The club finder returned an unexpected shape — try again" });
+      return;
+    }
+    res.json(result.data);
+  } catch (err) {
+    logger.error({ err }, "AI club extraction failed");
+    res.status(502).json({ error: "Could not work out the club list — try a clearer screenshot, or add clubs manually" });
   }
 });
 

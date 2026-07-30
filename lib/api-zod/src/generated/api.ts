@@ -1573,7 +1573,8 @@ export const GetClubsResponse = zod.array(GetClubsResponseItem)
 export const CreateClubBody = zod.object({
   "leagueId": zod.number(),
   "name": zod.string(),
-  "primaryColor": zod.string().optional()
+  "primaryColor": zod.string().optional(),
+  "logoUrl": zod.string().nullish()
 })
 
 export const CreateClubResponse = zod.object({
@@ -2157,6 +2158,26 @@ export const ExtractPlayersFromImageResponse = zod.object({
   "discipline": zod.string().nullish(),
   "started": zod.boolean(),
   "appearance": zod.boolean()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Find a league's clubs with AI — from a ladder screenshot or the league name — with colours and logos for review (saves nothing)
+ */
+export const ExtractClubsFromLeagueBody = zod.object({
+  "leagueId": zod.number(),
+  "imageBase64": zod.string().nullish(),
+  "leagueName": zod.string().nullish()
+})
+
+export const ExtractClubsFromLeagueResponse = zod.object({
+  "clubs": zod.array(zod.object({
+  "name": zod.string(),
+  "fullName": zod.string().nullish(),
+  "primaryColor": zod.string(),
+  "logoUrl": zod.string().nullish()
 })),
   "warnings": zod.array(zod.string())
 })

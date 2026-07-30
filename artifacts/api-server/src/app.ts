@@ -32,6 +32,7 @@ app.use(cors());
 // Only the screenshot-reader endpoint accepts large bodies (base64 image);
 // everything else keeps a tight default limit.
 app.use("/api/entry/extract-players", express.json({ limit: "25mb" }));
+app.use("/api/entry/extract-clubs", express.json({ limit: "25mb" }));
 // Voice interview turns carry base64 audio recordings.
 app.use("/api/journal/interview", express.json({ limit: "25mb" }));
 // Auth is checked BEFORE the large-body parser here so unauthenticated
