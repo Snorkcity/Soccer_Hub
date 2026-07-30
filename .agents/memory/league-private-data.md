@@ -14,6 +14,8 @@ Match Prep reports, journal cycles/entries (reflections), GPS sessions and athle
 
 **Why:** switching the Hub to Reserves (or a future club) must never show another league's prep files/reflections/GPS/testing.
 
+**Pricing tiers (coach-decided Jul 2026, not yet built):** basic subscription = season stats, match prep, reflections (+ data entry). Paid add-ons, each its own module tick box: Session Planner (with Session Library) and Coach Assistant. Both are currently open to all signed-in users — moving them behind module flags is planned work.
+
 **Coach-confirmed convention (Jul 2026):** within a club's program, GPS and Testing data always live under the FIRSTS league; the reserves league view shows them empty. Reserves coaches who should see GPS/testing get viewer access to the firsts league instead of moving data. Same model applies to future clubs — everything isolated per league-team, firsts holds the physical-performance data.
 
 Known gap (accepted for now): AI brief/deck context helpers (opponent profile, match lookups) still pick seasonId from broad season lists, not strictly the active league — fine while only NPLW has analytics data.
