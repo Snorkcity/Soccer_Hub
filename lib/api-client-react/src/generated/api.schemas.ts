@@ -805,6 +805,34 @@ export interface ClubInput {
   logoUrl?: string | null;
 }
 
+export interface ClubUpdateInput {
+  /** @nullable */
+  primaryColor?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface ClubBrandingLookupBody {
+  leagueId: number;
+}
+
+export interface ClubBrandingSuggestion {
+  clubId: number;
+  name: string;
+  currentColor: string;
+  /** @nullable */
+  currentLogoUrl?: string | null;
+  /** @nullable */
+  primaryColor?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
+export interface ClubBrandingLookupResponse {
+  suggestions: ClubBrandingSuggestion[];
+  warnings: string[];
+}
+
 export interface ExtractClubsBody {
   leagueId: number;
   /** @nullable */

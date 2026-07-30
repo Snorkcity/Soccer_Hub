@@ -1222,6 +1222,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/ClubInfo"
 
+  /clubs/{clubId}:
+    patch:
+      operationId: updateClub
+      tags: [clubs]
+      summary: Update a club's colour and/or logo
+      parameters:
+        - name: clubId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClubUpdateInput"
+      responses:
+        "200":
+          description: Updated club
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClubInfo"
+
   /analytics/gps-load-summary:
     get:
       operationId: getGpsLoadSummary
@@ -1718,6 +1742,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExtractClubsResponse" }
+
+  /entry/fill-club-branding:
+    post:
+      operationId: fillClubBranding
+      tags: [entry]
+      summary: Suggest logos/colours for a league's existing clubs (Wikipedia + AI lookup, saves nothing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClubBrandingLookupBody" }
+      responses:
+        "200":
+          description: Branding suggestions for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClubBrandingLookupResponse" }
 
   /entry/athletic-tests:
     post:
@@ -3032,6 +3073,40 @@ components:
         primaryColor: { type: string }
         logoUrl:      { type: ["string", "null"] }
       required: [leagueId, name]
+
+    ClubUpdateInput:
+      type: object
+      properties:
+        primaryColor: { type: ["string", "null"] }
+        logoUrl:      { type: ["string", "null"] }
+
+    ClubBrandingLookupBody:
+      type: object
+      properties:
+        leagueId: { type: integer }
+      required: [leagueId]
+
+    ClubBrandingSuggestion:
+      type: object
+      properties:
+        clubId:          { type: integer }
+        name:            { type: string }
+        currentColor:    { type: string }
+        currentLogoUrl:  { type: ["string", "null"] }
+        primaryColor:    { type: ["string", "null"] }
+        logoUrl:         { type: ["string", "null"] }
+      required: [clubId, name, currentColor]
+
+    ClubBrandingLookupResponse:
+      type: object
+      properties:
+        suggestions:
+          type: array
+          items: { $ref: "#/components/schemas/ClubBrandingSuggestion" }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [suggestions, warnings]
 
     ExtractClubsBody:
       type: object

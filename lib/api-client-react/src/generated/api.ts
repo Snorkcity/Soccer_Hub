@@ -26,8 +26,11 @@ import type {
   AthleticTestInput,
   AuthStatus,
   ChangePasswordRequest,
+  ClubBrandingLookupBody,
+  ClubBrandingLookupResponse,
   ClubInfo,
   ClubInput,
+  ClubUpdateInput,
   ClutchGoalsResponse,
   CreateUserRequest,
   DeleteEntryPlayerStatsParams,
@@ -4249,6 +4252,78 @@ export const useCreateClub = <TError = ErrorType<unknown>,
       return useMutation(getCreateClubMutationOptions(options));
     }
 
+export const getUpdateClubUrl = (clubId: number,) => {
+
+
+
+
+  return `/api/clubs/${clubId}`
+}
+
+/**
+ * @summary Update a club's colour and/or logo
+ */
+export const updateClub = async (clubId: number,
+    clubUpdateInput: ClubUpdateInput, options?: RequestInit): Promise<ClubInfo> => {
+
+  return customFetch<ClubInfo>(getUpdateClubUrl(clubId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clubUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateClubMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClub>>, TError,{clubId: number;data: BodyType<ClubUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClub>>, TError,{clubId: number;data: BodyType<ClubUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateClub'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClub>>, {clubId: number;data: BodyType<ClubUpdateInput>}> = (props) => {
+          const {clubId,data} = props ?? {};
+
+          return  updateClub(clubId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClubMutationResult = NonNullable<Awaited<ReturnType<typeof updateClub>>>
+    export type UpdateClubMutationBody = BodyType<ClubUpdateInput>
+    export type UpdateClubMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a club's colour and/or logo
+ */
+export const useUpdateClub = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClub>>, TError,{clubId: number;data: BodyType<ClubUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClub>>,
+        TError,
+        {clubId: number;data: BodyType<ClubUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateClubMutationOptions(options));
+    }
+
 export const getGetGpsLoadSummaryUrl = (params: GetGpsLoadSummaryParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6359,6 +6434,77 @@ export const useExtractClubsFromLeague = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getExtractClubsFromLeagueMutationOptions(options));
+    }
+
+export const getFillClubBrandingUrl = () => {
+
+
+
+
+  return `/api/entry/fill-club-branding`
+}
+
+/**
+ * @summary Suggest logos/colours for a league's existing clubs (Wikipedia + AI lookup, saves nothing)
+ */
+export const fillClubBranding = async (clubBrandingLookupBody: ClubBrandingLookupBody, options?: RequestInit): Promise<ClubBrandingLookupResponse> => {
+
+  return customFetch<ClubBrandingLookupResponse>(getFillClubBrandingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clubBrandingLookupBody)
+  }
+);}
+
+
+
+
+
+export const getFillClubBrandingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fillClubBranding>>, TError,{data: BodyType<ClubBrandingLookupBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fillClubBranding>>, TError,{data: BodyType<ClubBrandingLookupBody>}, TContext> => {
+
+const mutationKey = ['fillClubBranding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fillClubBranding>>, {data: BodyType<ClubBrandingLookupBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  fillClubBranding(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FillClubBrandingMutationResult = NonNullable<Awaited<ReturnType<typeof fillClubBranding>>>
+    export type FillClubBrandingMutationBody = BodyType<ClubBrandingLookupBody>
+    export type FillClubBrandingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Suggest logos/colours for a league's existing clubs (Wikipedia + AI lookup, saves nothing)
+ */
+export const useFillClubBranding = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fillClubBranding>>, TError,{data: BodyType<ClubBrandingLookupBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof fillClubBranding>>,
+        TError,
+        {data: BodyType<ClubBrandingLookupBody>},
+        TContext
+      > => {
+      return useMutation(getFillClubBrandingMutationOptions(options));
     }
 
 export const getSaveEntryAthleticTestsUrl = () => {

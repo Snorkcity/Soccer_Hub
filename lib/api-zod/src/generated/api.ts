@@ -1587,6 +1587,27 @@ export const CreateClubResponse = zod.object({
 
 
 /**
+ * @summary Update a club's colour and/or logo
+ */
+export const UpdateClubParams = zod.object({
+  "clubId": zod.coerce.number()
+})
+
+export const UpdateClubBody = zod.object({
+  "primaryColor": zod.string().nullish(),
+  "logoUrl": zod.string().nullish()
+})
+
+export const UpdateClubResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "name": zod.string(),
+  "primaryColor": zod.string(),
+  "logoUrl": zod.string().nullish()
+})
+
+
+/**
  * @summary GPS load summary per player for a given period
  */
 export const GetGpsLoadSummaryQueryParams = zod.object({
@@ -2212,6 +2233,26 @@ export const ExtractClubsFromLeagueResponse = zod.object({
   "name": zod.string(),
   "fullName": zod.string().nullish(),
   "primaryColor": zod.string(),
+  "logoUrl": zod.string().nullish()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Suggest logos/colours for a league's existing clubs (Wikipedia + AI lookup, saves nothing)
+ */
+export const FillClubBrandingBody = zod.object({
+  "leagueId": zod.number()
+})
+
+export const FillClubBrandingResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "clubId": zod.number(),
+  "name": zod.string(),
+  "currentColor": zod.string(),
+  "currentLogoUrl": zod.string().nullish(),
+  "primaryColor": zod.string().nullish(),
   "logoUrl": zod.string().nullish()
 })),
   "warnings": zod.array(zod.string())

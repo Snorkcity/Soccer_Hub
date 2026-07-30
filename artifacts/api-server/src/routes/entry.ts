@@ -13,6 +13,7 @@ import {
   athleticTestsTable,
   gpsSessionsTable,
   leaguesTable,
+  clubsTable,
 } from "@workspace/db";
 import {
   ListLeagueMatchesQueryParams,
@@ -41,6 +42,8 @@ import {
   ExtractPlayersFromImageResponse,
   ExtractClubsFromLeagueBody,
   ExtractClubsFromLeagueResponse,
+  FillClubBrandingBody,
+  FillClubBrandingResponse,
   SaveEntryAthleticTestsBody,
   SaveEntryAthleticTestsResponse,
   SaveEntryGpsSessionsBody,
@@ -1053,6 +1056,112 @@ router.post("/entry/extract-clubs", async (req, res): Promise<void> => {
     logger.error({ err }, "AI club extraction failed");
     res.status(502).json({ error: "Could not work out the club list — try a clearer screenshot, or add clubs manually" });
   }
+});
+
+// ── Fill in logos/colours for a league's EXISTING clubs ──────────────────────
+// Same Wikipedia + AI lookup as the club finder, but keyed to the clubs already
+// saved. Returns suggestions only — the coach reviews, then PATCH /clubs/:id.
+router.post("/entry/fill-club-branding", async (req, res): Promise<void> => {
+  const parsed = FillClubBrandingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { leagueId } = parsed.data;
+
+  const clubs = await db.select().from(clubsTable)
+    .where(eq(clubsTable.leagueId, leagueId)).orderBy(clubsTable.name);
+  if (clubs.length === 0) {
+    res.status(404).json({ error: "No clubs saved in this league yet — use the club finder to add them" });
+    return;
+  }
+
+  const [league] = await db.select({ name: leaguesTable.name, region: leaguesTable.region })
+    .from(leaguesTable).where(eq(leaguesTable.id, leagueId));
+
+  const warnings: string[] = [];
+  // AI pass: real kit colours + any logo URLs it is confident about (optional —
+  // without credentials we still do the Wikipedia lookup below).
+  const aiByName = new Map<string, { primaryColor: string | null; logoUrl: string | null }>();
+  const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (apiKey) {
+    try {
+      const prompt = [
+        "You are helping fill in branding for Australian football (soccer) clubs in an analytics app.",
+        `These clubs play in the league "${league?.name ?? ""}"${league?.region ? ` (region: ${league.region})` : ""}:`,
+        clubs.map(c => `- ${c.name}`).join("\n"),
+        "For EACH club above, return its real-world branding. Return STRICT JSON only (no markdown) in this exact shape:",
+        `{"clubs":[{"name":"<exactly as listed above>","primaryColor":"#e31b23","logoUrl":"https://..."}],"warnings":["..."]}`,
+        "Rules:",
+        "- name: copy the club name EXACTLY as listed — it is the lookup key.",
+        "- primaryColor: the club's main real-world kit/brand colour as a 6-digit hex code. If genuinely unknown, use null and add a warning naming the club.",
+        "- logoUrl: a direct, publicly reachable URL to the club's crest IMAGE file (png/svg/jpg), e.g. a Wikipedia/Wikimedia upload URL. Only give a URL you are confident is real; otherwise null. Never invent URLs.",
+      ].join("\n");
+      const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gpt-5.4",
+          max_completion_tokens: 8192,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (aiRes.ok) {
+        const payload = await aiRes.json() as { choices?: { message?: { content?: string } }[] };
+        let text = payload.choices?.[0]?.message?.content ?? "";
+        text = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+        const extracted = JSON.parse(text) as { clubs?: unknown[]; warnings?: unknown[] };
+        for (const w of (extracted.warnings ?? []).slice(0, 10)) warnings.push(String(w));
+        for (const raw of extracted.clubs ?? []) {
+          const c = raw as Record<string, unknown>;
+          const name = String(c.name ?? "").trim().toLowerCase();
+          if (!name) continue;
+          const hex = typeof c.primaryColor === "string" && /^#[0-9a-fA-F]{6}$/.test(c.primaryColor.trim())
+            ? c.primaryColor.trim().toLowerCase() : null;
+          const url = typeof c.logoUrl === "string" && /^https?:\/\//.test(c.logoUrl.trim()) ? c.logoUrl.trim() : null;
+          aiByName.set(name, { primaryColor: hex, logoUrl: url });
+        }
+      } else {
+        logger.warn({ status: aiRes.status }, "AI branding lookup failed — falling back to Wikipedia only");
+        warnings.push("The AI colour lookup had a problem — logos come from Wikipedia only this time");
+      }
+    } catch (err) {
+      logger.warn({ err }, "AI branding lookup failed — falling back to Wikipedia only");
+      warnings.push("The AI colour lookup had a problem — logos come from Wikipedia only this time");
+    }
+  }
+
+  // Logo pass — sequential on purpose: Wikipedia 429s parallel bursts.
+  const suggestions = [];
+  for (const club of clubs) {
+    const ai = aiByName.get(club.name.trim().toLowerCase());
+    let logoUrl = ai?.logoUrl ?? null;
+    if (logoUrl && !(await verifyLogoUrl(logoUrl))) logoUrl = null;
+    if (!logoUrl && !club.logoUrl) {
+      // Short saved names ("Croatia", "Wanderers") are ambiguous on Wikipedia —
+      // add the league's region so the search lands on the local club.
+      const wiki = await wikipediaLogoLookup([club.name, league?.region].filter(Boolean).join(" "));
+      if (wiki && (await verifyLogoUrl(wiki))) logoUrl = wiki;
+      await sleep(250);
+    }
+    if (!logoUrl && !club.logoUrl) warnings.push(`Couldn't find a logo for ${club.name} — paste a URL in if you have one`);
+    suggestions.push({
+      clubId: club.id,
+      name: club.name,
+      currentColor: club.primaryColor,
+      currentLogoUrl: club.logoUrl ?? null,
+      primaryColor: ai?.primaryColor ?? null,
+      logoUrl,
+    });
+  }
+
+  const result = FillClubBrandingResponse.safeParse({ suggestions, warnings: warnings.slice(0, 25) });
+  if (!result.success) {
+    res.status(502).json({ error: "The branding lookup returned an unexpected shape — try again" });
+    return;
+  }
+  res.json(result.data);
 });
 
 // ── Athletic testing bulk save (trainer's spreadsheet) ───────────────────────

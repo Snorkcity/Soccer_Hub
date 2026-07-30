@@ -38,6 +38,8 @@ import {
   useCreateSeason,
   useCreateClub,
   useExtractClubsFromLeague,
+  useFillClubBranding,
+  useUpdateClub,
   useGetDriblPreview,
   getGetDriblPreviewQueryKey,
   getListLeaguesQueryKey,
@@ -1024,6 +1026,16 @@ function ClubFinder({ leagueId, existingNames, onSaved }: {
   );
 }
 
+interface BrandingRow {
+  clubId: number;
+  name: string;
+  currentColor: string;
+  currentLogoUrl: string | null;
+  primaryColor: string;
+  logoUrl: string | null;
+  include: boolean;
+  logoBroken?: boolean;
+}
 function LeagueSetupCard() {
   const queryClient = useQueryClient();
   const { data: leagues } = useListLeagues();
@@ -1152,6 +1164,11 @@ function LeagueSetupCard() {
           <ClubFinder
             leagueId={clubLeagueId ? Number(clubLeagueId) : null}
             existingNames={(clubs ?? []).filter(c => String(c.leagueId) === clubLeagueId).map(c => c.name)}
+            onSaved={() => invalidate()}
+          />
+          <ClubBrandingFixer
+            leagueId={clubLeagueId ? Number(clubLeagueId) : null}
+            clubCount={(clubs ?? []).filter(c => String(c.leagueId) === clubLeagueId).length}
             onSaved={() => invalidate()}
           />
           <div className="grid gap-4 sm:grid-cols-[1fr_90px_auto] items-end">
@@ -2312,4 +2329,162 @@ export default function DataEntry() {
     );
   }
   return <EntryWorkspace />;
+}
+
+/** Fill in logos/colours for a league's EXISTING clubs — lookup, review, then PATCH each. */
+function ClubBrandingFixer({ leagueId, clubCount, onSaved }: {
+  leagueId: number | null; clubCount: number; onSaved: () => void;
+}) {
+  const [rows, setRows] = useState<BrandingRow[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setRows([]); setWarnings([]); setOk(null); setErr(null); }, [leagueId]);
+
+  const lookup = useFillClubBranding({ mutation: {
+    onSuccess: (res) => {
+      const mapped = res.suggestions.map(s => {
+        const primaryColor = s.primaryColor ?? s.currentColor;
+        const logoUrl = s.logoUrl ?? s.currentLogoUrl ?? null;
+        const changed = primaryColor !== s.currentColor || logoUrl !== (s.currentLogoUrl ?? null);
+        return {
+          clubId: s.clubId, name: s.name,
+          currentColor: s.currentColor, currentLogoUrl: s.currentLogoUrl ?? null,
+          primaryColor, logoUrl, include: changed,
+        };
+      });
+      setRows(mapped);
+      setWarnings(res.warnings);
+      const changed = mapped.filter(r => r.include).length;
+      setOk(changed > 0
+        ? `Found updates for ${changed} of ${mapped.length} clubs — check them, then save`
+        : "Nothing new found — every club already matches what the lookup suggests");
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  const updateClub = useUpdateClub();
+  const busy = lookup.isPending || saving;
+
+  const update = (i: number, patch: Partial<BrandingRow>) =>
+    setRows(rs => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const rowChanged = (r: BrandingRow) =>
+    r.primaryColor !== r.currentColor || (r.logoUrl?.trim() || null) !== r.currentLogoUrl;
+  const toSave = rows.filter(r => r.include && rowChanged(r));
+
+  const saveAll = async () => {
+    setOk(null); setErr(null); setSaving(true);
+    let updated = 0;
+    const failed: string[] = [];
+    for (const r of toSave) {
+      try {
+        await updateClub.mutateAsync({ clubId: r.clubId, data: {
+          primaryColor: r.primaryColor,
+          logoUrl: r.logoUrl?.trim() || null,
+        }});
+        updated += 1;
+      } catch (e) {
+        failed.push(`${r.name}: ${errMsg(e)}`);
+      }
+    }
+    setSaving(false);
+    if (failed.length > 0) setErr(`Updated ${updated}, but some failed — ${failed.join("; ")}`);
+    else { setOk(`Updated ${updated} club${updated === 1 ? "" : "s"}`); setRows([]); setWarnings([]); }
+    onSaved();
+  };
+
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <ScanText className="h-4 w-4 text-primary shrink-0" />
+        <p className="text-sm font-medium">Fill in missing logos &amp; colours</p>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Runs the same lookup against the clubs already saved in this league, so you can add logos or fix
+        colours without deleting and re-adding anything. Nothing changes until you save.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline" size="sm" disabled={leagueId == null || clubCount === 0 || busy}
+          onClick={() => {
+            if (leagueId == null) return;
+            setOk(null); setErr(null); setRows([]); setWarnings([]);
+            lookup.mutate({ data: { leagueId } });
+          }}
+        >
+          <ScanText className="h-4 w-4 mr-1.5" />Look up logos &amp; colours
+        </Button>
+        {lookup.isPending && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Checking each club…</span>}
+        {leagueId == null && <span className="text-xs text-muted-foreground">Pick a league first</span>}
+        {leagueId != null && clubCount === 0 && <span className="text-xs text-muted-foreground">No clubs in this league yet</span>}
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="space-y-1">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-xs text-chart-4"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />{w}</div>
+          ))}
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <div className="rounded-md border bg-background divide-y divide-border/40">
+            {rows.map((r, i) => {
+              const changed = rowChanged(r);
+              return (
+                <div key={r.clubId} className="flex items-center gap-2 px-2 py-1.5">
+                  <Checkbox
+                    checked={r.include && changed} disabled={!changed}
+                    onCheckedChange={v => update(i, { include: v === true })}
+                  />
+                  <span className="h-8 w-8 shrink-0 rounded border bg-muted/40 flex items-center justify-center overflow-hidden">
+                    {r.logoUrl && !r.logoBroken ? (
+                      <img
+                        src={r.logoUrl} alt="" className="h-full w-full object-contain"
+                        onError={() => update(i, { logoBroken: true })}
+                      />
+                    ) : (
+                      <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: r.primaryColor }} />
+                    )}
+                  </span>
+                  <div className="grid flex-1 gap-1.5 sm:grid-cols-[minmax(120px,1fr)_64px_minmax(160px,1.4fr)] items-center">
+                    <div>
+                      <p className="text-sm font-medium truncate">{r.name}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {changed ? "Has an update" : "Already up to date"}
+                        {r.primaryColor !== r.currentColor && (
+                          <> — colour <span className="inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: r.currentColor }} /> → <span className="inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: r.primaryColor }} /></>
+                        )}
+                      </p>
+                    </div>
+                    <Input
+                      type="color" value={r.primaryColor}
+                      onChange={e => update(i, { primaryColor: e.target.value })}
+                      className="h-8 p-1 cursor-pointer"
+                    />
+                    <Input
+                      value={r.logoUrl ?? ""} onChange={e => update(i, { logoUrl: e.target.value || null, logoBroken: false })}
+                      className="h-8 text-xs" placeholder="Logo URL (optional)"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button size="sm" disabled={busy || toSave.length === 0} onClick={() => void saveAll()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
+              Save {toSave.length} update{toSave.length === 1 ? "" : "s"}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setRows([]); setWarnings([]); setOk(null); setErr(null); }}>Clear</Button>
+          </div>
+        </div>
+      )}
+      <StatusLine ok={ok} err={err} />
+    </div>
+  );
 }
