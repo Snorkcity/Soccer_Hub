@@ -3283,6 +3283,7 @@ components:
       type: object
       properties:
         playerName:   { type: string }
+        club:         { type: string, nullable: true }
         totalMins:    { type: integer }
         totalGoals:   { type: integer }
         totalAssists: { type: integer }

@@ -903,6 +903,7 @@ export type OpponentPlayerByOpponentPlayerByOpponent = {[key: string]: OpponentP
 
 export interface OpponentPlayerByOpponentPlayer {
   playerName: string;
+  club?: string | null;
   totalMins: number;
   totalGoals: number;
   totalAssists: number;

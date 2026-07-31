@@ -9,6 +9,7 @@ import type { OpponentPlayerByOpponentPlayerByOpponent } from './opponentPlayerB
 
 export interface OpponentPlayerByOpponentPlayer {
   playerName: string;
+  club?: string | null;
   totalMins: number;
   totalGoals: number;
   totalAssists: number;

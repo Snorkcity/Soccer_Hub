@@ -1248,6 +1248,7 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
   "opponents": zod.array(zod.string()),
   "players": zod.array(zod.object({
   "playerName": zod.string(),
+  "club": zod.string().nullish(),
   "totalMins": zod.number(),
   "totalGoals": zod.number(),
   "totalAssists": zod.number(),

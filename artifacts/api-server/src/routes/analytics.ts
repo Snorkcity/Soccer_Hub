@@ -1527,12 +1527,17 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   // Full roster (everyone who featured), not just scorers — powers the Starts &
   // Appearances + Total Minutes charts, which must include non-scoring players.
   const roster = new Set<string>();
+  // Player → set of clubs they were seen for. Same-name players at different
+  // clubs already collapse into one row (name-keyed aggregation, pre-existing);
+  // if that happens, show no club rather than a wrong one.
+  const clubsByPlayer: Record<string, Set<string>> = {};
   for (const r of ps) {
     if (!r.playerName) continue;
     if (!isAll && r.club !== club) continue;
     const opp = opponentOf(r.matchId, r.club);
     if (!opp) continue;
     roster.add(r.playerName);
+    if (r.club) (clubsByPlayer[r.playerName] ??= new Set()).add(r.club);
     (minsByPlayerOpp[r.playerName] ??= {})[opp] = (minsByPlayerOpp[r.playerName][opp] ?? 0) + (r.minsPlayed ?? 0);
     totalMinsByPlayer[r.playerName] = (totalMinsByPlayer[r.playerName] ?? 0) + (r.minsPlayed ?? 0);
     if (r.started) totalStartsByPlayer[r.playerName] = (totalStartsByPlayer[r.playerName] ?? 0) + 1;
@@ -1554,8 +1559,14 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     const opp = scoring === g.homeTeam ? g.awayTeam : (scoring === g.awayTeam ? g.homeTeam : opponentOf(g.matchId, scoring));
     if (!opp) continue;
     // "OG" = own goal — credited to the team, not an individual player, so exclude it.
-    if (g.scorer && g.scorer !== "OG") (goalsByPlayerOpp[g.scorer] ??= {})[opp] = (goalsByPlayerOpp[g.scorer][opp] ?? 0) + 1;
-    if (g.assist && g.assist !== "OG") (assistsByPlayerOpp[g.assist] ??= {})[opp] = (assistsByPlayerOpp[g.assist][opp] ?? 0) + 1;
+    if (g.scorer && g.scorer !== "OG") {
+      (goalsByPlayerOpp[g.scorer] ??= {})[opp] = (goalsByPlayerOpp[g.scorer][opp] ?? 0) + 1;
+      (clubsByPlayer[g.scorer] ??= new Set()).add(scoring);
+    }
+    if (g.assist && g.assist !== "OG") {
+      (assistsByPlayerOpp[g.assist] ??= {})[opp] = (assistsByPlayerOpp[g.assist][opp] ?? 0) + 1;
+      (clubsByPlayer[g.assist] ??= new Set()).add(scoring);
+    }
   }
 
   // Build per-player rows for everyone with a goal/assist OR who featured on the roster.
@@ -1577,6 +1588,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     const totalAssists = Object.values(a).reduce((s, v) => s + v, 0);
     return {
       playerName,
+      club: clubsByPlayer[playerName]?.size === 1 ? [...clubsByPlayer[playerName]][0] : null,
       totalMins: totalMinsByPlayer[playerName] ?? 0,
       totalGoals, totalAssists,
       totalStarts: totalStartsByPlayer[playerName] ?? 0,

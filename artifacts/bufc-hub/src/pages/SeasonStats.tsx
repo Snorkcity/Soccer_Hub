@@ -98,6 +98,7 @@ function positionGroup(pos: string | null | undefined): PosGroup {
 interface MpgEntry {
   name: string;
   fullName: string;
+  club?: string | null;
   totalMins: number;
   filteredGoals: number;
   filteredMins: number;
@@ -107,7 +108,7 @@ interface MpgEntry {
 
 // ─── Goal Contributions stacked chart types ────────────────────────────────────
 interface ContribEntry {
-  name: string; fullName: string; totalMins: number;
+  name: string; fullName: string; club?: string | null; totalMins: number;
   filteredGoals: number; filteredAssists: number; filteredContribs: number; filteredMins: number;
   byOpponent: Record<string, { goals: number; assists: number; minsPlayed: number }>;
   [opp: string]: unknown;
@@ -115,7 +116,7 @@ interface ContribEntry {
 
 // ─── Assists stacked chart types ───────────────────────────────────────────────
 interface AssistEntry {
-  name: string; fullName: string; totalMins: number;
+  name: string; fullName: string; club?: string | null; totalMins: number;
   filteredAssists: number; filteredMins: number;
   byOpponent: Record<string, { assists: number; minsPlayed: number }>;
   [opp: string]: unknown;
@@ -4255,7 +4256,7 @@ function MinutesTooltip({ active, payload }: {
 type OppPlayerSrc = {
   opponents: string[];
   players: Array<{
-    playerName: string; totalMins: number; totalGoals: number; totalAssists: number;
+    playerName: string; club?: string | null; totalMins: number; totalGoals: number; totalAssists: number;
     totalStarts: number; totalApps: number;
     byOpponent: Record<string, { goals: number; assists: number; minsPlayed: number }>;
   }>;
@@ -4314,7 +4315,7 @@ function OppPlayerStackChart({
       const filteredContribs = filteredGoals + filteredAssists;
       const filteredValue = metric === "goals" ? filteredGoals : metric === "assists" ? filteredAssists : filteredContribs;
       const row: Record<string, unknown> = {
-        name: sn[p.playerName] ?? p.playerName, fullName: p.playerName, totalMins: p.totalMins,
+        name: sn[p.playerName] ?? p.playerName, fullName: p.playerName, club: p.club ?? null, totalMins: p.totalMins,
         filteredGoals, filteredAssists, filteredContribs, filteredMins, filteredValue, byOpponent,
       };
       for (const [opp, v] of Object.entries(byOpponent)) row[opp] = val(v);
@@ -4691,7 +4692,10 @@ function ContribTooltip({ active, payload, hiddenOpponents }: {
     .sort(([, a], [, b]) => (b.goals + b.assists) - (a.goals + a.assists));
   return (
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[220px] space-y-2">
-      <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+      <div>
+        <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+        {d.club ? <div className="text-muted-foreground mt-0.5">{d.club}</div> : null}
+      </div>
       <div className="border-t pt-2 space-y-1">
         {visibleBreakdown.map(([opp, data]) => (
           <div key={opp} className="flex justify-between gap-6">
@@ -4731,7 +4735,10 @@ function AssistStackedTooltip({ active, payload, hiddenOpponents }: {
     .sort(([, a], [, b]) => b.assists - a.assists);
   return (
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[210px] space-y-2">
-      <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+      <div>
+        <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+        {d.club ? <div className="text-muted-foreground mt-0.5">{d.club}</div> : null}
+      </div>
       <div className="border-t pt-2 space-y-1">
         {visibleBreakdown.map(([opp, data]) => (
           <div key={opp} className="flex justify-between gap-6">
@@ -4772,7 +4779,10 @@ function MinsPerGoalTooltip({ active, payload, hiddenOpponents }: {
     .sort(([, a], [, b]) => b.goals - a.goals);
   return (
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[210px] space-y-2">
-      <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+      <div>
+        <div className="font-semibold text-sm leading-tight">{d.fullName}</div>
+        {d.club ? <div className="text-muted-foreground mt-0.5">{d.club}</div> : null}
+      </div>
       {/* Goals by opponent */}
       <div className="border-t pt-2 space-y-1">
         {visibleBreakdown.map(([opp, data]) => (
