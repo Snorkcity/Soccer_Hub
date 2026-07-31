@@ -347,15 +347,46 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
           options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDot", lineSize: 1.25 },
         })),
     ];
+
+    // Speed charts get a second y-axis on the right showing m/s. PowerPoint needs a
+    // series on the secondary axis to draw it, so we add an invisible (paper-coloured)
+    // flat line, and pin both axis maxima so the two scales line up exactly (÷3.6).
+    const isSpeed = m.unit === "km/h";
+    const speedAxisOpts: Record<string, unknown> = {};
+    if (isSpeed) {
+      const allVals = [
+        ...vals.filter((v): v is number => v != null),
+        stats.seasonAvg,
+        ...comps.map(c => c.values[m.id]).filter((v): v is number => v != null),
+      ];
+      const kmMax = Math.max(2, Math.ceil((Math.max(...allVals) * 1.08) / 2) * 2); // headroom, even number, never 0
+      combo.push({
+        type: "line",
+        // empty name + paper-coloured line = no visible legend entry for the axis-driver series
+        data: [{ name: "", labels: cats, values: cats.map(() => kmMax / 3.6) }],
+        options: { chartColors: [PAPER], lineDataSymbol: "none", lineSize: 1, secondaryValAxis: true, secondaryCatAxis: true } as never,
+      });
+      speedAxisOpts.valAxes = [
+        { valAxisTitle: "km/h", showValAxisTitle: false, valAxisMinVal: 0, valAxisMaxVal: kmMax, valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 } },
+        { valAxisTitle: "m/s", showValAxisTitle: true, valAxisTitleFontSize: 9, valAxisTitleColor: GREY, valAxisMinVal: 0, valAxisMaxVal: Number((kmMax / 3.6).toFixed(2)), valAxisLabelFontSize: 9, valAxisLabelColor: GREY, valAxisLabelFormatCode: "0.0", valGridLine: { style: "none" } },
+      ];
+      speedAxisOpts.catAxes = [
+        { catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0 },
+        { catAxisHidden: true },
+      ];
+    }
     // pptxgenjs combo charts take (typesArray, options) at runtime; the TS typings
     // only describe the single-type (type, data, options) overload, hence the cast.
     (s.addChart as unknown as (types: unknown, opts: unknown) => void)(combo, {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
-      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
+      ...(isSpeed ? {} : {
+        catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
+        valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
+      }),
       showLegend: true, legendPos: "b", legendFontSize: 10,
       dataLabelFormatCode: "0", showValue: false,
       catGridLine: { style: "none" },
+      ...speedAxisOpts,
     });
 
     // Speeds render km/h with the m/s equivalent as a smaller, grey run so the two units don't clash.
