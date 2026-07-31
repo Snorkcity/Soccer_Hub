@@ -19,9 +19,8 @@ Applied consistently in both the runtime pool and the drizzle-kit config so `pus
 
 **How to apply:** if `DATABASE_URL` shows up in `viewEnvVars` `runtimeManaged`, do not try to set it — use the `DEV_DATABASE_URL` override path instead.
 
-## Prod DB direct access (updated 2026-07-29)
-- Secret `PROD_DATABASE_URL` currently holds the **internal** URL (postgres.railway.internal — unreachable from Replit); coach repeatedly pastes the wrong Railway row. Workaround: shared env vars `PROD_DB_PUBLIC_HOST`/`PROD_DB_PUBLIC_PORT` (TCP proxy) + host-swap at command time:
-  `URL=$(echo "$PROD_DATABASE_URL" | sed -E "s#@[^/]+/#@${PROD_DB_PUBLIC_HOST}:${PROD_DB_PUBLIC_PORT}/#"); psql "$URL" ...` — verified working.
+## Prod DB direct access (updated 2026-07-31)
+- Secret `PROD_DATABASE_URL` now holds the **public** proxy URL (proxy.rlwy.net) — `psql "$PROD_DATABASE_URL"` works directly. If it ever fails resolving postgres.railway.internal, coach pasted the internal row again; ask for the PUBLIC url (or use `PROD_DB_PUBLIC_HOST`/`PROD_DB_PUBLIC_PORT` host-swap workaround).
 - Scott changed his prod password via My Account, so $ADMIN_PASSWORD no longer logs into prod — DB access is the way to inspect/fix prod data.
 - Prod gps_sessions count columns are `accel_count_over_4`/`decel_count_over_4` (extra underscore vs what you might guess).
 - Coach uploads weekly GPS via the LIVE site → prod is source of truth; dev DB is a stale snapshot. Check prod before declaring data "missing".
