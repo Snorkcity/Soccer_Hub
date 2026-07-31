@@ -624,9 +624,13 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     // Real 5×7 tables (editable in PowerPoint after download): header row holds the
     // formation name; the XI drop into cells by pitch position, GK ends up bottom middle.
     const COLS = 5, PLAYER_ROWS = 6;
-    const bx = 9.55, bw2 = W - 0.45 - bx, bh2 = 1.28, gap2 = 0.145;
+    const bx = 9.55, bw2 = W - 0.45 - bx, bh2 = 1.28;
+    // Space the three tables evenly down the page (tables can grow a touch when
+    // cells hold text, so the gap is generous and identical between all three).
+    const topY = 1.75, bottomY = H - 0.3;
+    const gap2 = (bottomY - topY - 3 * bh2) / 2;
     for (let i = 0; i < 3; i++) {
-      const by = 1.75 + i * (bh2 + gap2);
+      const by = topY + i * (bh2 + gap2);
       const grid: string[][] = Array.from({ length: 1 + PLAYER_ROWS }, () => Array(COLS).fill(""));
       grid[0][0] = input.formationName;
       if (i === 0) {
@@ -639,24 +643,28 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       }
       s.addTable(
         grid.map((cells, r) =>
-          cells.map((text, c) => ({
-            text,
-            options: {
-              fill: { color: "E7E7E7" },
-              fontSize: 8,
-              color: "000000",
-              bold: r === 0 && c === 0,
-              align: (r === 0 ? "left" : "center") as "left" | "center",
-              valign: "middle" as const,
-              margin: 0.02,
-            },
-          })),
+          cells.map((text, c) => {
+            // The goal: bottom-middle cell outlined in black, like the coach draws it.
+            const isGoal = r === PLAYER_ROWS && c === Math.floor(COLS / 2);
+            return {
+              text,
+              options: {
+                fill: { color: "E7E7E7" },
+                fontSize: 8,
+                color: "000000",
+                bold: r === 0 && c === 0,
+                align: (r === 0 ? "left" : "center") as "left" | "center",
+                valign: "middle" as const,
+                margin: 0.02,
+                border: { type: "solid" as const, color: isGoal ? "000000" : "E7E7E7", pt: isGoal ? 1 : 0.5 },
+              },
+            };
+          }),
         ),
         {
           x: bx, y: by, w: bw2, h: bh2,
           colW: Array(COLS).fill(bw2 / COLS),
           rowH: bh2 / (1 + PLAYER_ROWS),
-          border: { type: "solid", color: "AFAFAF", pt: 0.5 },
         },
       );
     }
