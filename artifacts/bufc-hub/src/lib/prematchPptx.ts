@@ -577,11 +577,11 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   {
     const s = lightSlide(pptx, "Game day", `${input.round} v ${input.opponent}`, input.matchDate);
     // Left: comments/trends, then deliberate white space for in-game notes.
-    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.7, w: 5.8, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
+    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.32, w: 5.6, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
     const ct = input.commentsTrends ?? [];
     if (ct.length) {
       s.addText(ct.map((t) => ({ text: t, options: { breakLine: true } })), {
-        x: MX, y: 2.0, w: 5.9, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
+        x: MX, y: 1.62, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
       });
     }
     // Kickoff countdown — the "little formula". Times count back from kickoff;
@@ -599,26 +599,28 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
         ["kickoff", 0], ["changeroom", 10], ["shots", 14], ["passing/game", 25],
         ["warmup/bands", 40], ["team talk", 55], ["", 60], ["go in", 65], ["arrive latest", 75],
       ];
-      const ty = H - 0.55 - steps.length * 0.24;
+      const rowH = 0.19;
+      const ty = H - 0.28 - steps.length * rowH;
+      const tx = 4.55; // table sits mid-right at the bottom, leaving the left free for notes
       steps.forEach(([label, off], i) => {
-        const ry = ty + i * 0.24;
-        s.addText(label, { x: MX, y: ry, w: 1.7, h: 0.24, fontSize: 10, color: "000000", align: "right", valign: "middle" });
-        s.addText(fmtT(koMin - off), { x: MX + 1.8, y: ry, w: 0.75, h: 0.24, fontSize: 10, color: "000000", bold: off === 0, valign: "middle" });
-        s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: MX + 2.6, y: ry, w: 0.6, h: 0.24, fontSize: 10, color: "F2F2F2", valign: "middle" });
-        s.addText(off === 0 ? "KO" : `KO-${off}`, { x: MX + 3.25, y: ry, w: 0.85, h: 0.24, fontSize: 10, color: "000000", valign: "middle" });
+        const ry = ty + i * rowH;
+        s.addText(label, { x: tx, y: ry, w: 1.2, h: rowH, fontSize: 8, color: "000000", align: "right", valign: "middle" });
+        s.addText(fmtT(koMin - off), { x: tx + 1.3, y: ry, w: 0.55, h: rowH, fontSize: 8, color: "000000", bold: off === 0, valign: "middle" });
+        s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: tx + 1.9, y: ry, w: 0.45, h: rowH, fontSize: 8, color: "F2F2F2", valign: "middle" });
+        s.addText(off === 0 ? "KO" : `KO-${off}`, { x: tx + 2.4, y: ry, w: 0.7, h: rowH, fontSize: 8, color: "000000", valign: "middle" });
       });
     }
     // Right: subs column + three grey shape boxes (top one filled with the XI,
     // two blank for scribbling a reshuffle after subs/injuries).
-    const subsX = 6.9;
+    const subsX = 6.35;
     if (input.subs.length) {
       s.addText([{ text: "Subs", options: { bold: true, breakLine: true } }, ...input.subs.map((n) => ({ text: n, options: { breakLine: true } }))], {
-        x: subsX, y: 1.75, w: 1.15, h: 3.0, fontSize: 9.5, color: "000000", valign: "top", lineSpacing: 14,
+        x: subsX, y: 1.35, w: 0.8, h: 3.0, fontSize: 9, color: "000000", valign: "top", lineSpacing: 13,
       });
     }
-    const bx = subsX + 1.25, bw2 = W - 0.4 - bx, bh2 = 1.72, gap2 = 0.14;
+    const bx = 7.15, bw2 = W - 0.35 - bx, bh2 = 1.28, gap2 = 0.145;
     for (let i = 0; i < 3; i++) {
-      const by = 1.7 + i * (bh2 + gap2);
+      const by = 1.25 + i * (bh2 + gap2);
       s.addShape("rect", { x: bx, y: by, w: bw2, h: bh2, fill: { color: "E7E7E7" } });
       s.addText(input.formationName, { x: bx + 0.08, y: by + 0.04, w: 1.0, h: 0.2, fontSize: 9, color: "000000", bold: true });
       if (i === 0) {
