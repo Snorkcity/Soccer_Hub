@@ -77,6 +77,17 @@ const M_DISTANCE: GpsMetric = { id: "distance", title: "Total Distance", unit: "
 const M_HSM: GpsMetric = { id: "hsm", title: "High Speed Metres (>18 km/h)", unit: "m", decimals: 0, additive: true, value: r => r.sprintDistanceM ?? null };
 const M_VHS: GpsMetric = { id: "vhs", title: "Very High Speed Metres (>25 km/h)", unit: "m", decimals: 0, additive: true, value: r => (r.distanceZone5Km == null ? null : r.distanceZone5Km * 1000) };
 const M_TOPSPEED: GpsMetric = { id: "topSpeed", title: "Top Speed", unit: "km/h", decimals: 1, additive: false, value: r => (r.topSpeedMs == null ? null : r.topSpeedMs * 3.6) };
+// m/s view of the same metric — raw GPS units, for coaches converting from m/s.
+const M_TOPSPEED_MS: GpsMetric = { id: "topSpeed", title: "Top Speed", unit: "m/s", decimals: 2, additive: false, value: r => r.topSpeedMs ?? null };
+
+function SpeedUnitToggle({ ms, setMs }: { ms: boolean; setMs: (v: boolean) => void }) {
+  return (
+    <div className="flex rounded-md border overflow-hidden shrink-0">
+      <Button variant={ms ? "ghost" : "secondary"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setMs(false)}>km/h</Button>
+      <Button variant={ms ? "secondary" : "ghost"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setMs(true)}>m/s</Button>
+    </div>
+  );
+}
 const M_POWERPLAYS: GpsMetric = { id: "powerPlays", title: "Power Plays", unit: "", decimals: 0, additive: true, value: r => r.powerPlays ?? null };
 const M_DPM: GpsMetric = { id: "dpm", title: "Distance Per Minute", unit: "m/min", decimals: 0, additive: false, value: r => r.distancePerMinMm ?? null };
 const M_LOAD: GpsMetric = { id: "load", title: "Player Load", unit: "", decimals: 0, additive: true, value: r => r.playerLoad ?? null };
@@ -508,9 +519,12 @@ function LastNToggle({ lastN, setLastN }: { lastN: boolean; setLastN: (b: boolea
   );
 }
 
-function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundles: Bundle[]; player: string }) {
+function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMetric; bundles: Bundle[]; player: string }) {
   const [lastN, setLastN] = useState(false);
   const [per90, setPer90] = useState(false);
+  const [ms, setMs] = useState(false);
+  const isSpeed = metricIn.id === "topSpeed";
+  const metric = isSpeed && ms ? M_TOPSPEED_MS : metricIn;
   // Per-90 only makes sense for additive volumes — Top Speed / Distance-per-min are already rates.
   const canPer90 = metric.additive;
   const norm = canPer90 && per90;
@@ -585,6 +599,7 @@ function PlayerChartCard({ metric, bundles, player }: { metric: GpsMetric; bundl
               <Button variant={norm ? "secondary" : "ghost"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer90(true)}>Per 90</Button>
             </div>
           )}
+          {isSpeed && <SpeedUnitToggle ms={ms} setMs={setMs} />}
           <LastNToggle lastN={lastN} setLastN={setLastN} />
         </div>
       </CardHeader>
@@ -885,8 +900,11 @@ function TeamViewToggle({ view, setView, additive }: { view: TeamView; setView: 
   );
 }
 
-function TeamChartCard({ metric, bundles }: { metric: GpsMetric; bundles: Bundle[] }) {
+function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundles: Bundle[] }) {
   const [view, setView] = useState<TeamView>("total");
+  const [ms, setMs] = useState(false);
+  const isSpeed = metricIn.id === "topSpeed";
+  const metric = isSpeed && ms ? M_TOPSPEED_MS : metricIn;
 
   const data = useMemo(() => {
     const rows = bundles.map(b => {
@@ -925,7 +943,10 @@ function TeamChartCard({ metric, bundles }: { metric: GpsMetric; bundles: Bundle
             {view === "halves" && (halvesStacked ? " 1st half at the bottom, 2nd half on top — a short top segment can mean fading late." : " 1st vs 2nd half side by side.")}
           </CardDescription>
         </div>
-        <TeamViewToggle view={view} setView={setView} additive={metric.additive} />
+        <div className="flex items-center gap-2">
+          {isSpeed && <SpeedUnitToggle ms={ms} setMs={setMs} />}
+          <TeamViewToggle view={view} setView={setView} additive={metric.additive} />
+        </div>
       </CardHeader>
       <CardContent className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
