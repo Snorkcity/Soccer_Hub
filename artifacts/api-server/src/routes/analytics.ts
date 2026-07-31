@@ -1455,9 +1455,9 @@ router.get("/analytics/player-impact", async (req, res): Promise<void> => {
   } else {
     players.sort((a, b) => (b.started.winPct ?? 0) - (a.started.winPct ?? 0) || b.started.matches - a.started.matches);
   }
-  const limited = isAll ? players.slice(0, 30) : players;
-
-  res.json(GetPlayerImpactResponse.parse({ totalMatches: windowedIds.length, players: limited }));
+  // League-wide: return everyone — the client filters out hidden clubs first,
+  // THEN takes its top 30, so hiding a club backfills the list instead of thinning it.
+  res.json(GetPlayerImpactResponse.parse({ totalMatches: windowedIds.length, players }));
 });
 
 // ─── Opponent Players by Opponent (club-scoped goals/assists/mins per opponent) ─

@@ -2944,7 +2944,7 @@ export default function SeasonStats() {
                 lastN={oppGoalL3} onLastN={() => setOppGoalL3(v => !v)}
                 sort={oppGoalSort} onSort={setOppGoalSort}
                 hidden={hiddenOppGoalOpp} onToggle={toggleOppGoalOpp}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
               />
 
               {/* 16. Assists by opponent */}
@@ -2955,7 +2955,7 @@ export default function SeasonStats() {
                 lastN={oppAssistL3} onLastN={() => setOppAssistL3(v => !v)}
                 sort={oppAssistSort} onSort={setOppAssistSort}
                 hidden={hiddenOppAssistOpp} onToggle={toggleOppAssistOpp}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
               />
 
               {/* 17. Contributions (G + A) by opponent */}
@@ -2966,7 +2966,7 @@ export default function SeasonStats() {
                 lastN={oppContribL3} onLastN={() => setOppContribL3(v => !v)}
                 sort={oppContribSort} onSort={setOppContribSort}
                 hidden={hiddenOppContribOpp} onToggle={toggleOppContribOpp}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
               />
 
               {/* 17d. On-Field Impact — team GD while the player was in the side */}
@@ -2979,11 +2979,11 @@ export default function SeasonStats() {
                 minMins={oppImpactMinMins} onMinMins={setOppImpactMinMins}
                 hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
                 hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
               />
 
               {/* 17f. Player Impact — team record when player starts vs not */}
-              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} />
+              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} colorMap={clubColorMap} />
 
               {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
               <ClutchChart
@@ -2991,7 +2991,7 @@ export default function SeasonStats() {
                 src={oppClutchData}
                 sn={{}}
                 showClub={isAll}
-                maxBars={isAll ? 20 : undefined}
+                maxBars={isAll ? 30 : undefined}
               />
 
               {/* 17c. Scoring DNA — one of the club's players (whole-league data) */}
@@ -4004,29 +4004,43 @@ function ImpactTooltip({ active, payload }: {
 // Dumbbell chart: per player, two dots (team win % when they started vs when
 // they didn't) joined by a thin bar. Fetches its own data so it can sit on both
 // the Player Insights tab (focus club) and Opponent Insights (any club / __ALL__).
-function PlayerImpactChart({ seasonId, club, isAll, enabled }: {
-  seasonId: number; club: string; isAll?: boolean; enabled: boolean;
+function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
+  seasonId: number; club: string; isAll?: boolean; enabled: boolean; colorMap?: Record<string, string>;
 }) {
   const [win, setWin] = useState<"4" | "10" | "all">("all");
   const [sort, setSort] = useState<"start" | "gap">("start");
+  const [hiddenClubs, setHiddenClubs] = useState<Set<string>>(new Set());
+  const toggleClub = (c: string) => setHiddenClubs(prev => {
+    const next = new Set(prev);
+    if (next.has(c)) next.delete(c); else next.add(c);
+    return next;
+  });
   const lastN = win === "all" ? undefined : Number(win);
   const params = { seasonId, club, sort, ...(lastN ? { lastN } : {}) };
   const { data, isLoading } = useGetPlayerImpact(params, {
     query: { enabled: enabled && !!club, queryKey: getGetPlayerImpactQueryKey(params) },
   });
 
-  const rows = useMemo(() => (data?.players ?? []).map(p => {
-    const s = p.started.winPct;
-    const n = p.notStarted.winPct;
-    return {
-      name: isAll ? `${p.playerName} · ${p.club.slice(0, 3)}` : p.playerName,
-      startPct: s,
-      notPct: n,
-      range: s != null && n != null ? [Math.min(s, n), Math.max(s, n)] : undefined,
-      p,
-      showClub: !!isAll,
-    };
-  }), [data, isAll]);
+  const playerClubs = useMemo(() =>
+    isAll ? Array.from(new Set((data?.players ?? []).map(p => p.club))).sort() : [],
+    [data, isAll]);
+
+  const rows = useMemo(() => {
+    let list = data?.players ?? [];
+    if (isAll) list = list.filter(p => !hiddenClubs.has(p.club)).slice(0, 30);
+    return list.map(p => {
+      const s = p.started.winPct;
+      const n = p.notStarted.winPct;
+      return {
+        name: isAll ? `${p.playerName} · ${p.club.slice(0, 3)}` : p.playerName,
+        startPct: s,
+        notPct: n,
+        range: s != null && n != null ? [Math.min(s, n), Math.max(s, n)] : undefined,
+        p,
+        showClub: !!isAll,
+      };
+    });
+  }, [data, isAll, hiddenClubs]);
 
   return (
     <ChartCard
@@ -4054,6 +4068,26 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled }: {
           />
         </div>
       }
+      footer={isAll && playerClubs.length > 0 ? (
+        <div className="flex flex-wrap gap-2 justify-center items-center">
+          <span className="text-[10px] text-muted-foreground font-medium">Hide players from:</span>
+          {playerClubs.map(c => (
+            <button
+              key={c}
+              onClick={() => toggleClub(c)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] border transition-colors",
+                hiddenClubs.has(c)
+                  ? "border-border text-muted-foreground line-through opacity-60"
+                  : "border-border text-foreground hover:border-foreground/40",
+              )}
+            >
+              <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: colorMap[c] ?? "#888888" }} />
+              {c}
+            </button>
+          ))}
+        </div>
+      ) : undefined}
       tall
     >
       {isLoading ? (
