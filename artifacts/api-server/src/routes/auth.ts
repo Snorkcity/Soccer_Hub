@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod/v4";
 import { db, usersTable, userLeagueAccessTable, userActivityTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
+import { looksShared, type ActivityRow } from "../lib/sharedLoginAlert";
 import { eq, asc, desc, gte, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
@@ -316,24 +317,10 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
 // within the same 6-hour window (one person can't easily be on two networks /
 // two machines at once, but browser updates change the UA slowly, so a same-IP
 // UA change alone is not flagged... both dimensions differing, or same UA from
-// two IPs close together, is the smell).
+// two IPs close together, is the smell). Detection lives in
+// lib/sharedLoginAlert so the email alert path uses the exact same logic.
 const ACTIVITY_LOOKBACK_DAYS = 14;
-const SHARED_WINDOW_MS = 6 * 60 * 60 * 1000;
 const MAX_ACTIVITY_ROWS_PER_USER = 30;
-
-interface ActivityRow { deviceHash: string; userAgent: string; ip: string; seenAt: Date }
-
-function looksShared(rows: ActivityRow[]): boolean {
-  // rows sorted newest-first; compare each pair within the time window
-  for (let i = 0; i < rows.length; i++) {
-    for (let j = i + 1; j < rows.length; j++) {
-      const dt = rows[i].seenAt.getTime() - rows[j].seenAt.getTime();
-      if (dt > SHARED_WINDOW_MS) break; // sorted → later rows only get further away
-      if (rows[i].deviceHash !== rows[j].deviceHash) return true;
-    }
-  }
-  return false;
-}
 
 router.get("/auth/users", async (req, res): Promise<void> => {
   if (!(await requireSuperadmin(req))) {

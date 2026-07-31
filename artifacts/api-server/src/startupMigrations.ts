@@ -68,6 +68,10 @@ export async function runStartupMigrations(): Promise<void> {
   // insights centre on it. NULL falls back to the league's focus_club.
   await db.execute(sql`ALTER TABLE user_league_access ADD COLUMN IF NOT EXISTS club text`);
 
+  // Shared-login alert cooldown (2026-07): when a "possible shared login"
+  // email was last sent about this account.
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS shared_alert_at timestamp`);
+
 
   // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table
   await db.execute(sql`ALTER TABLE league_matches ADD COLUMN IF NOT EXISTS half_score text`);

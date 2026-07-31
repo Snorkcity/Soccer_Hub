@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { db, usersTable, userLeagueAccessTable, userActivityTable, seasonsTable } from "@workspace/db";
 import { eq, lt } from "drizzle-orm";
+import { maybeSendSharedLoginAlert } from "../lib/sharedLoginAlert";
+import { logger } from "../lib/logger";
 
 // ── App auth ──────────────────────────────────────────────────────────────────
 // Stateless signed-cookie session: token = "<expiryMs>.<userId>.<hmac>", signed
@@ -61,6 +63,11 @@ export async function recordUserActivity(req: Request, userId: number, force = f
   if (!force && last !== undefined && now - last < ACTIVITY_THROTTLE_MS) return;
   lastActivityWrite.set(key, now);
   await db.insert(userActivityTable).values({ userId, deviceHash, userAgent, ip });
+  // A new activity row may tip the account into "possibly shared" — check and
+  // alert superadmins in the background (never blocks or fails the request).
+  void maybeSendSharedLoginAlert(userId).catch((err) => {
+    logger.error({ err, userId }, "Shared-login alert check failed");
+  });
   // Piggyback pruning on writes, at most once an hour per process.
   if (now - lastActivityPrune > ACTIVITY_THROTTLE_MS) {
     lastActivityPrune = now;

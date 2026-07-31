@@ -15,6 +15,9 @@ export const usersTable = pgTable("users", {
   createdAt:    timestamp("created_at").defaultNow().notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull(),
   lastLoginAt:  timestamp("last_login_at"),
+  // When a "possible shared login" alert email was last sent about this
+  // account — persists the alert cooldown across restarts.
+  sharedAlertAt: timestamp("shared_alert_at"),
 }, (t) => [
   uniqueIndex("users_email_unique").on(t.email),
 ]);

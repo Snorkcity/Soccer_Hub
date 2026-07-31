@@ -41,6 +41,7 @@
 - [Coach Assistant](coach-assistant.md) — RAG chat over 14 curriculum docx; embeddings need direct OPENAI_API_KEY (proxy lacks embeddings); chat open to any signed-in role; system prompt rules are non-negotiable.
 - [On-field impact minute-window model](onfield-impact-model.md) — Opponent Insights GD chart credits only goals in the player's minute window (starter 0–M, sub L−M–L); not binary like the Player tab.
 - [Saved-name standard](saved-name-standard.md) — all saved report/doc rows: bold "Type — R# v Opp", muted game date, smaller "saved d MMM"; standard for every new saving feature.
+- [One-off api-server scripts](esbuild-script-runner.md) — esbuild-bundle + node; needs NODE_ENV=production (pino-pretty transport breaks bundles) and explicit DATABASE_URL.
 - [Dev DB refresh from prod](dev-db-refresh.md) — scripts/refresh-dev-from-prod.sh copies data tables prod→dev; preserves users + league grants; `sessions` table = coaching plans, not logins.
 - [League-private coaching data](league-private-data.md) — match prep/reflections/GPS/testing rows carry league_id; lists require leagueId, id-routes use mayTouchLeagueRow; snapshot syncs must stamp it too.
 - [Dribl sync](dribl-sync.md) — mc-api.dribl.com blocks Node TLS (curl passes, shell out); matchcentre has HT score + goal scorer/minute; OG credit flips team.
