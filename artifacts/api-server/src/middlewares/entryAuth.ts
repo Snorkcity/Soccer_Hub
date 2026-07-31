@@ -102,6 +102,13 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
   if (userId !== null) {
     const rows = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (rows.length > 0) {
+      // "Last login" is really "last seen": sessions live for 30 days, so most
+      // visits never hit the login form. Stamp on any authenticated request,
+      // throttled to once an hour to avoid a write per request.
+      const last = rows[0].lastLoginAt;
+      if (!last || Date.now() - last.getTime() > 60 * 60 * 1000) {
+        await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, userId));
+      }
       const access = await db.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, userId));
       user = {
         id: rows[0].id,
