@@ -634,28 +634,48 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       const grid: string[][] = Array.from({ length: 1 + PLAYER_ROWS }, () => Array(COLS).fill(""));
       grid[0][0] = input.formationName;
       if (i === 0) {
-        // Group the XI into pitch lines, then spread each line across distinct
-        // columns so no two players share a cell — it reads like a formation.
-        const byRow = new Map<number, Array<{ px: number; nm: string }>>();
+        // Group the XI into pitch "lines" by exact py (ST / wingers / mids / back
+        // four / GK), merge the two closest lines while there are more than six,
+        // then give every line its own row — ST top, GK in the goal row.
+        type Line = { py: number; players: Array<{ px: number; nm: string }> };
+        const lineMap = new Map<number, Line>();
         for (const p of input.lineup) {
-          const row = 1 + Math.min(PLAYER_ROWS - 1, Math.max(0, Math.round(p.py * (PLAYER_ROWS - 1))));
-          const list = byRow.get(row) ?? [];
-          list.push({ px: p.px, nm: p.name || p.label });
-          byRow.set(row, list);
+          const l = lineMap.get(p.py) ?? { py: p.py, players: [] };
+          l.players.push({ px: p.px, nm: p.name || p.label });
+          lineMap.set(p.py, l);
         }
-        for (const [row, list] of byRow) {
-          list.sort((a, b) => a.px - b.px);
-          const cols = list.map((p) => Math.min(COLS - 1, Math.max(0, Math.round(p.px * (COLS - 1)))));
-          // Nudge duplicates apart: forward pass pushes right, backward pass pulls
-          // back inside the grid — keeps each player as close to true position as fits.
+        const linesArr = [...lineMap.values()].sort((a, b) => a.py - b.py);
+        while (linesArr.length > PLAYER_ROWS) {
+          let mi = 0;
+          for (let k = 1; k < linesArr.length - 1; k++) {
+            if (linesArr[k + 1].py - linesArr[k].py < linesArr[mi + 1].py - linesArr[mi].py) mi = k;
+          }
+          const merged: Line = {
+            py: (linesArr[mi].py + linesArr[mi + 1].py) / 2,
+            players: [...linesArr[mi].players, ...linesArr[mi + 1].players],
+          };
+          linesArr.splice(mi, 2, merged);
+        }
+        // Desired row from py, then nudge duplicates apart (forward push, backward clamp).
+        const rows = linesArr.map((l) => 1 + Math.min(PLAYER_ROWS, Math.max(1, 1 + Math.round(l.py * (PLAYER_ROWS - 1)))) - 1);
+        for (let k = 1; k < rows.length; k++) rows[k] = Math.max(rows[k], rows[k - 1] + 1);
+        for (let k = rows.length - 1; k >= 0; k--) rows[k] = Math.min(rows[k], PLAYER_ROWS - (rows.length - 1 - k));
+        for (let k = 1; k < rows.length; k++) rows[k] = Math.max(rows[k], rows[k - 1] + 1);
+        linesArr.forEach((l, li) => {
+          const row = rows[li];
+          l.players.sort((a, b) => a.px - b.px);
+          // Edge players (fullbacks, wingers) belong hard on the edges.
+          const cols = l.players.map((p) =>
+            p.px <= 0.2 ? 0 : p.px >= 0.8 ? COLS - 1 : Math.min(COLS - 1, Math.max(0, Math.round(p.px * (COLS - 1)))),
+          );
           for (let k = 1; k < cols.length; k++) cols[k] = Math.max(cols[k], cols[k - 1] + 1);
           for (let k = cols.length - 1; k >= 0; k--) cols[k] = Math.min(cols[k], COLS - 1 - (cols.length - 1 - k));
           for (let k = 1; k < cols.length; k++) cols[k] = Math.max(cols[k], cols[k - 1] + 1);
-          list.forEach((p, k) => {
+          l.players.forEach((p, k) => {
             const col = cols[k];
             grid[row][col] = grid[row][col] ? `${grid[row][col]}\n${p.nm}` : p.nm;
           });
-        }
+        });
       }
       s.addTable(
         grid.map((cells, r) =>
@@ -670,10 +690,10 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
             const black = { type: "solid" as const, color: "000000", pt: 1 };
             // border array order: [top, right, bottom, left]
             let border: [typeof grey, typeof grey, typeof grey, typeof grey] | typeof grey = grey;
-            if (isGoal) border = [black, black, black, black];
+            // Goal is open at the top: just the two posts and the bottom, like the coach draws it.
+            if (isGoal) border = [grey, black, black, black];
             else if (r === PLAYER_ROWS && c === goalCol - 1) border = [grey, black, grey, grey];
             else if (r === PLAYER_ROWS && c === goalCol + 1) border = [grey, grey, grey, black];
-            else if (r === PLAYER_ROWS - 1 && c === goalCol) border = [grey, grey, black, grey];
             return {
               text,
               options: {
