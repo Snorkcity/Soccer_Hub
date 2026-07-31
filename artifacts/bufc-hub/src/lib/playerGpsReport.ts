@@ -73,7 +73,16 @@ const COMP_COLORS = ["ED8936", "2A9D8F", "D64570", "5E548E", "3A86FF", "B5838D"]
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (v: number | null, d: number, unit?: string) =>
-  v == null ? "—" : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
+  v == null ? "—"
+    // Speeds show both units — km/h reads naturally, m/s matches the GPS unit's raw output.
+    : unit === "km/h" ? `${v.toFixed(d)} km/h (${(v / 3.6).toFixed(1)} m/s)`
+    : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
+
+/** Compact cell format for comparison tables — narrow columns, so speeds drop "km/h" and keep just the m/s bracket. */
+const fmtCell = (v: number | null, d: number, unit?: string) =>
+  v == null ? "—"
+    : unit === "km/h" ? `${v.toFixed(d)} (${(v / 3.6).toFixed(1)} m/s)`
+    : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
 
 function avg(vals: number[]): number | null {
   return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
@@ -221,7 +230,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
       rows.push([
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
-        { text: fmt(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
         ...compVals.map(v => ({
           text: fmt(v, d, unit),
           options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
@@ -275,7 +284,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
       rows.push([
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
-        { text: fmt(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
         ...compVals.map(v => ({
           text: fmt(v, d, unit),
           options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },

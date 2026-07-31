@@ -510,6 +510,22 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
   );
 }
 
+/** Y-axis tick for the km/h Top Speed charts: km/h value with the m/s equivalent underneath. */
+function SpeedAxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: number } }) {
+  const v = payload?.value ?? 0;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={-4} y={0} dy={0} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={11}>{v}</text>
+      {v > 0 && (
+        <text x={-4} y={0} dy={11} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={8} opacity={0.75}>
+          {(v / 3.6).toFixed(1)} m/s
+        </text>
+      )}
+    </g>
+  );
+}
+
 function LastNToggle({ lastN, setLastN }: { lastN: boolean; setLastN: (b: boolean) => void }) {
   return (
     <div className="flex rounded-md border overflow-hidden shrink-0">
@@ -608,7 +624,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="round" {...AXIS} angle={-40} textAnchor="end" interval={0} />
-            <YAxis {...AXIS} fontSize={11} />
+            <YAxis {...AXIS} fontSize={11} tick={isSpeed && !ms ? <SpeedAxisTick /> : undefined} />
             <Tooltip content={<PlayerTooltip metric={metric} avg={seasonAvg} per90Mode={norm} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
             {seasonAvg != null && <ReferenceLine y={seasonAvg} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
             <Bar dataKey="h1" stackId="halves" name="1st half" fill={C_H1} hide={!anyHalves} />
@@ -953,7 +969,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
-            <YAxis {...AXIS} fontSize={11} />
+            <YAxis {...AXIS} fontSize={11} tick={isSpeed && !ms ? <SpeedAxisTick /> : undefined} />
             <Tooltip content={<TeamTooltip metric={metric} view={view} avg={squadAvg} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
             {view !== "halves" && squadAvg != null && <ReferenceLine y={squadAvg} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
             <Bar dataKey="display" name={metric.title} fill={C_SINGLE} radius={[3, 3, 0, 0]} hide={view === "halves"} />
