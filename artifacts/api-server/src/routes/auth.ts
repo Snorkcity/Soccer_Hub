@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod/v4";
 import { db, usersTable, userLeagueAccessTable, userActivityTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
-import { looksShared, type ActivityRow } from "../lib/sharedLoginAlert";
+import { looksShared, isInternalActivity, type ActivityRow } from "../lib/sharedLoginAlert";
 import { eq, asc, desc, gte, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
@@ -336,6 +336,10 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     .orderBy(desc(userActivityTable.seenAt));
   const byUser = new Map<number, ActivityRow[]>();
   for (const a of activity) {
+    // Internal/test traffic (curl, missing UA, fake test devices, loopback or
+    // 10.x addresses) is not a real device — hide it from the activity list,
+    // the device count, and the "Possibly shared" check.
+    if (isInternalActivity(a.userAgent, a.ip)) continue;
     const list = byUser.get(a.userId) ?? [];
     list.push(a);
     byUser.set(a.userId, list);

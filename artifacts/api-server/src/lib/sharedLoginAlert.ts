@@ -16,6 +16,23 @@ const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export interface ActivityRow { deviceHash: string; userAgent: string; ip: string; seenAt: Date }
 
+// ── Internal / test traffic filter ────────────────────────────────────────────
+// Agent test calls (curl, no user-agent) and fake test devices should never
+// count as "devices": they are not recorded, and any historic rows are
+// excluded from the shared-login detection and the Users page activity list.
+const TEST_UA_PREFIXES = ["curl", "iphone-test", "wget", "python-requests", "node-fetch", "postman"];
+
+export function isInternalActivity(userAgent: string | undefined, ip: string): boolean {
+  const ua = (userAgent ?? "").trim().toLowerCase();
+  if (ua === "" || ua === "unknown") return true;
+  if (TEST_UA_PREFIXES.some((p) => ua.startsWith(p))) return true;
+  // Internal / non-routable addresses: loopback and 10.x private range.
+  const bare = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+  if (bare === "127.0.0.1" || bare === "::1" || bare === "unknown") return true;
+  if (bare.startsWith("10.")) return true;
+  return false;
+}
+
 /** rows must be sorted newest-first; true when two different devices appear within the 6h window. */
 export function looksShared(rows: ActivityRow[]): boolean {
   for (let i = 0; i < rows.length; i++) {
@@ -67,7 +84,9 @@ export async function maybeSendSharedLoginAlert(userId: number): Promise<void> {
   const recent = await db.select().from(userActivityTable)
     .where(and(eq(userActivityTable.userId, userId), gte(userActivityTable.seenAt, since)))
     .orderBy(sql`${userActivityTable.seenAt} DESC`);
-  if (!looksShared(recent)) return;
+  // Historic rows from internal/test traffic must never trip the alert.
+  const genuine = recent.filter((a) => !isInternalActivity(a.userAgent, a.ip));
+  if (!looksShared(genuine)) return;
 
   // Claim the cooldown atomically; zero rows back → someone else sent recently.
   const cutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
@@ -84,7 +103,7 @@ export async function maybeSendSharedLoginAlert(userId: number): Promise<void> {
     .from(usersTable).where(eq(usersTable.isSuperadmin, true));
   if (superadmins.length === 0) return;
 
-  const html = sharedLoginAlertEmailHtml(claimed[0], recent);
+  const html = sharedLoginAlertEmailHtml(claimed[0], genuine);
   const subject = `Possible shared login: ${claimed[0].name}`;
   for (const s of superadmins) {
     try {

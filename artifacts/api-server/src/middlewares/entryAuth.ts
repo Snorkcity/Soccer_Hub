@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { db, usersTable, userLeagueAccessTable, userActivityTable, seasonsTable } from "@workspace/db";
 import { eq, lt } from "drizzle-orm";
-import { maybeSendSharedLoginAlert } from "../lib/sharedLoginAlert";
+import { maybeSendSharedLoginAlert, isInternalActivity } from "../lib/sharedLoginAlert";
 import { logger } from "../lib/logger";
 
 // ── App auth ──────────────────────────────────────────────────────────────────
@@ -56,6 +56,10 @@ export function clientIp(req: Request): string {
 export async function recordUserActivity(req: Request, userId: number, force = false): Promise<void> {
   const userAgent = (req.headers["user-agent"] ?? "unknown").slice(0, 500);
   const ip = clientIp(req);
+  // Internal/test traffic (curl, missing UA, fake test devices, loopback or
+  // 10.x addresses) is never recorded — it's not a real device and must not
+  // trip the shared-login detection.
+  if (isInternalActivity(userAgent, ip)) return;
   const deviceHash = crypto.createHash("sha256").update(`${userAgent}\n${ip}`).digest("hex").slice(0, 16);
   const key = `${userId}:${deviceHash}`;
   const now = Date.now();
