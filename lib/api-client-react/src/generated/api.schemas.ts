@@ -1379,6 +1379,12 @@ export interface OkResponse {
   ok: boolean;
 }
 
+export interface UserActivitySample {
+  seenAt: string;
+  userAgent: string;
+  ip: string;
+  device: string;
+}
 export interface UserInfo {
   id: number;
   email: string;
@@ -1387,6 +1393,8 @@ export interface UserInfo {
   leagues: LeagueAccess[];
   createdAt: string;
   lastLoginAt: string | null;
+  possiblyShared?: boolean;
+  recentActivity?: UserActivitySample[];
 }
 
 export interface CreateUserRequest {
@@ -2838,4 +2846,3 @@ leagueId: number;
 export type ListMatchPrepReportsParams = {
 leagueId: number;
 };
-

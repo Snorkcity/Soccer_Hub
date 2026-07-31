@@ -3845,7 +3845,21 @@ components:
           items: { $ref: "#/components/schemas/LeagueAccess" }
         createdAt: { type: string }
         lastLoginAt: { type: string, nullable: true }
+        # Present on the list endpoint only (omitted from create/update responses):
+        possiblyShared: { type: boolean }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/UserActivitySample" }
       required: [id, email, name, isSuperadmin, leagues, createdAt, lastLoginAt]
+
+    UserActivitySample:
+      type: object
+      properties:
+        seenAt: { type: string }
+        userAgent: { type: string }
+        ip: { type: string }
+        device: { type: string }
+      required: [seenAt, userAgent, ip, device]
 
     CreateUserRequest:
       type: object

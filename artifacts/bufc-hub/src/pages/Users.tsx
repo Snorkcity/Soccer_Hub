@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, Pencil, Trash2, ShieldCheck, MailPlus, Users as UsersIcon } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ShieldCheck, MailPlus, Users as UsersIcon, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
 
 function errMsg(e: unknown): string {
   const anyE = e as { data?: { error?: string }; error?: string; message?: string } | undefined;
@@ -33,6 +33,28 @@ const MODULES: { key: string; label: string; short: string }[] = [
   { key: "session-planner", label: "Session Planner + Library", short: "Planner" },
   { key: "assistant", label: "Coach Assistant", short: "Assistant" },
 ];
+
+// Turn a raw user-agent string into a short human label, e.g. "Chrome · iPhone".
+function deviceLabel(ua: string): string {
+  const browser =
+    /Edg\//.test(ua) ? "Edge" :
+    /OPR\/|Opera/.test(ua) ? "Opera" :
+    /SamsungBrowser/.test(ua) ? "Samsung Browser" :
+    /Firefox\//.test(ua) ? "Firefox" :
+    /CriOS\//.test(ua) ? "Chrome" :
+    /Chrome\//.test(ua) ? "Chrome" :
+    /Safari\//.test(ua) ? "Safari" :
+    "Unknown browser";
+  const os =
+    /iPhone/.test(ua) ? "iPhone" :
+    /iPad/.test(ua) ? "iPad" :
+    /Android/.test(ua) ? "Android" :
+    /Windows/.test(ua) ? "Windows" :
+    /Mac OS X|Macintosh/.test(ua) ? "Mac" :
+    /Linux/.test(ua) ? "Linux" :
+    "unknown device";
+  return `${browser} · ${os}`;
+}
 
 // Legacy `role` is derived from modules: data-entry ⇒ admin, otherwise viewer.
 function roleForModules(modules: string[]): "admin" | "viewer" {
@@ -65,6 +87,15 @@ export default function Users() {
 
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [editorErr, setEditorErr] = useState<string | null>(null);
+  const [activityOpen, setActivityOpen] = useState<Set<number>>(new Set()); // user ids with the activity list expanded
+
+  function toggleActivity(id: number) {
+    setActivityOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const refresh = () => { void queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() }); };
   const createUser = useCreateUser({ mutation: {
@@ -175,6 +206,11 @@ export default function Users() {
                         {u.isSuperadmin && (
                           <Badge variant="secondary" className="gap-1"><ShieldCheck className="h-3 w-3" />Superadmin</Badge>
                         )}
+                        {u.possiblyShared && (
+                          <Badge variant="destructive" className="gap-1" title="Seen from more than one device or location within a few hours — this login may be shared.">
+                            <AlertTriangle className="h-3 w-3" />Possibly shared
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {u.email}
@@ -203,6 +239,34 @@ export default function Users() {
                                 .join(", ")}
                             </Badge>
                           ))}
+                        </div>
+                      )}
+                      {(u.recentActivity?.length ?? 0) > 0 && (
+                        <div className="mt-1.5">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => toggleActivity(u.id)}
+                          >
+                            <History className="h-3 w-3" />
+                            Recent activity ({u.recentActivity!.length}
+                            {new Set(u.recentActivity!.map((a) => a.device)).size > 1
+                              ? `, ${new Set(u.recentActivity!.map((a) => a.device)).size} devices`
+                              : ""})
+                            {activityOpen.has(u.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                          {activityOpen.has(u.id) && (
+                            <div className="mt-1.5 rounded-md border border-border bg-muted/30 px-3 py-2 space-y-1">
+                              <p className="text-[11px] text-muted-foreground">Last 14 days — at most one entry per device per hour.</p>
+                              {u.recentActivity!.map((a, i) => (
+                                <div key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                                  <span className="tabular-nums text-muted-foreground">{formatLastLogin(a.seenAt)}</span>
+                                  <span className="font-medium">{deviceLabel(a.userAgent)}</span>
+                                  <span className="text-muted-foreground">from {a.ip}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

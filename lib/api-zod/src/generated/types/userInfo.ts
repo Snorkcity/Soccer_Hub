@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LeagueAccess } from './leagueAccess';
+import type { UserActivitySample } from './userActivitySample';
 
 export interface UserInfo {
   id: number;
@@ -15,4 +16,6 @@ export interface UserInfo {
   leagues: LeagueAccess[];
   createdAt: string;
   lastLoginAt: string | null;
+  possiblyShared?: boolean;
+  recentActivity?: UserActivitySample[];
 }

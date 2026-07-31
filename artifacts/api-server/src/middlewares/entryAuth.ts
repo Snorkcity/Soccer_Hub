@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
-import { db, usersTable, userLeagueAccessTable, seasonsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, userLeagueAccessTable, userActivityTable, seasonsTable } from "@workspace/db";
+import { eq, lt } from "drizzle-orm";
 
 // ── App auth ──────────────────────────────────────────────────────────────────
 // Stateless signed-cookie session: token = "<expiryMs>.<userId>.<hmac>", signed
@@ -34,6 +34,43 @@ export interface SessionUser {
   isSuperadmin: boolean;
   /** leagueId → grant */
   leagues: Map<number, LeagueGrant>;
+}
+
+// ── Per-account activity log (shared-login detection) ────────────────────────
+// One row per (user, device) per hour at most. "Device" = hash of user-agent +
+// IP; the throttle map is in-memory, so a restart just costs one extra row.
+const ACTIVITY_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
+const ACTIVITY_KEEP_DAYS = 90;
+const lastActivityWrite = new Map<string, number>(); // `${userId}:${deviceHash}` → ms
+let lastActivityPrune = 0;
+
+export function clientIp(req: Request): string {
+  const fwd = req.headers["x-forwarded-for"];
+  const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim();
+  return first || req.socket.remoteAddress || "unknown";
+}
+
+/** Record a per-device activity row, throttled to once an hour per device. */
+export async function recordUserActivity(req: Request, userId: number, force = false): Promise<void> {
+  const userAgent = (req.headers["user-agent"] ?? "unknown").slice(0, 500);
+  const ip = clientIp(req);
+  const deviceHash = crypto.createHash("sha256").update(`${userAgent}\n${ip}`).digest("hex").slice(0, 16);
+  const key = `${userId}:${deviceHash}`;
+  const now = Date.now();
+  const last = lastActivityWrite.get(key);
+  if (!force && last !== undefined && now - last < ACTIVITY_THROTTLE_MS) return;
+  lastActivityWrite.set(key, now);
+  await db.insert(userActivityTable).values({ userId, deviceHash, userAgent, ip });
+  // Piggyback pruning on writes, at most once an hour per process.
+  if (now - lastActivityPrune > ACTIVITY_THROTTLE_MS) {
+    lastActivityPrune = now;
+    await db.delete(userActivityTable)
+      .where(lt(userActivityTable.seenAt, new Date(now - ACTIVITY_KEEP_DAYS * 24 * 60 * 60 * 1000)));
+    // Keep the throttle map from growing forever
+    if (lastActivityWrite.size > 5000) {
+      for (const [k, v] of lastActivityWrite) if (now - v > ACTIVITY_THROTTLE_MS) lastActivityWrite.delete(k);
+    }
+  }
 }
 
 function secret(): string {
@@ -109,6 +146,9 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
       if (!last || Date.now() - last.getTime() > 60 * 60 * 1000) {
         await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, userId));
       }
+      // Per-device activity log (shared-login detection) — self-throttled to
+      // once an hour per device, so this is a no-op on most requests.
+      await recordUserActivity(req, userId);
       const access = await db.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, userId));
       user = {
         id: rows[0].id,
@@ -269,6 +309,10 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
       for (const source of [req.query as Record<string, unknown>, body]) {
         const l = asId(source.leagueId);
         if (l !== null) leagueIds.add(l);
+        // Secondary league identifiers (e.g. /clubs/copy's sourceLeagueId) are
+        // scoped too — reading another league's data needs access to it.
+        const src = asId(source.sourceLeagueId);
+        if (src !== null) leagueIds.add(src);
         const s = asId(source.seasonId);
         if (s !== null) {
           const fromSeason = await leagueIdForSeason(s);

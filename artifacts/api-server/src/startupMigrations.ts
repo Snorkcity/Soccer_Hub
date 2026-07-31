@@ -1012,6 +1012,20 @@ async function runUserAccountsMigration(): Promise<void> {
   // Last-login tracking (2026-07): stamped on every successful login.
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp`);
 
+  // Per-account activity log (2026-07): one row per user+device per hour at
+  // most, used to spot logins that look shared. Pruned after 90 days.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS user_activity (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_hash text NOT NULL,
+      user_agent text NOT NULL,
+      ip text NOT NULL,
+      seen_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS user_activity_user_seen_idx ON user_activity (user_id, seen_at)`);
+
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

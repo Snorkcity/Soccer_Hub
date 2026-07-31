@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import { z } from "zod/v4";
-import { db, usersTable, userLeagueAccessTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
+import { db, usersTable, userLeagueAccessTable, userActivityTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
-import { eq, asc, and, isNull } from "drizzle-orm";
+import { eq, asc, desc, gte, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
 import {
@@ -11,6 +11,7 @@ import {
   clearSessionCookie,
   getSessionUser,
   effectiveRole,
+  recordUserActivity,
   type SessionUser,
 } from "../middlewares/entryAuth";
 
@@ -116,6 +117,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
   setSessionCookie(res, row.id);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, row.id));
+  await recordUserActivity(req, row.id, true); // a fresh login is always worth a row
   // Build the status from a fresh session-user shape
   const access = await db.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, row.id));
   const user: SessionUser = {
@@ -308,6 +310,31 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
 
 // ── User management (superadmin only) ─────────────────────────────────────────
 
+// ── Shared-login detection ────────────────────────────────────────────────────
+// Recent activity = rows from the last 14 days. "Possibly shared" = two rows
+// from DIFFERENT devices where either the IP or the user-agent differs, seen
+// within the same 6-hour window (one person can't easily be on two networks /
+// two machines at once, but browser updates change the UA slowly, so a same-IP
+// UA change alone is not flagged... both dimensions differing, or same UA from
+// two IPs close together, is the smell).
+const ACTIVITY_LOOKBACK_DAYS = 14;
+const SHARED_WINDOW_MS = 6 * 60 * 60 * 1000;
+const MAX_ACTIVITY_ROWS_PER_USER = 30;
+
+interface ActivityRow { deviceHash: string; userAgent: string; ip: string; seenAt: Date }
+
+function looksShared(rows: ActivityRow[]): boolean {
+  // rows sorted newest-first; compare each pair within the time window
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      const dt = rows[i].seenAt.getTime() - rows[j].seenAt.getTime();
+      if (dt > SHARED_WINDOW_MS) break; // sorted → later rows only get further away
+      if (rows[i].deviceHash !== rows[j].deviceHash) return true;
+    }
+  }
+  return false;
+}
+
 router.get("/auth/users", async (req, res): Promise<void> => {
   if (!(await requireSuperadmin(req))) {
     res.status(403).json({ error: "Superadmin access required" });
@@ -315,7 +342,33 @@ router.get("/auth/users", async (req, res): Promise<void> => {
   }
   const rows = await db.select().from(usersTable).orderBy(asc(usersTable.id));
   const access = await db.select().from(userLeagueAccessTable);
-  res.json(rows.map((row) => ({
+  const since = new Date(Date.now() - ACTIVITY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const activity = await db.select().from(userActivityTable)
+    .where(gte(userActivityTable.seenAt, since))
+    .orderBy(desc(userActivityTable.seenAt));
+  const byUser = new Map<number, ActivityRow[]>();
+  for (const a of activity) {
+    const list = byUser.get(a.userId) ?? [];
+    list.push(a);
+    byUser.set(a.userId, list);
+  }
+  res.json(rows.map((row) => {
+    const acts = byUser.get(row.id) ?? [];
+    return {
+      possiblyShared: looksShared(acts),
+      recentActivity: acts.slice(0, MAX_ACTIVITY_ROWS_PER_USER).map((a) => ({
+        seenAt: a.seenAt.toISOString(),
+        userAgent: a.userAgent,
+        ip: a.ip,
+        device: a.deviceHash,
+      })),
+      ...userSummary(row, access),
+    };
+  }));
+});
+
+function userSummary(row: typeof usersTable.$inferSelect, access: (typeof userLeagueAccessTable.$inferSelect)[]) {
+  return ({
     id: row.id,
     email: row.email,
     name: row.name,
@@ -323,8 +376,8 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
     createdAt: row.createdAt.toISOString(),
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
-  })));
-});
+  });
+}
 
 router.post("/auth/users", async (req, res): Promise<void> => {
   if (!(await requireSuperadmin(req))) {

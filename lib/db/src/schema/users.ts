@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { leaguesTable } from "./leagues";
@@ -59,6 +59,22 @@ export const passwordResetTokensTable = pgTable("password_reset_tokens", {
 }, (t) => [
   uniqueIndex("password_reset_tokens_hash_unique").on(t.tokenHash),
 ]);
+
+// Lightweight per-account activity log for spotting shared logins. One row per
+// (user, device) per hour at most — written by the session middleware's
+// throttled last-seen stamp. Rows older than 90 days are pruned automatically.
+export const userActivityTable = pgTable("user_activity", {
+  id:         serial("id").primaryKey(),
+  userId:     integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  // sha256(userAgent + ip) prefix — cheap "same device" key for throttling/grouping
+  deviceHash: text("device_hash").notNull(),
+  userAgent:  text("user_agent").notNull(),
+  ip:         text("ip").notNull(),
+  seenAt:     timestamp("seen_at").defaultNow().notNull(),
+}, (t) => [
+  index("user_activity_user_seen_idx").on(t.userId, t.seenAt),
+]);
+export type UserActivity = typeof userActivityTable.$inferSelect;
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;

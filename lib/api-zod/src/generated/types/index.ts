@@ -275,6 +275,7 @@ export * from './uploadLibraryPracticeRequest';
 export * from './uploadLibraryPracticeRequestCanvas';
 export * from './uploadLibraryPracticeRequestPart';
 export * from './uploadLibraryPracticeResult';
+export * from './userActivitySample';
 export * from './userInfo';
 export * from './weekAheadBriefRequest';
 export * from './weekAheadBriefResponse';
