@@ -61,6 +61,10 @@ export interface PrematchInput {
   cornersAgainst: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   cornersAgainstLabel?: string;
   freeKicks: SetPieceGroup[];
+  /** Kickoff time "HH:mm" — drives the printed pre-game countdown table. */
+  kickoff?: string;
+  /** Opposition comments/trends lines for the printable game-day sheet. */
+  commentsTrends?: string[];
 }
 
 export interface UnitObjectives {
@@ -538,6 +542,96 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     setPieceSlide("Set pieces", "Corners — for · crowd the keeper", input.cornersFor2.groups, input.cornersFor2.players, true, true);
   }
   setPieceSlide("Set pieces", input.cornersAgainstLabel ?? "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false, true);
+
+  // ── B/W team-talk sheet (print, double-sided with the game-day sheet) ──
+  {
+    const s = lightSlide(pptx, "Team talk", `Team talk — ${input.round} v ${input.opponent}`, input.matchDate);
+    // Spreadsheet-style rows: bold label on the left, lines on the right,
+    // generous white space so the coach can annotate by hand.
+    const sections: Array<[string, string[]]> = [
+      ["Theme", [input.objectivesBp.theme, input.objectivesBpo.theme].filter(Boolean)],
+      ["In possession", input.ourBp.notes],
+      ["Out of possession", input.ourBpo.notes],
+      ["Opponent", [...input.theirBp.notes, ...input.theirBpo.notes]],
+      ["GK", [...input.objectivesBp.gk, ...input.objectivesBpo.gk]],
+      ["Defenders", [...input.objectivesBp.defenders, ...input.objectivesBpo.defenders]],
+      ["Midfielders", [...input.objectivesBp.midfielders, ...input.objectivesBpo.midfielders]],
+      ["Attackers", [...input.objectivesBp.attackers, ...input.objectivesBpo.attackers]],
+    ].filter(([, l]) => l.length) as Array<[string, string[]]>;
+    const totalLines = sections.reduce((a, [, l]) => a + l.length, 0);
+    // Shrink to fit when the talk runs long — never spill off the printed page.
+    const lineH = Math.min(0.24, (H - 2.0 - sections.length * 0.12) / Math.max(totalLines, 1));
+    const fs = lineH >= 0.22 ? 11 : lineH >= 0.18 ? 10 : 8.5;
+    let y = 1.75;
+    for (const [label, ls] of sections) {
+      const h = ls.length * lineH;
+      s.addText(label, { x: MX, y, w: 1.55, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
+      s.addText(ls.map((t) => ({ text: t, options: { breakLine: true } })), {
+        x: MX + 1.7, y, w: W - 2 * MX - 1.7, h, fontSize: fs, color: "000000", valign: "top", lineSpacing: lineH * 72,
+      });
+      y += h + 0.12;
+    }
+  }
+
+  // ── B/W game-day sheet (comments/trends, scribble shapes, kickoff countdown) ──
+  {
+    const s = lightSlide(pptx, "Game day", `${input.round} v ${input.opponent}`, input.matchDate);
+    // Left: comments/trends, then deliberate white space for in-game notes.
+    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.7, w: 5.8, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
+    const ct = input.commentsTrends ?? [];
+    if (ct.length) {
+      s.addText(ct.map((t) => ({ text: t, options: { breakLine: true } })), {
+        x: MX, y: 2.0, w: 5.9, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
+      });
+    }
+    // Kickoff countdown — the "little formula". Times count back from kickoff;
+    // the countdown column prints in near-white like the coach's invisible red numbers.
+    const koMatch = input.kickoff?.trim().match(/^(\d{1,2}):(\d{2})$/);
+    const kh = koMatch ? Number(koMatch[1]) : -1;
+    const km = koMatch ? Number(koMatch[2]) : -1;
+    if (kh >= 0 && kh <= 23 && km >= 0 && km <= 59) {
+      const koMin = kh * 60 + km;
+      const fmtT = (m: number) => {
+        const mm = ((m % 1440) + 1440) % 1440; // wrap past midnight, always positive
+        return `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, "0")}`;
+      };
+      const steps: Array<[string, number]> = [
+        ["kickoff", 0], ["changeroom", 10], ["shots", 14], ["passing/game", 25],
+        ["warmup/bands", 40], ["team talk", 55], ["", 60], ["go in", 65], ["arrive latest", 75],
+      ];
+      const ty = H - 0.55 - steps.length * 0.24;
+      steps.forEach(([label, off], i) => {
+        const ry = ty + i * 0.24;
+        s.addText(label, { x: MX, y: ry, w: 1.7, h: 0.24, fontSize: 10, color: "000000", align: "right", valign: "middle" });
+        s.addText(fmtT(koMin - off), { x: MX + 1.8, y: ry, w: 0.75, h: 0.24, fontSize: 10, color: "000000", bold: off === 0, valign: "middle" });
+        s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: MX + 2.6, y: ry, w: 0.6, h: 0.24, fontSize: 10, color: "F2F2F2", valign: "middle" });
+        s.addText(off === 0 ? "KO" : `KO-${off}`, { x: MX + 3.25, y: ry, w: 0.85, h: 0.24, fontSize: 10, color: "000000", valign: "middle" });
+      });
+    }
+    // Right: subs column + three grey shape boxes (top one filled with the XI,
+    // two blank for scribbling a reshuffle after subs/injuries).
+    const subsX = 6.9;
+    if (input.subs.length) {
+      s.addText([{ text: "Subs", options: { bold: true, breakLine: true } }, ...input.subs.map((n) => ({ text: n, options: { breakLine: true } }))], {
+        x: subsX, y: 1.75, w: 1.15, h: 3.0, fontSize: 9.5, color: "000000", valign: "top", lineSpacing: 14,
+      });
+    }
+    const bx = subsX + 1.25, bw2 = W - 0.4 - bx, bh2 = 1.72, gap2 = 0.14;
+    for (let i = 0; i < 3; i++) {
+      const by = 1.7 + i * (bh2 + gap2);
+      s.addShape("rect", { x: bx, y: by, w: bw2, h: bh2, fill: { color: "E7E7E7" } });
+      s.addText(input.formationName, { x: bx + 0.08, y: by + 0.04, w: 1.0, h: 0.2, fontSize: 9, color: "000000", bold: true });
+      if (i === 0) {
+        for (const p of input.lineup) {
+          const nm = p.name || p.label;
+          s.addText(nm, {
+            x: bx + 0.2 + p.px * (bw2 - 1.4), y: by + 0.18 + p.py * (bh2 - 0.42),
+            w: 1.0, h: 0.2, fontSize: 8, color: "000000", align: "center", valign: "middle",
+          });
+        }
+      }
+    }
+  }
 
   const out = (await pptx.write({ outputType: "blob" })) as Blob;
   return out;

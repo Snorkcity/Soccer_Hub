@@ -201,6 +201,8 @@ interface Draft {
   spAgainstMode: "man" | "zonal";
   fkWide: string;
   fkCentral: string;
+  kickoff: string;
+  commentsTrends: string;
 }
 
 const DRAFT_KEY = "bufc-matchprep-draft-v1";
@@ -212,6 +214,7 @@ const blankDraft = (): Draft => ({
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
   spTakers: {}, spFor: {}, spFor2: {}, spAgainst: {}, spAgainstZonal: {}, spAgainstMode: "man", fkWide: "", fkCentral: "",
+  kickoff: "", commentsTrends: "",
 });
 
 function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -247,6 +250,9 @@ function loadDraft(): Draft {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (raw) {
       const d: Draft = { ...blankDraft(), ...JSON.parse(raw) };
+      // Older saved drafts may lack (or have null) the newer string fields.
+      if (typeof d.kickoff !== "string") d.kickoff = "";
+      if (typeof d.commentsTrends !== "string") d.commentsTrends = "";
       // Old drafts named the corners-for role "Near post" — carry the pick over to "Far post".
       if (d.spFor?.["Near post"]?.filter(Boolean).length && !d.spFor["Far post"]?.filter(Boolean).length) {
         d.spFor = { ...d.spFor, "Far post": d.spFor["Near post"] };
@@ -330,6 +336,8 @@ export default function MatchPrep() {
   function openDeck(r: NonNullable<typeof savedReports>[number], asNew: boolean) {
     if (!confirmReplace()) return;
     const loaded: Draft = { ...blankDraft(), ...(r.data as unknown as Partial<Draft>) };
+    if (typeof loaded.kickoff !== "string") loaded.kickoff = "";
+    if (typeof loaded.commentsTrends !== "string") loaded.commentsTrends = "";
     if (asNew) {
       // Continuity: keep shapes, roles and set pieces — clear the match facts.
       loaded.opponent = ""; loaded.round = ""; loaded.matchDate = "";
@@ -544,6 +552,8 @@ export default function MatchPrep() {
         },
         cornersAgainstLabel: d.spAgainstMode === "zonal" ? "Corners — against — zonal" : "Corners — against — man marking",
         freeKicks: fk,
+        kickoff: d.kickoff || undefined,
+        commentsTrends: lines(d.commentsTrends),
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -889,6 +899,17 @@ export default function MatchPrep() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{Object.keys(FORMATIONS).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kickoff time</Label>
+            <Input value={d.kickoff} onChange={(e) => set("kickoff", e.target.value)} placeholder="e.g. 15:00" />
+            <p className="text-[11px] text-muted-foreground">Fills in the pre-game countdown on the printable game-day sheet.</p>
+          </div>
+          <div className="space-y-1.5 md:col-span-3">
+            <Label>Comments / trends — one per line</Label>
+            <Textarea value={d.commentsTrends} onChange={(e) => set("commentsTrends", e.target.value)} rows={3}
+              placeholder={"Front third regains off the charts\nGoals come from the right — show them to the left back"} />
+            <p className="text-[11px] text-muted-foreground">Prints on the black &amp; white game-day sheet for the team talk.</p>
           </div>
         </CardContent>
       </Card>
