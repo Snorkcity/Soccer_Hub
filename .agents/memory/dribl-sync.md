@@ -23,4 +23,6 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 
 **Same-initial teammates:** save endpoint rejects duplicate names in a sheet, so brothers like two "J.Smith" blocked EVERY sheet containing both (whole-team 400). Fix: nameVariants/resolveName extend first-name prefix (Jo.Smith/Ju.Smith) and prefer club's already-saved spellings so goals + stats stay joined.
 
+**Name map must exist in BOTH DBs:** dribl_name_map is claimed during preview against whichever DB the sync runs on — prod sat empty while dev learned pins, risking divergent short-name assignments. Prod was seeded from dev (Jul 2026, verified against prod's saved goal/stat spellings first). Any dev/prod copy of Dribl data must include dribl_name_map or splits like A.Rakic/An.Rakic can re-shuffle.
+
 **Stable name map:** prefix-only variants can't tell Anthony/Andrija apart once A. and An. both exist (names escalated every game). Fix: dribl_name_map table pins full name → display name per club/season permanently; first player (chronological) keeps the short name, later arrival gets next free prefix; unique index on display name too; claims persisted during preview with onConflictDoNothing.
