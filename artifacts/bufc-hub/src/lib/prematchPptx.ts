@@ -559,16 +559,27 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       ["kickoff", 0], ["changeroom", 10], ["shots", 14], ["passing/game", 25],
       ["warmup/bands", 40], ["team talk", 55], ["", 60], ["go in", 65], ["arrive latest", 75],
     ];
+    // One borderless table instead of loose text boxes, so the whole countdown
+    // moves/resizes as a single object in PowerPoint.
     const rowH = 0.19;
+    const colW = [1.3, 0.6, 0.5, 0.7];
+    const tw = colW.reduce((a, b) => a + b, 0);
     const ty = H - 0.28 - steps.length * rowH;
-    const tx = W - 0.45 - 3.1; // bottom-right corner
-    steps.forEach(([label, off], i) => {
-      const ry = ty + i * rowH;
-      s.addText(label, { x: tx, y: ry, w: 1.2, h: rowH, fontSize: 8, color: "000000", align: "right", valign: "middle" });
-      s.addText(fmtT(koMin - off), { x: tx + 1.3, y: ry, w: 0.55, h: rowH, fontSize: 8, color: "000000", bold: off === 0, valign: "middle" });
-      s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: tx + 1.9, y: ry, w: 0.45, h: rowH, fontSize: 8, color: "F2F2F2", valign: "middle" });
-      s.addText(off === 0 ? "KO" : `KO-${off}`, { x: tx + 2.4, y: ry, w: 0.7, h: rowH, fontSize: 8, color: "000000", valign: "middle" });
+    const tx = W - 0.45 - tw; // bottom-right corner
+    const none = { type: "none" as const };
+    const cell = (text: string, opts: Record<string, unknown> = {}) => ({
+      text,
+      options: { fontSize: 8, color: "000000", valign: "middle" as const, border: none, margin: 0.01, ...opts },
     });
+    s.addTable(
+      steps.map(([label, off]) => [
+        cell(label, { align: "right" }),
+        cell(fmtT(koMin - off), { bold: off === 0 }),
+        cell(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { color: "F2F2F2" }),
+        cell(off === 0 ? "KO" : `KO-${off}`),
+      ]),
+      { x: tx, y: ty, w: tw, colW, rowH },
+    );
   };
 
   // ── B/W team-talk sheet (print, double-sided with the game-day sheet) ──
@@ -593,9 +604,9 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     let y = 1.75;
     for (const [label, ls] of sections) {
       const h = ls.length * lineH;
-      s.addText(label, { x: MX, y, w: 1.55, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
+      s.addText(label, { x: MX, y, w: 1.15, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
       s.addText(ls.map((t) => ({ text: t, options: { breakLine: true } })), {
-        x: MX + 1.7, y, w: W - 2 * MX - 1.7, h, fontSize: fs, color: "000000", valign: "top", lineSpacing: lineH * 72,
+        x: MX + 1.25, y, w: W - 2 * MX - 1.25, h, fontSize: fs, color: "000000", valign: "top", lineSpacing: lineH * 72,
       });
       y += h + 0.12;
     }
