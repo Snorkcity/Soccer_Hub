@@ -1252,6 +1252,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ClubInfo"
 
+  /clubs/copy:
+    post:
+      operationId: copyClubsFromLeague
+      tags: [clubs]
+      summary: Copy clubs (name, colour, logo) from one league into another
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyClubsBody"
+      responses:
+        "200":
+          description: Result of the copy (upsert — never deletes)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyClubsResponse"
+
   /clubs/{clubId}:
     patch:
       operationId: updateClub
@@ -3146,6 +3165,20 @@ components:
       properties:
         primaryColor: { type: ["string", "null"] }
         logoUrl:      { type: ["string", "null"] }
+
+    CopyClubsBody:
+      type: object
+      properties:
+        leagueId:       { type: integer, description: "Target league the clubs are copied into" }
+        sourceLeagueId: { type: integer, description: "League to copy clubs from" }
+      required: [leagueId, sourceLeagueId]
+
+    CopyClubsResponse:
+      type: object
+      properties:
+        added:   { type: integer }
+        updated: { type: integer }
+      required: [added, updated]
 
     ClubBrandingLookupBody:
       type: object

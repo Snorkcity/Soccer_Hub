@@ -1642,6 +1642,20 @@ export const CreateClubResponse = zod.object({
 
 
 /**
+ * @summary Copy clubs (name, colour, logo) from one league into another
+ */
+export const CopyClubsFromLeagueBody = zod.object({
+  "leagueId": zod.number().describe('Target league the clubs are copied into'),
+  "sourceLeagueId": zod.number().describe('League to copy clubs from')
+})
+
+export const CopyClubsFromLeagueResponse = zod.object({
+  "added": zod.number(),
+  "updated": zod.number()
+})
+
+
+/**
  * @summary Update a club's colour and/or logo
  */
 export const UpdateClubParams = zod.object({

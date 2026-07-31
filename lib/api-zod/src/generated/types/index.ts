@@ -26,6 +26,8 @@ export * from './clutchGoalDetail';
 export * from './clutchGoalDetailCategory';
 export * from './clutchGoalsResponse';
 export * from './clutchPlayer';
+export * from './copyClubsBody';
+export * from './copyClubsResponse';
 export * from './createUserRequest';
 export * from './deleteEntryPlayerStatsParams';
 export * from './diagramCrop';

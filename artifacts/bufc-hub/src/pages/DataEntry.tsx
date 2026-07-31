@@ -38,6 +38,7 @@ import {
   useCreateSeason,
   useCreateClub,
   useExtractClubsFromLeague,
+  useCopyClubsFromLeague,
   useFillClubBranding,
   useUpdateClub,
   getDriblPreview,
@@ -1053,6 +1054,7 @@ function LeagueSetupCard() {
   const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
   const [seasonActive, setSeasonActive] = useState(false);
   const [clubLeagueId, setClubLeagueId] = useState("");
+  const [copySourceLeagueId, setCopySourceLeagueId] = useState("");
   const [clubName, setClubName] = useState("");
   const [clubColor, setClubColor] = useState("#888888");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -1078,6 +1080,14 @@ function LeagueSetupCard() {
   }});
   const createClub = useCreateClub({ mutation: {
     onSuccess: (c) => { setMsg({ ok: true, text: `Club "${c.name}" added.` }); setClubName(""); invalidate(); },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+  const copyClubs = useCopyClubsFromLeague({ mutation: {
+    onSuccess: (r) => {
+      setMsg({ ok: true, text: `Copied clubs across — ${r.added} added, ${r.updated} updated (colours & logos refreshed).` });
+      setCopySourceLeagueId("");
+      invalidate();
+    },
     onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
   }});
 
@@ -1166,6 +1176,36 @@ function LeagueSetupCard() {
               {leagueSelect(clubLeagueId, setClubLeagueId)}
             </div>
           </div>
+          {clubLeagueId && (leagues ?? []).length > 1 && (
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-3">
+              <p className="text-sm font-medium">Copy clubs from another league <span className="text-muted-foreground font-normal">(names, colours & logos — adds or refreshes, never removes)</span></p>
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] items-end">
+                <div className="space-y-1.5">
+                  <Label>Copy from</Label>
+                  <Select value={copySourceLeagueId} onValueChange={setCopySourceLeagueId}>
+                    <SelectTrigger><SelectValue placeholder="Select league to copy from" /></SelectTrigger>
+                    <SelectContent>
+                      {(leagues ?? []).filter(l => String(l.id) !== clubLeagueId).map(l => {
+                        const n = (clubs ?? []).filter(c => c.leagueId === l.id).length;
+                        return <SelectItem key={l.id} value={String(l.id)}>{l.name} ({n} club{n === 1 ? "" : "s"})</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={!copySourceLeagueId || copyClubs.isPending}
+                  onClick={() => {
+                    setMsg(null);
+                    copyClubs.mutate({ data: { leagueId: Number(clubLeagueId), sourceLeagueId: Number(copySourceLeagueId) } });
+                  }}
+                >
+                  {copyClubs.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
+                  Copy clubs
+                </Button>
+              </div>
+            </div>
+          )}
           <ClubFinder
             leagueId={clubLeagueId ? Number(clubLeagueId) : null}
             existingNames={(clubs ?? []).filter(c => String(c.leagueId) === clubLeagueId).map(c => c.name)}

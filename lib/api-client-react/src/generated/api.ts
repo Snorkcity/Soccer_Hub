@@ -32,6 +32,8 @@ import type {
   ClubInput,
   ClubUpdateInput,
   ClutchGoalsResponse,
+  CopyClubsBody,
+  CopyClubsResponse,
   CreateUserRequest,
   DeleteEntryPlayerStatsParams,
   DriblAssembleBody,
@@ -4339,6 +4341,77 @@ export const useCreateClub = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateClubMutationOptions(options));
+    }
+
+export const getCopyClubsFromLeagueUrl = () => {
+
+
+
+
+  return `/api/clubs/copy`
+}
+
+/**
+ * @summary Copy clubs (name, colour, logo) from one league into another
+ */
+export const copyClubsFromLeague = async (copyClubsBody: CopyClubsBody, options?: RequestInit): Promise<CopyClubsResponse> => {
+
+  return customFetch<CopyClubsResponse>(getCopyClubsFromLeagueUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(copyClubsBody)
+  }
+);}
+
+
+
+
+
+export const getCopyClubsFromLeagueMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyClubsFromLeague>>, TError,{data: BodyType<CopyClubsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof copyClubsFromLeague>>, TError,{data: BodyType<CopyClubsBody>}, TContext> => {
+
+const mutationKey = ['copyClubsFromLeague'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof copyClubsFromLeague>>, {data: BodyType<CopyClubsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  copyClubsFromLeague(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CopyClubsFromLeagueMutationResult = NonNullable<Awaited<ReturnType<typeof copyClubsFromLeague>>>
+    export type CopyClubsFromLeagueMutationBody = BodyType<CopyClubsBody>
+    export type CopyClubsFromLeagueMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Copy clubs (name, colour, logo) from one league into another
+ */
+export const useCopyClubsFromLeague = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyClubsFromLeague>>, TError,{data: BodyType<CopyClubsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof copyClubsFromLeague>>,
+        TError,
+        {data: BodyType<CopyClubsBody>},
+        TContext
+      > => {
+      return useMutation(getCopyClubsFromLeagueMutationOptions(options));
     }
 
 export const getUpdateClubUrl = (clubId: number,) => {

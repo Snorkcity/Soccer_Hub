@@ -1,7 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, clubsTable } from "@workspace/db";
-import { CreateClubBody, CreateClubResponse, UpdateClubBody, UpdateClubResponse } from "@workspace/api-zod";
+import {
+  CreateClubBody, CreateClubResponse, UpdateClubBody, UpdateClubResponse,
+  CopyClubsFromLeagueBody, CopyClubsFromLeagueResponse,
+} from "@workspace/api-zod";
 import { pgErrorCode } from "../lib/pgError";
 import { mayTouchLeagueRow } from "../middlewares/entryAuth";
 
@@ -33,6 +36,62 @@ router.post("/clubs", async (req, res): Promise<void> => {
     }
     throw e;
   }
+});
+
+// Copy every club (name, colour, logo) from a source league into the target
+// league. Upsert on (league_id, name): existing clubs get their colour/logo
+// refreshed, nothing is ever deleted. Target-league write access is enforced
+// by the central middleware (leagueId in the body + /clubs write module).
+router.post("/clubs/copy", async (req, res): Promise<void> => {
+  const parsed = CopyClubsFromLeagueBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { leagueId, sourceLeagueId } = parsed.data;
+  if (leagueId === sourceLeagueId) {
+    res.status(400).json({ error: "Pick a different league to copy from" });
+    return;
+  }
+
+  const source = await db.select().from(clubsTable).where(eq(clubsTable.leagueId, sourceLeagueId));
+  if (source.length === 0) {
+    res.status(400).json({ error: "That league has no clubs to copy" });
+    return;
+  }
+
+  const existing = await db
+    .select({ name: clubsTable.name })
+    .from(clubsTable)
+    .where(eq(clubsTable.leagueId, leagueId));
+  const existingNames = new Set(existing.map((c) => c.name));
+
+  try {
+    await db
+      .insert(clubsTable)
+      .values(source.map((c) => ({
+        leagueId,
+        name: c.name,
+        primaryColor: c.primaryColor,
+        logoUrl: c.logoUrl,
+      })))
+      .onConflictDoUpdate({
+        target: [clubsTable.leagueId, clubsTable.name],
+        set: {
+          primaryColor: sql`excluded.primary_color`,
+          logoUrl: sql`excluded.logo_url`,
+        },
+      });
+  } catch (e) {
+    if (pgErrorCode(e) === "23503") {
+      res.status(400).json({ error: "That league does not exist" });
+      return;
+    }
+    throw e;
+  }
+
+  const updated = source.filter((c) => existingNames.has(c.name)).length;
+  res.json(CopyClubsFromLeagueResponse.parse({ added: source.length - updated, updated }));
 });
 
 // ID-addressed update carries no leagueId for the central middleware to scope,

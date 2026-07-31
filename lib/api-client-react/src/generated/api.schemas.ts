@@ -812,6 +812,18 @@ export interface ClubUpdateInput {
   logoUrl?: string | null;
 }
 
+export interface CopyClubsBody {
+  /** Target league the clubs are copied into */
+  leagueId: number;
+  /** League to copy clubs from */
+  sourceLeagueId: number;
+}
+
+export interface CopyClubsResponse {
+  added: number;
+  updated: number;
+}
+
 export interface ClubBrandingLookupBody {
   leagueId: number;
 }
