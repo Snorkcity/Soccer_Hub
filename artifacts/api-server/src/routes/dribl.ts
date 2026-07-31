@@ -39,6 +39,7 @@ const DRIBL_HEADERS = {
 // hash filters the fixtures feed down from thousands of rows (every grade in
 // the ACT) to just the NPL games. Extend as leagues are added.
 function driblLeagueFor(leagueName: string): { league: string; competition: string } | null {
+  if (/NPLM.*U.?23/i.test(leagueName)) return { league: "NPLM U23", competition: "National Premier League Men's" };
   if (/NPLM/i.test(leagueName)) return { league: "NPLM 1st Grade", competition: "National Premier League Men's" };
   if (/NPLW.*Reserve/i.test(leagueName)) return { league: "NPLW Reserve Grade", competition: "National Premier League Women's" };
   if (/NPLW/i.test(leagueName)) return { league: "NPLW 1st Grade", competition: "National Premier League Women's" };
