@@ -174,12 +174,17 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     const accVals = games.map(g => g.accel).filter((v): v is number => v != null);
     const decVals = games.map(g => g.decel).filter((v): v is number => v != null);
 
-    const tiles: Array<[string, string]> = [
+    type Runs = Array<{ text: string; options?: Record<string, unknown> }>;
+    const tiles: Array<[string, string | Runs]> = [
       ["Games with GPS", `${games.length}`],
       ["Minutes tracked", totalMins != null ? `${Math.round(totalMins)}` : "—"],
       ["Total distance", fmt(dist.seasonTotal, 1, "km")],
       ["High-speed metres", hsm.seasonTotal != null ? `${Math.round(hsm.seasonTotal)} m` : "—"],
-      ["Best top speed", fmt(top.best?.value ?? null, 1, "km/h")],
+      ["Best top speed", top.best == null ? "—" : [
+        { text: `${top.best.value.toFixed(1)} km/h ` },
+        // m/s in a smaller run so the headline km/h keeps the visual weight
+        { text: `(${(top.best.value / 3.6).toFixed(1)} m/s)`, options: { fontSize: 16 } },
+      ] satisfies Runs],
       ["Hard bursts + stops", accVals.length || decVals.length
         ? `${Math.round(accVals.reduce((a, b) => a + b, 0) + decVals.reduce((a, b) => a + b, 0))}`
         : "—"],
@@ -189,7 +194,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       const x = x0 + (i % 3) * (tw + gx);
       const y = y0 + Math.floor(i / 3) * (th + 0.3);
       s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: "D7E9F2", width: 1 } });
-      s.addText(value, { x: x + 0.25, y: y + 0.18, w: tw - 0.5, h: 0.6, fontSize: 28, bold: true, color: NAVY });
+      s.addText(value as never, { x: x + 0.25, y: y + 0.18, w: tw - 0.5, h: 0.6, fontSize: 28, bold: true, color: NAVY });
       s.addText(label.toUpperCase(), { x: x + 0.25, y: y + 0.85, w: tw - 0.5, h: 0.35, fontSize: 10.5, color: GREY, charSpacing: 2 });
     });
 
@@ -353,13 +358,24 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       catGridLine: { style: "none" },
     });
 
-    const bits: string[] = [];
-    if (stats.best) bits.push(`Best: ${fmt(stats.best.value, m.decimals, m.unit)} ${vsLine(stats.best.game)}`);
-    bits.push(`Season average: ${fmt(stats.seasonAvg, m.decimals, m.unit)} per game`);
-    if (m.summable && stats.seasonTotal != null) bits.push(`Season total: ${fmt(stats.seasonTotal, m.decimals === 2 ? 1 : 0, m.unit)}`);
+    // Speeds render km/h with the m/s equivalent as a smaller, grey run so the two units don't clash.
+    const speedRuns = (v: number): Array<{ text: string; options?: Record<string, unknown> }> => [
+      { text: `${v.toFixed(m.decimals)} km/h ` },
+      { text: `(${(v / 3.6).toFixed(1)} m/s)`, options: { fontSize: 9.5, color: GREY } },
+    ];
+    const bits: Array<Array<{ text: string; options?: Record<string, unknown> }>> = [];
+    if (stats.best) {
+      bits.push(m.unit === "km/h"
+        ? [{ text: "Best: " }, ...speedRuns(stats.best.value), { text: ` ${vsLine(stats.best.game)}` }]
+        : [{ text: `Best: ${fmt(stats.best.value, m.decimals, m.unit)} ${vsLine(stats.best.game)}` }]);
+    }
+    bits.push(m.unit === "km/h"
+      ? [{ text: "Season average: " }, ...speedRuns(stats.seasonAvg), { text: " per game" }]
+      : [{ text: `Season average: ${fmt(stats.seasonAvg, m.decimals, m.unit)} per game` }]);
+    if (m.summable && stats.seasonTotal != null) bits.push([{ text: `Season total: ${fmt(stats.seasonTotal, m.decimals === 2 ? 1 : 0, m.unit)}` }]);
     const tr = trendWords(stats.last4PctVsSeason);
-    if (tr) bits.push(`Last 4 games: ${tr}`);
-    addInsightBar(s, bits.join("   •   "));
+    if (tr) bits.push([{ text: `Last 4 games: ${tr}` }]);
+    addInsightBar(s, bits.flatMap((runs, i) => (i ? [{ text: "   •   " }, ...runs] : runs)));
     addFooter(s, input);
   }
 
@@ -450,10 +466,10 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     s.addText(title, { x: 0.6, y: 0.35, w: 12.1, h: 0.55, fontSize: 26, bold: true, color: NAVY });
     s.addText(sub, { x: 0.6, y: 0.95, w: 12.1, h: 0.4, fontSize: 12.5, color: GREY });
   }
-  function addInsightBar(s: ReturnType<typeof pptx.addSlide>, text: string) {
-    if (!text) return;
+  function addInsightBar(s: ReturnType<typeof pptx.addSlide>, text: string | Array<{ text: string; options?: Record<string, unknown> }>) {
+    if (!text || (Array.isArray(text) && !text.length)) return;
     s.addShape("roundRect", { x: 0.6, y: 6.35, w: 12.1, h: 0.62, fill: { color: TINT }, rectRadius: 0.06, line: { color: "D7E9F2", width: 1 } });
-    s.addText(text, { x: 0.85, y: 6.35, w: 11.7, h: 0.62, fontSize: 11.5, color: INK, valign: "middle" });
+    s.addText(text as never, { x: 0.85, y: 6.35, w: 11.7, h: 0.62, fontSize: 11.5, color: INK, valign: "middle" });
   }
   function addFooter(s: ReturnType<typeof pptx.addSlide>, inp: ReportInput) {
     s.addText(`${inp.playerName}  •  ${inp.teamLabel}  •  ${inp.seasonLabel}`, {
