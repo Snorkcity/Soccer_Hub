@@ -543,6 +543,34 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   }
   setPieceSlide("Set pieces", input.cornersAgainstLabel ?? "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false, true);
 
+  // Kickoff countdown — the "little formula". Times count back from kickoff;
+  // the countdown column prints in near-white like the coach's invisible red numbers.
+  const drawCountdown = (s: PptxGenJS.Slide) => {
+    const koMatch = input.kickoff?.trim().match(/^(\d{1,2}):(\d{2})$/);
+    const kh = koMatch ? Number(koMatch[1]) : -1;
+    const km = koMatch ? Number(koMatch[2]) : -1;
+    if (!(kh >= 0 && kh <= 23 && km >= 0 && km <= 59)) return;
+    const koMin = kh * 60 + km;
+    const fmtT = (m: number) => {
+      const mm = ((m % 1440) + 1440) % 1440; // wrap past midnight, always positive
+      return `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, "0")}`;
+    };
+    const steps: Array<[string, number]> = [
+      ["kickoff", 0], ["changeroom", 10], ["shots", 14], ["passing/game", 25],
+      ["warmup/bands", 40], ["team talk", 55], ["", 60], ["go in", 65], ["arrive latest", 75],
+    ];
+    const rowH = 0.19;
+    const ty = H - 0.28 - steps.length * rowH;
+    const tx = W - 0.45 - 3.1; // bottom-right corner
+    steps.forEach(([label, off], i) => {
+      const ry = ty + i * rowH;
+      s.addText(label, { x: tx, y: ry, w: 1.2, h: rowH, fontSize: 8, color: "000000", align: "right", valign: "middle" });
+      s.addText(fmtT(koMin - off), { x: tx + 1.3, y: ry, w: 0.55, h: rowH, fontSize: 8, color: "000000", bold: off === 0, valign: "middle" });
+      s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: tx + 1.9, y: ry, w: 0.45, h: rowH, fontSize: 8, color: "F2F2F2", valign: "middle" });
+      s.addText(off === 0 ? "KO" : `KO-${off}`, { x: tx + 2.4, y: ry, w: 0.7, h: rowH, fontSize: 8, color: "000000", valign: "middle" });
+    });
+  };
+
   // ── B/W team-talk sheet (print, double-sided with the game-day sheet) ──
   {
     const s = lightSlide(pptx, "Team talk", `Team talk — ${input.round} v ${input.opponent}`, input.matchDate);
@@ -571,6 +599,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       });
       y += h + 0.12;
     }
+    drawCountdown(s);
   }
 
   // ── B/W game-day sheet (comments/trends, scribble shapes, kickoff countdown) ──
@@ -582,32 +611,6 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     if (ct.length) {
       s.addText(ct.map((t) => ({ text: t, options: { breakLine: true } })), {
         x: MX, y: 2.05, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
-      });
-    }
-    // Kickoff countdown — the "little formula". Times count back from kickoff;
-    // the countdown column prints in near-white like the coach's invisible red numbers.
-    const koMatch = input.kickoff?.trim().match(/^(\d{1,2}):(\d{2})$/);
-    const kh = koMatch ? Number(koMatch[1]) : -1;
-    const km = koMatch ? Number(koMatch[2]) : -1;
-    if (kh >= 0 && kh <= 23 && km >= 0 && km <= 59) {
-      const koMin = kh * 60 + km;
-      const fmtT = (m: number) => {
-        const mm = ((m % 1440) + 1440) % 1440; // wrap past midnight, always positive
-        return `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, "0")}`;
-      };
-      const steps: Array<[string, number]> = [
-        ["kickoff", 0], ["changeroom", 10], ["shots", 14], ["passing/game", 25],
-        ["warmup/bands", 40], ["team talk", 55], ["", 60], ["go in", 65], ["arrive latest", 75],
-      ];
-      const rowH = 0.19;
-      const ty = H - 0.28 - steps.length * rowH;
-      const tx = 6.5; // table sits mid-right at the bottom, leaving the left free for notes
-      steps.forEach(([label, off], i) => {
-        const ry = ty + i * rowH;
-        s.addText(label, { x: tx, y: ry, w: 1.2, h: rowH, fontSize: 8, color: "000000", align: "right", valign: "middle" });
-        s.addText(fmtT(koMin - off), { x: tx + 1.3, y: ry, w: 0.55, h: rowH, fontSize: 8, color: "000000", bold: off === 0, valign: "middle" });
-        s.addText(off === 0 ? "" : `0:${String(off).padStart(2, "0")}`, { x: tx + 1.9, y: ry, w: 0.45, h: rowH, fontSize: 8, color: "F2F2F2", valign: "middle" });
-        s.addText(off === 0 ? "KO" : `KO-${off}`, { x: tx + 2.4, y: ry, w: 0.7, h: rowH, fontSize: 8, color: "000000", valign: "middle" });
       });
     }
     // Right: subs column + three grey shape boxes (top one filled with the XI,
