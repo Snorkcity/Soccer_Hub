@@ -441,7 +441,8 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   }
 
   const safe = input.playerName.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
-  await pptx.writeFile({ fileName: `${safe || "Player"}-GPS-Report-${input.seasonLabel.replace(/[^\w\-]+/g, "-")}.pptx` });
+  // Filename convention: Anneke-GPS_Report-2026_Season.pptx (spaces within a part become underscores)
+  await pptx.writeFile({ fileName: `${safe || "Player"}-GPS_Report-${input.seasonLabel.trim().replace(/[^\w]+/g, "_")}.pptx` });
 
   // ── slide furniture ──────────────────────────────────────────────────────
   function addHeader(s: ReturnType<typeof pptx.addSlide>, title: string, sub: string) {
