@@ -131,7 +131,7 @@ export async function runStartupMigrations(): Promise<void> {
       ('U18-Talia','Talia'),
       ('U17-Tali','Tali'),
       ('U18-Tahli','Tahli'),
-      ('U18-Emily','Emily.E'),
+      ('U18-Emily','Emily.E'),('U18-Emily Evans','Emily.E'),
       ('Emily','Emily.H'),
       ('Matilde','Mati'),
       ('Izzy S','Issy.S'),
