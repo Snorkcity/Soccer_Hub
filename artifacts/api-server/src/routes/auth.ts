@@ -7,6 +7,7 @@ import { looksShared, type ActivityRow } from "../lib/sharedLoginAlert";
 import { eq, asc, desc, gte, and, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { hashPassword, verifyPassword } from "../lib/passwords";
+import { lookupIpLocations } from "../lib/geoip";
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -339,6 +340,9 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     list.push(a);
     byUser.set(a.userId, list);
   }
+  // Resolve only the IPs that will actually be shown (cached per IP).
+  const shownIps = [...byUser.values()].flatMap((list) => list.slice(0, MAX_ACTIVITY_ROWS_PER_USER).map((a) => a.ip));
+  const geo = await lookupIpLocations(shownIps);
   res.json(rows.map((row) => {
     const acts = byUser.get(row.id) ?? [];
     return {
@@ -347,6 +351,7 @@ router.get("/auth/users", async (req, res): Promise<void> => {
         seenAt: a.seenAt.toISOString(),
         userAgent: a.userAgent,
         ip: a.ip,
+        location: geo.get(a.ip) ?? null,
         device: a.deviceHash,
       })),
       ...userSummary(row, access),

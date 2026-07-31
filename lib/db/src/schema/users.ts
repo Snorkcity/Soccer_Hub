@@ -79,6 +79,16 @@ export const userActivityTable = pgTable("user_activity", {
 ]);
 export type UserActivity = typeof userActivityTable.$inferSelect;
 
+// Per-IP geolocation cache (free GeoIP lookups are rate-limited, so each IP is
+// resolved once and reused). label = human string like "Canberra"; NULL label
+// means the last lookup failed/was unknown — retried after a day.
+export const ipGeoTable = pgTable("ip_geo", {
+  ip:         text("ip").primaryKey(),
+  label:      text("label"),
+  lookedUpAt: timestamp("looked_up_at").defaultNow().notNull(),
+});
+export type IpGeo = typeof ipGeoTable.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;

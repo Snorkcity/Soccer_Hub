@@ -3858,8 +3858,10 @@ components:
         seenAt: { type: string }
         userAgent: { type: string }
         ip: { type: string }
+        # Approximate city resolved from the IP, e.g. "Canberra"; null when unknown.
+        location: { type: string, nullable: true }
         device: { type: string }
-      required: [seenAt, userAgent, ip, device]
+      required: [seenAt, userAgent, ip, location, device]
 
     CreateUserRequest:
       type: object

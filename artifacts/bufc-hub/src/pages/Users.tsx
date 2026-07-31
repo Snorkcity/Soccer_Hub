@@ -262,7 +262,9 @@ export default function Users() {
                                 <div key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs">
                                   <span className="tabular-nums text-muted-foreground">{formatLastLogin(a.seenAt)}</span>
                                   <span className="font-medium">{deviceLabel(a.userAgent)}</span>
-                                  <span className="text-muted-foreground">from {a.ip}</span>
+                                  <span className="text-muted-foreground cursor-default" title={`IP ${a.ip}`}>
+                                    {a.location ? `— ${a.location}` : `from ${a.ip}`}
+                                  </span>
                                 </div>
                               ))}
                             </div>

@@ -10,5 +10,6 @@ export interface UserActivitySample {
   seenAt: string;
   userAgent: string;
   ip: string;
+  location: string | null;
   device: string;
 }

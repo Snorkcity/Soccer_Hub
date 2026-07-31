@@ -1030,6 +1030,16 @@ async function runUserAccountsMigration(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS user_activity_user_seen_idx ON user_activity (user_id, seen_at)`);
 
+  // Per-IP geolocation cache (2026-07): "Canberra" beats a raw IP in the
+  // Users-page activity list. One row per IP; NULL label = lookup failed.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ip_geo (
+      ip text PRIMARY KEY,
+      label text,
+      looked_up_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

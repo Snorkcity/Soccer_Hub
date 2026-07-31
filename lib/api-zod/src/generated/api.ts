@@ -1810,6 +1810,7 @@ export const ListUsersResponseItem = zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),
   "ip": zod.string(),
+  "location": zod.string().nullable(),
   "device": zod.string()
 })).optional()
 })
@@ -1850,6 +1851,7 @@ export const CreateUserResponse = zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),
   "ip": zod.string(),
+  "location": zod.string().nullable(),
   "device": zod.string()
 })).optional()
 })
@@ -1905,6 +1907,7 @@ export const UpdateUserResponse = zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),
   "ip": zod.string(),
+  "location": zod.string().nullable(),
   "device": zod.string()
 })).optional()
 })
