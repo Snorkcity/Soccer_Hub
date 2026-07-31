@@ -98,6 +98,41 @@ async function driblSeasonHash(tenant: string, year: string): Promise<{ hash: st
   return { hash: pick.id, title: pick.title };
 }
 
+// Definitive club list for a league straight from the Dribl fixtures feed —
+// the ground truth the AI club-setup flow uses instead of guessing from the
+// league name (which can drift to an older season's line-up). Returns null
+// when the league has no Dribl mapping or the feed can't be reached.
+export async function driblClubNamesFor(leagueName: string, year: string): Promise<string[] | null> {
+  const dribl = driblLeagueFor(leagueName);
+  if (!dribl) return null;
+  try {
+    const tenant = await driblTenant();
+    const { hash: seasonHash } = await driblSeasonHash(tenant, year);
+    const competition = await driblCompetitionHash(tenant, dribl.competition);
+    const names = new Set<string>();
+    let cursor: string | null = null;
+    for (let page = 0; page < 60; page++) {
+      const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
+      if (cursor) params.cursor = cursor;
+      const data = await driblGet("/fixtures", params);
+      const rows = data?.data ?? [];
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        const a = row.attributes ?? {};
+        if (a.league_name === dribl.league && !a.bye_flag) {
+          if (a.home_team_name) names.add(String(a.home_team_name));
+          if (a.away_team_name) names.add(String(a.away_team_name));
+        }
+      }
+      cursor = data?.meta?.next_cursor ?? null;
+      if (!cursor) break;
+    }
+    return names.size > 0 ? Array.from(names).sort() : null;
+  } catch {
+    return null; // fall back to the AI's own knowledge
+  }
+}
+
 function clubCode(name: string): string {
   return name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
 }

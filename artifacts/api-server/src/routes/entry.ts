@@ -14,7 +14,9 @@ import {
   gpsSessionsTable,
   leaguesTable,
   clubsTable,
+  seasonsTable,
 } from "@workspace/db";
+import { driblClubNamesFor } from "./dribl";
 import {
   ListLeagueMatchesQueryParams,
   ListLeagueMatchesResponse,
@@ -986,11 +988,26 @@ router.post("/entry/extract-clubs", async (req, res): Promise<void> => {
     return;
   }
 
+  // When the league maps to Dribl, pull the definitive club list from the
+  // official fixtures feed for THIS season — the AI then only fills in short
+  // names, colours and logos instead of guessing (which can drift to an older
+  // season's line-up).
+  let driblClubs: string[] | null = null;
+  if (!b.imageBase64 && leagueLabel) {
+    const [latestSeason] = await db.select({ year: seasonsTable.year })
+      .from(seasonsTable).where(eq(seasonsTable.leagueId, b.leagueId))
+      .orderBy(desc(seasonsTable.year)).limit(1);
+    const year = latestSeason?.year ?? String(new Date().getFullYear());
+    driblClubs = await driblClubNamesFor(leagueLabel, year);
+  }
+
   const prompt = [
     "You are helping set up an Australian football (soccer) league in a club analytics app.",
     b.imageBase64
       ? "Attached is a screenshot of a league ladder or fixture list. Extract EVERY club you can see in it."
-      : `List every club competing in this league: "${leagueLabel}"${league?.region ? ` (region: ${league.region})` : ""}. Only include clubs you are confident about; if you are not sure of the exact club list, include the ones you know and add a warning saying the list may be incomplete.`,
+      : driblClubs
+        ? `The definitive club list for "${leagueLabel}" this season, straight from the official fixtures feed, is:\n${driblClubs.map(n => `- ${n}`).join("\n")}\nUse EXACTLY these clubs — one entry per club, no additions, no omissions. Your job is only the short display name, colours and logo for each.`
+        : `List every club competing in this league: "${leagueLabel}"${league?.region ? ` (region: ${league.region})` : ""}. Only include clubs you are confident about; if you are not sure of the exact club list, include the ones you know and add a warning saying the list may be incomplete.`,
     leagueLabel && b.imageBase64 ? `The league is "${leagueLabel}"${league?.region ? ` (region: ${league.region})` : ""}.` : "",
     "Return STRICT JSON only (no markdown, no commentary) in this exact shape:",
     `{"clubs":[{"name":"Monaro","fullName":"Monaro Panthers FC","primaryColor":"#e31b23","logoUrl":"https://..."}],"warnings":["..."]}`,
