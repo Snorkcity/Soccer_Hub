@@ -634,18 +634,46 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       const grid: string[][] = Array.from({ length: 1 + PLAYER_ROWS }, () => Array(COLS).fill(""));
       grid[0][0] = input.formationName;
       if (i === 0) {
+        // Group the XI into pitch lines, then spread each line across distinct
+        // columns so no two players share a cell — it reads like a formation.
+        const byRow = new Map<number, Array<{ px: number; nm: string }>>();
         for (const p of input.lineup) {
-          const col = Math.min(COLS - 1, Math.max(0, Math.round(p.px * (COLS - 1))));
           const row = 1 + Math.min(PLAYER_ROWS - 1, Math.max(0, Math.round(p.py * (PLAYER_ROWS - 1))));
-          const nm = p.name || p.label;
-          grid[row][col] = grid[row][col] ? `${grid[row][col]}\n${nm}` : nm;
+          const list = byRow.get(row) ?? [];
+          list.push({ px: p.px, nm: p.name || p.label });
+          byRow.set(row, list);
+        }
+        for (const [row, list] of byRow) {
+          list.sort((a, b) => a.px - b.px);
+          const cols = list.map((p) => Math.min(COLS - 1, Math.max(0, Math.round(p.px * (COLS - 1)))));
+          // Nudge duplicates apart: forward pass pushes right, backward pass pulls
+          // back inside the grid — keeps each player as close to true position as fits.
+          for (let k = 1; k < cols.length; k++) cols[k] = Math.max(cols[k], cols[k - 1] + 1);
+          for (let k = cols.length - 1; k >= 0; k--) cols[k] = Math.min(cols[k], COLS - 1 - (cols.length - 1 - k));
+          for (let k = 1; k < cols.length; k++) cols[k] = Math.max(cols[k], cols[k - 1] + 1);
+          list.forEach((p, k) => {
+            const col = cols[k];
+            grid[row][col] = grid[row][col] ? `${grid[row][col]}\n${p.nm}` : p.nm;
+          });
         }
       }
       s.addTable(
         grid.map((cells, r) =>
           cells.map((text, c) => {
             // The goal: bottom-middle cell outlined in black, like the coach draws it.
-            const isGoal = r === PLAYER_ROWS && c === Math.floor(COLS / 2);
+            // Neighbouring cells paint the shared edge too, so the black must also be
+            // set on the left neighbour's right edge (and right neighbour's left edge)
+            // or the grey overdraws it.
+            const goalCol = Math.floor(COLS / 2);
+            const isGoal = r === PLAYER_ROWS && c === goalCol;
+            const grey = { type: "solid" as const, color: "E7E7E7", pt: 0.5 };
+            const black = { type: "solid" as const, color: "000000", pt: 1 };
+            // border array order: [top, right, bottom, left]
+            let border: [typeof grey, typeof grey, typeof grey, typeof grey] | typeof grey = grey;
+            if (isGoal) border = [black, black, black, black];
+            else if (r === PLAYER_ROWS && c === goalCol - 1) border = [grey, black, grey, grey];
+            else if (r === PLAYER_ROWS && c === goalCol + 1) border = [grey, grey, grey, black];
+            else if (r === PLAYER_ROWS - 1 && c === goalCol) border = [grey, grey, black, grey];
             return {
               text,
               options: {
@@ -656,7 +684,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
                 align: (r === 0 ? "left" : "center") as "left" | "center",
                 valign: "middle" as const,
                 margin: 0.02,
-                border: { type: "solid" as const, color: isGoal ? "000000" : "E7E7E7", pt: isGoal ? 1 : 0.5 },
+                border,
               },
             };
           }),
