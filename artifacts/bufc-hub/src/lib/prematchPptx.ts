@@ -413,11 +413,11 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   // ── Lineup ──
   {
     const ph = H - 0.9;
-    const pw = ph * 0.74;
+    const pw = ph * 0.72;
     const lx = MX + pw + 0.7;
     const s = darkSlide(pptx, "Starting lineup", `Our XI — ${input.formationName}`, lx);
     const plot = drawPitch(s, MX, 0.45, pw, ph);
-    drawPlayers(s, plot, input.lineup, { r: 0.24, names: false });
+    drawPlayers(s, plot, input.lineup, { names: false });
     const lw = W - MX - lx;
     const half = Math.ceil(input.lineup.length / 2);
     const listCol = (names: string[], x: number, w: number) =>
