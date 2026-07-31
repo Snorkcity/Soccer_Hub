@@ -29,6 +29,10 @@ import {
   useGetPlayerDna,
   useGetPlayerTimeline,
   getGetPlayerTimelineQueryKey,
+  useGetPlayerImpact,
+  getGetPlayerImpactQueryKey,
+  type PlayerImpactPlayer,
+  type PlayerImpactSide,
   useGetClubs,
   useListMatches,
   getListMatchesQueryKey,
@@ -61,7 +65,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell, ReferenceLine, PieChart, Pie,
-  ScatterChart, Scatter, ReferenceArea, LabelList,
+  ScatterChart, Scatter, ReferenceArea, LabelList, ComposedChart,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   LineChart, Line,
 } from "recharts";
@@ -2562,6 +2566,9 @@ export default function SeasonStats() {
             </ChartCard>
           </div>
 
+          {/* Player Impact — win % when starting vs not */}
+          <PlayerImpactChart seasonId={sId} club={focusClub} enabled={isReady && !!focusClub} />
+
           {/* Full Leaderboard Table */}
           <Card>
             <CardHeader>
@@ -2974,6 +2981,9 @@ export default function SeasonStats() {
                 hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 20 : undefined}
               />
+
+              {/* 17f. Player Impact — team record when player starts vs not */}
+              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} />
 
               {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
               <ClutchChart
@@ -3936,6 +3946,131 @@ function PlayerTimelineChart({ seasonId, club, player, onBack, accent = TL_DEFAU
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Player Impact (dumbbell: team win % when starting vs not starting) ──────
+
+function impactRecord(s: PlayerImpactSide): string {
+  return `${s.wins}W–${s.draws}D–${s.losses}L`;
+}
+
+function impactGameList(games: PlayerImpactSide["games"], want: "W" | "L"): string | null {
+  const list = games.filter(g => g.result === want);
+  if (!list.length) return null;
+  const shown = list.slice(0, 6).map(g => `${g.round != null ? `R${g.round}` : g.matchId} v ${g.opponent ?? "?"}`);
+  return shown.join(" · ") + (list.length > 6 ? ` +${list.length - 6} more` : "");
+}
+
+function ImpactSideBlock({ label, side, color }: { label: string; side: PlayerImpactSide; color: string }) {
+  return (
+    <div className="pt-1">
+      <div className="font-medium" style={{ color }}>{label}</div>
+      {side.matches === 0 ? (
+        <div className="text-muted-foreground">Insufficient data</div>
+      ) : (
+        <>
+          <div>Win rate: <b>{side.winPct}%</b> ({impactRecord(side)}, {side.matches} game{side.matches === 1 ? "" : "s"}){side.matches < 5 ? " ⚠ small sample" : ""}</div>
+          <div>Points per game: {side.ppg}</div>
+          {(side.bench > 0 || side.out > 0) && (
+            <div className="text-muted-foreground">{side.bench} from bench · {side.out} not in squad</div>
+          )}
+          {impactGameList(side.games, "W") && <div className="text-muted-foreground">Wins: {impactGameList(side.games, "W")}</div>}
+          {impactGameList(side.games, "L") && <div className="text-muted-foreground">Losses: {impactGameList(side.games, "L")}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ImpactTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ payload?: { p?: PlayerImpactPlayer; showClub?: boolean } }>;
+}) {
+  const p = payload?.[0]?.payload?.p;
+  if (!active || !p) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md max-w-[280px] space-y-1">
+      <div className="font-semibold">{p.playerName}{payload?.[0]?.payload?.showClub ? <span className="font-normal text-muted-foreground"> — {p.club}</span> : null}</div>
+      <ImpactSideBlock label="When starting" side={p.started} color={C1} />
+      <ImpactSideBlock label="When not starting" side={p.notStarted} color={C2} />
+      {p.diff != null && (
+        <div className="pt-1 border-t border-border">Difference: <b>{p.diff > 0 ? "+" : ""}{p.diff} pts</b> (percentage points)</div>
+      )}
+    </div>
+  );
+}
+
+// Dumbbell chart: per player, two dots (team win % when they started vs when
+// they didn't) joined by a thin bar. Fetches its own data so it can sit on both
+// the Player Insights tab (focus club) and Opponent Insights (any club / __ALL__).
+function PlayerImpactChart({ seasonId, club, isAll, enabled }: {
+  seasonId: number; club: string; isAll?: boolean; enabled: boolean;
+}) {
+  const [win, setWin] = useState<"4" | "10" | "all">("all");
+  const lastN = win === "all" ? undefined : Number(win);
+  const params = { seasonId, club, ...(lastN ? { lastN } : {}) };
+  const { data, isLoading } = useGetPlayerImpact(params, {
+    query: { enabled: enabled && !!club, queryKey: getGetPlayerImpactQueryKey(params) },
+  });
+
+  const rows = useMemo(() => (data?.players ?? []).map(p => {
+    const s = p.started.winPct;
+    const n = p.notStarted.winPct;
+    return {
+      name: isAll ? `${p.playerName} · ${p.club.slice(0, 3)}` : p.playerName,
+      startPct: s,
+      notPct: n,
+      range: s != null && n != null ? [Math.min(s, n), Math.max(s, n)] : undefined,
+      p,
+      showClub: !!isAll,
+    };
+  }), [data, isAll]);
+
+  return (
+    <ChartCard
+      title={`${isAll ? "League" : club} — Player Impact — Win % Starting vs Not`}
+      description={`Team results when each player starts vs when they don't (bench or out)${isAll ? " — top 30 league-wide by win rate when starting" : ""}. Hover a player for the full record.`}
+      tooltip="For each player: the team's win percentage in games they started (blue dot) vs games they didn't start (amber dot — includes bench appearances and games out of the squad). The bigger the gap, the more the results swing with their selection. Correlation, not proof — strong starters often start together. Short windows are volatile; the hover flags small samples."
+      controls={
+        <PillGroup
+          options={[
+            { value: "4",   label: "Last 4 rounds" },
+            { value: "10",  label: "Last 10 rounds" },
+            { value: "all", label: "Season" },
+          ]}
+          value={win}
+          onChange={v => setWin(v as "4" | "10" | "all")}
+        />
+      }
+      tall
+    >
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No line-up data for this window</div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ top: 10, right: 10, left: -20, bottom: 55 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={70} />
+            <YAxis {...AXIS_STYLE} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} />
+            <Tooltip content={<ImpactTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Legend
+              iconType="circle"
+              wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+              payload={[
+                { value: "Win % when starting", type: "circle", color: C1 },
+                { value: "Win % when not starting", type: "circle", color: C2 },
+              ]}
+            />
+            <Bar dataKey="range" barSize={2} fill="hsl(var(--muted-foreground)/0.5)" isAnimationActive={false} legendType="none" />
+            <Scatter dataKey="startPct" fill={C1} legendType="none" isAnimationActive={false} />
+            <Scatter dataKey="notPct" fill={C2} legendType="none" isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
   );
 }
 

@@ -958,6 +958,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpponentPlayersByOpponentResponse"
 
+  /analytics/player-impact:
+    get:
+      operationId: getPlayerImpact
+      tags: [analytics]
+      summary: Team results (win rate, points) when each player starts vs does not start
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-player started vs not-started team records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerImpactResponse"
+
   /analytics/opponent-onfield-impact:
     get:
       operationId: getOpponentOnfieldImpact
@@ -3270,6 +3296,57 @@ components:
           items:
             $ref: "#/components/schemas/OpponentPlayerByOpponentPlayer"
       required: [opponents, players]
+
+    # ── Player Impact (team record when player starts vs doesn't) ─────────────
+
+    PlayerImpactGame:
+      type: object
+      properties:
+        matchId:  { type: string }
+        round:    { type: integer, nullable: true }
+        opponent: { type: string, nullable: true }
+        result:   { type: string, enum: [W, D, L] }
+        role:     { type: string, enum: [start, bench, out] }
+      required: [matchId, round, opponent, result, role]
+
+    PlayerImpactSide:
+      type: object
+      properties:
+        matches: { type: integer }
+        wins:    { type: integer }
+        draws:   { type: integer }
+        losses:  { type: integer }
+        winPct:  { type: number, nullable: true }
+        ppg:     { type: number, nullable: true }
+        bench:   { type: integer }
+        out:     { type: integer }
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerImpactGame"
+      required: [matches, wins, draws, losses, winPct, ppg, bench, out, games]
+
+    PlayerImpactPlayer:
+      type: object
+      properties:
+        playerName: { type: string }
+        club:       { type: string }
+        started:
+          $ref: "#/components/schemas/PlayerImpactSide"
+        notStarted:
+          $ref: "#/components/schemas/PlayerImpactSide"
+        diff: { type: number, nullable: true }
+      required: [playerName, club, started, notStarted, diff]
+
+    PlayerImpactResponse:
+      type: object
+      properties:
+        totalMatches: { type: integer }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerImpactPlayer"
+      required: [totalMatches, players]
 
     # ── Opponent On-Field Impact (GD while player appeared, by opponent) ───────
 

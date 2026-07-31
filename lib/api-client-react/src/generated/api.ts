@@ -81,6 +81,7 @@ import type {
   GetOpponentPlayersByOpponentParams,
   GetOpponentProfileParams,
   GetPlayerDnaParams,
+  GetPlayerImpactParams,
   GetPlayerLeaderboardParams,
   GetPlayerTallyParams,
   GetPlayerTimelineParams,
@@ -152,6 +153,7 @@ import type {
   OpponentProfileResponse,
   Player,
   PlayerDnaResponse,
+  PlayerImpactResponse,
   PlayerInput,
   PlayerLeaderboardEntry,
   PlayerStat,
@@ -3423,6 +3425,90 @@ export function useGetOpponentPlayersByOpponent<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOpponentPlayersByOpponentQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlayerImpactUrl = (params: GetPlayerImpactParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/player-impact?${stringifiedParams}` : `/api/analytics/player-impact`
+}
+
+/**
+ * @summary Team results (win rate, points) when each player starts vs does not start
+ */
+export const getPlayerImpact = async (params: GetPlayerImpactParams, options?: RequestInit): Promise<PlayerImpactResponse> => {
+
+  return customFetch<PlayerImpactResponse>(getGetPlayerImpactUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerImpactQueryKey = (params?: GetPlayerImpactParams,) => {
+    return [
+    `/api/analytics/player-impact`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPlayerImpactQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerImpact>>, TError = ErrorType<unknown>>(params: GetPlayerImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerImpactQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerImpact>>> = ({ signal }) => getPlayerImpact(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerImpact>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerImpactQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerImpact>>>
+export type GetPlayerImpactQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Team results (win rate, points) when each player starts vs does not start
+ */
+
+export function useGetPlayerImpact<TData = Awaited<ReturnType<typeof getPlayerImpact>>, TError = ErrorType<unknown>>(
+ params: GetPlayerImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerImpactQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

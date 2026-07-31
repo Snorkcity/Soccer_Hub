@@ -916,6 +916,57 @@ export interface OpponentPlayersByOpponentResponse {
   players: OpponentPlayerByOpponentPlayer[];
 }
 
+export type PlayerImpactGameResult = typeof PlayerImpactGameResult[keyof typeof PlayerImpactGameResult];
+
+
+export const PlayerImpactGameResult = {
+  W: 'W',
+  D: 'D',
+  L: 'L',
+} as const;
+
+export type PlayerImpactGameRole = typeof PlayerImpactGameRole[keyof typeof PlayerImpactGameRole];
+
+
+export const PlayerImpactGameRole = {
+  start: 'start',
+  bench: 'bench',
+  out: 'out',
+} as const;
+
+export interface PlayerImpactGame {
+  matchId: string;
+  round: number | null;
+  opponent: string | null;
+  result: PlayerImpactGameResult;
+  role: PlayerImpactGameRole;
+}
+
+export interface PlayerImpactSide {
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  winPct: number | null;
+  ppg: number | null;
+  bench: number;
+  out: number;
+  games: PlayerImpactGame[];
+}
+
+export interface PlayerImpactPlayer {
+  playerName: string;
+  club: string;
+  started: PlayerImpactSide;
+  notStarted: PlayerImpactSide;
+  diff: number | null;
+}
+
+export interface PlayerImpactResponse {
+  totalMatches: number;
+  players: PlayerImpactPlayer[];
+}
+
 export interface OpponentOnfieldImpactEntry {
   gf: number;
   ga: number;
@@ -2628,6 +2679,12 @@ player: string;
 
 export type GetOpponentPlayersByOpponentParams = {
 teamId: number;
+seasonId: number;
+club: string;
+lastN?: number;
+};
+
+export type GetPlayerImpactParams = {
 seasonId: number;
 club: string;
 lastN?: number;

@@ -1263,6 +1263,59 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
 
 
 /**
+ * @summary Team results (win rate, points) when each player starts vs does not start
+ */
+export const GetPlayerImpactQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetPlayerImpactResponse = zod.object({
+  "totalMatches": zod.number(),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string(),
+  "started": zod.object({
+  "matches": zod.number(),
+  "wins": zod.number(),
+  "draws": zod.number(),
+  "losses": zod.number(),
+  "winPct": zod.number().nullable(),
+  "ppg": zod.number().nullable(),
+  "bench": zod.number(),
+  "out": zod.number(),
+  "games": zod.array(zod.object({
+  "matchId": zod.string(),
+  "round": zod.number().nullable(),
+  "opponent": zod.string().nullable(),
+  "result": zod.enum(['W', 'D', 'L']),
+  "role": zod.enum(['start', 'bench', 'out'])
+}))
+}),
+  "notStarted": zod.object({
+  "matches": zod.number(),
+  "wins": zod.number(),
+  "draws": zod.number(),
+  "losses": zod.number(),
+  "winPct": zod.number().nullable(),
+  "ppg": zod.number().nullable(),
+  "bench": zod.number(),
+  "out": zod.number(),
+  "games": zod.array(zod.object({
+  "matchId": zod.string(),
+  "round": zod.number().nullable(),
+  "opponent": zod.string().nullable(),
+  "result": zod.enum(['W', 'D', 'L']),
+  "role": zod.enum(['start', 'bench', 'out'])
+}))
+}),
+  "diff": zod.number().nullable()
+}))
+})
+
+
+/**
  * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
  */
 export const GetOpponentOnfieldImpactQueryParams = zod.object({

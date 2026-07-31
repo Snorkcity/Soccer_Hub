@@ -51,3 +51,5 @@ The opponent selector offers three kinds of target, all served by the same `/ana
 - Default-select effect must treat `__ALL__` and `Belconnen` as valid selections so it doesn't reset them.
 
 **Under ALL, what populates:** the 4 stack charts (scored/conceded × interval/type) + top scorers. **What is hidden (club-relative):** record summary, match history. Still to work through as more roadmap charts (5–19) get built — decide their ALL behaviour case by case.
+
+**Player Impact dumbbell** — /analytics/player-impact: team win%/ppg when player started vs not (bench/out split, role from league_player_stats rows; out = club match with no row). Dumbbell = ComposedChart range-Bar + two Scatters. On Player tab (focus club) AND Opponent tab (club or __ALL__, top-30 by started win%). Scouting tool per coach.

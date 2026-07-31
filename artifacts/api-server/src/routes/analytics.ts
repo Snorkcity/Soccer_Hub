@@ -32,6 +32,8 @@ import {
   GetPlayerTimelineResponse,
   GetOpponentProfileResponse,
   GetOpponentPlayersByOpponentQueryParams,
+  GetPlayerImpactQueryParams,
+  GetPlayerImpactResponse,
   GetOpponentPlayersByOpponentResponse,
   GetGoalCombosQueryParams,
   GetGoalCombosResponse,
@@ -1327,6 +1329,127 @@ router.get("/analytics/goals-by-opponent", async (req, res): Promise<void> => {
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetGoalsByOpponentResponse.parse({ opponents, players }));
+});
+
+// ─── Player Impact (team record when player starts vs doesn't start) ──────────
+// Scouting chart: for each player of a club (or every club league-wide), the
+// team's win rate + points-per-game in games they started vs games they didn't.
+// "Didn't start" splits bench (came on / unused) from out (not in the squad).
+
+router.get("/analytics/player-impact", async (req, res): Promise<void> => {
+  const query = GetPlayerImpactQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate, homeGoals: leagueMatchesTable.homeGoals, awayGoals: leagueMatchesTable.awayGoals })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  if (!matches.length) { res.json(GetPlayerImpactResponse.parse({ totalMatches: 0, players: [] })); return; }
+
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+  let windowed = relevant;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      windowed = relevant.filter(m => dateSet.has(m.matchDate ?? ""));
+    } else {
+      windowed = relevant.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN);
+    }
+  }
+  const windowedIds = windowed.map(m => m.matchId);
+  if (windowedIds.length === 0) { res.json(GetPlayerImpactResponse.parse({ totalMatches: 0, players: [] })); return; }
+
+  const ps = await db
+    .select({ playerName: leaguePlayerStatsTable.playerName, matchId: leaguePlayerStatsTable.matchId, started: leaguePlayerStatsTable.started, appearance: leaguePlayerStatsTable.appearance, club: leaguePlayerStatsTable.club })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, windowedIds)));
+
+  const roundOf = (matchId: string): number | null => {
+    const m = /^R(\d+)/i.exec(matchId);
+    return m ? parseInt(m[1], 10) : null;
+  };
+
+  // Per club: the games they played (with result from their perspective) and
+  // per player: role in each of those games (start / bench / out).
+  type ClubGame = { matchId: string; round: number | null; opponent: string | null; result: "W" | "D" | "L"; date: string };
+  const gamesByClub = new Map<string, ClubGame[]>();
+  for (const m of windowed) {
+    if (m.homeGoals == null || m.awayGoals == null) continue;
+    const sides: Array<{ own: string; opp: string; gf: number; ga: number }> = [
+      { own: m.homeTeam, opp: m.awayTeam, gf: m.homeGoals, ga: m.awayGoals },
+      { own: m.awayTeam, opp: m.homeTeam, gf: m.awayGoals, ga: m.homeGoals },
+    ];
+    for (const s of sides) {
+      if (!isAll && s.own !== club) continue;
+      const list = gamesByClub.get(s.own) ?? [];
+      list.push({
+        matchId: m.matchId, round: roundOf(m.matchId), opponent: s.opp,
+        result: s.gf > s.ga ? "W" : s.gf < s.ga ? "L" : "D", date: m.matchDate ?? "",
+      });
+      gamesByClub.set(s.own, list);
+    }
+  }
+
+  // player role per match: club → player → matchId → "start" | "bench"
+  const roleByClubPlayer = new Map<string, Map<string, Map<string, "start" | "bench">>>();
+  for (const r of ps) {
+    if (!r.playerName || !r.club) continue;
+    if (!isAll && r.club !== club) continue;
+    if (!r.started && !r.appearance) {
+      // listed but never used — still "bench" (in the squad, didn't start)
+    }
+    const byPlayer = roleByClubPlayer.get(r.club) ?? new Map<string, Map<string, "start" | "bench">>();
+    const byMatch = byPlayer.get(r.playerName) ?? new Map<string, "start" | "bench">();
+    byMatch.set(r.matchId, r.started ? "start" : "bench");
+    byPlayer.set(r.playerName, byMatch);
+    roleByClubPlayer.set(r.club, byPlayer);
+  }
+
+  type Side = { matches: number; wins: number; draws: number; losses: number; winPct: number | null; ppg: number | null; bench: number; out: number; games: Array<{ matchId: string; round: number | null; opponent: string | null; result: string; role: string }> };
+  const emptySide = (): Side => ({ matches: 0, wins: 0, draws: 0, losses: 0, winPct: null, ppg: null, bench: 0, out: 0, games: [] });
+  const finish = (s: Side): void => {
+    if (s.matches > 0) {
+      s.winPct = Math.round((s.wins / s.matches) * 1000) / 10;
+      s.ppg = Math.round(((s.wins * 3 + s.draws) / s.matches) * 100) / 100;
+    }
+  };
+
+  const players: Array<{ playerName: string; club: string; started: Side; notStarted: Side; diff: number | null }> = [];
+  for (const [clubName, byPlayer] of roleByClubPlayer) {
+    const clubGames = (gamesByClub.get(clubName) ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    for (const [playerName, byMatch] of byPlayer) {
+      const started = emptySide();
+      const notStarted = emptySide();
+      for (const g of clubGames) {
+        const role = byMatch.get(g.matchId) ?? "out";
+        const side = role === "start" ? started : notStarted;
+        side.matches += 1;
+        if (g.result === "W") side.wins += 1;
+        else if (g.result === "D") side.draws += 1;
+        else side.losses += 1;
+        if (role === "bench") side.bench += 1;
+        if (role === "out") side.out += 1;
+        side.games.push({ matchId: g.matchId, round: g.round, opponent: g.opponent, result: g.result, role });
+      }
+      finish(started);
+      finish(notStarted);
+      if (started.matches === 0) continue; // never started — not meaningful here
+      const diff = started.winPct != null && notStarted.winPct != null
+        ? Math.round((started.winPct - notStarted.winPct) * 10) / 10
+        : null;
+      players.push({ playerName, club: clubName, started, notStarted, diff });
+    }
+  }
+
+  // Best "when starting" record first; more starts break ties (steadier sample)
+  players.sort((a, b) => (b.started.winPct ?? 0) - (a.started.winPct ?? 0) || b.started.matches - a.started.matches);
+  const limited = isAll ? players.slice(0, 30) : players;
+
+  res.json(GetPlayerImpactResponse.parse({ totalMatches: windowedIds.length, players: limited }));
 });
 
 // ─── Opponent Players by Opponent (club-scoped goals/assists/mins per opponent) ─
