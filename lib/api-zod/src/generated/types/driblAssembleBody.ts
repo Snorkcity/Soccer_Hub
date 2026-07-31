@@ -13,6 +13,7 @@ export interface DriblAssembleBody {
   seasonId: number;
   /** @nullable */
   driblSeason?: string | null;
+  recheckNoLineups?: boolean;
   /** @maxItems 2000 */
   fixtures: DriblRawFixture[];
   /** @maxItems 500 */

@@ -332,6 +332,19 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_name_map_unique ON dribl_name_map (season_id, club, full_name)`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_name_map_display_unique ON dribl_name_map (season_id, club, display_name)`);
 
+  // ── Dribl no-lineup markers (2026-07): remember games where Dribl never
+  // published a team sheet so weekly re-syncs stop re-fetching them forever.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS dribl_no_lineup (
+      id serial PRIMARY KEY,
+      season_id integer NOT NULL,
+      match_id text NOT NULL,
+      club text NOT NULL,
+      checked_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_no_lineup_unique ON dribl_no_lineup (season_id, match_id, club)`);
+
   // ── Paid add-ons become tick boxes (2026-07): Session Planner (+ Library)
   // and Coach Assistant were open to every signed-in user — grant them once to
   // every existing league access row so nobody loses anything, then the coach

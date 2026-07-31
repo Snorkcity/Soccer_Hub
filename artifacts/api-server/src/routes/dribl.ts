@@ -9,8 +9,8 @@
 //        connections pass Cloudflare; mc-api sends Access-Control-Allow-Origin *)
 //        and posts trimmed payloads here for assembly against the database.
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable, driblNameMapTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable, driblNameMapTable, driblNoLineupTable } from "@workspace/db";
 import {
   GetDriblPreviewQueryParams,
   GetDriblPreviewResponse,
@@ -275,7 +275,8 @@ async function buildPreview(
   fixtures: NormFixture[],
   getDetail: (hash: string) => Promise<NormDetail | null>,
   getLineup?: (matchHash: string, teamHash: string) => Promise<NormLineupPlayer[] | null>,
-): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }> }> {
+  recheckNoLineups = false,
+): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }>; skippedNoLineups: number }> {
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
   // Existing matches are matched on round + home + away (with match-date as a
@@ -319,6 +320,18 @@ async function buildPreview(
     set.add(s.club);
     statsByMatch.set(s.matchId, set);
   }
+  // Games where a previous sync confirmed Dribl has no published team sheet —
+  // skip those club sheets entirely (that's the re-sync speedup), unless the
+  // caller asked to re-check them. Cleared when a sheet later appears.
+  const noLineupRows = await db
+    .select({ matchId: driblNoLineupTable.matchId, club: driblNoLineupTable.club })
+    .from(driblNoLineupTable)
+    .where(eq(driblNoLineupTable.seasonId, seasonId));
+  const noLineupSet = new Set(noLineupRows.map(r => `${r.matchId}|${r.club}`));
+  const freshNoLineups: Array<{ matchId: string; club: string }> = [];
+  const clearedNoLineups: Array<{ matchId: string; club: string }> = [];
+  let skippedNoLineups = 0;
+
   // Permanent full-name → display-name book per club (dribl_name_map table),
   // seeded so display names stay stable across syncs. Names not yet in the map
   // (e.g. hand-entered sheets) are claimed by the first Dribl full name that
@@ -374,8 +387,15 @@ async function buildPreview(
     // Which clubs still need player rows (line-ups) for this game?
     const savedStatsClubs = statsByMatch.get(matchId) ?? new Set<string>();
     const statsWanted: Array<{ club: string; side: "home" | "away" }> = [];
-    if (getLineup && home && !savedStatsClubs.has(home)) statsWanted.push({ club: home, side: "home" });
-    if (getLineup && away && !savedStatsClubs.has(away)) statsWanted.push({ club: away, side: "away" });
+    const wantStats = (club: string, side: "home" | "away") => {
+      if (savedStatsClubs.has(club)) return;
+      // A previous sync confirmed Dribl has no sheet for this club — skip
+      // unless the caller asked to re-check those.
+      if (!recheckNoLineups && noLineupSet.has(`${matchId}|${club}`)) { skippedNoLineups++; return; }
+      statsWanted.push({ club, side });
+    };
+    if (getLineup && home) wantStats(home, "home");
+    if (getLineup && away) wantStats(away, "away");
     const playerStats: Array<{ club: string; exists: boolean; rows: unknown[] }> = [];
     if (home && away && (!exists || goalsShort || statsWanted.length > 0)) {
       try {
@@ -390,9 +410,20 @@ async function buildPreview(
             const players = await getLineup!(f.matchHashId, teamHash);
             if (players == null) {
               needLineups.push({ match: f.matchHashId, team: teamHash });
-            } else if (players.length > 0) {
+            } else if (players.some(p => !p.roleSlug || p.roleSlug === "player")) {
               const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname", bookFor(w.club));
               if (rows.length > 0) playerStats.push({ club: w.club, exists: false, rows });
+              // A sheet exists after all — forget any earlier no-lineup marker.
+              if (noLineupSet.has(`${matchId}|${w.club}`)) clearedNoLineups.push({ matchId, club: w.club });
+            } else {
+              // Dribl answered but published no players. Only remember that for
+              // games old enough that a sheet is clearly never coming — recent
+              // games often get their sheet a day or two after full time.
+              const playedAt = new Date(f.date.includes("T") ? f.date : `${f.date.replace(" ", "T")}Z`).getTime();
+              const oldEnough = Number.isFinite(playedAt) && Date.now() - playedAt > 7 * 24 * 60 * 60 * 1000;
+              if (oldEnough && !noLineupSet.has(`${matchId}|${w.club}`)) {
+                freshNoLineups.push({ matchId, club: w.club });
+              }
             }
           }
           if (halfScore == null && detail.homeScoreHt != null && detail.awayScoreHt != null) {
@@ -463,7 +494,25 @@ async function buildPreview(
     }
   }
 
-  return { matches, needDetail, needLineups };
+  // Persist / clear no-lineup markers learned this pass. Skip persisting while
+  // the browser-fallback assembly is still waiting on line-up payloads —
+  // otherwise "not fetched yet" would be recorded as "no sheet exists".
+  if (needLineups.length === 0) {
+    if (freshNoLineups.length > 0) {
+      await db.insert(driblNoLineupTable)
+        .values(freshNoLineups.map(m => ({ seasonId, matchId: m.matchId, club: m.club })))
+        .onConflictDoNothing();
+    }
+    for (const c of clearedNoLineups) {
+      await db.delete(driblNoLineupTable).where(and(
+        eq(driblNoLineupTable.seasonId, seasonId),
+        eq(driblNoLineupTable.matchId, c.matchId),
+        eq(driblNoLineupTable.club, c.club),
+      ));
+    }
+  }
+
+  return { matches, needDetail, needLineups, skippedNoLineups };
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -540,7 +589,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       if (!cursor) break;
     }
 
-    const { matches } = await buildPreview(
+    const { matches, skippedNoLineups } = await buildPreview(
       seasonId, seasonRow, fixtures,
       async (hash) => {
         const mc = await driblGet(`/matchcentre/${hash}`, { tenant });
@@ -586,12 +635,18 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
           });
         } catch (e) {
           logger.warn({ matchHash, teamHash, err: String(e) }, "Dribl line-up fetch failed — skipping player rows");
-          return [];
+          // null (not []) — a fetch failure must never be recorded as
+          // "Dribl has no sheet for this game".
+          return null;
         }
       },
+      // NOTE: don't trust the generated zod coercion here — zod.coerce.boolean()
+      // turns ANY non-empty string (including "false") into true. Only the
+      // literal string "true" means re-check.
+      String(req.query.recheckNoLineups ?? "") === "true",
     );
 
-    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [] }));
+    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [], skippedNoLineups }));
   } catch (e) {
     logger.error({ err: String(e) }, "Dribl preview failed");
     res.status(502).json({ error: `Couldn't reach Dribl: ${e instanceof Error ? e.message : String(e)}` });
@@ -645,15 +700,16 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
     })));
   }
 
-  const { matches, needDetail, needLineups } = await buildPreview(
+  const { matches, needDetail, needLineups, skippedNoLineups } = await buildPreview(
     b.seasonId, seasonRow, b.fixtures,
     async (hash) => detailByHash.get(hash) ?? null,
     async (matchHash, teamHash) => lineupByKey.get(`${matchHash}|${teamHash}`) ?? null,
+    b.recheckNoLineups ?? false,
   );
 
   res.json(GetDriblPreviewResponse.parse({
     driblSeason: b.driblSeason ?? seasonRow.year,
-    driblLeague, matches, needDetail, needLineups,
+    driblLeague, matches, needDetail, needLineups, skippedNoLineups,
   }));
 });
 

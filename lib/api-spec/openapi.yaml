@@ -1684,6 +1684,11 @@ paths:
           in: query
           required: true
           schema: { type: integer }
+        - name: recheckNoLineups
+          in: query
+          required: false
+          description: Re-check games previously remembered as having no published team sheet
+          schema: { type: boolean }
       responses:
         "200":
           description: Preview of Dribl fixtures mapped to local clubs
@@ -3994,7 +3999,10 @@ components:
         needLineups:
           type: array
           items: { $ref: "#/components/schemas/DriblNeedLineup" }
-      required: [driblSeason, driblLeague, matches, needDetail, needLineups]
+        skippedNoLineups:
+          type: integer
+          description: Club sheets skipped because a previous sync found no published line-up
+      required: [driblSeason, driblLeague, matches, needDetail, needLineups, skippedNoLineups]
 
     DriblConfigResponse:
       type: object
@@ -4085,6 +4093,7 @@ components:
       properties:
         seasonId:    { type: integer }
         driblSeason: { type: ["string", "null"] }
+        recheckNoLineups: { type: boolean }
         fixtures:
           type: array
           maxItems: 2000

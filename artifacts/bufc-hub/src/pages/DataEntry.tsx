@@ -1937,6 +1937,9 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
   const [progress, setProgress] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Games where a previous sync found no published team sheet are skipped on
+  // re-syncs (that's what keeps them fast); this forces a one-off re-check.
+  const [recheckNoLineups, setRecheckNoLineups] = useState(false);
 
   // The browser talks to Dribl directly when the server is blocked by
   // Cloudflare (hosting IPs score badly; home connections are fine, and
@@ -1949,7 +1952,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
     return r.json();
   };
 
-  const browserSync = async (): Promise<DriblPreviewResponse> => {
+  const browserSync = async (recheck: boolean): Promise<DriblPreviewResponse> => {
     setPhase("Server can't reach Dribl — fetching from your browser instead…");
     const cfg = await getDriblConfig({ seasonId });
     const tenant: string = (await driblJson("/tenants", { slug: "capital" }))?.data?.id;
@@ -1989,7 +1992,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
       if (!cursor) break;
     }
 
-    let result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures });
+    let result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, recheckNoLineups: recheck });
     if (result.needDetail.length > 0) {
       const matchCentres: DriblRawMatchCentre[] = [];
       for (let i = 0; i < result.needDetail.length; i++) {
@@ -2027,7 +2030,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
           // skip — that match imports as scoreline only
         }
       }
-      result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres });
+      result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, recheckNoLineups: recheck });
 
       // Third pass: fetch line-ups for teams that still need player rows.
       if (result.needLineups.length > 0) {
@@ -2055,20 +2058,22 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
             // skip — that team imports without player rows
           }
         }
-        result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, lineups });
+        result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, lineups, recheckNoLineups: recheck });
       }
     }
     return result;
   };
 
-  const fetchPreview = async () => {
+  const fetchPreview = async (recheck = recheckNoLineups) => {
     setIsFetching(true); setPreviewError(null); setOk(null); setErr(null); setPhase(null);
     try {
       let result: DriblPreviewResponse;
       try {
-        result = await getDriblPreview({ seasonId });
+        // Omit the flag entirely when false — query-string "false" is not a
+        // JSON boolean and must never be misread as true server-side.
+        result = await getDriblPreview(recheck ? { seasonId, recheckNoLineups: true } : { seasonId });
       } catch {
-        result = await browserSync();
+        result = await browserSync(recheck);
       }
       setPreview(result);
       setDeselected(new Set());
@@ -2079,6 +2084,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
     }
   };
   const refetch = () => { void fetchPreview(); };
+  const recheckSkipped = () => { setRecheckNoLineups(true); void fetchPreview(true); };
 
   const createMatch = useCreateEntryMatch();
   const createGoal = useCreateEntryGoal();
@@ -2208,6 +2214,21 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               )}
               <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={importing}>Refresh</Button>
             </div>
+
+            {preview.skippedNoLineups > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Skipped {preview.skippedNoLineups} team sheet{preview.skippedNoLineups === 1 ? "" : "s"} Dribl never
+                published (remembered from earlier syncs, so re-syncs stay fast).{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 hover:text-foreground"
+                  onClick={recheckSkipped}
+                  disabled={importing || isFetching}
+                >
+                  Check them again
+                </button>
+              </p>
+            )}
 
             {preview.matches.length === 0 ? (
               <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>

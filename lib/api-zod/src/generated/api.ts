@@ -2154,6 +2154,7 @@ export const assembleDriblPreviewBodyLineupsMax = 1000;
 export const AssembleDriblPreviewBody = zod.object({
   "seasonId": zod.number(),
   "driblSeason": zod.string().nullish(),
+  "recheckNoLineups": zod.boolean().optional(),
   "fixtures": zod.array(zod.object({
   "fullRound": zod.string(),
   "date": zod.string(),
@@ -2246,7 +2247,8 @@ export const AssembleDriblPreviewResponse = zod.object({
   "needLineups": zod.array(zod.object({
   "match": zod.string(),
   "team": zod.string()
-}))
+})),
+  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up')
 })
 
 
@@ -2254,7 +2256,8 @@ export const AssembleDriblPreviewResponse = zod.object({
  * @summary Fetch season results from Dribl (Capital Football) and return an import preview
  */
 export const GetDriblPreviewQueryParams = zod.object({
-  "seasonId": zod.coerce.number()
+  "seasonId": zod.coerce.number(),
+  "recheckNoLineups": zod.coerce.boolean().optional().describe('Re-check games previously remembered as having no published team sheet')
 })
 
 export const GetDriblPreviewResponse = zod.object({
@@ -2298,7 +2301,8 @@ export const GetDriblPreviewResponse = zod.object({
   "needLineups": zod.array(zod.object({
   "match": zod.string(),
   "team": zod.string()
-}))
+})),
+  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up')
 })
 
 

@@ -1583,6 +1583,8 @@ export interface DriblPreviewResponse {
   matches: DriblPreviewMatch[];
   needDetail: string[];
   needLineups: DriblNeedLineup[];
+  /** Club sheets skipped because a previous sync found no published line-up */
+  skippedNoLineups: number;
 }
 
 export interface DriblConfigResponse {
@@ -1663,6 +1665,7 @@ export interface DriblAssembleBody {
   seasonId: number;
   /** @nullable */
   driblSeason?: string | null;
+  recheckNoLineups?: boolean;
   /** @maxItems 2000 */
   fixtures: DriblRawFixture[];
   /** @maxItems 500 */
@@ -2787,6 +2790,10 @@ seasonId: number;
 
 export type GetDriblPreviewParams = {
 seasonId: number;
+/**
+ * Re-check games previously remembered as having no published team sheet
+ */
+recheckNoLineups?: boolean;
 };
 
 export type ListEntryPlayerStatsParams = {

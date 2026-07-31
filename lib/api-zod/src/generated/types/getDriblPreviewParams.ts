@@ -8,4 +8,8 @@
 
 export type GetDriblPreviewParams = {
 seasonId: number;
+/**
+ * Re-check games previously remembered as having no published team sheet
+ */
+recheckNoLineups?: boolean;
 };

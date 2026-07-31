@@ -14,4 +14,6 @@ export interface DriblPreviewResponse {
   matches: DriblPreviewMatch[];
   needDetail: string[];
   needLineups: DriblNeedLineup[];
+  /** Club sheets skipped because a previous sync found no published line-up */
+  skippedNoLineups: number;
 }
