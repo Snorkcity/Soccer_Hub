@@ -1,0 +1,141 @@
+alked to chatgpt about this new chart.
+
+Have a read and let me know what you think.
+If you think it needs more context in hovers about who those losses were against or wins you can add it. 
+
+Chatgpt gave me as long prompt for you sorry if it's long 
+
+-------
+
+Yes, that design is stronger than the bar chart.
+
+Use a dumbbell chart or chart you think is better:
+
+Players on the x-axis
+Win percentage on the y-axis
+Two dots for each player:
+Win % when starting
+Win % when not starting
+A thin line connects the two dots
+Sort players from highest to lowest win % when starting
+Filters for:
+Last 4 matches
+Last 10 matches
+Season
+All matches
+The hover should show:
+
+Player name
+
+When starting
+Win rate: 75%
+Record: 6 wins from 8 starts
+Points per start: 2.38
+
+When not starting
+Win rate: 40%
+Record: 2 wins from 5 matches
+Points per match: 1.40
+
+Difference: +35 percentage points
+One adjustment: “points per start” should be calculated as:
+
+Points earned in matches started ÷ Number of starts
+Where:
+
+Win = 3 points
+Draw = 1 point
+Loss = 0 points
+I would also show the sample size beside or inside the hover because four-match data can move dramatically.
+
+Replit prompt
+Build a squad-level player impact chart that compares team results when each player starts versus when they do not start.
+
+Use a dumbbell chart.
+
+Chart layout:
+- Display every squad player on the x-axis.
+- Display team win percentage on the y-axis from 0% to 100%.
+- Show two dots for each player:
+  1. Win percentage when the player started.
+  2. Win percentage when the player did not start.
+- Connect the two dots with a thin vertical line.
+- Use a clear legend so the coach can distinguish “Started” from “Did not start”.
+- Sort players from highest to lowest win percentage when starting.
+- Keep player names readable, rotating or shortening labels where necessary.
+- Make the chart responsive for desktop, tablet and mobile.
+
+Add filter buttons above the chart:
+- Last 4 matches
+- Last 10 matches
+- This season
+- All matches
+
+When a filter is selected, recalculate all player results using only matches inside that period.
+
+For each player, calculate:
+
+Starts:
+- Number of matches started.
+- Wins when starting.
+- Draws when starting.
+- Losses when starting.
+- Win percentage when starting.
+- Points per start.
+
+Did not start:
+- Number of matches where the player did not start.
+- Wins in those matches.
+- Draws in those matches.
+- Losses in those matches.
+- Win percentage when not starting.
+- Points per match when not starting.
+
+Use:
+- Win = 3 points
+- Draw = 1 point
+- Loss = 0 points
+
+Calculations:
+
+win_percentage_when_starting =
+wins_when_starting / matches_started * 100
+
+points_per_start =
+total_team_points_when_starting / matches_started
+
+win_percentage_when_not_starting =
+wins_when_not_starting / matches_not_started * 100
+
+points_per_match_when_not_starting =
+total_team_points_when_not_starting / matches_not_started
+
+percentage_point_difference =
+win_percentage_when_starting - win_percentage_when_not_starting
+
+Hover information for each dot should clearly show:
+
+Player name
+
+When starting:
+- Win percentage
+- Match record, for example 6W–1D–1L
+- Number of starts
+- Points per start
+
+When not starting:
+- Win percentage
+- Match record
+- Number of matches
+- Points per match
+
+Also show:
+- Difference between the two win percentages in percentage points.
+
+If a player has no matches in one category, do not calculate a percentage using zero as the denominator. Display “Insufficient data” instead.
+
+For the Last 4 and Last 10 filters, show a small-sample indicator because percentages may be volatile.
+
+Use the app’s existing match results and team-sheet data. A player counts as starting only when they are recorded in the starting line-up. Substitute appearances remain in the “Did not start” group.
+
+Create the chart as a reusable component that can be placed on the squad analytics dashboard.
