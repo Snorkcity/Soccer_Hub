@@ -617,11 +617,11 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   {
     const s = lightSlide(pptx, "Game day", `${input.round} v ${input.opponent}`, input.matchDate);
     // Left: comments/trends, then deliberate white space for in-game notes.
-    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.75, w: 5.6, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
+    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.1, w: 5.6, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
     const ct = input.commentsTrends ?? [];
     if (ct.length) {
       s.addText(ct.map((t) => ({ text: t, options: { breakLine: true } })), {
-        x: MX, y: 2.05, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
+        x: MX, y: 1.4, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
       });
     }
     // Right: subs column + three grey shape boxes (top one filled with the XI,

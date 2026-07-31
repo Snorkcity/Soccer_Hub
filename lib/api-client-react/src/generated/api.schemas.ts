@@ -1385,6 +1385,7 @@ export interface UserActivitySample {
   ip: string;
   device: string;
 }
+
 export interface UserInfo {
   id: number;
   email: string;
@@ -2846,3 +2847,4 @@ leagueId: number;
 export type ListMatchPrepReportsParams = {
 leagueId: number;
 };
+
