@@ -494,8 +494,8 @@ export default function MatchPrep() {
           : (d.spFor ?? {});
 
       const fk: SetPieceGroup[] = [
-        { role: "Wide free kicks — takers", players: lines(d.fkWide) },
-        { role: "Central free kicks — takers", players: lines(d.fkCentral) },
+        { role: "BP — set pieces", players: lines(d.fkWide) },
+        { role: "BPO — set pieces", players: lines(d.fkCentral) },
       ].filter((g) => g.players.length);
 
       const { buildPrematchDeck } = await import("@/lib/prematchPptx");
@@ -1070,14 +1070,16 @@ export default function MatchPrep() {
             ) : (
               <CornerPitch store="spAgainstZonal" spots={CORNERS_AGAINST_ZONAL_SPOTS} />
             )}
-            <h4 className="font-semibold text-sm pt-2">Free kicks</h4>
+            <h4 className="font-semibold text-sm pt-2">Set pieces</h4>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Wide takers — one per line</Label>
-              <Textarea rows={2} value={d.fkWide} onChange={(e) => set("fkWide", e.target.value)} />
+              <Label className="text-xs text-muted-foreground">BP — set pieces</Label>
+              <Textarea rows={2} value={d.fkWide} onChange={(e) => set("fkWide", e.target.value)}
+                placeholder="Wide takers? Central takers? Aim to the 6-yard? Aim at the GK?" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Central takers — one per line</Label>
-              <Textarea rows={2} value={d.fkCentral} onChange={(e) => set("fkCentral", e.target.value)} />
+              <Label className="text-xs text-muted-foreground">BPO — set pieces</Label>
+              <Textarea rows={2} value={d.fkCentral} onChange={(e) => set("fkCentral", e.target.value)}
+                placeholder="Protect the GK? Watch out for particular takers?" />
             </div>
           </div>
         </CardContent>

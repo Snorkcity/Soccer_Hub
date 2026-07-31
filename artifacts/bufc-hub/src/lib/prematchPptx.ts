@@ -91,10 +91,12 @@ function darkSlide(pptx: PptxGenJS, kicker: string, title: string, textX = MX): 
 }
 
 /** White print-friendly header — used by the B/W set-piece print slides. */
-function lightSlide(pptx: PptxGenJS, kicker: string, title: string, matchInfo?: string): PptxGenJS.Slide {
+function lightSlide(pptx: PptxGenJS, _kicker: string, title: string, matchInfo?: string): PptxGenJS.Slide {
   const s = pptx.addSlide();
   s.background = { color: "FFFFFF" };
-  s.addText(`${kicker.toUpperCase()} — PRINT`, {
+  // The coach prefers the small spaced-caps style for print titles — the actual
+  // title (e.g. "TEAM TALK — R17 V TUGGERANONG") replaces the old big heading.
+  s.addText(title.toUpperCase(), {
     x: MX, y: 0.42, w: W - 2 * MX, h: 0.3,
     fontSize: 11, color: "000000", bold: true, charSpacing: 4,
   });
@@ -104,11 +106,7 @@ function lightSlide(pptx: PptxGenJS, kicker: string, title: string, matchInfo?: 
       fontSize: 11, color: "000000", bold: true, align: "right",
     });
   }
-  s.addText(title, {
-    x: MX, y: 0.68, w: W - 2 * MX, h: 0.7,
-    fontSize: 30, color: "000000", bold: true,
-  });
-  s.addShape("rect", { x: MX, y: 1.48, w: 1.1, h: 0.05, fill: { color: "000000" } });
+  s.addShape("rect", { x: MX, y: 0.78, w: 1.1, h: 0.05, fill: { color: "000000" } });
   return s;
 }
 
@@ -530,7 +528,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   }
   setPieceSlide("Set pieces", input.cornersAgainstLabel ?? "Corners — against", input.cornersAgainst.groups, input.cornersAgainst.players, false);
   {
-    const s = darkSlide(pptx, "Set pieces", "Free kicks");
+    const s = darkSlide(pptx, "Set pieces", "Set pieces");
     roleColumn(s, MX, (W - 2 * MX - 0.3) / 2, input.freeKicks.slice(0, Math.ceil(input.freeKicks.length / 2)));
     roleColumn(s, MX + (W - 2 * MX + 0.3) / 2, (W - 2 * MX - 0.3) / 2, input.freeKicks.slice(Math.ceil(input.freeKicks.length / 2)));
     footer(s, foot);
@@ -596,12 +594,14 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       ["Defenders", [...input.objectivesBp.defenders, ...input.objectivesBpo.defenders]],
       ["Midfielders", [...input.objectivesBp.midfielders, ...input.objectivesBpo.midfielders]],
       ["Attackers", [...input.objectivesBp.attackers, ...input.objectivesBpo.attackers]],
+      // Whatever the coach typed into the two set-piece boxes (BP / BPO).
+      ["Set Pieces", input.freeKicks.flatMap((g) => g.players.map((t) => `${g.role.split(" ")[0]}: ${t}`))],
     ].filter(([, l]) => l.length) as Array<[string, string[]]>;
     const totalLines = sections.reduce((a, [, l]) => a + l.length, 0);
     // Shrink to fit when the talk runs long — never spill off the printed page.
-    const lineH = Math.min(0.24, (H - 2.0 - sections.length * 0.12) / Math.max(totalLines, 1));
+    const lineH = Math.min(0.24, (H - 1.4 - sections.length * 0.12) / Math.max(totalLines, 1));
     const fs = lineH >= 0.22 ? 11 : lineH >= 0.18 ? 10 : 8.5;
-    let y = 1.75;
+    let y = 1.1;
     for (const [label, ls] of sections) {
       const h = ls.length * lineH;
       s.addText(label, { x: MX, y, w: 1.15, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
