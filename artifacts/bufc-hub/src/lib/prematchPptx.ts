@@ -621,20 +621,44 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
         x: subsX, y: 1.75, w: 0.8, h: 3.0, fontSize: 9, color: "000000", valign: "top", lineSpacing: 13,
       });
     }
+    // Real 5×7 tables (editable in PowerPoint after download): header row holds the
+    // formation name; the XI drop into cells by pitch position, GK ends up bottom middle.
+    const COLS = 5, PLAYER_ROWS = 6;
     const bx = 9.55, bw2 = W - 0.45 - bx, bh2 = 1.28, gap2 = 0.145;
     for (let i = 0; i < 3; i++) {
       const by = 1.75 + i * (bh2 + gap2);
-      s.addShape("rect", { x: bx, y: by, w: bw2, h: bh2, fill: { color: "E7E7E7" } });
-      s.addText(input.formationName, { x: bx + 0.08, y: by + 0.04, w: 1.0, h: 0.2, fontSize: 9, color: "000000", bold: true });
+      const grid: string[][] = Array.from({ length: 1 + PLAYER_ROWS }, () => Array(COLS).fill(""));
+      grid[0][0] = input.formationName;
       if (i === 0) {
         for (const p of input.lineup) {
+          const col = Math.min(COLS - 1, Math.max(0, Math.round(p.px * (COLS - 1))));
+          const row = 1 + Math.min(PLAYER_ROWS - 1, Math.max(0, Math.round(p.py * (PLAYER_ROWS - 1))));
           const nm = p.name || p.label;
-          s.addText(nm, {
-            x: bx + 0.2 + p.px * (bw2 - 1.4), y: by + 0.18 + p.py * (bh2 - 0.42),
-            w: 1.0, h: 0.2, fontSize: 8, color: "000000", align: "center", valign: "middle",
-          });
+          grid[row][col] = grid[row][col] ? `${grid[row][col]}\n${nm}` : nm;
         }
       }
+      s.addTable(
+        grid.map((cells, r) =>
+          cells.map((text, c) => ({
+            text,
+            options: {
+              fill: { color: "E7E7E7" },
+              fontSize: 8,
+              color: "000000",
+              bold: r === 0 && c === 0,
+              align: (r === 0 ? "left" : "center") as "left" | "center",
+              valign: "middle" as const,
+              margin: 0.02,
+            },
+          })),
+        ),
+        {
+          x: bx, y: by, w: bw2, h: bh2,
+          colW: Array(COLS).fill(bw2 / COLS),
+          rowH: bh2 / (1 + PLAYER_ROWS),
+          border: { type: "solid", color: "AFAFAF", pt: 0.5 },
+        },
+      );
     }
   }
 
