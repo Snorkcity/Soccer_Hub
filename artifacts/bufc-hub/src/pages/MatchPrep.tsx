@@ -558,7 +558,8 @@ export default function MatchPrep() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Match prep — ${d.round || "game"} v ${d.opponent}.pptx`;
+      const roundTag = d.round ? (/^r/i.test(d.round.trim()) ? d.round.trim().toUpperCase() : `R${d.round.trim()}`) : "R";
+      a.download = `${roundTag}-Match_Prep-${d.opponent.trim().replace(/\s+/g, "_")}.pptx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

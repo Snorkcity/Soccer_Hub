@@ -397,7 +397,9 @@ export default function WeekAheadCard() {
         ourSnapshot: clubSnapshot(ours, 3),
         theirSnapshot: clubSnapshot(theirs, 3),
       });
-      await pptx.writeFile({ fileName: `Week Ahead — vs ${opponent}.pptx` });
+      const rawRound = (data.round ?? "").trim();
+      const roundTag = rawRound ? (/^r/i.test(rawRound) ? rawRound.toUpperCase() : `R${rawRound}`) : "R";
+      await pptx.writeFile({ fileName: `${roundTag}-Week_Ahead-${opponent.trim().replace(/\s+/g, "_")}.pptx` });
     } catch {
       toast({
         title: "Couldn't build the report",
