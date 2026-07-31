@@ -17,5 +17,6 @@ export interface UserInfo {
   createdAt: string;
   lastLoginAt: string | null;
   possiblyShared?: boolean;
+  sharedOk?: boolean;
   recentActivity?: UserActivitySample[];
 }

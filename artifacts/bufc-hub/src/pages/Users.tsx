@@ -4,6 +4,7 @@ import {
   useGetAuthStatus, useListUsers, getListUsersQueryKey, useCreateUser, useUpdateUser, useDeleteUser, useInviteUser,
   useListLeagues, getListLeaguesQueryKey,
   useGetClubs, getGetClubsQueryKey,
+  useSetUserSharedOk,
   type UserInfo, type LeagueAccess,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, Pencil, Trash2, ShieldCheck, MailPlus, Users as UsersIcon, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ShieldCheck, MailPlus, Users as UsersIcon, AlertTriangle, History, ChevronDown, ChevronUp, BadgeCheck } from "lucide-react";
 
 function errMsg(e: unknown): string {
   const anyE = e as { data?: { error?: string }; error?: string; message?: string } | undefined;
@@ -117,6 +118,15 @@ export default function Users() {
     onSuccess: () => toast({ description: "Invite email sent" }),
     onError: (e) => toast({ description: errMsg(e), variant: "destructive" }),
   }});
+  const setSharedOk = useSetUserSharedOk({ mutation: {
+    onSuccess: (_data, vars) => {
+      refresh();
+      toast({ description: vars.data.sharedOk
+        ? "Marked as expected — no more alert emails about this account"
+        : "Unmarked — alert emails can flag this account again" });
+    },
+    onError: (e) => toast({ description: errMsg(e), variant: "destructive" }),
+  }});
 
 
   function openCreate() {
@@ -206,10 +216,25 @@ export default function Users() {
                         {u.isSuperadmin && (
                           <Badge variant="secondary" className="gap-1"><ShieldCheck className="h-3 w-3" />Superadmin</Badge>
                         )}
-                        {u.possiblyShared && (
+                        {u.possiblyShared && !u.sharedOk && (
                           <Badge variant="destructive" className="gap-1" title="Seen from more than one device or location within a few hours — this login may be shared.">
                             <AlertTriangle className="h-3 w-3" />Possibly shared
                           </Badge>
+                        )}
+                        {u.sharedOk && (
+                          <Badge variant="outline" className="gap-1 text-muted-foreground" title="An admin marked this account's multi-device use as expected — it won't trigger alert emails.">
+                            <BadgeCheck className="h-3 w-3" />Shared use expected
+                          </Badge>
+                        )}
+                        {(u.possiblyShared || u.sharedOk) && (
+                          <button
+                            type="button"
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+                            disabled={setSharedOk.isPending}
+                            onClick={() => setSharedOk.mutate({ id: u.id, data: { sharedOk: !u.sharedOk } })}
+                          >
+                            {u.sharedOk ? "Undo" : "That's fine"}
+                          </button>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">

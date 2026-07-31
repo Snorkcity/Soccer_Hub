@@ -1806,6 +1806,7 @@ export const ListUsersResponseItem = zod.object({
   "createdAt": zod.string(),
   "lastLoginAt": zod.string().nullable(),
   "possiblyShared": zod.boolean().optional(),
+  "sharedOk": zod.boolean().optional(),
   "recentActivity": zod.array(zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),
@@ -1847,6 +1848,7 @@ export const CreateUserResponse = zod.object({
   "createdAt": zod.string(),
   "lastLoginAt": zod.string().nullable(),
   "possiblyShared": zod.boolean().optional(),
+  "sharedOk": zod.boolean().optional(),
   "recentActivity": zod.array(zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),
@@ -1854,6 +1856,22 @@ export const CreateUserResponse = zod.object({
   "location": zod.string().nullable(),
   "device": zod.string()
 })).optional()
+})
+
+
+/**
+ * @summary Mark an account as expected to look shared, or undo it (superadmin only)
+ */
+export const SetUserSharedOkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SetUserSharedOkBody = zod.object({
+  "sharedOk": zod.boolean()
+})
+
+export const SetUserSharedOkResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 
@@ -1903,6 +1921,7 @@ export const UpdateUserResponse = zod.object({
   "createdAt": zod.string(),
   "lastLoginAt": zod.string().nullable(),
   "possiblyShared": zod.boolean().optional(),
+  "sharedOk": zod.boolean().optional(),
   "recentActivity": zod.array(zod.object({
   "seenAt": zod.string(),
   "userAgent": zod.string(),

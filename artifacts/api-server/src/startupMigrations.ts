@@ -71,6 +71,9 @@ export async function runStartupMigrations(): Promise<void> {
   // Shared-login alert cooldown (2026-07): when a "possible shared login"
   // email was last sent about this account.
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS shared_alert_at timestamp`);
+  // Shared-login acknowledgement (2026-07): superadmin marked the account as
+  // "expected to look shared" — suppresses alert emails and softens the badge.
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS shared_ok boolean NOT NULL DEFAULT false`);
 
 
   // Half-time score tracked league-wide (2026-07); backfill Belconnen games from the legacy matches table

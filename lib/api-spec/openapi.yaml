@@ -1433,6 +1433,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserInfo" }
 
+  /auth/users/{id}/shared-ok:
+    post:
+      operationId: setUserSharedOk
+      tags: [auth]
+      summary: Mark an account as expected to look shared, or undo it (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetSharedOkRequest" }
+      responses:
+        "200":
+          description: Acknowledgement updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
   /auth/users/{id}/invite:
     post:
       operationId: inviteUser
@@ -3847,6 +3869,8 @@ components:
         lastLoginAt: { type: string, nullable: true }
         # Present on the list endpoint only (omitted from create/update responses):
         possiblyShared: { type: boolean }
+        # Superadmin marked this account as "expected to look shared" — no alert emails.
+        sharedOk: { type: boolean }
         recentActivity:
           type: array
           items: { $ref: "#/components/schemas/UserActivitySample" }
@@ -3862,6 +3886,12 @@ components:
         location: { type: string, nullable: true }
         device: { type: string }
       required: [seenAt, userAgent, ip, location, device]
+
+    SetSharedOkRequest:
+      type: object
+      properties:
+        sharedOk: { type: boolean }
+      required: [sharedOk]
 
     CreateUserRequest:
       type: object

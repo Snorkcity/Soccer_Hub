@@ -179,6 +179,7 @@ import type {
   SessionPartUpsert,
   SessionSummaryList,
   SessionUpdateRequest,
+  SetSharedOkRequest,
   Team,
   TeamForm,
   UpdateProfileRequest,
@@ -5071,6 +5072,78 @@ export const useCreateUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateUserMutationOptions(options));
+    }
+
+export const getSetUserSharedOkUrl = (id: number,) => {
+
+
+
+
+  return `/api/auth/users/${id}/shared-ok`
+}
+
+/**
+ * @summary Mark an account as expected to look shared, or undo it (superadmin only)
+ */
+export const setUserSharedOk = async (id: number,
+    setSharedOkRequest: SetSharedOkRequest, options?: RequestInit): Promise<OkResponse> => {
+
+  return customFetch<OkResponse>(getSetUserSharedOkUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setSharedOkRequest)
+  }
+);}
+
+
+
+
+
+export const getSetUserSharedOkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setUserSharedOk>>, TError,{id: number;data: BodyType<SetSharedOkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setUserSharedOk>>, TError,{id: number;data: BodyType<SetSharedOkRequest>}, TContext> => {
+
+const mutationKey = ['setUserSharedOk'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserSharedOk>>, {id: number;data: BodyType<SetSharedOkRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setUserSharedOk(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetUserSharedOkMutationResult = NonNullable<Awaited<ReturnType<typeof setUserSharedOk>>>
+    export type SetUserSharedOkMutationBody = BodyType<SetSharedOkRequest>
+    export type SetUserSharedOkMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark an account as expected to look shared, or undo it (superadmin only)
+ */
+export const useSetUserSharedOk = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setUserSharedOk>>, TError,{id: number;data: BodyType<SetSharedOkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setUserSharedOk>>,
+        TError,
+        {id: number;data: BodyType<SetSharedOkRequest>},
+        TContext
+      > => {
+      return useMutation(getSetUserSharedOkMutationOptions(options));
     }
 
 export const getInviteUserUrl = (id: number,) => {

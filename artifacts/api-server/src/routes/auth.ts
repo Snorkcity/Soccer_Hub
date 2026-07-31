@@ -351,6 +351,7 @@ router.get("/auth/users", async (req, res): Promise<void> => {
     const acts = byUser.get(row.id) ?? [];
     return {
       possiblyShared: looksShared(acts),
+      sharedOk: row.sharedOk,
       recentActivity: acts.slice(0, MAX_ACTIVITY_ROWS_PER_USER).map((a) => ({
         seenAt: a.seenAt.toISOString(),
         userAgent: a.userAgent,
@@ -418,6 +419,33 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     }
   }
   res.status(201).json(await userInfo(created.id));
+});
+
+// Mark an account as "expected to look shared" (or undo it). Acknowledged
+// accounts never trigger alert emails and get a softer badge on the Users page.
+const SetSharedOkBody = z.object({ sharedOk: z.boolean() });
+
+router.post("/auth/users/:id/shared-ok", async (req, res): Promise<void> => {
+  if (!(await requireSuperadmin(req))) {
+    res.status(403).json({ error: "Superadmin access required" });
+    return;
+  }
+  const id = Number(req.params.id);
+  const parsed = SetSharedOkBody.safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const updated = await db.update(usersTable)
+    .set({ sharedOk: parsed.data.sharedOk, updatedAt: new Date() })
+    .where(eq(usersTable.id, id))
+    .returning({ id: usersTable.id });
+  if (updated.length === 0) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  logger.info({ userId: id, sharedOk: parsed.data.sharedOk }, "Shared-login acknowledgement updated");
+  res.json({ ok: true });
 });
 
 router.post("/auth/users/:id/invite", async (req, res): Promise<void> => {

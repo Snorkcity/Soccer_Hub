@@ -267,6 +267,7 @@ export * from './sessionSummary';
 export * from './sessionSummaryList';
 export * from './sessionUpdateRequest';
 export * from './sessionUserInfo';
+export * from './setSharedOkRequest';
 export * from './team';
 export * from './teamForm';
 export * from './updateProfileRequest';

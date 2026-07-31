@@ -94,6 +94,7 @@ export async function maybeSendSharedLoginAlert(userId: number): Promise<void> {
     .set({ sharedAlertAt: new Date() })
     .where(and(
       eq(usersTable.id, userId),
+      eq(usersTable.sharedOk, false), // admin marked this account as expected — never email
       or(isNull(usersTable.sharedAlertAt), lt(usersTable.sharedAlertAt, cutoff)),
     ))
     .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email });

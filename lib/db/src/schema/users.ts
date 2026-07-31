@@ -18,6 +18,9 @@ export const usersTable = pgTable("users", {
   // When a "possible shared login" alert email was last sent about this
   // account — persists the alert cooldown across restarts.
   sharedAlertAt: timestamp("shared_alert_at"),
+  // Superadmin acknowledged this account legitimately looks shared (e.g. phone
+  // on mobile data + laptop on club wifi) — no alert emails, softer badge.
+  sharedOk:     boolean("shared_ok").default(false).notNull(),
 }, (t) => [
   uniqueIndex("users_email_unique").on(t.email),
 ]);
