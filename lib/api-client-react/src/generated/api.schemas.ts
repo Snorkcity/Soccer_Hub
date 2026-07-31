@@ -2688,7 +2688,16 @@ export type GetPlayerImpactParams = {
 seasonId: number;
 club: string;
 lastN?: number;
+sort?: GetPlayerImpactSort;
 };
+
+export type GetPlayerImpactSort = typeof GetPlayerImpactSort[keyof typeof GetPlayerImpactSort];
+
+
+export const GetPlayerImpactSort = {
+  start: 'start',
+  gap: 'gap',
+} as const;
 
 export type GetOpponentOnfieldImpactParams = {
 teamId: number;

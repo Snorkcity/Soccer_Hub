@@ -976,6 +976,10 @@ paths:
           in: query
           required: false
           schema: { type: integer }
+        - name: sort
+          in: query
+          required: false
+          schema: { type: string, enum: [start, gap] }
       responses:
         "200":
           description: Per-player started vs not-started team records

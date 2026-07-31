@@ -100,6 +100,7 @@ export * from './getOpponentPlayersByOpponentParams';
 export * from './getOpponentProfileParams';
 export * from './getPlayerDnaParams';
 export * from './getPlayerImpactParams';
+export * from './getPlayerImpactSort';
 export * from './getPlayerLeaderboardParams';
 export * from './getPlayerTallyParams';
 export * from './getPlayerTimelineParams';

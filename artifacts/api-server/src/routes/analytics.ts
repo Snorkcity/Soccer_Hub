@@ -1339,7 +1339,7 @@ router.get("/analytics/goals-by-opponent", async (req, res): Promise<void> => {
 router.get("/analytics/player-impact", async (req, res): Promise<void> => {
   const query = GetPlayerImpactQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
-  const { seasonId, club, lastN } = query.data;
+  const { seasonId, club, lastN, sort } = query.data;
   const isAll = club === "__ALL__";
 
   const matches = await db
@@ -1445,8 +1445,16 @@ router.get("/analytics/player-impact", async (req, res): Promise<void> => {
     }
   }
 
-  // Best "when starting" record first; more starts break ties (steadier sample)
-  players.sort((a, b) => (b.started.winPct ?? 0) - (a.started.winPct ?? 0) || b.started.matches - a.started.matches);
+  // sort=gap: biggest started-vs-not swing first (players with no comparison last);
+  // default: best "when starting" record first. More starts break ties (steadier sample).
+  if (sort === "gap") {
+    players.sort((a, b) =>
+      (b.diff ?? Number.NEGATIVE_INFINITY) - (a.diff ?? Number.NEGATIVE_INFINITY)
+      || (b.started.winPct ?? 0) - (a.started.winPct ?? 0)
+      || b.started.matches - a.started.matches);
+  } else {
+    players.sort((a, b) => (b.started.winPct ?? 0) - (a.started.winPct ?? 0) || b.started.matches - a.started.matches);
+  }
   const limited = isAll ? players.slice(0, 30) : players;
 
   res.json(GetPlayerImpactResponse.parse({ totalMatches: windowedIds.length, players: limited }));

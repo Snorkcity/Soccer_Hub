@@ -4008,8 +4008,9 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled }: {
   seasonId: number; club: string; isAll?: boolean; enabled: boolean;
 }) {
   const [win, setWin] = useState<"4" | "10" | "all">("all");
+  const [sort, setSort] = useState<"start" | "gap">("start");
   const lastN = win === "all" ? undefined : Number(win);
-  const params = { seasonId, club, ...(lastN ? { lastN } : {}) };
+  const params = { seasonId, club, sort, ...(lastN ? { lastN } : {}) };
   const { data, isLoading } = useGetPlayerImpact(params, {
     query: { enabled: enabled && !!club, queryKey: getGetPlayerImpactQueryKey(params) },
   });
@@ -4033,15 +4034,25 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled }: {
       description={`Team results when each player starts vs when they don't (bench or out)${isAll ? " — top 30 league-wide by win rate when starting" : ""}. Hover a player for the full record.`}
       tooltip="For each player: the team's win percentage in games they started (blue dot) vs games they didn't start (amber dot — includes bench appearances and games out of the squad). The bigger the gap, the more the results swing with their selection. Correlation, not proof — strong starters often start together. Short windows are volatile; the hover flags small samples."
       controls={
-        <PillGroup
-          options={[
-            { value: "4",   label: "Last 4 rounds" },
-            { value: "10",  label: "Last 10 rounds" },
-            { value: "all", label: "Season" },
-          ]}
-          value={win}
-          onChange={v => setWin(v as "4" | "10" | "all")}
-        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <PillGroup
+            options={[
+              { value: "4",   label: "Last 4 rounds" },
+              { value: "10",  label: "Last 10 rounds" },
+              { value: "all", label: "Season" },
+            ]}
+            value={win}
+            onChange={v => setWin(v as "4" | "10" | "all")}
+          />
+          <PillGroup
+            options={[
+              { value: "start", label: "Best starters" },
+              { value: "gap",   label: "Biggest gap" },
+            ]}
+            value={sort}
+            onChange={v => setSort(v as "start" | "gap")}
+          />
+        </div>
       }
       tall
     >

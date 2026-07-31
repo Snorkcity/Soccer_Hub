@@ -5,9 +5,11 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { GetPlayerImpactSort } from './getPlayerImpactSort';
 
 export type GetPlayerImpactParams = {
 seasonId: number;
 club: string;
 lastN?: number;
+sort?: GetPlayerImpactSort;
 };

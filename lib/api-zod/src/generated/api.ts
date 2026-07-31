@@ -1268,7 +1268,8 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
 export const GetPlayerImpactQueryParams = zod.object({
   "seasonId": zod.coerce.number(),
   "club": zod.coerce.string(),
-  "lastN": zod.coerce.number().optional()
+  "lastN": zod.coerce.number().optional(),
+  "sort": zod.enum(['start', 'gap']).optional()
 })
 
 export const GetPlayerImpactResponse = zod.object({
