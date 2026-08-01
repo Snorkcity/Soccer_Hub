@@ -1053,7 +1053,23 @@ export const GetMatchReportResponse = zod.object({
   "matchDate": zod.string().nullable(),
   "score": zod.string(),
   "result": zod.string().nullable()
-}).describe('An earlier meeting with the same opponent this season.'))
+}).describe('An earlier meeting with the same opponent this season.')),
+  "ballUse": zod.union([zod.object({
+  "possession": zod.number(),
+  "passesPerShot": zod.number(),
+  "shotsPer100Passes": zod.number(),
+  "seasonAvgPossession": zod.number().nullable(),
+  "seasonAvgShotsPer100": zod.number().nullable(),
+  "quadrant": zod.union([zod.literal('control'),zod.literal('sterile'),zod.literal('direct'),zod.literal('chasing'),zod.literal(null)]).nullable(),
+  "points": zod.array(zod.object({
+  "label": zod.string(),
+  "possession": zod.number(),
+  "shotsPer100Passes": zod.number(),
+  "result": zod.string().nullable(),
+  "isThisMatch": zod.boolean()
+})),
+  "comments": zod.array(zod.string())
+}).describe('Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.'),zod.null()])
 })
 
 

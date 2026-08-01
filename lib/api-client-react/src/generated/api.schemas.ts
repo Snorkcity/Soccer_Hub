@@ -870,6 +870,45 @@ export interface MatchReportGps {
   players: MatchReportGpsPlayer[];
 }
 
+export interface MatchReportBallUsePoint {
+  label: string;
+  possession: number;
+  shotsPer100Passes: number;
+  /** @nullable */
+  result: string | null;
+  isThisMatch: boolean;
+}
+
+/**
+ * @nullable
+ */
+export type MatchReportBallUseQuadrant = typeof MatchReportBallUseQuadrant[keyof typeof MatchReportBallUseQuadrant] | null;
+
+
+export const MatchReportBallUseQuadrant = {
+  control: 'control',
+  sterile: 'sterile',
+  direct: 'direct',
+  chasing: 'chasing',
+} as const;
+
+/**
+ * Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.
+ */
+export interface MatchReportBallUse {
+  possession: number;
+  passesPerShot: number;
+  shotsPer100Passes: number;
+  /** @nullable */
+  seasonAvgPossession: number | null;
+  /** @nullable */
+  seasonAvgShotsPer100: number | null;
+  /** @nullable */
+  quadrant: MatchReportBallUseQuadrant;
+  points: MatchReportBallUsePoint[];
+  comments: string[];
+}
+
 /**
  * An earlier meeting with the same opponent this season.
  */
@@ -896,6 +935,7 @@ export interface MatchReportResponse {
   teamsInLeague: number | null;
   gps: MatchReportGps | null;
   previousMeetings: MatchReportMeeting[];
+  ballUse: MatchReportBallUse | null;
 }
 
 export interface GoalIntervalBucket {

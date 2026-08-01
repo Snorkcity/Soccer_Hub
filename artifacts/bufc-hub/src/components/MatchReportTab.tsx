@@ -30,6 +30,9 @@ import {
   Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History, Save, FileDown, Loader2, Trash2, ArrowLeft,
   Mail, CheckCircle2, XCircle, Plus,
 } from "lucide-react";
+import {
+  ScatterChart, Scatter, XAxis, YAxis, ReferenceLine, ResponsiveContainer, Tooltip as RTooltip, Cell,
+} from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import type { FootballMatchReportModel } from "@/lib/matchReportPptx";
@@ -324,6 +327,83 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
               )}
             </div>
           )}
+
+          {/* ── Ball use quadrant ──────────────────────────────────────────── */}
+          {report.ballUse && (() => {
+            const bu = report.ballUse;
+            const quadrantTitle =
+              bu.quadrant === "control" ? "Control & cut through"
+              : bu.quadrant === "sterile" ? "Sterile possession"
+              : bu.quadrant === "direct" ? "Efficient without the ball"
+              : bu.quadrant === "chasing" ? "Chased it" : null;
+            const quadrantTone =
+              bu.quadrant === "control" ? "bg-green-500/15 text-green-600 border-green-500/30"
+              : bu.quadrant === "chasing" ? "bg-red-500/15 text-red-600 border-red-500/30"
+              : "bg-sky-500/15 text-sky-600 border-sky-500/30";
+            return (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-violet-500" />Ball use
+                    </CardTitle>
+                    {quadrantTitle && <Badge variant="outline" className={quadrantTone}>{quadrantTitle}</Badge>}
+                  </div>
+                  <CardDescription className="text-xs">
+                    Possession vs how often it turned into a shot. Top-right is the philosophy corner — keeping the ball AND cutting through with it. Lines sit at our season averages; each dot is a game.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart margin={{ top: 10, right: 10, bottom: 5, left: -20 }}>
+                          <XAxis type="number" dataKey="possession" name="Possession" unit="%" domain={["dataMin - 5", "dataMax + 5"]} tick={{ fontSize: 11 }} />
+                          <YAxis type="number" dataKey="shotsPer100Passes" name="Shots per 100 passes" domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 11 }} />
+                          {bu.seasonAvgPossession != null && <ReferenceLine x={bu.seasonAvgPossession} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
+                          {bu.seasonAvgShotsPer100 != null && <ReferenceLine y={bu.seasonAvgShotsPer100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
+                          <RTooltip
+                            cursor={{ strokeDasharray: "3 3" }}
+                            content={({ payload }) => {
+                              const p = payload?.[0]?.payload as (typeof bu.points)[number] | undefined;
+                              if (!p) return null;
+                              return (
+                                <div className="rounded-md border bg-popover px-2 py-1 text-xs shadow">
+                                  <div className="font-medium">{p.label}{p.result ? ` · ${p.result}` : ""}</div>
+                                  <div>{p.possession}% ball · {p.shotsPer100Passes.toFixed(1)} shots per 100 passes</div>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Scatter data={bu.points}>
+                            {bu.points.map((p, i) => (
+                              <Cell
+                                key={i}
+                                fill={p.isThisMatch ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
+                                fillOpacity={p.isThisMatch ? 1 : 0.45}
+                                r={p.isThisMatch ? 8 : 4}
+                              />
+                            ))}
+                          </Scatter>
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                      {bu.comments.map((c, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
+                          <span>{c}</span>
+                        </div>
+                      ))}
+                      <div className="text-[11px] text-muted-foreground pt-1">
+                        This game: {bu.possession}% possession · a shot every {bu.passesPerShot.toFixed(0)} passes ({bu.shotsPer100Passes.toFixed(1)} per 100).
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {/* ── Insights ─────────────────────────────────────────────────── */}

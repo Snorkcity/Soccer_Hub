@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchReportBallUse } from './matchReportBallUse';
 import type { MatchReportFormEntry } from './matchReportFormEntry';
 import type { MatchReportGoal } from './matchReportGoal';
 import type { MatchReportGps } from './matchReportGps';
@@ -27,4 +28,5 @@ export interface MatchReportResponse {
   teamsInLeague: number | null;
   gps: MatchReportGps | null;
   previousMeetings: MatchReportMeeting[];
+  ballUse: MatchReportBallUse | null;
 }

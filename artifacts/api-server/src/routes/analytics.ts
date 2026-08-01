@@ -2874,6 +2874,69 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     }
   }
 
+  // ── Ball use: possession vs possession-effectiveness quadrant ────────────
+  // X = possession share; Y = shots per 100 passes (how often the ball work
+  // turns into a shot). Quadrant lines sit at the season averages, so
+  // "control" (top-right) means above-average possession that ALSO cuts
+  // through — the philosophy target, rewarding shots within reasonable
+  // passing moves rather than pure directness.
+  let ballUse: {
+    possession: number;
+    passesPerShot: number;
+    shotsPer100Passes: number;
+    seasonAvgPossession: number | null;
+    seasonAvgShotsPer100: number | null;
+    quadrant: "control" | "sterile" | "direct" | "chasing" | null;
+    points: Array<{ label: string; possession: number; shotsPer100Passes: number; result: string | null; isThisMatch: boolean }>;
+    comments: string[];
+  } | null = null;
+  {
+    const possN = num(match.possession);
+    if (possN != null && match.passes != null && match.shots != null && match.shots > 0 && match.passes > 0) {
+      const pps = match.passes / match.shots;
+      const sp100 = (match.shots / match.passes) * 100;
+      const usable = ordered.filter(m => {
+        const p = num(m.possession);
+        return p != null && m.passes != null && m.shots != null && m.passes > 0;
+      });
+      const points = usable.map(m => ({
+        label: `${m.matchId.split("-")[0]} v ${m.opponent}`,
+        possession: num(m.possession)!,
+        shotsPer100Passes: (m.shots! / m.passes!) * 100,
+        result: resultOf(m),
+        isThisMatch: m.id === matchRowId,
+      }));
+      const others = usable.filter(m => m.id !== matchRowId);
+      const avg = (vals: number[]) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
+      const seasonAvgPossession = avg(others.map(m => num(m.possession)!));
+      const seasonAvgShotsPer100 = avg(others.map(m => (m.shots! / m.passes!) * 100));
+      const quadrant =
+        seasonAvgPossession == null || seasonAvgShotsPer100 == null ? null
+          : possN >= seasonAvgPossession && sp100 >= seasonAvgShotsPer100 ? "control" as const
+          : possN >= seasonAvgPossession ? "sterile" as const
+          : sp100 >= seasonAvgShotsPer100 ? "direct" as const
+          : "chasing" as const;
+
+      const comments: string[] = [];
+      const ppsOthers = others.filter(m => m.shots! > 0);
+      const ppsAvg = ppsOthers.length ? ppsOthers.reduce((a, m) => a + m.passes! / m.shots!, 0) / ppsOthers.length : null;
+      if (ppsAvg != null) {
+        const diff = ((pps - ppsAvg) / ppsAvg) * 100;
+        const cmp = diff <= -20 ? "much more direct than" : diff <= -8 ? "sharper than" : diff >= 25 ? "a lot more patient than" : diff >= 8 ? "more patient than" : "right on";
+        comments.push(`A shot every ${pps.toFixed(0)} passes — ${cmp} our season usual (one every ${ppsAvg.toFixed(0)}).`);
+      } else {
+        comments.push(`A shot every ${pps.toFixed(0)} passes.`);
+      }
+      if (quadrant === "control") comments.push(`The philosophy game: kept the ball (${possN}%) AND cut through with it.`);
+      else if (quadrant === "sterile") comments.push(`Plenty of ball (${possN}%) but it didn't turn into shots often enough — sterile possession.`);
+      else if (quadrant === "direct") comments.push(`Less of the ball (${possN}%) but efficient with it — got our shots away quickly when we had it.`);
+      else if (quadrant === "chasing") comments.push(`Below our usual on both counts — less ball (${possN}%) and fewer shots from it.`);
+      if (possN < 45 && result === "W") comments.push(`Won it with just ${possN}% possession — clinical on the counter.`);
+
+      ballUse = { possession: possN, passesPerShot: pps, shotsPer100Passes: sp100, seasonAvgPossession, seasonAvgShotsPer100, quadrant, points, comments };
+    }
+  }
+
   // ── Previous meetings with this opponent this season ─────────────────────
   const earlier = ordered.slice(0, idx).filter(m => m.opponent === match.opponent);
   // Listed most-recent first for the report card.
@@ -2986,7 +3049,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       formation: match.formation, oppFormation: match.oppFormation, cleanSheet: match.cleanSheet,
     },
     tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
-    gps, previousMeetings,
+    gps, previousMeetings, ballUse,
   }));
 });
 

@@ -3600,6 +3600,36 @@ components:
         sprintDistanceM: { type: ["number", "null"] }
       required: [name, position, mins, distanceKm, mPerMin, sprintDistanceM]
 
+    MatchReportBallUsePoint:
+      type: object
+      properties:
+        label:      { type: string }
+        possession: { type: number }
+        shotsPer100Passes: { type: number }
+        result:     { type: ["string", "null"] }
+        isThisMatch: { type: boolean }
+      required: [label, possession, shotsPer100Passes, result, isThisMatch]
+
+    MatchReportBallUse:
+      type: object
+      description: Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.
+      properties:
+        possession:        { type: number }
+        passesPerShot:     { type: number }
+        shotsPer100Passes: { type: number }
+        seasonAvgPossession: { type: ["number", "null"] }
+        seasonAvgShotsPer100: { type: ["number", "null"] }
+        quadrant:
+          type: ["string", "null"]
+          enum: [control, sterile, direct, chasing, null]
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportBallUsePoint" }
+        comments:
+          type: array
+          items: { type: string }
+      required: [possession, passesPerShot, shotsPer100Passes, seasonAvgPossession, seasonAvgShotsPer100, quadrant, points, comments]
+
     MatchReportMeeting:
       type: object
       description: An earlier meeting with the same opponent this season.
@@ -3636,7 +3666,11 @@ components:
         previousMeetings:
           type: array
           items: { $ref: "#/components/schemas/MatchReportMeeting" }
-      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings]
+        ballUse:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchReportBallUse" }
+            - { type: "null" }
+      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings, ballUse]
 
     GoalIntervalBucket:
       type: object
