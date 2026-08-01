@@ -702,6 +702,24 @@ export const CreateGpsSessionResponse = zod.object({
 
 
 /**
+ * @summary Rounds where the Catapult-carried GPS opponent disagrees with the football fixture's opponent
+ */
+export const ListGpsOpponentMismatchesQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "year": zod.coerce.string().optional()
+})
+
+export const ListGpsOpponentMismatchesResponseItem = zod.object({
+  "year": zod.string(),
+  "round": zod.string(),
+  "squad": zod.string(),
+  "gpsOpponent": zod.string(),
+  "fixtureOpponent": zod.string()
+})
+export const ListGpsOpponentMismatchesResponse = zod.array(ListGpsOpponentMismatchesResponseItem)
+
+
+/**
  * @summary List playing positions for GPS-logged players
  */
 export const ListGpsPlayerPositionsResponseItem = zod.object({

@@ -106,6 +106,7 @@ import type {
   GpsMatchReport,
   GpsMatchReportCreateRequest,
   GpsMatchReportUpdateRequest,
+  GpsOpponentMismatch,
   GpsPlayerEmail,
   GpsPlayerEmailInput,
   GpsPlayerEmailsSaveResult,
@@ -145,6 +146,7 @@ import type {
   ListGoalsParams,
   ListGpsCoachEmailsParams,
   ListGpsMatchReportsParams,
+  ListGpsOpponentMismatchesParams,
   ListGpsSessionsParams,
   ListJournalCyclesParams,
   ListJournalReflectionsParams,
@@ -1977,6 +1979,90 @@ export const useCreateGpsSession = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateGpsSessionMutationOptions(options));
     }
+
+export const getListGpsOpponentMismatchesUrl = (params: ListGpsOpponentMismatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-opponent-mismatches?${stringifiedParams}` : `/api/gps-opponent-mismatches`
+}
+
+/**
+ * @summary Rounds where the Catapult-carried GPS opponent disagrees with the football fixture's opponent
+ */
+export const listGpsOpponentMismatches = async (params: ListGpsOpponentMismatchesParams, options?: RequestInit): Promise<GpsOpponentMismatch[]> => {
+
+  return customFetch<GpsOpponentMismatch[]>(getListGpsOpponentMismatchesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsOpponentMismatchesQueryKey = (params?: ListGpsOpponentMismatchesParams,) => {
+    return [
+    `/api/gps-opponent-mismatches`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGpsOpponentMismatchesQueryOptions = <TData = Awaited<ReturnType<typeof listGpsOpponentMismatches>>, TError = ErrorType<unknown>>(params: ListGpsOpponentMismatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsOpponentMismatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsOpponentMismatchesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsOpponentMismatches>>> = ({ signal }) => listGpsOpponentMismatches(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsOpponentMismatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsOpponentMismatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsOpponentMismatches>>>
+export type ListGpsOpponentMismatchesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Rounds where the Catapult-carried GPS opponent disagrees with the football fixture's opponent
+ */
+
+export function useListGpsOpponentMismatches<TData = Awaited<ReturnType<typeof listGpsOpponentMismatches>>, TError = ErrorType<unknown>>(
+ params: ListGpsOpponentMismatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsOpponentMismatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsOpponentMismatchesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListGpsPlayerPositionsUrl = () => {
 

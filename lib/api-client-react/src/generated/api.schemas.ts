@@ -488,6 +488,14 @@ export interface GpsSession {
   decelCountOver4?: number | null;
 }
 
+export interface GpsOpponentMismatch {
+  year: string;
+  round: string;
+  squad: string;
+  gpsOpponent: string;
+  fixtureOpponent: string;
+}
+
 export interface GpsSessionInput {
   leagueId: number;
   /** @nullable */
@@ -2875,6 +2883,11 @@ playerName?: string;
  * Filter by split name (e.g. game, 1st.half, 2nd.half)
  */
 split?: string;
+};
+
+export type ListGpsOpponentMismatchesParams = {
+leagueId: number;
+year?: string;
 };
 
 export type SendGpsReportEmail200 = {

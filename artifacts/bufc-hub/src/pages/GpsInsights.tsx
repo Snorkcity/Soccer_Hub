@@ -6,6 +6,8 @@ import {
   getListGpsPlayerPositionsQueryKey,
   useListGpsPlayerEmails,
   getListGpsPlayerEmailsQueryKey,
+  useListGpsOpponentMismatches,
+  getListGpsOpponentMismatchesQueryKey,
   saveGpsPlayerEmails,
   sendGpsReportEmail,
   type GpsSession,
@@ -168,6 +170,49 @@ const bundleMins = (b: Bundle): number | null =>
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Admin-only warning: rounds where the Catapult-carried opponent on the GPS
+ * rows disagrees with the football fixture for the same round/squad/year —
+ * one of them is mislabelled and would otherwise go unnoticed.
+ */
+function OpponentMismatchWarning({ year }: { year: string }) {
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+  const { activeLeagueId } = useActiveLeague();
+  const params = { leagueId: activeLeagueId ?? 0, year };
+  const { data: mismatches } = useListGpsOpponentMismatches(
+    params,
+    { query: { enabled: isAdmin && activeLeagueId != null, queryKey: getListGpsOpponentMismatchesQueryKey(params) } },
+  );
+
+  if (!isAdmin || !mismatches?.length) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+        <div className="space-y-1.5 text-sm">
+          <p className="font-semibold">
+            GPS opponent doesn't match the fixture for {mismatches.length === 1 ? "1 round" : `${mismatches.length} rounds`}
+          </p>
+          <ul className="space-y-0.5 text-muted-foreground">
+            {mismatches.map(m => (
+              <li key={`${m.year}-${m.round}`}>
+                <span className="font-medium text-foreground">{m.round}</span> ({m.squad}): GPS file says{" "}
+                <span className="font-medium text-foreground">{m.gpsOpponent}</span>, but the fixture is{" "}
+                <span className="font-medium text-foreground">{m.fixtureOpponent}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            One of them is mislabelled — check the Catapult export or the fixture, then re-upload the round's GPS data with the right opponent.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GpsInsights() {
   const [year, setYear] = useState("2026");
   const { hasModule, ready } = useLeagueModules();
@@ -194,6 +239,8 @@ export default function GpsInsights() {
           <SelectContent>{YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
       </div>
+
+      <OpponentMismatchWarning year={year} />
 
       {isLoading ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>

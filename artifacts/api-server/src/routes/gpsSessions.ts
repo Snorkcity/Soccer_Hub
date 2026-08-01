@@ -11,6 +11,8 @@ import {
   ListGpsSessionsResponse,
   CreateGpsSessionBody,
   CreateGpsSessionResponse,
+  ListGpsOpponentMismatchesQueryParams,
+  ListGpsOpponentMismatchesResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -138,6 +140,63 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
   });
 
   res.json(ListGpsSessionsResponse.parse(withOpponent.map(mapRow)));
+});
+
+/**
+ * Rounds where the Catapult-carried opponent disagrees with the football
+ * fixture for the same year/squad/round. A GPS row's own opponent always wins
+ * in the charts, so when it's wrong nobody is told — this surfaces the clash.
+ * Loose comparison: "Croatia" vs "Canberra Croatia FC" counts as agreement.
+ */
+router.get("/gps-opponent-mismatches", async (req, res): Promise<void> => {
+  const query = ListGpsOpponentMismatchesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { leagueId, year } = query.data;
+  if (!leagueId) {
+    res.status(400).json({ error: "leagueId is required" });
+    return;
+  }
+
+  const conditions = [eq(gpsSessionsTable.leagueId, leagueId)];
+  if (year) conditions.push(eq(gpsSessionsTable.year, year));
+  const rows = await db
+    .selectDistinct({ year: gpsSessionsTable.year, round: gpsSessionsTable.round, opponent: gpsSessionsTable.opponent })
+    .from(gpsSessionsTable)
+    .where(and(...conditions));
+
+  const carried = rows.filter(r => r.opponent?.trim() && r.round?.trim());
+  if (!carried.length) {
+    res.json(ListGpsOpponentMismatchesResponse.parse([]));
+    return;
+  }
+
+  const fixtureOpps = await fixtureOpponentMap(leagueId);
+  const norm = (s: string) => s.trim().toLowerCase();
+  const agrees = (a: string, b: string) => {
+    const na = norm(a), nb = norm(b);
+    return na === nb || na.includes(nb) || nb.includes(na);
+  };
+
+  const seen = new Set<string>();
+  const out: { year: string; round: string; squad: string; gpsOpponent: string; fixtureOpponent: string }[] = [];
+  for (const r of carried) {
+    const round = r.round!.trim();
+    const gpsOpponent = r.opponent!.trim();
+    const rd = /^(R\d+)(?:$|-)/i.exec(round);
+    if (!rd) continue;
+    const squad = squadOfRound(round);
+    const fixtureOpponent = fixtureOpps.get(`${r.year}|${squad}|${rd[1].toUpperCase()}`);
+    if (!fixtureOpponent || agrees(gpsOpponent, fixtureOpponent)) continue;
+    const key = `${r.year}|${round}|${norm(gpsOpponent)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ year: r.year, round, squad, gpsOpponent, fixtureOpponent });
+  }
+  out.sort((a, b) => a.year.localeCompare(b.year) || a.round.localeCompare(b.round, undefined, { numeric: true }));
+  res.json(ListGpsOpponentMismatchesResponse.parse(out));
 });
 
 router.post("/gps-sessions", async (req, res): Promise<void> => {

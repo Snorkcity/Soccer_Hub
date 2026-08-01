@@ -509,6 +509,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/GpsSession"
 
+  /gps-opponent-mismatches:
+    get:
+      operationId: listGpsOpponentMismatches
+      tags: [gps]
+      summary: Rounds where the Catapult-carried GPS opponent disagrees with the football fixture's opponent
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: year
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of round/squad opponent mismatches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsOpponentMismatch"
+
   /gps-player-positions:
     get:
       operationId: listGpsPlayerPositions
@@ -3131,6 +3154,16 @@ components:
         decelCount34:        { type: ["number", "null"] }
         decelCountOver4:     { type: ["number", "null"] }
       required: [id, playerName, teamId, year]
+
+    GpsOpponentMismatch:
+      type: object
+      properties:
+        year:            { type: string }
+        round:           { type: string }
+        squad:           { type: string }
+        gpsOpponent:     { type: string }
+        fixtureOpponent: { type: string }
+      required: [year, round, squad, gpsOpponent, fixtureOpponent]
 
     GpsSessionInput:
       type: object
