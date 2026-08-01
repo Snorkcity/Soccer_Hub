@@ -1,29 +1,53 @@
 // Football Match Report — the "EPL analyst" view of a single game.
 // Pick a match, get the story: result strip, stat tiles vs season, scorers
 // with season context, and coach-style insight lines. All computed
-// server-side by /analytics/match-report.
-import { useMemo, useState } from "react";
+// server-side by /analytics/match-report. Reports can be saved (frozen as-is),
+// downloaded as a dark PPTX deck, and emailed to the coach list — the same
+// trio the GPS Match Report has.
+import { useEffect, useMemo, useState } from "react";
 import {
   useListMatches, getListMatchesQueryKey,
   useGetMatchReport, getGetMatchReportQueryKey,
+  useListMatchReports, getListMatchReportsQueryKey,
+  createMatchReport, deleteMatchReport,
+  useListMatchReportCoachEmails, getListMatchReportCoachEmailsQueryKey,
+  saveMatchReportCoachEmails, sendMatchReportEmail,
+  type MatchReportResponse, type SavedMatchReport,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History, Save, FileDown, Loader2, Trash2, ArrowLeft,
+  Mail, CheckCircle2, XCircle, Plus,
+} from "lucide-react";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { useActiveLeague } from "@/contexts/LeagueContext";
+import type { FootballMatchReportModel } from "@/lib/matchReportPptx";
 
 interface Props {
   teamId: number;
   seasonId: number;
 }
-
 const resultBadge = (r: string | null | undefined) =>
   r === "W" ? "bg-green-500/15 text-green-600 border-green-500/30"
   : r === "L" ? "bg-red-500/15 text-red-600 border-red-500/30"
   : "bg-amber-500/15 text-amber-600 border-amber-500/30";
 
 export default function MatchReportTab({ teamId, seasonId }: Props) {
+  const { activeLeagueId } = useActiveLeague();
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+
   const listParams = { teamId, seasonId };
   const { data: matches } = useListMatches(listParams, {
     query: { queryKey: getListMatchesQueryKey(listParams) },
@@ -35,30 +59,123 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
   );
   const [matchRowId, setMatchRowId] = useState<number | null>(null);
   const selectedId = matchRowId ?? sorted[0]?.id ?? null;
+  const selectedMatch = sorted.find(m => m.id === selectedId) ?? null;
 
   const reportParams = { teamId, seasonId, matchRowId: selectedId ?? 0 };
-  const { data: report, isLoading } = useGetMatchReport(reportParams, {
+  const { data: liveReport, isLoading } = useGetMatchReport(reportParams, {
     query: { enabled: selectedId != null, queryKey: getGetMatchReportQueryKey(reportParams) },
   });
 
   const roundOf = (matchId: string, opponent: string, date?: string | null) =>
     `${matchId.split("-")[0]} v ${opponent}${date ? ` · ${date}` : ""}`;
 
+  // The frozen model a save/deck/email works from.
+  const liveModel: FootballMatchReportModel | null = useMemo(() => {
+    if (!liveReport || !selectedMatch) return null;
+    const round = selectedMatch.matchId.split("-")[0];
+    return {
+      report: liveReport,
+      matchLabel: liveReport.header.matchLabel,
+      round,
+      opponent: selectedMatch.opponent,
+      matchDate: selectedMatch.matchDate ?? null,
+      generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
+    };
+  }, [liveReport, selectedMatch]);
+
+  // Saved reports (league-private, like the GPS ones)
+  const queryClient = useQueryClient();
+  const savedParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: saved } = useListMatchReports(
+    savedParams,
+    { query: { enabled: activeLeagueId != null, queryKey: getListMatchReportsQueryKey(savedParams) } },
+  );
+  const invalidateSaved = () =>
+    queryClient.invalidateQueries({ queryKey: getListMatchReportsQueryKey(savedParams) });
+
+  const [viewingSaved, setViewingSaved] = useState<SavedMatchReport | null>(null);
+  const model = viewingSaved ? (viewingSaved.data as unknown as FootballMatchReportModel) : liveModel;
+  const report: MatchReportResponse | null = model?.report ?? null;
+
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const saveReport = async () => {
+    if (!liveModel || activeLeagueId == null) return;
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      await createMatchReport({
+        leagueId: activeLeagueId,
+        title: `Match Report — ${liveModel.round} v ${liveModel.opponent}`,
+        round: liveModel.round,
+        opponent: liveModel.opponent,
+        matchDate: liveModel.matchDate ?? undefined,
+        data: liveModel as unknown as Record<string, unknown>,
+      });
+      await invalidateSaved();
+      setSaveMsg("Saved");
+    } catch {
+      setSaveMsg("Save failed — try again");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 4000);
+    }
+  };
+
+  const downloadDeck = async () => {
+    if (!model) return;
+    setDownloading(true);
+    try {
+      const { generateFootballMatchReport } = await import("@/lib/matchReportPptx");
+      await generateFootballMatchReport(model, undefined);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={selectedId != null ? String(selectedId) : undefined} onValueChange={v => setMatchRowId(Number(v))}>
-          <SelectTrigger className="w-72"><SelectValue placeholder="Pick a match" /></SelectTrigger>
-          <SelectContent>
-            {sorted.map(m => (
-              <SelectItem key={m.id} value={String(m.id)}>{roundOf(m.matchId, m.opponent, m.matchDate)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {isLoading && <span className="text-sm text-muted-foreground">Building report…</span>}
+        {viewingSaved ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setViewingSaved(null)}>
+              <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to live report
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Viewing saved report: <span className="font-medium text-foreground">{viewingSaved.title}</span>
+            </p>
+          </>
+        ) : (
+          <>
+            <Select value={selectedId != null ? String(selectedId) : undefined} onValueChange={v => setMatchRowId(Number(v))}>
+              <SelectTrigger className="w-72"><SelectValue placeholder="Pick a match" /></SelectTrigger>
+              <SelectContent>
+                {sorted.map(m => (
+                  <SelectItem key={m.id} value={String(m.id)}>{roundOf(m.matchId, m.opponent, m.matchDate)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isLoading && <span className="text-sm text-muted-foreground">Building report…</span>}
+          </>
+        )}
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {!viewingSaved && (
+            <Button variant="outline" size="sm" onClick={saveReport} disabled={saving || !liveModel}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
+              {saveMsg ?? "Save report"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={downloadDeck} disabled={downloading || !model}>
+            {downloading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileDown className="h-4 w-4 mr-1.5" />}
+            Download deck
+          </Button>
+          {isAdmin && model && <EmailCoachesDialog model={model} />}
+        </div>
       </div>
 
-      {report && (
+      {report && model && (
         <>
           {/* ── Header: scoreline + form strip ─────────────────────────────── */}
           <Card>
@@ -255,6 +372,248 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
           </div>
         </>
       )}
+
+      <SavedReportsCard saved={saved ?? []} onOpen={setViewingSaved} onChanged={invalidateSaved} />
     </div>
+  );
+}
+
+function SavedReportsCard({ saved, onOpen, onChanged }: {
+  saved: SavedMatchReport[]; onOpen: (r: SavedMatchReport) => void; onChanged: () => void;
+}) {
+  const [deleting, setDeleting] = useState<number | null>(null);
+  if (!saved.length) return null;
+  const savedLabel = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  };
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Saved match reports</CardTitle>
+        <CardDescription className="text-xs">A saved report keeps the numbers exactly as they were the day it was saved.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border divide-y">
+          {saved.map(r => (
+            <div key={r.id} className="flex items-center gap-3 px-3 py-2">
+              <button className="text-left min-w-0 flex-1" onClick={() => onOpen(r)}>
+                <p className="text-sm font-semibold truncate">{r.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {r.matchDate ?? ""}{r.matchDate ? "  ·  " : ""}<span className="text-[11px]">saved {savedLabel(r.createdAt)}</span>
+                </p>
+              </button>
+              <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" disabled={deleting === r.id}
+                onClick={async () => {
+                  setDeleting(r.id);
+                  try { await deleteMatchReport(r.id); onChanged(); } finally { setDeleting(null); }
+                }}>
+                {deleting === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type SendState = { status: "pending" | "sending" | "sent" | "failed"; reason?: string };
+
+interface CoachRow { name: string; email: string; }
+
+const FROM_OPTIONS = [
+  "BUFC Performance Hub <noreply@gameinsights.com.au>",
+  "Scott Conlon <scott@gameinsights.com.au>",
+];
+
+function EmailCoachesDialog({ model }: { model: FootballMatchReportModel }) {
+  const [open, setOpen] = useState(false);
+  const { activeLeagueId } = useActiveLeague();
+  const queryClient = useQueryClient();
+
+  const listParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: savedCoaches } = useListMatchReportCoachEmails(
+    listParams,
+    { query: { enabled: open && activeLeagueId != null, queryKey: getListMatchReportCoachEmailsQueryKey(listParams) } },
+  );
+
+  const [coaches, setCoaches] = useState<CoachRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!open) { setLoaded(false); return; }
+    if (savedCoaches && !loaded) {
+      const mine = savedCoaches.map(c => ({ name: c.name ?? "", email: c.email }));
+      setCoaches(mine.length ? mine : [{ name: "", email: "" }]);
+      setLoaded(true);
+    }
+  }, [open, savedCoaches, loaded]);
+
+  const matchLine = model.matchLabel;
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [from, setFrom] = useState(FROM_OPTIONS[0]);
+  const [coachNote, setCoachNote] = useState("");
+  const [sendStates, setSendStates] = useState<Map<number, SendState>>(new Map());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSubject(`Match Report — ${matchLine}`);
+    setBody(`Hi,\n\nAttached is the match report for ${matchLine} — the story of the game, with every number judged against the rest of our season.\n\nCheers,\nScott`);
+    setFrom(FROM_OPTIONS[0]);
+    setCoachNote("");
+    setSendStates(new Map());
+    setBusy(false);
+    setDone(false);
+  }, [open, matchLine]);
+
+  const setCoach = (i: number, patch: Partial<CoachRow>) =>
+    setCoaches(prev => prev.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+
+  const send = async () => {
+    if (activeLeagueId == null) return;
+    const targets = coaches
+      .map((c, i) => ({ ...c, i, email: c.email.trim() }))
+      .filter(c => c.email);
+    if (!targets.length) return;
+    setBusy(true);
+    setDone(false);
+    const states = new Map<number, SendState>(targets.map(t => [t.i, { status: "pending" as const }]));
+    setSendStates(new Map(states));
+
+    // Save the list first so next week it's pre-filled
+    try {
+      await saveMatchReportCoachEmails({ leagueId: activeLeagueId, coaches: targets.map(t => ({ name: t.name.trim() || undefined, email: t.email })) });
+      queryClient.invalidateQueries({ queryKey: getListMatchReportCoachEmailsQueryKey(listParams) });
+    } catch {
+      setBusy(false);
+      setDone(true);
+      setSendStates(new Map(targets.map(t => [t.i, { status: "failed" as const, reason: "Couldn't save the coach list — check the addresses and try again" }])));
+      return;
+    }
+
+    // Build the deck ONCE, send to each coach
+    let fileName = "", base64: string | undefined;
+    try {
+      const { generateFootballMatchReport } = await import("@/lib/matchReportPptx");
+      ({ fileName, base64 } = await generateFootballMatchReport(model, coachNote.trim() || undefined, "base64"));
+    } catch {
+      setBusy(false);
+      setDone(true);
+      setSendStates(new Map(targets.map(t => [t.i, { status: "failed" as const, reason: "Couldn't build the report deck" }])));
+      return;
+    }
+
+    for (const t of targets) {
+      states.set(t.i, { status: "sending" });
+      setSendStates(new Map(states));
+      try {
+        await sendMatchReportEmail({
+          to: t.email,
+          subject: subject.trim() || `Match Report — ${matchLine}`,
+          body,
+          from,
+          fileName,
+          pptxBase64: base64!,
+          leagueId: activeLeagueId,
+        });
+        states.set(t.i, { status: "sent" });
+      } catch (e) {
+        console.error(e);
+        states.set(t.i, { status: "failed", reason: "Send failed" });
+      }
+      setSendStates(new Map(states));
+    }
+    setBusy(false);
+    setDone(true);
+  };
+
+  const sentCount = [...sendStates.values()].filter(s => s.status === "sent").length;
+  const failedCount = [...sendStates.values()].filter(s => s.status === "failed").length;
+  const targetCount = coaches.filter(c => c.email.trim()).length;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Mail className="h-4 w-4 mr-1.5" /> Email to coaches</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Email the match report</DialogTitle>
+          <DialogDescription>
+            Sends the {matchLine} deck to the football coach list. The list is remembered for next week.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label>Football coaches</Label>
+            <div className="rounded-md border divide-y">
+              {coaches.map((c, i) => {
+                const st = sendStates.get(i);
+                return (
+                  <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                    <Input value={c.name} onChange={e => setCoach(i, { name: e.target.value })}
+                      placeholder="Name (optional)" disabled={busy} className="h-7 text-xs w-32 shrink-0" />
+                    <Input value={c.email} onChange={e => setCoach(i, { email: e.target.value })}
+                      placeholder="coach@example.com" disabled={busy} className="h-7 text-xs flex-1 min-w-0" />
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {st?.status === "sending" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                      {st?.status === "sent" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                      {st?.status === "failed" && <span title={st.reason}><XCircle className="h-3.5 w-3.5 text-destructive" /></span>}
+                    </span>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 shrink-0" disabled={busy}
+                      onClick={() => setCoaches(prev => prev.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            <Button variant="secondary" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+              onClick={() => setCoaches(prev => [...prev, { name: "", email: "" }])}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add coach
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="fmr-from">Send from</Label>
+            <Select value={from} onValueChange={setFrom} disabled={busy}>
+              <SelectTrigger id="fmr-from"><SelectValue /></SelectTrigger>
+              <SelectContent>{FROM_OPTIONS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fmr-subject">Subject</Label>
+            <Input id="fmr-subject" value={subject} onChange={e => setSubject(e.target.value)} disabled={busy} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fmr-body">Message</Label>
+            <Textarea id="fmr-body" rows={4} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fmr-note">Closing note inside the deck (optional)</Label>
+            <Textarea id="fmr-note" rows={2} value={coachNote} onChange={e => setCoachNote(e.target.value)} disabled={busy}
+              placeholder="e.g. Second halves are still costing us — pressing triggers are Tuesday's focus." />
+          </div>
+
+          {done && (
+            <div className={`flex items-center gap-2 text-sm rounded-md border p-3 ${failedCount ? "border-amber-500/50" : "border-green-500/50"}`}>
+              {failedCount ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+              <span>{sentCount} sent{failedCount ? `, ${failedCount} failed — hover the red cross for the reason` : " — all done"}</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>{done ? "Close" : "Cancel"}</Button>
+          <Button onClick={send} disabled={busy || !targetCount}>
+            {busy
+              ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Sending…</>
+              : <><Mail className="h-4 w-4 mr-1.5" /> Send to {targetCount} coach{targetCount === 1 ? "" : "es"}</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

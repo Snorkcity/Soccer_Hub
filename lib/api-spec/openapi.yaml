@@ -2654,6 +2654,123 @@ paths:
               schema:
                 $ref: "#/components/schemas/JournalDeleteResult"
 
+  /match-reports:
+    get:
+      operationId: listMatchReports
+      tags: [analytics]
+      summary: List saved football match reports, newest first
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Saved reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedMatchReport"
+    post:
+      operationId: createMatchReport
+      tags: [analytics]
+      summary: Save a football match report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedMatchReportCreateRequest"
+      responses:
+        "200":
+          description: Saved report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedMatchReport"
+
+  /match-reports/{id}:
+    delete:
+      operationId: deleteMatchReport
+      tags: [analytics]
+      summary: Delete a saved football match report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalDeleteResult"
+
+  /match-report-coach-emails:
+    get:
+      operationId: listMatchReportCoachEmails
+      tags: [analytics]
+      summary: List the football coach email list for a league
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Coach emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsCoachEmail"
+    put:
+      operationId: saveMatchReportCoachEmails
+      tags: [analytics]
+      summary: Replace the football coach email list for one league (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchReportCoachEmailsSaveRequest"
+      responses:
+        "200":
+          description: Save result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: integer }
+                required: [saved]
+
+  /match-report-email:
+    post:
+      operationId: sendMatchReportEmail
+      tags: [analytics]
+      summary: Email one coach the football match report deck (PPTX built client-side, sent as attachment; admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GpsReportEmailRequest"
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+                required: [sent]
+
   /gps-coach-emails:
     get:
       operationId: listGpsCoachEmails
@@ -5309,6 +5426,49 @@ components:
         data:
           type: object
           additionalProperties: true
+
+    SavedMatchReport:
+      type: object
+      properties:
+        id:        { type: integer }
+        leagueId:  { type: integer }
+        title:     { type: string }
+        round:     { type: ["string", "null"] }
+        opponent:  { type: ["string", "null"] }
+        matchDate: { type: ["string", "null"] }
+        data:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, leagueId, title, round, opponent, matchDate, data, createdAt, updatedAt]
+
+    SavedMatchReportCreateRequest:
+      type: object
+      properties:
+        leagueId:  { type: integer }
+        title:     { type: string, minLength: 1 }
+        round:     { type: string }
+        opponent:  { type: string }
+        matchDate: { type: string }
+        data:
+          type: object
+          additionalProperties: true
+      required: [leagueId, title, data]
+
+    MatchReportCoachEmailsSaveRequest:
+      type: object
+      properties:
+        leagueId: { type: integer }
+        coaches:
+          type: array
+          items:
+            type: object
+            properties:
+              name:  { type: string }
+              email: { type: string, minLength: 3 }
+            required: [email]
+      required: [leagueId, coaches]
 
     GpsCoachEmail:
       type: object

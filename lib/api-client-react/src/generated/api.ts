@@ -153,6 +153,8 @@ import type {
   ListLeagueMatchesParams,
   ListLibraryPracticesParams,
   ListMatchPrepReportsParams,
+  ListMatchReportCoachEmailsParams,
+  ListMatchReportsParams,
   ListMatchesParams,
   ListPlayerStatsParams,
   ListPlayersParams,
@@ -161,6 +163,7 @@ import type {
   MatchPrepReport,
   MatchPrepReportCreateRequest,
   MatchPrepReportUpdateRequest,
+  MatchReportCoachEmailsSaveRequest,
   MatchReportResponse,
   MatchUpdate,
   OkResponse,
@@ -186,10 +189,14 @@ import type {
   ReviewLibraryPracticeRequest,
   ReviewLibraryPracticeResult,
   SaveGpsCoachEmails200,
+  SaveMatchReportCoachEmails200,
+  SavedMatchReport,
+  SavedMatchReportCreateRequest,
   Season,
   SeasonInput,
   SeasonSummary,
   SendGpsReportEmail200,
+  SendMatchReportEmail200,
   SessionCreateRequest,
   SessionDeleteResult,
   SessionDetail,
@@ -9834,6 +9841,458 @@ export const useDeleteGpsMatchReport = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteGpsMatchReportMutationOptions(options));
+    }
+
+export const getListMatchReportsUrl = (params: ListMatchReportsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/match-reports?${stringifiedParams}` : `/api/match-reports`
+}
+
+/**
+ * @summary List saved football match reports, newest first
+ */
+export const listMatchReports = async (params: ListMatchReportsParams, options?: RequestInit): Promise<SavedMatchReport[]> => {
+
+  return customFetch<SavedMatchReport[]>(getListMatchReportsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMatchReportsQueryKey = (params?: ListMatchReportsParams,) => {
+    return [
+    `/api/match-reports`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMatchReportsQueryOptions = <TData = Awaited<ReturnType<typeof listMatchReports>>, TError = ErrorType<unknown>>(params: ListMatchReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMatchReportsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMatchReports>>> = ({ signal }) => listMatchReports(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMatchReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMatchReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listMatchReports>>>
+export type ListMatchReportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved football match reports, newest first
+ */
+
+export function useListMatchReports<TData = Awaited<ReturnType<typeof listMatchReports>>, TError = ErrorType<unknown>>(
+ params: ListMatchReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMatchReportsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMatchReportUrl = () => {
+
+
+
+
+  return `/api/match-reports`
+}
+
+/**
+ * @summary Save a football match report
+ */
+export const createMatchReport = async (savedMatchReportCreateRequest: SavedMatchReportCreateRequest, options?: RequestInit): Promise<SavedMatchReport> => {
+
+  return customFetch<SavedMatchReport>(getCreateMatchReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(savedMatchReportCreateRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateMatchReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMatchReport>>, TError,{data: BodyType<SavedMatchReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMatchReport>>, TError,{data: BodyType<SavedMatchReportCreateRequest>}, TContext> => {
+
+const mutationKey = ['createMatchReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMatchReport>>, {data: BodyType<SavedMatchReportCreateRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMatchReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMatchReportMutationResult = NonNullable<Awaited<ReturnType<typeof createMatchReport>>>
+    export type CreateMatchReportMutationBody = BodyType<SavedMatchReportCreateRequest>
+    export type CreateMatchReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a football match report
+ */
+export const useCreateMatchReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMatchReport>>, TError,{data: BodyType<SavedMatchReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMatchReport>>,
+        TError,
+        {data: BodyType<SavedMatchReportCreateRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateMatchReportMutationOptions(options));
+    }
+
+export const getDeleteMatchReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/match-reports/${id}`
+}
+
+/**
+ * @summary Delete a saved football match report
+ */
+export const deleteMatchReport = async (id: number, options?: RequestInit): Promise<JournalDeleteResult> => {
+
+  return customFetch<JournalDeleteResult>(getDeleteMatchReportUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMatchReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatchReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMatchReport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteMatchReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMatchReport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMatchReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMatchReportMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMatchReport>>>
+
+    export type DeleteMatchReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a saved football match report
+ */
+export const useDeleteMatchReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatchReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMatchReport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMatchReportMutationOptions(options));
+    }
+
+export const getListMatchReportCoachEmailsUrl = (params: ListMatchReportCoachEmailsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/match-report-coach-emails?${stringifiedParams}` : `/api/match-report-coach-emails`
+}
+
+/**
+ * @summary List the football coach email list for a league
+ */
+export const listMatchReportCoachEmails = async (params: ListMatchReportCoachEmailsParams, options?: RequestInit): Promise<GpsCoachEmail[]> => {
+
+  return customFetch<GpsCoachEmail[]>(getListMatchReportCoachEmailsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMatchReportCoachEmailsQueryKey = (params?: ListMatchReportCoachEmailsParams,) => {
+    return [
+    `/api/match-report-coach-emails`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMatchReportCoachEmailsQueryOptions = <TData = Awaited<ReturnType<typeof listMatchReportCoachEmails>>, TError = ErrorType<unknown>>(params: ListMatchReportCoachEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchReportCoachEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMatchReportCoachEmailsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMatchReportCoachEmails>>> = ({ signal }) => listMatchReportCoachEmails(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMatchReportCoachEmails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMatchReportCoachEmailsQueryResult = NonNullable<Awaited<ReturnType<typeof listMatchReportCoachEmails>>>
+export type ListMatchReportCoachEmailsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the football coach email list for a league
+ */
+
+export function useListMatchReportCoachEmails<TData = Awaited<ReturnType<typeof listMatchReportCoachEmails>>, TError = ErrorType<unknown>>(
+ params: ListMatchReportCoachEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMatchReportCoachEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMatchReportCoachEmailsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveMatchReportCoachEmailsUrl = () => {
+
+
+
+
+  return `/api/match-report-coach-emails`
+}
+
+/**
+ * @summary Replace the football coach email list for one league (admin only)
+ */
+export const saveMatchReportCoachEmails = async (matchReportCoachEmailsSaveRequest: MatchReportCoachEmailsSaveRequest, options?: RequestInit): Promise<SaveMatchReportCoachEmails200> => {
+
+  return customFetch<SaveMatchReportCoachEmails200>(getSaveMatchReportCoachEmailsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchReportCoachEmailsSaveRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveMatchReportCoachEmailsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveMatchReportCoachEmails>>, TError,{data: BodyType<MatchReportCoachEmailsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveMatchReportCoachEmails>>, TError,{data: BodyType<MatchReportCoachEmailsSaveRequest>}, TContext> => {
+
+const mutationKey = ['saveMatchReportCoachEmails'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveMatchReportCoachEmails>>, {data: BodyType<MatchReportCoachEmailsSaveRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveMatchReportCoachEmails(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveMatchReportCoachEmailsMutationResult = NonNullable<Awaited<ReturnType<typeof saveMatchReportCoachEmails>>>
+    export type SaveMatchReportCoachEmailsMutationBody = BodyType<MatchReportCoachEmailsSaveRequest>
+    export type SaveMatchReportCoachEmailsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Replace the football coach email list for one league (admin only)
+ */
+export const useSaveMatchReportCoachEmails = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveMatchReportCoachEmails>>, TError,{data: BodyType<MatchReportCoachEmailsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveMatchReportCoachEmails>>,
+        TError,
+        {data: BodyType<MatchReportCoachEmailsSaveRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveMatchReportCoachEmailsMutationOptions(options));
+    }
+
+export const getSendMatchReportEmailUrl = () => {
+
+
+
+
+  return `/api/match-report-email`
+}
+
+/**
+ * @summary Email one coach the football match report deck (PPTX built client-side, sent as attachment; admin only)
+ */
+export const sendMatchReportEmail = async (gpsReportEmailRequest: GpsReportEmailRequest, options?: RequestInit): Promise<SendMatchReportEmail200> => {
+
+  return customFetch<SendMatchReportEmail200>(getSendMatchReportEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsReportEmailRequest)
+  }
+);}
+
+
+
+
+
+export const getSendMatchReportEmailMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMatchReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMatchReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext> => {
+
+const mutationKey = ['sendMatchReportEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMatchReportEmail>>, {data: BodyType<GpsReportEmailRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendMatchReportEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMatchReportEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendMatchReportEmail>>>
+    export type SendMatchReportEmailMutationBody = BodyType<GpsReportEmailRequest>
+    export type SendMatchReportEmailMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Email one coach the football match report deck (PPTX built client-side, sent as attachment; admin only)
+ */
+export const useSendMatchReportEmail = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMatchReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendMatchReportEmail>>,
+        TError,
+        {data: BodyType<GpsReportEmailRequest>},
+        TContext
+      > => {
+      return useMutation(getSendMatchReportEmailMutationOptions(options));
     }
 
 export const getListGpsCoachEmailsUrl = (params: ListGpsCoachEmailsParams,) => {

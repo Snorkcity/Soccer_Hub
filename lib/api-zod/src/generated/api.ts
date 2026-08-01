@@ -3780,6 +3780,129 @@ export const DeleteGpsMatchReportResponse = zod.object({
 
 
 /**
+ * @summary List saved football match reports, newest first
+ */
+export const ListMatchReportsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListMatchReportsResponseItem = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "title": zod.string(),
+  "round": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMatchReportsResponse = zod.array(ListMatchReportsResponseItem)
+
+
+/**
+ * @summary Save a football match report
+ */
+
+
+
+export const CreateMatchReportBody = zod.object({
+  "leagueId": zod.number(),
+  "title": zod.string().min(1),
+  "round": zod.string().optional(),
+  "opponent": zod.string().optional(),
+  "matchDate": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+export const CreateMatchReportResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "title": zod.string(),
+  "round": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a saved football match report
+ */
+export const DeleteMatchReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteMatchReportResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary List the football coach email list for a league
+ */
+export const ListMatchReportCoachEmailsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListMatchReportCoachEmailsResponseItem = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "squad": zod.string(),
+  "name": zod.string().nullable(),
+  "email": zod.string()
+})
+export const ListMatchReportCoachEmailsResponse = zod.array(ListMatchReportCoachEmailsResponseItem)
+
+
+/**
+ * @summary Replace the football coach email list for one league (admin only)
+ */
+export const saveMatchReportCoachEmailsBodyCoachesItemEmailMin = 3;
+
+
+
+export const SaveMatchReportCoachEmailsBody = zod.object({
+  "leagueId": zod.number(),
+  "coaches": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "email": zod.string().min(saveMatchReportCoachEmailsBodyCoachesItemEmailMin)
+}))
+})
+
+export const SaveMatchReportCoachEmailsResponse = zod.object({
+  "saved": zod.number()
+})
+
+
+/**
+ * @summary Email one coach the football match report deck (PPTX built client-side, sent as attachment; admin only)
+ */
+
+export const sendMatchReportEmailBodyFromMin = 3;
+
+
+
+
+
+export const SendMatchReportEmailBody = zod.object({
+  "to": zod.string(),
+  "subject": zod.string().min(1),
+  "body": zod.string(),
+  "from": zod.string().min(sendMatchReportEmailBodyFromMin),
+  "fileName": zod.string().min(1),
+  "pptxBase64": zod.string().min(1),
+  "leagueId": zod.number()
+})
+
+export const SendMatchReportEmailResponse = zod.object({
+  "sent": zod.boolean()
+})
+
+
+/**
  * @summary List the coach email list for a league (all squads)
  */
 export const ListGpsCoachEmailsQueryParams = zod.object({

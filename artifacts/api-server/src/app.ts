@@ -40,6 +40,7 @@ app.use("/api/journal/interview", express.json({ limit: "25mb" }));
 app.use("/api/library/practices/upload", requireSession, express.json({ limit: "25mb" }));
 // Bulk report emailing posts the built PPTX as base64 — auth first, then big parser.
 app.use("/api/gps-report-email", requireSession, express.json({ limit: "25mb" }));
+app.use("/api/match-report-email", requireSession, express.json({ limit: "25mb" }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 

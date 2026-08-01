@@ -2707,6 +2707,46 @@ export interface GpsMatchReportUpdateRequest {
   data?: GpsMatchReportUpdateRequestData;
 }
 
+export type SavedMatchReportData = { [key: string]: unknown };
+
+export interface SavedMatchReport {
+  id: number;
+  leagueId: number;
+  title: string;
+  /** @nullable */
+  round: string | null;
+  /** @nullable */
+  opponent: string | null;
+  /** @nullable */
+  matchDate: string | null;
+  data: SavedMatchReportData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SavedMatchReportCreateRequestData = { [key: string]: unknown };
+
+export interface SavedMatchReportCreateRequest {
+  leagueId: number;
+  /** @minLength 1 */
+  title: string;
+  round?: string;
+  opponent?: string;
+  matchDate?: string;
+  data: SavedMatchReportCreateRequestData;
+}
+
+export type MatchReportCoachEmailsSaveRequestCoachesItem = {
+  name?: string;
+  /** @minLength 3 */
+  email: string;
+};
+
+export interface MatchReportCoachEmailsSaveRequest {
+  leagueId: number;
+  coaches: MatchReportCoachEmailsSaveRequestCoachesItem[];
+}
+
 export interface GpsCoachEmail {
   id: number;
   leagueId: number;
@@ -3140,6 +3180,22 @@ leagueId: number;
 
 export type ListGpsMatchReportsParams = {
 leagueId: number;
+};
+
+export type ListMatchReportsParams = {
+leagueId: number;
+};
+
+export type ListMatchReportCoachEmailsParams = {
+leagueId: number;
+};
+
+export type SaveMatchReportCoachEmails200 = {
+  saved: number;
+};
+
+export type SendMatchReportEmail200 = {
+  sent: boolean;
 };
 
 export type ListGpsCoachEmailsParams = {

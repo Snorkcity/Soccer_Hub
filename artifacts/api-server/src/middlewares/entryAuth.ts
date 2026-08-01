@@ -230,6 +230,8 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/gps-report-email", "gps"],
   ["/gps-match-reports", "gps"],
   ["/gps-coach-emails", "gps"],
+  ["/match-report-coach-emails", "data-entry"], // routes additionally enforce admin-only
+  ["/match-report-email", "data-entry"],
   ["/athletic-tests", "testing"],
   ["/match-prep", "match-prep"],
   ["/journal", "reflections"], // reflection journal routes
@@ -245,6 +247,7 @@ const WRITE_MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/matches", "data-entry"],
   ["/goals", "data-entry"],
   ["/player-stats", "data-entry"],
+  ["/match-reports", "data-entry"], // saved football reports: any member may read, saving needs Data Entry
 ];
 
 // Writes open to any signed-in user.

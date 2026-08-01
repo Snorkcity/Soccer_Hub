@@ -188,6 +188,22 @@ export async function runStartupMigrations(): Promise<void> {
       updated_at timestamp NOT NULL DEFAULT now()
     )
   `);
+  // Football match reports (2026-08) — saved analyst single-game reviews,
+  // same shape as gps_match_reports but for the football (results) data.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS match_reports (
+      id serial PRIMARY KEY,
+      league_id integer NOT NULL REFERENCES leagues(id),
+      title text NOT NULL,
+      round text,
+      opponent text,
+      match_date text,
+      data jsonb NOT NULL DEFAULT '{}',
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS gps_coach_emails (
       id serial PRIMARY KEY,
