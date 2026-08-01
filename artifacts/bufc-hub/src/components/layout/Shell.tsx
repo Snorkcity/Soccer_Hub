@@ -121,14 +121,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Build stamp — superadmin only, answers "has the latest deploy landed?" */}
-        {isSuperadmin && (
-          <div className={`px-3 py-2 border-t border-border text-[10px] text-muted-foreground/70 ${mobileOpen ? "block" : "hidden md:block"} ${collapsed ? "md:hidden" : ""}`}>
-            {import.meta.env.DEV
-              ? "dev build"
-              : `Updated ${new Date(__BUILD_INFO__.time).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${__BUILD_INFO__.sha ? ` · ${__BUILD_INFO__.sha}` : ""}`}
-          </div>
-        )}
+        {/* Build stamp — quick "has my deploy landed?" check. Dev just says
+            dev; prod shows when the running bundle was built (+ commit id). */}
+        <div
+          className={`hidden md:block border-t border-border px-3 py-2 text-[10px] leading-tight text-muted-foreground/70 ${collapsed ? "text-center" : ""}`}
+          title={import.meta.env.DEV ? "Development preview" : `Built ${__BUILD_TIME__}${__GIT_SHA__ ? ` · commit ${__GIT_SHA__}` : ""}`}
+        >
+          {import.meta.env.DEV ? (
+            <span>dev</span>
+          ) : (
+            <span className={collapsed ? "md:hidden" : ""}>
+              Updated{" "}
+              {new Date(__BUILD_TIME__).toLocaleString("en-AU", {
+                day: "numeric",
+                month: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+              {__GIT_SHA__ ? ` · ${__GIT_SHA__}` : ""}
+            </span>
+          )}
+        </div>
       </aside>
 
       {/* Main Content */}

@@ -27,15 +27,16 @@ if (!basePath) {
   );
 }
 
+// Build stamp baked into the bundle at build time so the live site can show
+// "Updated <when> · <sha>" — a 5-second way to confirm a deploy has landed.
+// Railway exposes the commit via RAILWAY_GIT_COMMIT_SHA at build time.
+const gitSha = (process.env.RAILWAY_GIT_COMMIT_SHA ?? '').slice(0, 7);
+
 export default defineConfig({
   base: basePath,
   define: {
-    // Build stamp shown to superadmins so "is prod current?" is a 5-second check.
-    // Railway exposes the commit via RAILWAY_GIT_COMMIT_SHA at build time.
-    __BUILD_INFO__: JSON.stringify({
-      time: new Date().toISOString(),
-      sha: (process.env.RAILWAY_GIT_COMMIT_SHA ?? '').slice(0, 7),
-    }),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __GIT_SHA__: JSON.stringify(gitSha),
   },
   plugins: [
     react(),
