@@ -13,12 +13,18 @@ type LeagueContextValue = {
   setActiveLeagueId: (id: number) => void;
   /** Leagues this user can switch between (1 entry = no dropdown anywhere). */
   leagueOptions: LeagueOption[];
+  /** The team the current page is showing (e.g. "1sts") — drives the header
+      "viewing" badge so coaches with several squads always know where they are. */
+  viewingTeamLabel: string | null;
+  setViewingTeamLabel: (label: string | null) => void;
 };
 
 const LeagueContext = createContext<LeagueContextValue>({
   activeLeagueId: null,
   setActiveLeagueId: () => {},
   leagueOptions: [],
+  viewingTeamLabel: null,
+  setViewingTeamLabel: () => {},
 });
 
 const STORAGE_KEY = "bufc.activeLeagueId";
@@ -62,6 +68,8 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     }
   }, [leagueOptions, activeLeagueId, seasons]);
 
+  const [viewingTeamLabel, setViewingTeamLabel] = useState<string | null>(null);
+
   const value = useMemo<LeagueContextValue>(() => ({
     activeLeagueId,
     leagueOptions,
@@ -69,11 +77,24 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, String(id));
       setActive(id);
     },
-  }), [activeLeagueId, leagueOptions]);
+    viewingTeamLabel,
+    setViewingTeamLabel,
+  }), [activeLeagueId, leagueOptions, viewingTeamLabel]);
 
   return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>;
 }
 
 export function useActiveLeague(): LeagueContextValue {
   return useContext(LeagueContext);
+}
+
+/** Pages that show a specific team call this with the team's name; the Shell
+    header then reads "League · Team". Cleared automatically on unmount so the
+    badge never shows a stale team on pages that aren't team-scoped. */
+export function useViewingTeam(label: string | null | undefined) {
+  const { setViewingTeamLabel } = useContext(LeagueContext);
+  useEffect(() => {
+    setViewingTeamLabel(label ?? null);
+    return () => setViewingTeamLabel(null);
+  }, [label, setViewingTeamLabel]);
 }

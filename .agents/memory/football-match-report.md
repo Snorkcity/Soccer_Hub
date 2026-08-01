@@ -11,4 +11,6 @@ description: Season Stats "Match Report" tab — /analytics/match-report endpoin
 - Season-to-date context deliberately uses matchDate <= this match's date for league tally/ladder ("after this round" — same-day fixtures across the league included). Our own team ordering tie-breaks by row id.
 - Conceded goal rows show opponent scorer if recorded, else scorerTeam club name; own goals in our favour keep scorer "OG" with no note.
 - Insight/notes conventions Scott saw and liked: brace/hat-trick, "N for the season", league scorer rank (from league_goals, OG excluded), clean-sheet streak with named started back line (position ∈ GK/CB/LB/RB/LWB/RWB/DM), HT swing, win/unbeaten streaks, ladder line.
+- GPS block: match GPS by team_id + season YEAR (text) + round IN [R#, R#-1sts], split_name='game'. Do NOT filter by gps_sessions.league_id — historical uploads carry league stamp 1 while newer seasons use their own league ids. gps_player_positions IS keyed by canonical names (aliases resolve raw→canonical first).
+- Previous meetings + passes-per-shot insight live in the same endpoint; meeting summary must count draws separately (w/d/l), not just wins/losses.
 - Dribl-era matches (R16+ in season 4) have no possession/shots/passes — tiles with null values are filtered out server-side; don't "fix" that by zero-filling.

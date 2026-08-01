@@ -15,7 +15,7 @@ import {
   deleteMatchPrepReport,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -372,7 +372,9 @@ export default function MatchPrep() {
     () => (allSeasons ?? []).filter((s) => hasModule(s.leagueId, "match-prep")),
     [allSeasons, hasModule],
   );
-  const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
+  const matchPrepTeam = teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0];
+  const teamId = matchPrepTeam?.id;
+  useViewingTeam(matchPrepTeam?.name);
   const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
   const clubsParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: oppClubs } = useGetOpponentClubs(clubsParams, {

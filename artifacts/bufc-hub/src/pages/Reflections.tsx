@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { useToast } from "@/components/ui/use-toast";
 import { BookHeart, CalendarRange, Mic, NotebookPen, Plus, Trash2 } from "lucide-react";
 import InterviewDialog from "@/components/InterviewDialog";
@@ -93,7 +93,9 @@ export default function Reflections() {
   const { hasModule } = useLeagueModules();
   // Only consider seasons of leagues where the user has the reflections module.
   const seasons = (allSeasons ?? []).filter((s) => hasModule(s.leagueId, "reflections"));
-  const teamId = (teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0])?.id;
+  const reflectionsTeam = teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0];
+  const teamId = reflectionsTeam?.id;
+  useViewingTeam(reflectionsTeam?.name);
   const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
   const matchParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: matches } = useListMatches(matchParams, {

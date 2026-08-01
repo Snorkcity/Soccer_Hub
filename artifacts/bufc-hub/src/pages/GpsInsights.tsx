@@ -28,7 +28,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
-import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1186,6 +1186,7 @@ function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: strin
 
 function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }) {
   const [squad, setSquad] = useState("1sts");
+  useViewingTeam(squad);
 
   const roundsBySquad = useMemo(() => {
     const map = new Map<string, { round: string; date: number | null; opponent: string | null }>();

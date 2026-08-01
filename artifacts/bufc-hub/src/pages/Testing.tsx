@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
-import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -104,6 +104,7 @@ export default function Testing() {
     }
   }, [teams, teamId]);
 
+  useViewingTeam(teams?.find(t => t.id === teamId)?.name);
   const params = { leagueId: activeLeagueId ?? 0, teamId: teamId as number };
   const { data: allTests } = useListAthleticTests(
     params,

@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History } from "lucide-react";
 
 interface Props {
@@ -86,14 +87,21 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {report.form.map((f, i) => (
-                    <div key={i} title={`${f.opponent} ${f.score}`}
-                      className={`h-7 w-7 rounded-full grid place-items-center text-xs font-semibold border
-                        ${f.result === "W" ? "bg-green-500/15 text-green-600 border-green-500/40"
-                          : f.result === "L" ? "bg-red-500/15 text-red-600 border-red-500/40"
-                          : "bg-amber-500/15 text-amber-600 border-amber-500/40"}
-                        ${f.isThisMatch ? "ring-2 ring-primary" : "opacity-80"}`}>
-                      {f.result}
-                    </div>
+                    <Tooltip key={i}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`h-7 w-7 rounded-full grid place-items-center text-xs font-semibold border cursor-default
+                            ${f.result === "W" ? "bg-green-500/15 text-green-600 border-green-500/40"
+                              : f.result === "L" ? "bg-red-500/15 text-red-600 border-red-500/40"
+                              : "bg-amber-500/15 text-amber-600 border-amber-500/40"}
+                            ${f.isThisMatch ? "ring-2 ring-primary" : "opacity-80"}`}>
+                          {f.result}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-xs">
+                        {f.opponent} · {f.score}{f.isThisMatch ? " (this match)" : ""}
+                      </TooltipContent>
+                    </Tooltip>
                   ))}
                   {report.ladderPos != null && (
                     <span className="ml-2 text-xs text-muted-foreground whitespace-nowrap">

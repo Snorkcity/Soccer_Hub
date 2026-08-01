@@ -58,7 +58,7 @@ import {
   type FirstSubResponse,
 } from "@workspace/api-client-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
-import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
 import MatchReportTab from "@/components/MatchReportTab";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -1303,6 +1303,7 @@ export default function SeasonStats() {
   // A different league means the old club pick is meaningless
   useEffect(() => { setViewClub(""); }, [selectedLeagueId]);
 
+  useViewingTeam(teams?.find(t => t.id === selectedTeamId)?.name);
   const tId = selectedTeamId as number;
   const sId = selectedSeasonId as number;
   // Leave any player timeline drill-down when the team/season context changes

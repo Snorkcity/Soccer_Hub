@@ -33,7 +33,8 @@ const navItems: {
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
-  const { activeLeagueId } = useActiveLeague();
+  const { activeLeagueId, leagueOptions, viewingTeamLabel } = useActiveLeague();
+  const activeLeagueName = leagueOptions.find(l => l.id === activeLeagueId)?.name ?? null;
   // Module items follow the ACTIVE league (picked on the Hub) — switching league
   // changes which pages appear. Fall back to any-league while it's still loading.
   const visibleItems = navItems.filter((item) => {
@@ -148,6 +149,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Top decoration line */}
         <div className="h-1 w-full bg-gradient-to-r from-primary/80 to-transparent absolute top-0 left-0 z-10" />
+        {/* "Where am I?" strip — league (and team when the page is team-scoped).
+            Most users have one team, but clubs with 1sts/Reserves/23s need this. */}
+        {activeLeagueName && (
+          <div className="flex items-center gap-2 border-b border-border bg-card/60 px-4 md:px-8 py-1.5 text-xs text-muted-foreground">
+            <span className="uppercase tracking-wide text-[10px]">Viewing</span>
+            <span className="font-medium text-foreground">{activeLeagueName}</span>
+            {viewingTeamLabel && (
+              <>
+                <span className="text-muted-foreground/60">·</span>
+                <span className="font-medium text-primary">{viewingTeamLabel}</span>
+              </>
+            )}
+          </div>
+        )}
         <div className="flex-1 overflow-auto p-4 md:p-8">
           <div className="mx-auto max-w-7xl">
             {children}
