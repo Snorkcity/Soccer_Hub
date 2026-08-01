@@ -35,3 +35,6 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - Send flow: client builds PPTX via `generatePlayerGpsReport(input, "base64")` and POSTs to `/gps-report-email` per player (sequential loop = per-player progress). Server validates from-address ends `@gameinsights.com.au` (whole domain Resend-verified) and attaches base64.
 - `/api/gps-report-email` has its own 25mb json parser mounted AFTER requireSession in app.ts.
 - Name-matching gotchas when seeding emails: alias 'Alyssa'→canonical 'DC'; Emily Hay = Emily.H (emilyvhay3@), Emily Evans = Emily.E (evans.emilyh@ — confusingly named).
+
+## Fixture-derived opponents
+GPS rounds usually lack an opponent; GET /gps-sessions fills it server-side by matching the round number (R#) to football fixtures: matchId prefix = round code, 1sts = the GPS league's own seasons, Reserves = sibling league named "<league name> Reserves". A Catapult-carried opponent on the row always wins over the fixture lookup.

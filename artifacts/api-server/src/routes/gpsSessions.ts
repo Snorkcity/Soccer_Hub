@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, getTableColumns } from "drizzle-orm";
-import { db, gpsSessionsTable, gpsPlayerAliasesTable } from "@workspace/db";
+import { eq, and, sql, inArray, getTableColumns } from "drizzle-orm";
+import {
+  db, gpsSessionsTable, gpsPlayerAliasesTable,
+  matchesTable, seasonsTable, leaguesTable,
+} from "@workspace/db";
 
 const n2s = (v: number | null | undefined): string | null => (v == null ? null : String(v));
 import {
@@ -45,6 +48,52 @@ function mapRow(r: typeof gpsSessionsTable.$inferSelect) {
   };
 }
 
+/** Squad label from the Catapult round suffix — mirrors the frontend convention. */
+function squadOfRound(round: string | null | undefined): string {
+  if (!round) return "1sts";
+  if (/-(res|r)$/i.test(round)) return "Reserves";
+  if (/-1[78]s$/i.test(round)) return "17s / 18s";
+  return "1sts";
+}
+
+/**
+ * Fixture opponents keyed by `${year}|${squad}|R#`.
+ *
+ * Most Catapult sessions only carry a raw round tag ("R7-1sts"), so the GPS
+ * opponent column is usually empty. The football fixtures already know the
+ * opponent for every round: matchId starts with the round code ("R7-MAJ-BEL"),
+ * and squad comes from the fixture's league — the GPS league itself is the
+ * 1sts, and a sibling league named "<name> Reserves" holds the Reserves.
+ */
+async function fixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const leagues = await db.select().from(leaguesTable);
+  const mine = leagues.find(l => l.id === leagueId);
+  if (!mine) return map;
+  const reserves = leagues.find(
+    l => l.id !== mine.id && l.name.trim().toLowerCase() === `${mine.name.trim().toLowerCase()} reserves`,
+  );
+  const squadOfLeague = new Map<number, string>([[mine.id, "1sts"]]);
+  if (reserves) squadOfLeague.set(reserves.id, "Reserves");
+
+  const seasons = await db.select().from(seasonsTable)
+    .where(inArray(seasonsTable.leagueId, [...squadOfLeague.keys()]));
+  if (!seasons.length) return map;
+  const seasonInfo = new Map(seasons.map(s => [s.id, { year: s.year, squad: squadOfLeague.get(s.leagueId)! }]));
+
+  const fixtures = await db.select().from(matchesTable)
+    .where(inArray(matchesTable.seasonId, [...seasonInfo.keys()]));
+  for (const m of fixtures) {
+    const info = m.seasonId != null ? seasonInfo.get(m.seasonId) : undefined;
+    if (!info || !m.opponent) continue;
+    const rd = /^(R\d+)-/i.exec(m.matchId ?? "");
+    if (!rd) continue;
+    const key = `${info.year}|${info.squad}|${rd[1].toUpperCase()}`;
+    if (!map.has(key)) map.set(key, m.opponent);
+  }
+  return map;
+}
+
 router.get("/gps-sessions", async (req, res): Promise<void> => {
   const query = ListGpsSessionsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -77,7 +126,18 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     .where(and(...conditions))
     .orderBy(gpsSessionsTable.sessionDate);
 
-  res.json(ListGpsSessionsResponse.parse(rows.map(mapRow)));
+  // Fill missing opponents from the football fixtures (round-number match).
+  const needsOpponent = rows.some(r => !r.opponent && r.round);
+  const fixtureOpps = needsOpponent ? await fixtureOpponentMap(leagueId) : new Map<string, string>();
+  const withOpponent = rows.map(r => {
+    if (r.opponent || !r.round || !r.year) return r;
+    const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
+    if (!rd) return r;
+    const opp = fixtureOpps.get(`${r.year}|${squadOfRound(r.round)}|${rd[1].toUpperCase()}`);
+    return opp ? { ...r, opponent: opp } : r;
+  });
+
+  res.json(ListGpsSessionsResponse.parse(withOpponent.map(mapRow)));
 });
 
 router.post("/gps-sessions", async (req, res): Promise<void> => {
