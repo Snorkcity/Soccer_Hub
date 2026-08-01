@@ -1069,7 +1069,38 @@ export const GetMatchReportResponse = zod.object({
   "isThisMatch": zod.boolean()
 })),
   "comments": zod.array(zod.string())
-}).describe('Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.'),zod.null()])
+}).describe('Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.'),zod.null()]),
+  "goalDna": zod.union([zod.object({
+  "scored": zod.object({
+  "totalTyped": zod.number().describe('Season-to-date goals with a goal type recorded.'),
+  "categories": zod.array(zod.object({
+  "id": zod.enum(['setPiece', 'frontThird', 'middleThird', 'backThird']),
+  "label": zod.string(),
+  "count": zod.number(),
+  "dt": zod.number().describe('During-transition goals in this category (regain categories only).'),
+  "at": zod.number().describe('After-transition goals in this category (regain categories only).'),
+  "pct": zod.number().nullable(),
+  "benchmarkLabel": zod.string().describe('e.g. 27% or 48-50%'),
+  "verdict": zod.union([zod.literal('high'),zod.literal('low'),zod.literal(null)]).nullable().describe('Season share sits clearly above\/below the benchmark band (null = typical or sample too small).')
+})),
+  "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
+}),
+  "conceded": zod.object({
+  "totalTyped": zod.number().describe('Season-to-date goals with a goal type recorded.'),
+  "categories": zod.array(zod.object({
+  "id": zod.enum(['setPiece', 'frontThird', 'middleThird', 'backThird']),
+  "label": zod.string(),
+  "count": zod.number(),
+  "dt": zod.number().describe('During-transition goals in this category (regain categories only).'),
+  "at": zod.number().describe('After-transition goals in this category (regain categories only).'),
+  "pct": zod.number().nullable(),
+  "benchmarkLabel": zod.string().describe('e.g. 27% or 48-50%'),
+  "verdict": zod.union([zod.literal('high'),zod.literal('low'),zod.literal(null)]).nullable().describe('Season share sits clearly above\/below the benchmark band (null = typical or sample too small).')
+})),
+  "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
+}),
+  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.')
+}).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 
 

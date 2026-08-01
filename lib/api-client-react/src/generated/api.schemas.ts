@@ -870,6 +870,65 @@ export interface MatchReportGps {
   players: MatchReportGpsPlayer[];
 }
 
+export type MatchReportGoalDnaCategoryId = typeof MatchReportGoalDnaCategoryId[keyof typeof MatchReportGoalDnaCategoryId];
+
+
+export const MatchReportGoalDnaCategoryId = {
+  setPiece: 'setPiece',
+  frontThird: 'frontThird',
+  middleThird: 'middleThird',
+  backThird: 'backThird',
+} as const;
+
+/**
+ * Season share sits clearly above/below the benchmark band (null = typical or sample too small).
+ * @nullable
+ */
+export type MatchReportGoalDnaCategoryVerdict = typeof MatchReportGoalDnaCategoryVerdict[keyof typeof MatchReportGoalDnaCategoryVerdict] | null;
+
+
+export const MatchReportGoalDnaCategoryVerdict = {
+  high: 'high',
+  low: 'low',
+} as const;
+
+export interface MatchReportGoalDnaCategory {
+  id: MatchReportGoalDnaCategoryId;
+  label: string;
+  count: number;
+  /** During-transition goals in this category (regain categories only). */
+  dt: number;
+  /** After-transition goals in this category (regain categories only). */
+  at: number;
+  /** @nullable */
+  pct: number | null;
+  /** e.g. 27% or 48-50% */
+  benchmarkLabel: string;
+  /**
+     * Season share sits clearly above/below the benchmark band (null = typical or sample too small).
+     * @nullable
+     */
+  verdict: MatchReportGoalDnaCategoryVerdict;
+}
+
+export interface MatchReportGoalDnaSide {
+  /** Season-to-date goals with a goal type recorded. */
+  totalTyped: number;
+  categories: MatchReportGoalDnaCategory[];
+  /** Interpretation lines for THIS match's goals on this side. */
+  matchLines: string[];
+}
+
+/**
+ * The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
+ */
+export interface MatchReportGoalDna {
+  scored: MatchReportGoalDnaSide;
+  conceded: MatchReportGoalDnaSide;
+  /** Season-level strength/weakness headlines from benchmark deviations. */
+  comments: string[];
+}
+
 export interface MatchReportBallUsePoint {
   label: string;
   possession: number;
@@ -936,6 +995,7 @@ export interface MatchReportResponse {
   gps: MatchReportGps | null;
   previousMeetings: MatchReportMeeting[];
   ballUse: MatchReportBallUse | null;
+  goalDna: MatchReportGoalDna | null;
 }
 
 export interface GoalIntervalBucket {

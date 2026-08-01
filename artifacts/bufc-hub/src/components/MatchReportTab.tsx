@@ -328,6 +328,79 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
             </div>
           )}
 
+          {/* ── Goal DNA: goals-by-type story ──────────────────────────────── */}
+          {report.goalDna && (() => {
+            const dna = report.goalDna;
+            const sideBlock = (side: typeof dna.scored, title: string, isScored: boolean) => (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">{title}</div>
+                {side.matchLines.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {side.matchLines.map((l, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        {isScored
+                          ? <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
+                          : <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />}
+                        <span>{l}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">No typed {isScored ? "goals scored" : "goals conceded"} in this game.</div>
+                )}
+                {side.totalTyped > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Season mix ({side.totalTyped} goals)</div>
+                    {side.categories.map(c => {
+                      const flagged = c.verdict != null;
+                      const goodFlag = c.verdict === "high" ? isScored : !isScored;
+                      return (
+                        <div key={c.id} className="flex items-center gap-2 text-xs">
+                          <span className="w-40 shrink-0">{c.label}</span>
+                          <div className="flex-1 h-2 rounded bg-muted overflow-hidden">
+                            <div
+                              className={`h-full ${flagged ? (goodFlag ? "bg-green-500" : "bg-red-500") : "bg-primary/60"}`}
+                              style={{ width: `${Math.min(100, c.pct ?? 0)}%` }}
+                            />
+                          </div>
+                          <span className="w-24 text-right font-mono">{c.pct != null ? `${c.pct.toFixed(0)}%` : "—"} <span className="text-muted-foreground">/ {c.benchmarkLabel}</span></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+            return (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-amber-500" />Goal DNA — how the goals really came
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Every goal by type: set pieces, or regains by third (front/middle/back) and timing — during transition (before they reset) vs after transition (they were set and still got broken down). Season mix vs benchmark: set pieces 27%, middle-third 48–50%, front & back thirds ~12% each.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {sideBlock(dna.scored, "Scored", true)}
+                    {sideBlock(dna.conceded, "Conceded", false)}
+                  </div>
+                  {dna.comments.length > 0 && (
+                    <div className="space-y-1.5 border-t pt-3">
+                      {dna.comments.map((c, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
+                          <span>{c}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* ── Ball use quadrant ──────────────────────────────────────────── */}
           {report.ballUse && (() => {
             const bu = report.ballUse;

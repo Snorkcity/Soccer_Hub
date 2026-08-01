@@ -2874,6 +2874,98 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     }
   }
 
+  // ── Goal DNA: goals-by-type story, scored AND conceded ───────────────────
+  // The coach's core analysis framework. Every goal carries a type:
+  //   SP-* (set pieces) or R-{FT|MT|BT}-{DT|AT} = regain third × transition
+  //   timing (During Transition = struck before the defence reset,
+  //   After Transition = the defence was set and still got broken down).
+  // Season mix benchmarks (share of typed goals): SP 27%, MT regains 48–50%,
+  // FT ~12%, BT ~12%. Clear deviation = strength to exploit / weakness to
+  // mitigate, depending on which side of the ball it's on.
+  type DnaCatId = "setPiece" | "frontThird" | "middleThird" | "backThird";
+  const dnaCatOf = (t: string | null | undefined): DnaCatId | null => {
+    const s = t?.trim().toUpperCase();
+    if (!s) return null;
+    if (s.startsWith("SP")) return "setPiece";
+    if (s.startsWith("R-FT")) return "frontThird";
+    if (s.startsWith("R-MT")) return "middleThird";
+    if (s.startsWith("R-BT")) return "backThird";
+    return null;
+  };
+  const DNA_BENCH: Record<DnaCatId, { lo: number; hi: number; label: string }> = {
+    setPiece:    { lo: 23, hi: 31, label: "27%" },
+    middleThird: { lo: 44, hi: 54, label: "48–50%" },
+    frontThird:  { lo: 8,  hi: 16, label: "~12%" },
+    backThird:   { lo: 8,  hi: 16, label: "~12%" },
+  };
+  const DNA_LABELS: Record<DnaCatId, string> = {
+    setPiece: "Set pieces", frontThird: "Front-third regains",
+    middleThird: "Middle-third regains", backThird: "Back-third regains",
+  };
+  const dnaSide = (goalsForSide: typeof seasonGoals, matchGoalsForSide: typeof seasonGoals, ours: boolean) => {
+    const typed = goalsForSide.map(g => ({ cat: dnaCatOf(g.goalType), at: (g.goalType ?? "").toUpperCase().endsWith("-AT") })).filter(x => x.cat != null);
+    const totalTyped = typed.length;
+    const categories = (Object.keys(DNA_LABELS) as DnaCatId[]).map(id => {
+      const inCat = typed.filter(x => x.cat === id);
+      const at = id === "setPiece" ? 0 : inCat.filter(x => x.at).length;
+      return {
+        id, label: DNA_LABELS[id], count: inCat.length,
+        dt: id === "setPiece" ? 0 : inCat.length - at, at,
+        pct: totalTyped ? (inCat.length / totalTyped) * 100 : null,
+        benchmarkLabel: DNA_BENCH[id].label,
+        verdict: totalTyped >= 12 && inCat.length + totalTyped > 0
+          ? ((inCat.length / totalTyped) * 100 > DNA_BENCH[id].hi ? "high" as const
+            : (inCat.length / totalTyped) * 100 < DNA_BENCH[id].lo ? "low" as const : null)
+          : null,
+      };
+    });
+
+    // Interpretation lines for THIS match's goals on this side.
+    const lineFor = (t: string, n: number): string | null => {
+      const s = t.toUpperCase();
+      const pre = n > 1 ? `${n} goals` : "Goal";
+      if (ours) {
+        if (s.startsWith("SP")) return `${pre} from a set piece${n > 1 ? "s" : ""} — the rehearsed stuff paying off.`;
+        if (s.startsWith("R-FT")) return `${pre} from a front-third regain — won it high; they're either playing out under pressure or vulnerable to our press.`;
+        if (s === "R-MT-DT") return `${pre} from a middle-third regain, during transition — they didn't reset quickly enough at the turnover and we went straight through.`;
+        if (s === "R-MT-AT") return `${pre} from a middle-third regain, after transition — they were set and organised, and we still worked through them.`;
+        if (s.startsWith("R-BT")) return `${pre} built from a back-third regain — played right through them from deep. Either they're easy to play through, or that's proper football${s.endsWith("-AT") ? " against a set defence" : ""}.`;
+      } else {
+        if (s.startsWith("SP")) return `Conceded from a set piece — marking and organisation to review.`;
+        if (s.startsWith("R-FT")) return `Conceded from a front-third regain — we lost it playing out and got punished. Vulnerable to the press; a mitigation job.`;
+        if (s === "R-MT-DT") return `Conceded during transition from a middle-third loss — we didn't get set quickly enough at the change of possession.`;
+        if (s === "R-MT-AT") return `Conceded after transition from a middle-third loss — we were set and they still worked through us.`;
+        if (s.startsWith("R-BT")) return `Conceded from their back-third regain — they played through our whole block from deep. Too much space between the lines.`;
+      }
+      return null;
+    };
+    const byType = new Map<string, number>();
+    for (const g of matchGoalsForSide) {
+      const t = g.goalType?.trim();
+      if (t && dnaCatOf(t)) byType.set(t, (byType.get(t) ?? 0) + 1);
+    }
+    const matchLines = [...byType.entries()].map(([t, n]) => lineFor(t, n)).filter((l): l is string => l != null);
+    return { totalTyped, categories, matchLines };
+  };
+  const goalsUpToAll = seasonGoals.filter(g => matchIdsUpTo.has(g.matchId));
+  const concededUpTo = goalsUpToAll.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  const matchOurGoals = matchGoals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  const matchConcededGoals = matchGoals.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  const dnaScored = dnaSide(ourGoalsUpTo, matchOurGoals, true);
+  const dnaConceded = dnaSide(concededUpTo, matchConcededGoals, false);
+  const dnaComments: string[] = [];
+  for (const c of dnaScored.categories) {
+    if (c.verdict === "high") dnaComments.push(`${c.label} are ${c.pct!.toFixed(0)}% of our goals (benchmark ${c.benchmarkLabel}) — a real strength, keep exploiting it.`);
+    else if (c.verdict === "low") dnaComments.push(`Only ${c.pct!.toFixed(0)}% of our goals come from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — an avenue we're not using enough.`);
+  }
+  for (const c of dnaConceded.categories) {
+    if (c.verdict === "high") dnaComments.push(`${c.pct!.toFixed(0)}% of goals conceded come from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to mitigate.`);
+    else if (c.verdict === "low") dnaComments.push(`We concede just ${c.pct!.toFixed(0)}% from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — holding up well there.`);
+  }
+  const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
+    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments }
+    : null;
+
   // ── Ball use: possession vs possession-effectiveness quadrant ────────────
   // X = possession share; Y = shots per 100 passes (how often the ball work
   // turns into a shot). Quadrant lines sit at the season averages, so
@@ -3049,7 +3141,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       formation: match.formation, oppFormation: match.oppFormation, cleanSheet: match.cleanSheet,
     },
     tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
-    gps, previousMeetings, ballUse,
+    gps, previousMeetings, ballUse, goalDna,
   }));
 });
 

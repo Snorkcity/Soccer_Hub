@@ -8,6 +8,7 @@
 import type { MatchReportBallUse } from './matchReportBallUse';
 import type { MatchReportFormEntry } from './matchReportFormEntry';
 import type { MatchReportGoal } from './matchReportGoal';
+import type { MatchReportGoalDna } from './matchReportGoalDna';
 import type { MatchReportGps } from './matchReportGps';
 import type { MatchReportHeader } from './matchReportHeader';
 import type { MatchReportInsight } from './matchReportInsight';
@@ -29,4 +30,5 @@ export interface MatchReportResponse {
   gps: MatchReportGps | null;
   previousMeetings: MatchReportMeeting[];
   ballUse: MatchReportBallUse | null;
+  goalDna: MatchReportGoalDna | null;
 }

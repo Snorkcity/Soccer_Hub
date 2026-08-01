@@ -3600,6 +3600,47 @@ components:
         sprintDistanceM: { type: ["number", "null"] }
       required: [name, position, mins, distanceKm, mPerMin, sprintDistanceM]
 
+    MatchReportGoalDnaCategory:
+      type: object
+      properties:
+        id:    { type: string, enum: [setPiece, frontThird, middleThird, backThird] }
+        label: { type: string }
+        count: { type: integer }
+        dt:    { type: integer, description: "During-transition goals in this category (regain categories only)." }
+        at:    { type: integer, description: "After-transition goals in this category (regain categories only)." }
+        pct:   { type: ["number", "null"] }
+        benchmarkLabel: { type: string, description: "e.g. 27% or 48-50%" }
+        verdict:
+          type: ["string", "null"]
+          enum: [high, low, null]
+          description: Season share sits clearly above/below the benchmark band (null = typical or sample too small).
+      required: [id, label, count, dt, at, pct, benchmarkLabel, verdict]
+
+    MatchReportGoalDnaSide:
+      type: object
+      properties:
+        totalTyped: { type: integer, description: "Season-to-date goals with a goal type recorded." }
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportGoalDnaCategory" }
+        matchLines:
+          type: array
+          items: { type: string }
+          description: Interpretation lines for THIS match's goals on this side.
+      required: [totalTyped, categories, matchLines]
+
+    MatchReportGoalDna:
+      type: object
+      description: The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
+      properties:
+        scored:   { $ref: "#/components/schemas/MatchReportGoalDnaSide" }
+        conceded: { $ref: "#/components/schemas/MatchReportGoalDnaSide" }
+        comments:
+          type: array
+          items: { type: string }
+          description: Season-level strength/weakness headlines from benchmark deviations.
+      required: [scored, conceded, comments]
+
     MatchReportBallUsePoint:
       type: object
       properties:
@@ -3670,7 +3711,11 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/MatchReportBallUse" }
             - { type: "null" }
-      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings, ballUse]
+        goalDna:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchReportGoalDna" }
+            - { type: "null" }
+      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings, ballUse, goalDna]
 
     GoalIntervalBucket:
       type: object
