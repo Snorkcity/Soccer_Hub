@@ -33,6 +33,9 @@ import {
   useListGpsPlayerPositions,
   getListGpsPlayerPositionsQueryKey,
   useSaveGpsPlayerPositions,
+  useListGpsPlayerEmails,
+  getListGpsPlayerEmailsQueryKey,
+  useSaveGpsPlayerEmails,
   useListLeagues,
   useCreateLeague,
   useCreateSeason,
@@ -2418,6 +2421,7 @@ function EntryWorkspace() {
           <TabsTrigger value="testing">5 · Testing</TabsTrigger>
           <TabsTrigger value="gps">6 · GPS</TabsTrigger>
           <TabsTrigger value="positions">7 · Positions</TabsTrigger>
+          <TabsTrigger value="emails">8 · Emails</TabsTrigger>
         </TabsList>
 
         {driblAvailable && (
@@ -2451,6 +2455,9 @@ function EntryWorkspace() {
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
           <PositionsForm leagueId={season?.leagueId ?? 0} />
+        </TabsContent>
+        <TabsContent value="emails" className="mt-6">
+          <EmailsForm leagueId={season?.leagueId ?? 0} />
         </TabsContent>
       </Tabs>
     </div>
@@ -2545,6 +2552,120 @@ function PositionsForm({ leagueId }: { leagueId: number }) {
               </Button>
               <p className="text-sm text-muted-foreground">
                 {unset ? `${unset} of ${names.length} players still without a position.` : `All ${names.length} players have a position.`}
+              </p>
+              {message && <p className="text-sm">{message}</p>}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GPS player emails — admin-only (mostly minors' addresses); one place to
+// add/fix/clear addresses without opening a send dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EmailsForm({ leagueId }: { leagueId: number }) {
+  const queryClient = useQueryClient();
+
+  // Every player name that has ever logged a GPS game (all years)
+  const gpsParams = { leagueId, split: "game" };
+  const { data: gpsRows, isLoading: loadingNames } = useListGpsSessions(
+    gpsParams,
+    { query: { enabled: leagueId > 0, queryKey: getListGpsSessionsQueryKey(gpsParams) } },
+  );
+  const names = useMemo(
+    () => [...new Set((gpsRows ?? []).map(r => r.playerName).filter((n): n is string => !!n && n !== "Unknown"))].sort(),
+    [gpsRows]);
+
+  const { data: saved, isLoading: loadingEmails } = useListGpsPlayerEmails(
+    { query: { queryKey: getListGpsPlayerEmailsQueryKey() } },
+  );
+  const savedMap = useMemo(() => new Map((saved ?? []).map(e => [e.playerName, e.email])), [saved]);
+
+  // Local edits layered over what's saved; "" = no email
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const valueOf = (n: string) => edits[n] ?? savedMap.get(n) ?? "";
+  const changed = (n: string) => (edits[n] ?? savedMap.get(n) ?? "").trim() !== (savedMap.get(n) ?? "");
+  const dirty = names.some(changed);
+  const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const invalid = names.filter(n => { const v = valueOf(n).trim(); return v !== "" && !looksLikeEmail(v); });
+
+  const [message, setMessage] = useState<string | null>(null);
+  const save = useSaveGpsPlayerEmails({ mutation: {
+    onSuccess: res => {
+      setEdits({});
+      setMessage(`Saved — ${res.saved} address${res.saved === 1 ? "" : "es"}${res.removed ? `, ${res.removed} cleared` : ""}.`);
+      void queryClient.invalidateQueries({ queryKey: getListGpsPlayerEmailsQueryKey() });
+    },
+    onError: e => setMessage(errMsg(e)),
+  }});
+
+  const submit = () => {
+    setMessage(null);
+    const body = names
+      .filter(changed)
+      .map(n => ({ playerName: n, email: valueOf(n).trim() || null }));
+    save.mutate({ data: body });
+  };
+
+  const missing = names.filter(n => !valueOf(n).trim()).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Player emails</CardTitle>
+        <CardDescription>
+          The addresses used by the "Email reports" buttons on GPS Insights and Testing. Admin-only — clear a
+          field and save to remove an address. Players without one are highlighted.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loadingNames || loadingEmails ? (
+          <p className="text-muted-foreground py-8 text-center">Loading players…</p>
+        ) : names.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-center">No GPS-logged players found.</p>
+        ) : (
+          <>
+            <div className="grid gap-x-6 gap-y-2 lg:grid-cols-2">
+              {names.map(n => {
+                const v = valueOf(n);
+                const bad = v.trim() !== "" && !looksLikeEmail(v.trim());
+                return (
+                  <div key={n} className="flex items-center gap-2 border-b py-1.5">
+                    <span className={`text-sm truncate w-36 shrink-0 ${!v.trim() ? "text-amber-600 dark:text-amber-500 font-medium" : ""}`}>{n}</span>
+                    <Input
+                      type="email"
+                      value={v}
+                      placeholder="No email saved"
+                      onChange={e => setEdits(prev => ({ ...prev, [n]: e.target.value }))}
+                      className={`h-8 text-xs ${bad ? "border-destructive" : !v.trim() ? "border-amber-500/50" : ""}`}
+                    />
+                    {v.trim() !== "" && (
+                      <Button
+                        variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground shrink-0"
+                        title={`Clear ${n}'s email`}
+                        onClick={() => setEdits(prev => ({ ...prev, [n]: "" }))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={submit} disabled={!dirty || invalid.length > 0 || save.isPending}>
+                {save.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Saving…</> : "Save emails"}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                {invalid.length > 0
+                  ? `${invalid.length} address${invalid.length === 1 ? " doesn't" : "es don't"} look valid — fix before saving.`
+                  : missing
+                    ? `${missing} of ${names.length} players still without an email.`
+                    : `All ${names.length} players have an email.`}
               </p>
               {message && <p className="text-sm">{message}</p>}
             </div>
