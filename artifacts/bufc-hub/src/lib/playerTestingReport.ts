@@ -35,17 +35,20 @@ export interface TestingReportInput {
   metrics: TestingMetricValue[]; // in display order
 }
 
-// ── Brand (kept identical to the GPS report) ─────────────────────────────────
+// ── Brand (kept identical to the GPS report — full dark theme) ───────────────
 
-const NAVY = "0F2C43";
+const NAVY = "0F2C43";      // title/closing background
+const BG = "0C2436";        // content page background (a touch deeper than NAVY)
 const SKY = "87CEEB";
 const SKY_DARK = "4FA8CF";
-const PURPLE = "9B5DE5";
+const PURPLE = "B07CF0";    // brightened for dark background
 const ORANGE = "ED8936";
-const INK = "1C2B36";
-const GREY = "647484";
+const INK = "DEEBF4";       // primary text on dark
+const GREY = "8FAEC2";      // secondary text on dark
 const PAPER = "FFFFFF";
-const TINT = "EFF7FB";
+const TINT = "16374E";      // panel/tile fill on dark
+const LINE = "265271";      // panel borders
+const GRID = "1E4058";      // chart gridlines
 
 const W = 13.33;
 const H = 7.5;
@@ -176,7 +179,14 @@ function speedTypeLine(metrics: TestingMetricValue[]): string {
 
 // ── Generator ────────────────────────────────────────────────────────────────
 
-export async function generatePlayerTestingReport(input: TestingReportInput): Promise<void> {
+/**
+ * Build the report. `output: "download"` (default) triggers a browser download;
+ * `output: "base64"` returns the PPTX as base64 (used by the bulk-email flow).
+ */
+export async function generatePlayerTestingReport(
+  input: TestingReportInput,
+  output: "download" | "base64" = "download",
+): Promise<{ fileName: string; base64?: string }> {
   const { default: PptxGenJS } = await import("pptxgenjs");
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "WIDE", width: W, height: H });
@@ -214,7 +224,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   // ── Snapshot slide — headline results as tiles ────────────────────────────
   {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Your results at a glance", `${input.playerName} — ${input.year} testing day`);
 
     const tileIds = ["total30m", "split010", "verticalM", "horizontalM", "balsomS", "split2030"];
@@ -227,11 +237,11 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
     tiles.forEach((m, i) => {
       const x = x0 + (i % 3) * (tw + gx);
       const y = y0 + Math.floor(i / 3) * (th + 0.3);
-      s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: "D7E9F2", width: 1 } });
-      s.addText(fmt(m.you, m.decimals), { x: x + 0.25, y: y + 0.14, w: tw - 0.5, h: 0.6, fontSize: 26, bold: true, color: NAVY });
+      s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
+      s.addText(fmt(m.you, m.decimals), { x: x + 0.25, y: y + 0.14, w: tw - 0.5, h: 0.6, fontSize: 26, bold: true, color: PAPER });
       s.addText(m.label.toUpperCase(), { x: x + 0.25, y: y + 0.78, w: tw - 0.5, h: 0.3, fontSize: 10, color: GREY, charSpacing: 2 });
       const stand = standingWords(m.percentile);
-      if (stand) s.addText(stand, { x: x + 0.25, y: y + 1.08, w: tw - 0.5, h: 0.3, fontSize: 10.5, italic: true, color: SKY_DARK });
+      if (stand) s.addText(stand, { x: x + 0.25, y: y + 1.08, w: tw - 0.5, h: 0.3, fontSize: 10.5, italic: true, color: SKY });
     });
 
     const bests = tested.filter(m => m.percentile != null && m.percentile >= 100);
@@ -246,7 +256,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   // ── Squad standing chart — percentile per test ────────────────────────────
   {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Where you sit in the squad",
       "Each bar is your standing in the squad for that test — 100 means nobody beat you. The dashed line is the middle of the squad.");
 
@@ -268,8 +278,8 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
       valAxisMinVal: 0, valAxisMaxVal: 100,
       catAxisLabelFontSize: 10, catAxisLabelColor: GREY,
-      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
-      showLegend: true, legendPos: "b", legendFontSize: 10,
+      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
+      showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
       catGridLine: { style: "none" },
     });
 
@@ -292,7 +302,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
     const splits = splitIds.map(id => get(metrics, id)).filter((m): m is TestingMetricValue => m != null && m.you != null);
     if (splits.length >= 2) {
       const s = pptx.addSlide();
-      s.background = { color: PAPER };
+      s.background = { color: BG };
       addHeader(s, "The 30 metre sprint, in three chapters",
         "0-10 is your first step, 10-20 is how you build, 20-30 is top gear. Lower is faster. Different players win different chapters — the game has room for all of them.");
 
@@ -308,8 +318,8 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
         x: 0.6, y: 1.55, w: 12.1, h: 4.7,
         chartColors: series.map(x => x.color), barGapWidthPct: 40, barGrouping: "clustered",
         catAxisLabelFontSize: 11, catAxisLabelColor: GREY,
-        valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
-        showLegend: true, legendPos: "b", legendFontSize: 10,
+        valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
+        showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
         dataLabelFormatCode: "0.00", showValue: true, dataLabelFontSize: 9, dataLabelColor: GREY,
         catGridLine: { style: "none" },
       });
@@ -321,24 +331,24 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   // ── Full numbers table ────────────────────────────────────────────────────
   {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Every test, with the squad around you",
       "Your result next to the squad average, " + (posLabel ? `the ${posLabel.toLowerCase()}s' average, ` : "") + "and the best mark anyone set. Sky-blue means you beat the squad average.");
 
     type Cell = { text: string; options?: Record<string, unknown> };
     const headCells = ["Test", "You", "Squad avg", ...(posLabel ? [`${posLabel}s avg`] : []), "Squad best", "Standing"];
     const headRow: Cell[] = headCells.map((t, i) => ({
-      text: t, options: { bold: true, color: PAPER, fill: { color: NAVY }, align: i === 0 ? "left" : "center" },
+      text: t, options: { bold: true, color: SKY, fill: { color: TINT }, align: i === 0 ? "left" : "center" },
     }));
     const rows: Cell[][] = [headRow];
     for (const m of metrics) {
       if (m.you == null && m.squadAvg == null) continue;
-      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      const fillCol = rows.length % 2 === 1 ? TINT : BG;
       const beatsSquad = m.you != null && m.squadAvg != null
         && (m.lowerIsBetter ? m.you <= m.squadAvg : m.you >= m.squadAvg);
       rows.push([
         { text: m.label, options: { align: "left", color: INK, fill: { color: fillCol } } },
-        { text: fmt(m.you, m.decimals), options: { align: "center", bold: true, color: beatsSquad ? SKY_DARK : NAVY, fill: { color: fillCol } } },
+        { text: fmt(m.you, m.decimals), options: { align: "center", bold: true, color: beatsSquad ? SKY_DARK : PAPER, fill: { color: fillCol } } },
         { text: fmt(m.squadAvg, m.decimals), options: { align: "center", color: GREY, fill: { color: fillCol } } },
         ...(posLabel ? [{ text: fmt(m.posAvg, m.decimals), options: { align: "center" as const, color: GREY, fill: { color: fillCol } } }] : []),
         { text: fmt(m.squadBest, m.decimals), options: { align: "center", color: GREY, fill: { color: fillCol } } },
@@ -348,7 +358,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
     const nCols = headCells.length;
     s.addTable(rows as never, {
       x: 0.75, y: 1.6, w: 11.8, colW: [3.4, ...Array(nCols - 1).fill((11.8 - 3.4) / (nCols - 1))],
-      fontSize: 11.5, rowH: 0.4, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+      fontSize: 11.5, rowH: 0.4, border: { type: "solid", color: LINE, pt: 0.5 },
       valign: "middle",
     });
     addInsightBar(s, `"Standing" is your place in the ${input.year} squad of ${input.squadSize} — "top 25%" means three quarters of the squad didn't beat your mark.`);
@@ -358,7 +368,7 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   // ── What you can trust / Be aware of ──────────────────────────────────────
   {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "What this means on the pitch",
       "Numbers are only useful if they change how you play. Trust the tools you have — and know what opponents will try, so it never surprises you.");
 
@@ -391,16 +401,16 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   // ── Year on year (only when the player has previous results) ─────────────
   if (input.prevYear && metrics.some(m => m.prevYou != null && m.you != null)) {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, `You vs you — ${input.prevYear} to ${input.year}`,
       "The only comparison that's entirely in your hands. Sky-blue means you beat your own mark from last time.");
 
     type Cell = { text: string; options?: Record<string, unknown> };
     const headRow: Cell[] = [
-      { text: "Test", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
-      { text: input.prevYear, options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
-      { text: input.year, options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
-      { text: "Change", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
+      { text: "Test", options: { bold: true, color: SKY, fill: { color: TINT }, align: "left" } },
+      { text: input.prevYear, options: { bold: true, color: SKY, fill: { color: TINT }, align: "center" } },
+      { text: input.year, options: { bold: true, color: SKY, fill: { color: TINT }, align: "center" } },
+      { text: "Change", options: { bold: true, color: SKY, fill: { color: TINT }, align: "center" } },
     ];
     const rows: Cell[][] = [headRow];
     let bestGain: { label: string; words: string; score: number } | null = null;
@@ -414,17 +424,17 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
         const relGain = diff / Math.abs(m.prevYou);
         if (!bestGain || relGain > bestGain.score) bestGain = { label: m.label, words, score: relGain };
       }
-      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      const fillCol = rows.length % 2 === 1 ? TINT : BG;
       rows.push([
         { text: m.label, options: { align: "left", color: INK, fill: { color: fillCol } } },
         { text: fmt(m.prevYou, m.decimals), options: { align: "center", color: GREY, fill: { color: fillCol } } },
-        { text: fmt(m.you, m.decimals), options: { align: "center", bold: true, color: improved ? SKY_DARK : NAVY, fill: { color: fillCol } } },
+        { text: fmt(m.you, m.decimals), options: { align: "center", bold: true, color: improved ? SKY_DARK : PAPER, fill: { color: fillCol } } },
         { text: words, options: { align: "center", color: improved ? SKY_DARK : same ? GREY : ORANGE, fill: { color: fillCol } } },
       ]);
     }
     s.addTable(rows as never, {
       x: 0.75, y: 1.6, w: 11.8, colW: [4.2, ...Array(3).fill((11.8 - 4.2) / 3)],
-      fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+      fontSize: 12, rowH: 0.42, border: { type: "solid", color: LINE, pt: 0.5 },
       valign: "middle",
     });
     addInsightBar(s, bestGain
@@ -453,17 +463,24 @@ export async function generatePlayerTestingReport(input: TestingReportInput): Pr
   }
 
   const safe = input.playerName.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
-  await pptx.writeFile({ fileName: `${safe || "Player"}-Testing-Report-${input.year}.pptx` });
+  // Filename convention matches the GPS report: Anneke-Testing_Report-2026.pptx
+  const fileName = `${safe || "Player"}-Testing_Report-${input.year}.pptx`;
+  if (output === "base64") {
+    const base64 = (await pptx.write({ outputType: "base64" })) as string;
+    return { fileName, base64 };
+  }
+  await pptx.writeFile({ fileName });
+  return { fileName };
 
   // ── slide furniture (identical to GPS report) ─────────────────────────────
   function addHeader(s: ReturnType<typeof pptx.addSlide>, title: string, sub: string) {
     s.addShape("rect", { x: 0, y: 0, w: W, h: 0.12, fill: { color: SKY } });
-    s.addText(title, { x: 0.6, y: 0.35, w: 12.1, h: 0.55, fontSize: 26, bold: true, color: NAVY });
+    s.addText(title, { x: 0.6, y: 0.35, w: 12.1, h: 0.55, fontSize: 26, bold: true, color: PAPER });
     s.addText(sub, { x: 0.6, y: 0.95, w: 12.1, h: 0.4, fontSize: 12.5, color: GREY });
   }
   function addInsightBar(s: ReturnType<typeof pptx.addSlide>, text: string) {
     if (!text) return;
-    s.addShape("roundRect", { x: 0.6, y: 6.35, w: 12.1, h: 0.62, fill: { color: TINT }, rectRadius: 0.06, line: { color: "D7E9F2", width: 1 } });
+    s.addShape("roundRect", { x: 0.6, y: 6.35, w: 12.1, h: 0.62, fill: { color: TINT }, rectRadius: 0.06, line: { color: LINE, width: 1 } });
     s.addText(text, { x: 0.85, y: 6.35, w: 11.7, h: 0.62, fontSize: 11.5, color: INK, valign: "middle" });
   }
   function addFooter(s: ReturnType<typeof pptx.addSlide>, inp: TestingReportInput) {

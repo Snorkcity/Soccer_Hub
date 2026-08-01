@@ -642,6 +642,8 @@ function EmailReportsDialog({ year }: { year: string }) {
       if (edits.length) { await saveGpsPlayerEmails(edits); await refetchEmails(); setEmailEdits(new Map()); }
     } catch {
       setBusy(false);
+      setDone(true);
+      setSendStates(new Map(targets.map(p => [p, { status: "failed" as const, reason: "Couldn't save the email edits — check the addresses and try again" }])));
       return;
     }
     const states = new Map<string, SendState>(targets.map(p => [p, { status: "pending" as const }]));

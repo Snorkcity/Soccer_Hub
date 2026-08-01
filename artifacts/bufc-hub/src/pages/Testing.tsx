@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useListAthleticTests, useListTeams, getListAthleticTestsQueryKey, type AthleticTest } from "@workspace/api-client-react";
+import {
+  useListAthleticTests, useListTeams, getListAthleticTestsQueryKey, type AthleticTest,
+  useListGpsPlayerEmails, getListGpsPlayerEmailsQueryKey, saveGpsPlayerEmails, sendGpsReportEmail,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +12,9 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
   ScatterChart, Scatter, LabelList, LineChart, Line,
 } from "recharts";
-import { Zap, ShieldAlert, FileDown, Loader2 } from "lucide-react";
+import { Zap, ShieldAlert, FileDown, Loader2, Mail, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague } from "@/contexts/LeagueContext";
@@ -17,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { generatePlayerTestingReport, type TestingMetricValue } from "@/lib/playerTestingReport";
+import { generatePlayerTestingReport, type TestingMetricValue, type TestingReportInput } from "@/lib/playerTestingReport";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metric metadata
@@ -449,6 +454,263 @@ function buildGameNotes(t: AthleticTest, squad: AthleticTest[]): { strengths: st
   return { strengths, cautions };
 }
 
+// ── Bulk email testing reports ───────────────────────────────────────────────
+
+const FROM_OPTIONS = [
+  "BUFC Performance Hub <noreply@gameinsights.com.au>",
+  "Scott Conlon <scott@gameinsights.com.au>",
+];
+
+type SendState = { status: "pending" | "sending" | "sent" | "failed"; reason?: string };
+
+/** Builds the same TestingReportInput as the single-player Report dialog. */
+function buildTestingReportInput(
+  player: string, tests: AthleticTest[], year: string, years: string[],
+  allTests: AthleticTest[], teamLabel: string,
+): TestingReportInput | null {
+  const t = tests.find(x => x.playerName === player);
+  if (!t) return null;
+  const posGroup = getPosGroup(t.position);
+  const prevYears = years.filter(y => y < year).reverse();
+  let prevYear: string | null = null;
+  let prevT: AthleticTest | undefined;
+  for (const py of prevYears) {
+    const found = allTests.find(x => x.year === py && x.playerName === player);
+    if (found) { prevYear = py; prevT = found; break; }
+  }
+  const metrics: TestingMetricValue[] = METRICS.map(m => {
+    const you = t[m.id] ?? null;
+    const vals = tests.map(s => s[m.id]).filter((x): x is number => x != null);
+    const posVals = posGroup === "Unknown" ? [] :
+      tests.filter(s => getPosGroup(s.position) === posGroup)
+        .map(s => s[m.id]).filter((x): x is number => x != null);
+    return {
+      id: m.id, label: m.label, decimals: m.decimals, lowerIsBetter: m.lowerIsBetter,
+      you,
+      percentile: you != null && vals.length ? pct(vals, you, m.lowerIsBetter) : null,
+      squadAvg: vals.length ? avg(vals) : null,
+      posAvg: posVals.length ? avg(posVals) : null,
+      squadBest: vals.length ? (m.lowerIsBetter ? Math.min(...vals) : Math.max(...vals)) : null,
+      prevYou: prevT?.[m.id] ?? null,
+    };
+  });
+  return {
+    playerName: player,
+    position: posGroup === "Unknown" ? null : posGroup,
+    teamLabel, year, prevYear,
+    squadSize: tests.length,
+    generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
+    metrics,
+  };
+}
+
+function EmailTestingReportsDialog({ tests, year, years, allTests, teamLabel }: {
+  tests: AthleticTest[]; year: string; years: string[]; allTests: AthleticTest[]; teamLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+  const { activeLeagueId } = useActiveLeague();
+
+  const { data: emails, refetch: refetchEmails } = useListGpsPlayerEmails(
+    { query: { enabled: open && isAdmin, queryKey: getListGpsPlayerEmailsQueryKey() } },
+  );
+  const savedEmailOf = useMemo(() => new Map((emails ?? []).map(e => [e.playerName, e.email])), [emails]);
+
+  const players = useMemo(() => [...new Set(tests.map(t => t.playerName))].sort(), [tests]);
+  const posOfPlayer = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of tests) m.set(t.playerName, getPosGroup(t.position));
+    return m;
+  }, [tests]);
+  const positionsPresent = useMemo(
+    () => POS_ORDER.filter(p => players.some(n => posOfPlayer.get(n) === p)),
+    [players, posOfPlayer]);
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [emailEdits, setEmailEdits] = useState<Map<string, string>>(new Map());
+  const emailOf = (p: string) => (emailEdits.has(p) ? emailEdits.get(p)! : savedEmailOf.get(p) ?? "");
+
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [from, setFrom] = useState(FROM_OPTIONS[0]);
+  const [sendStates, setSendStates] = useState<Map<string, SendState>>(new Map());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelected(new Set());
+    setEmailEdits(new Map());
+    setSendStates(new Map());
+    setSubject(`Your ${year} athletic testing report`);
+    setBody("Hi,\n\nAttached is your personalised athletic testing report — your results, where you sit in the squad, and what it means on the pitch. Bring any questions to training.\n\nCheers,\nScott");
+    setFrom(FROM_OPTIONS[0]);
+    setBusy(false);
+    setDone(false);
+  }, [open, year]);
+
+  const toggle = (p: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(p)) next.delete(p); else next.add(p);
+    return next;
+  });
+  const selectWhere = (pred: (p: string) => boolean) => setSelected(prev => {
+    const next = new Set(prev);
+    let allIn = true;
+    for (const p of players) if (pred(p) && !next.has(p)) { allIn = false; break; }
+    for (const p of players) if (pred(p)) { if (allIn) next.delete(p); else next.add(p); }
+    return next;
+  });
+
+  const send = async () => {
+    if (activeLeagueId == null) return;
+    setBusy(true);
+    setDone(false);
+    const targets = players.filter(p => selected.has(p));
+    // Save any email edits first so the addresses used are the addresses stored
+    const edits = [...emailEdits.entries()].map(([playerName, email]) => ({ playerName, email: email.trim() || null }));
+    try {
+      if (edits.length) { await saveGpsPlayerEmails(edits); await refetchEmails(); setEmailEdits(new Map()); }
+    } catch {
+      setBusy(false);
+      setDone(true);
+      setSendStates(new Map(targets.map(p => [p, { status: "failed" as const, reason: "Couldn't save the email edits — check the addresses and try again" }])));
+      return;
+    }
+    const states = new Map<string, SendState>(targets.map(p => [p, { status: "pending" as const }]));
+    setSendStates(new Map(states));
+
+    for (const p of targets) {
+      const email = emailOf(p).trim();
+      if (!email) {
+        states.set(p, { status: "failed", reason: "No email on file" });
+        setSendStates(new Map(states));
+        continue;
+      }
+      states.set(p, { status: "sending" });
+      setSendStates(new Map(states));
+      try {
+        const input = buildTestingReportInput(p, tests, year, years, allTests, teamLabel);
+        if (!input) throw new Error("no test row");
+        const { fileName, base64 } = await generatePlayerTestingReport(input, "base64");
+        await sendGpsReportEmail({
+          to: email,
+          subject: subject.trim() || `Your ${year} athletic testing report`,
+          body,
+          from,
+          fileName,
+          pptxBase64: base64!,
+          leagueId: activeLeagueId,
+        });
+        states.set(p, { status: "sent" });
+      } catch (e) {
+        console.error(e);
+        states.set(p, { status: "failed", reason: "Send failed" });
+      }
+      setSendStates(new Map(states));
+    }
+    setBusy(false);
+    setDone(true);
+  };
+
+  if (!isAdmin) return null;
+
+  const sentCount = [...sendStates.values()].filter(s => s.status === "sent").length;
+  const failedCount = [...sendStates.values()].filter(s => s.status === "failed").length;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Mail className="h-4 w-4 mr-2" />Email reports
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Email testing reports</DialogTitle>
+          <DialogDescription>
+            Builds each ticked player's personalised {year} testing report and emails it to them as a PowerPoint attachment.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Label className="mr-1">Players</Label>
+              <Button variant="secondary" size="sm" className="h-6 px-2 text-xs" onClick={() => selectWhere(() => true)}>All</Button>
+              {positionsPresent.map(pos => (
+                <Button key={pos} variant="secondary" size="sm" className="h-6 px-2 text-xs"
+                  onClick={() => selectWhere(p => posOfPlayer.get(p) === pos)}>{pos === "GK" ? "GKs" : `${pos}s`}</Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Tap a filter to tick that group (tap again to untick). Fix or add an email right in the list — it's saved when you send.</p>
+            <div className="rounded-md border divide-y max-h-64 overflow-y-auto">
+              {players.map(p => {
+                const st = sendStates.get(p);
+                return (
+                  <div key={p} className="flex items-center gap-2 px-3 py-1.5">
+                    <Checkbox checked={selected.has(p)} onCheckedChange={() => toggle(p)} disabled={busy} />
+                    <button className="text-sm text-left min-w-0 shrink-0 w-28 truncate" onClick={() => !busy && toggle(p)}>{p}</button>
+                    <span className="text-[10px] text-muted-foreground w-20 shrink-0 truncate">
+                      {posOfPlayer.get(p) !== "Unknown" ? posOfPlayer.get(p) : ""}
+                    </span>
+                    <Input
+                      value={emailOf(p)}
+                      onChange={e => setEmailEdits(prev => new Map(prev).set(p, e.target.value))}
+                      placeholder="No email on file"
+                      disabled={busy}
+                      className="h-7 text-xs flex-1 min-w-0"
+                    />
+                    <span className="w-5 shrink-0 flex justify-center">
+                      {st?.status === "sending" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                      {st?.status === "sent" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                      {st?.status === "failed" && (
+                        <span title={st.reason}><XCircle className="h-3.5 w-3.5 text-destructive" /></span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">{selected.size} of {players.length} players ticked</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="tem-from">Send from</Label>
+            <Select value={from} onValueChange={setFrom} disabled={busy}>
+              <SelectTrigger id="tem-from"><SelectValue /></SelectTrigger>
+              <SelectContent>{FROM_OPTIONS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tem-subject">Subject</Label>
+            <Input id="tem-subject" value={subject} onChange={e => setSubject(e.target.value)} disabled={busy} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tem-body">Message</Label>
+            <Textarea id="tem-body" rows={5} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+          </div>
+
+          {done && (
+            <div className={`flex items-center gap-2 text-sm rounded-md border p-3 ${failedCount ? "border-amber-500/50" : "border-green-500/50"}`}>
+              {failedCount ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+              <span>{sentCount} sent{failedCount ? `, ${failedCount} failed — check the list above (hover the red cross for the reason)` : " — all done"}</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>{done ? "Close" : "Cancel"}</Button>
+          <Button onClick={send} disabled={busy || selected.size === 0}>
+            {busy
+              ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Sending {sentCount + failedCount + 1} of {selected.size}…</>
+              : <><Mail className="h-4 w-4 mr-1.5" /> Send to {selected.size} player{selected.size === 1 ? "" : "s"}</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PlayerProfile({ tests, year, years, allTests, teamLabel }: {
   tests: AthleticTest[]; year: string; years: string[]; allTests: AthleticTest[]; teamLabel: string;
 }) {
@@ -488,45 +750,9 @@ function PlayerProfile({ tests, year, years, allTests, teamLabel }: {
     setGenerating(true);
     setReportError(null);
     try {
-      const posGroup = getPosGroup(t.position);
-      // Previous year in which THIS player actually has results
-      const prevYears = years.filter(y => y < year).reverse();
-      let prevYear: string | null = null;
-      let prevT: AthleticTest | undefined;
-      for (const py of prevYears) {
-        const found = allTests.find(x => x.year === py && x.playerName === player);
-        if (found) { prevYear = py; prevT = found; break; }
-      }
-      const metrics: TestingMetricValue[] = METRICS.map(m => {
-        const you = t[m.id] ?? null;
-        const vals = tests.map(s => s[m.id]).filter((x): x is number => x != null);
-        const posVals = posGroup === "Unknown" ? [] :
-          tests.filter(s => getPosGroup(s.position) === posGroup)
-            .map(s => s[m.id]).filter((x): x is number => x != null);
-        return {
-          id: m.id,
-          label: m.label,
-          decimals: m.decimals,
-          lowerIsBetter: m.lowerIsBetter,
-          you,
-          percentile: you != null && vals.length ? pct(vals, you, m.lowerIsBetter) : null,
-          squadAvg: vals.length ? avg(vals) : null,
-          posAvg: posVals.length ? avg(posVals) : null,
-          squadBest: vals.length ? (m.lowerIsBetter ? Math.min(...vals) : Math.max(...vals)) : null,
-          prevYou: prevT?.[m.id] ?? null,
-        };
-      });
-      await generatePlayerTestingReport({
-        playerName: player,
-        position: posGroup === "Unknown" ? null : posGroup,
-        teamLabel,
-        year,
-        prevYear,
-        squadSize: tests.length,
-        coachNote: coachNote.trim() || undefined,
-        generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
-        metrics,
-      });
+      const input = buildTestingReportInput(player, tests, year, years, allTests, teamLabel);
+      if (!input) throw new Error("no test row");
+      await generatePlayerTestingReport({ ...input, coachNote: coachNote.trim() || undefined });
       setReportOpen(false);
     } catch {
       setReportError("Something went wrong building the report — try again, and if it keeps happening let me know.");
@@ -581,6 +807,7 @@ function PlayerProfile({ tests, year, years, allTests, teamLabel }: {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <EmailTestingReportsDialog tests={tests} year={year} years={years} allTests={allTests} teamLabel={teamLabel} />
           </div>
         </CardHeader>
         <CardContent className="h-[400px]">
