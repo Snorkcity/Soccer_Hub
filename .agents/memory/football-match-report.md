@@ -1,0 +1,14 @@
+---
+name: Football Match Report
+description: Season Stats "Match Report" tab — /analytics/match-report endpoint, score orientation gotcha, insight conventions
+---
+
+# Football Match Report (Season Stats tab)
+
+- Server-computed: GET /analytics/match-report (teamId, seasonId, matchRowId = matches row id) in `artifacts/api-server/src/routes/analytics.ts`; UI is `artifacts/bufc-hub/src/components/MatchReportTab.tsx`, 4th tab in SeasonStats.
+- **half_score / full_score are stored HOME–AWAY, not us–them.** Derive orientation by matching full_score against goalsScored/goalsConceded, flip the half score the same way; skip HT insights when ambiguous. Getting this wrong produced "came from 1–6 down to win" on an 8–1 away win.
+- **Why:** match_id encodes home/away (R17-TUG-BEL = away), the scores follow the fixture, but goalsScored/Conceded are already us-centric.
+- Season-to-date context deliberately uses matchDate <= this match's date for league tally/ladder ("after this round" — same-day fixtures across the league included). Our own team ordering tie-breaks by row id.
+- Conceded goal rows show opponent scorer if recorded, else scorerTeam club name; own goals in our favour keep scorer "OG" with no note.
+- Insight/notes conventions Scott saw and liked: brace/hat-trick, "N for the season", league scorer rank (from league_goals, OG excluded), clean-sheet streak with named started back line (position ∈ GK/CB/LB/RB/LWB/RWB/DM), HT swing, win/unbeaten streaks, ladder line.
+- Dribl-era matches (R16+ in season 4) have no possession/shots/passes — tiles with null values are filtered out server-side; don't "fix" that by zero-filling.
