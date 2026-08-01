@@ -958,6 +958,65 @@ export const GetTeamFormResponse = zod.object({
 
 
 /**
+ * @summary Coach-style single-match report with season context (form, tiles, scorers, insights)
+ */
+export const GetMatchReportQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "matchRowId": zod.coerce.number().describe('The matches table row id (not the text match_id)')
+})
+
+export const GetMatchReportResponse = zod.object({
+  "header": zod.object({
+  "matchLabel": zod.string(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullish(),
+  "venue": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "halfScore": zod.string().nullish(),
+  "fullScore": zod.string().nullish(),
+  "goalsScored": zod.number().nullish(),
+  "goalsConceded": zod.number().nullish(),
+  "formation": zod.string().nullish(),
+  "oppFormation": zod.string().nullish(),
+  "cleanSheet": zod.boolean().nullish()
+}),
+  "tiles": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "value": zod.number().nullable(),
+  "unit": zod.string(),
+  "decimals": zod.number(),
+  "seasonAvg": zod.number().nullable(),
+  "deltaPct": zod.number().nullable(),
+  "rank": zod.number().nullable(),
+  "outOf": zod.number().nullable(),
+  "higherIsBetter": zod.boolean()
+})),
+  "goals": zod.array(zod.object({
+  "minute": zod.number().nullable(),
+  "scorer": zod.string().nullable(),
+  "assist": zod.string().nullable(),
+  "ours": zod.boolean(),
+  "note": zod.string().nullable()
+})),
+  "insights": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+})),
+  "form": zod.array(zod.object({
+  "result": zod.string(),
+  "opponent": zod.string(),
+  "score": zod.string(),
+  "isThisMatch": zod.boolean()
+})),
+  "ladderPos": zod.number().nullable(),
+  "ladderPoints": zod.number().nullable(),
+  "teamsInLeague": zod.number().nullable()
+})
+
+
+/**
  * @summary Goals scored and conceded by 15-minute interval
  */
 export const GetGoalsByIntervalQueryParams = zod.object({

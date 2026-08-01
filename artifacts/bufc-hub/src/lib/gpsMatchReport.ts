@@ -302,6 +302,18 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const vs = bothHalves.map(b => (b[side] ? f(b[side]!) : null)).filter((v): v is number => v != null);
     return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
   };
+  // Best/worst labels read "R7 v Croatia" — round number plus opponent —
+  // rather than the raw Catapult round tag like "R7-1sts".
+  const roundOpp = new Map<string, string | null>();
+  for (const b of byKey.values()) {
+    if (!roundOpp.get(b.round)) roundOpp.set(b.round, b.opponent);
+  }
+  const roundLabel = (rd: string) => {
+    const short = rd.replace(/-[^-]+$/, "");
+    const opp = roundOpp.get(rd);
+    return opp ? `${short} v ${opp}` : short;
+  };
+
   // Season context: the same 1st→2nd-half change computed for every OTHER
   // round this season (only bundles with both halves count, same as above).
   const halfChangeForRound = (rd: string, f: (r: GpsSession) => Num): Num => {
@@ -327,8 +339,8 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     return {
       id, label, unit, decimals, h1, h2, changePct: pctDelta(h2, h1),
       seasonChangePct: avg(others.map(x => x.pct)),
-      bestChange: bestX ? { pct: bestX.pct, round: bestX.rd } : null,
-      worstChange: worstX ? { pct: worstX.pct, round: worstX.rd } : null,
+      bestChange: bestX ? { pct: bestX.pct, round: roundLabel(bestX.rd) } : null,
+      worstChange: worstX ? { pct: worstX.pct, round: roundLabel(worstX.rd) } : null,
     };
   };
   const halves: HalfLine[] = bothHalves.length

@@ -72,6 +72,7 @@ import type {
   GetGoalsByOpponentParams,
   GetGpsLoadSummaryParams,
   GetLeagueLadderParams,
+  GetMatchReportParams,
   GetOpponentClubsParams,
   GetOpponentClutchGoalsParams,
   GetOpponentFirstSubParams,
@@ -158,6 +159,7 @@ import type {
   MatchPrepReport,
   MatchPrepReportCreateRequest,
   MatchPrepReportUpdateRequest,
+  MatchReportResponse,
   MatchUpdate,
   OkResponse,
   OpponentGoalBreakdownResponse,
@@ -2822,6 +2824,90 @@ export function useGetTeamForm<TData = Awaited<ReturnType<typeof getTeamForm>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTeamFormQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMatchReportUrl = (params: GetMatchReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/match-report?${stringifiedParams}` : `/api/analytics/match-report`
+}
+
+/**
+ * @summary Coach-style single-match report with season context (form, tiles, scorers, insights)
+ */
+export const getMatchReport = async (params: GetMatchReportParams, options?: RequestInit): Promise<MatchReportResponse> => {
+
+  return customFetch<MatchReportResponse>(getGetMatchReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMatchReportQueryKey = (params?: GetMatchReportParams,) => {
+    return [
+    `/api/analytics/match-report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMatchReportQueryOptions = <TData = Awaited<ReturnType<typeof getMatchReport>>, TError = ErrorType<void>>(params: GetMatchReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatchReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMatchReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatchReport>>> = ({ signal }) => getMatchReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMatchReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMatchReportQueryResult = NonNullable<Awaited<ReturnType<typeof getMatchReport>>>
+export type GetMatchReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Coach-style single-match report with season context (form, tiles, scorers, insights)
+ */
+
+export function useGetMatchReport<TData = Awaited<ReturnType<typeof getMatchReport>>, TError = ErrorType<void>>(
+ params: GetMatchReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMatchReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMatchReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

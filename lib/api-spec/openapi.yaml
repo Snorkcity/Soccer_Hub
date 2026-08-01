@@ -748,6 +748,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/TeamForm"
 
+  /analytics/match-report:
+    get:
+      operationId: getMatchReport
+      tags: [analytics]
+      summary: Coach-style single-match report with season context (form, tiles, scorers, insights)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchRowId
+          in: query
+          required: true
+          description: The matches table row id (not the text match_id)
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Match report model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchReportResponse"
+        "404":
+          description: Match not found
+
   /analytics/goals-by-interval:
     get:
       operationId: getGoalsByInterval
@@ -3330,6 +3359,85 @@ components:
         goalsConceded: { type: integer }
         matchDate:     { type: ["string", "null"] }
       required: [opponent, result, goalsScored, goalsConceded]
+
+    MatchReportHeader:
+      type: object
+      properties:
+        matchLabel:   { type: string }
+        opponent:     { type: string }
+        matchDate:    { type: ["string", "null"] }
+        venue:        { type: ["string", "null"] }
+        result:       { type: ["string", "null"] }
+        halfScore:    { type: ["string", "null"] }
+        fullScore:    { type: ["string", "null"] }
+        goalsScored:  { type: ["integer", "null"] }
+        goalsConceded: { type: ["integer", "null"] }
+        formation:    { type: ["string", "null"] }
+        oppFormation: { type: ["string", "null"] }
+        cleanSheet:   { type: ["boolean", "null"] }
+      required: [matchLabel, opponent]
+
+    MatchReportTile:
+      type: object
+      properties:
+        id:        { type: string }
+        label:     { type: string }
+        value:     { type: ["number", "null"] }
+        unit:      { type: string }
+        decimals:  { type: integer }
+        seasonAvg: { type: ["number", "null"] }
+        deltaPct:  { type: ["number", "null"] }
+        rank:      { type: ["integer", "null"] }
+        outOf:     { type: ["integer", "null"] }
+        higherIsBetter: { type: boolean }
+      required: [id, label, value, unit, decimals, seasonAvg, deltaPct, rank, outOf, higherIsBetter]
+
+    MatchReportGoal:
+      type: object
+      properties:
+        minute: { type: ["integer", "null"] }
+        scorer: { type: ["string", "null"] }
+        assist: { type: ["string", "null"] }
+        ours:   { type: boolean }
+        note:   { type: ["string", "null"] }
+      required: [minute, scorer, assist, ours, note]
+
+    MatchReportInsight:
+      type: object
+      properties:
+        tone: { type: string, enum: [good, watch, info] }
+        text: { type: string }
+      required: [tone, text]
+
+    MatchReportFormEntry:
+      type: object
+      properties:
+        result:   { type: string }
+        opponent: { type: string }
+        score:    { type: string }
+        isThisMatch: { type: boolean }
+      required: [result, opponent, score, isThisMatch]
+
+    MatchReportResponse:
+      type: object
+      properties:
+        header: { $ref: "#/components/schemas/MatchReportHeader" }
+        tiles:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportTile" }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportGoal" }
+        insights:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportInsight" }
+        form:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportFormEntry" }
+        ladderPos:    { type: ["integer", "null"] }
+        ladderPoints: { type: ["integer", "null"] }
+        teamsInLeague: { type: ["integer", "null"] }
+      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague]
 
     GoalIntervalBucket:
       type: object

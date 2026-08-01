@@ -47,6 +47,8 @@ import {
   GetOpponentPlayerDnaResponse,
   GetOpponentFirstSubQueryParams,
   GetOpponentFirstSubResponse,
+  GetMatchReportQueryParams,
+  GetMatchReportResponse,
   GetClutchGoalsQueryParams,
   GetClutchGoalsResponse,
   GetOpponentClutchGoalsQueryParams,
@@ -2589,6 +2591,276 @@ router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
         club,
       );
     })(),
+  }));
+});
+
+// ─── Match Report (coach-style single-match insights with season context) ─────
+
+router.get("/analytics/match-report", async (req, res): Promise<void> => {
+  const query = GetMatchReportQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { teamId, seasonId, matchRowId } = query.data;
+  const focusClub = await focusClubForRequest(req, seasonId);
+
+  const allMatches = await db
+    .select()
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  const match = allMatches.find(m => m.id === matchRowId);
+  if (!match) {
+    res.status(404).json({ error: "Match not found" });
+    return;
+  }
+  // Chronological order; everything "before" is season-to-date at kickoff.
+  // Same-day fixtures tie-break by row id so the ordering is deterministic.
+  const ordered = allMatches
+    .slice()
+    .sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? "") || a.id - b.id);
+  const idx = ordered.findIndex(m => m.id === matchRowId);
+  const upTo = ordered.slice(0, idx + 1);
+
+  type MatchRow = typeof allMatches[number];
+  const resultOf = (m: MatchRow): "W" | "D" | "L" | null =>
+    m.goalsScored == null || m.goalsConceded == null ? null
+      : m.goalsScored > m.goalsConceded ? "W" : m.goalsScored < m.goalsConceded ? "L" : "D";
+  const result = resultOf(match);
+  const roundShort = match.matchId.split("-")[0];
+  const matchLabel = `${roundShort} v ${match.opponent}`;
+
+  // ── Tiles: this match vs season average, with a season rank ──────────────
+  const num = (v: string | number | null | undefined): number | null =>
+    v == null ? null : typeof v === "number" ? v : Number.isFinite(Number(v)) ? Number(v) : null;
+  const tile = (
+    id: string, label: string, unit: string, decimals: number,
+    f: (m: MatchRow) => number | null, higherIsBetter: boolean,
+  ) => {
+    const value = f(match);
+    const others = ordered.filter(m => m.id !== matchRowId).map(f).filter((v): v is number => v != null);
+    const seasonAvg = others.length ? others.reduce((a, b) => a + b, 0) / others.length : null;
+    const deltaPct = value != null && seasonAvg ? ((value - seasonAvg) / Math.abs(seasonAvg)) * 100 : null;
+    const all = ordered.map(f).filter((v): v is number => v != null);
+    const rank = value == null ? null
+      : 1 + all.filter(v => (higherIsBetter ? v > value : v < value)).length;
+    return { id, label, value, unit, decimals, seasonAvg, deltaPct, rank: value == null ? null : rank, outOf: value == null ? null : all.length, higherIsBetter };
+  };
+  const tiles = [
+    tile("goalsFor", "Goals scored", "", 0, m => m.goalsScored, true),
+    tile("goalsAgainst", "Goals conceded", "", 0, m => m.goalsConceded, false),
+    tile("possession", "Possession", "%", 0, m => num(m.possession), true),
+    tile("shots", "Shots", "", 0, m => m.shots, true),
+    tile("oppShots", "Shots against", "", 0, m => m.oppShots, false),
+    tile("passes", "Passes", "", 0, m => m.passes, true),
+  ].filter(t => t.value != null);
+
+  // ── Goals in this match, with roster attribution + season milestones ─────
+  const seasonGoals = await db
+    .select()
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId)));
+  const stats = await db
+    .select()
+    .from(playerStatsTable)
+    .where(and(inArray(playerStatsTable.matchId, allMatches.map(m => m.id)), eq(playerStatsTable.club, focusClub)));
+  const roster = new Set(stats.map(s => s.playerName));
+
+  const matchIdsUpTo = new Set(upTo.map(m => m.id));
+  const ourGoalsUpTo = seasonGoals.filter(g => matchIdsUpTo.has(g.matchId) && isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  const tallyBy = (pick: (g: typeof seasonGoals[number]) => string | null) => {
+    const t = new Map<string, number>();
+    for (const g of ourGoalsUpTo) {
+      const name = pick(g)?.trim();
+      if (!name || name === "OG") continue;
+      t.set(name, (t.get(name) ?? 0) + 1);
+    }
+    return t;
+  };
+  const goalTally = tallyBy(g => g.scorer);
+  const assistTally = tallyBy(g => g.assist);
+  const teamTopGoals = Math.max(0, ...goalTally.values());
+
+  // League-wide top scorers — season to date, all clubs, own goals excluded.
+  // The date cutoff is deliberately <= this match's date: league context reads
+  // as "after this round", so same-day fixtures across the league are included.
+  const leagueGoalRows = await db
+    .select({ scorer: leagueGoalsTable.scorer, scorerTeam: leagueGoalsTable.scorerTeam, matchDate: leagueGoalsTable.matchDate })
+    .from(leagueGoalsTable)
+    .where(eq(leagueGoalsTable.seasonId, seasonId));
+  const cutoff = match.matchDate ?? "9999";
+  const leagueTally = new Map<string, { club: string | null; count: number }>();
+  for (const g of leagueGoalRows) {
+    const name = g.scorer?.trim();
+    if (!name || name === "OG") continue;
+    if ((g.matchDate ?? "") > cutoff) continue;
+    const e = leagueTally.get(name) ?? { club: g.scorerTeam ?? null, count: 0 };
+    e.count++;
+    leagueTally.set(name, e);
+  }
+  const leagueMax = Math.max(0, ...[...leagueTally.values()].map(e => e.count));
+  const leagueRankOf = (name: string): number | null => {
+    const mine = leagueTally.get(name)?.count;
+    if (!mine) return null;
+    return 1 + [...leagueTally.values()].filter(e => e.count > mine).length;
+  };
+
+  const matchGoals = seasonGoals
+    .filter(g => g.matchId === match.id)
+    .sort((a, b) => (a.minuteScored ?? 999) - (b.minuteScored ?? 999));
+  const goals = matchGoals.map(g => {
+    const ours = isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub);
+    let note: string | null = null;
+    if (ours && g.scorer && g.scorer !== "OG") {
+      const season = goalTally.get(g.scorer.trim()) ?? 0;
+      const inThisGame = matchGoals.filter(x => x.scorer?.trim() === g.scorer!.trim() && isFocusGoal(x.scorer, x.scorerTeam, roster, focusClub)).length;
+      const bits: string[] = [];
+      if (inThisGame >= 3) bits.push("hat-trick");
+      else if (inThisGame === 2) bits.push("brace");
+      bits.push(`${season} for the season`);
+      const lr = leagueRankOf(g.scorer.trim());
+      if (lr === 1) bits.push("leads the league");
+      else if (lr != null && lr <= 5) bits.push(`top ${lr} in the league`);
+      else if (season === teamTopGoals && teamTopGoals > 1) bits.push("our top scorer");
+      note = bits.join(" · ");
+    }
+    // Conceded rows show the opponent scorer when recorded, otherwise the club name.
+    const concededBy = g.scorer && g.scorer !== "OG" ? g.scorer : g.scorerTeam ?? null;
+    return { minute: g.minuteScored, scorer: ours ? g.scorer : concededBy, assist: ours ? g.assist : null, ours, note };
+  });
+
+  // ── Form strip (last 5 up to & incl. this match) + ladder position ────────
+  const form = upTo.slice(-5).map(m => ({
+    result: resultOf(m) ?? "?",
+    opponent: m.opponent,
+    score: m.goalsScored != null && m.goalsConceded != null ? `${m.goalsScored}–${m.goalsConceded}` : "—",
+    isThisMatch: m.id === matchRowId,
+  }));
+  const leagueMatches = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  const standings = new Map<string, { pts: number; gd: number; gf: number }>();
+  for (const m of leagueMatches) {
+    if (!/^R\d/.test(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
+    if ((m.matchDate ?? "") > cutoff) continue;
+    const upd = (club: string, gf: number, ga: number) => {
+      const e = standings.get(club) ?? { pts: 0, gd: 0, gf: 0 };
+      e.pts += gf > ga ? 3 : gf === ga ? 1 : 0;
+      e.gd += gf - ga; e.gf += gf;
+      standings.set(club, e);
+    };
+    upd(m.homeTeam, m.homeGoals, m.awayGoals);
+    upd(m.awayTeam, m.awayGoals, m.homeGoals);
+  }
+  const table = [...standings.entries()].sort((a, b) => b[1].pts - a[1].pts || b[1].gd - a[1].gd || b[1].gf - a[1].gf);
+  const posIdx = table.findIndex(([club]) => club === focusClub);
+  const ladderPos = posIdx >= 0 ? posIdx + 1 : null;
+  const ladderPoints = posIdx >= 0 ? table[posIdx][1].pts : null;
+  const teamsInLeague = table.length ? table.length : null;
+
+  // ── Insights — the "EPL analyst" one-liners ───────────────────────────────
+  const ord = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+  const insights: Array<{ tone: "good" | "watch" | "info"; text: string }> = [];
+
+  // Result + streaks
+  const resultsUpTo = upTo.map(resultOf);
+  let streak = 0;
+  const last = resultsUpTo[resultsUpTo.length - 1];
+  for (let i = resultsUpTo.length - 1; i >= 0 && resultsUpTo[i] === last; i--) streak++;
+  if (result === "W" && streak >= 2) insights.push({ tone: "good", text: `That's ${streak} wins on the trot.` });
+  else if (result === "L" && streak >= 2) insights.push({ tone: "watch", text: `${streak} losses in a row — one to arrest.` });
+  let unbeaten = 0;
+  for (let i = resultsUpTo.length - 1; i >= 0 && resultsUpTo[i] !== null && resultsUpTo[i] !== "L"; i--) unbeaten++;
+  if (result !== "L" && unbeaten >= 3 && unbeaten > streak) insights.push({ tone: "good", text: `Unbeaten in ${unbeaten}.` });
+
+  // Half-time story
+  const parseScore = (s: string | null): [number, number] | null => {
+    const m2 = s?.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    return m2 ? [Number(m2[1]), Number(m2[2])] : null;
+  };
+  // half_score/full_score are stored home–away, not us–them. Work out which
+  // side is ours by matching full_score against goalsScored/Conceded, then
+  // apply the same orientation to the half-time score. Ambiguous → skip.
+  const fs = parseScore(match.fullScore);
+  const flip =
+    fs && match.goalsScored != null && match.goalsConceded != null
+      ? fs[0] === match.goalsScored && fs[1] === match.goalsConceded ? false
+        : fs[0] === match.goalsConceded && fs[1] === match.goalsScored ? true
+        : null
+      : null;
+  const htRaw = parseScore(match.halfScore);
+  const ht = htRaw && flip != null ? (flip ? [htRaw[1], htRaw[0]] as [number, number] : htRaw) : null;
+  if (ht && result) {
+    const [h1, h2] = ht;
+    const htResult = h1 > h2 ? "W" : h1 < h2 ? "L" : "D";
+    if (htResult === "L" && result === "W") insights.push({ tone: "good", text: `Came from ${h1}–${h2} down at the break to win — a proper second-half response.` });
+    else if (htResult === "L" && result === "D") insights.push({ tone: "good", text: `Behind at half-time, level at full-time — good character shown after the break.` });
+    else if (htResult === "W" && result === "L") insights.push({ tone: "watch", text: `Led ${h1}–${h2} at half-time and lost — the second half got away from us.` });
+    else if (htResult === "W" && result === "W" && (match.goalsScored ?? 0) - h1 >= 2) insights.push({ tone: "good", text: `Kicked on after the break — ${(match.goalsScored ?? 0) - h1} second-half goals.` });
+  }
+
+  // Clean sheets — streak + who kept it
+  if (match.cleanSheet) {
+    let cs = 0;
+    for (let i = upTo.length - 1; i >= 0 && upTo[i].cleanSheet; i--) cs++;
+    const backline = stats
+      .filter(s => s.matchId === match.id && s.started && s.position && /^(GK|CB|LB|RB|LWB|RWB|DM)$/i.test(s.position))
+      .map(s => s.playerName);
+    const who = backline.length ? ` ${backline.join(", ")} held the fort.` : "";
+    insights.push({
+      tone: "good",
+      text: cs >= 2 ? `Clean sheet — that's ${cs} shut-outs in a row.${who}` : `Clean sheet.${who}`,
+    });
+  }
+  const totalCs = upTo.filter(m => m.cleanSheet).length;
+  if (!match.cleanSheet && (match.goalsConceded ?? 0) >= 3) {
+    insights.push({ tone: "watch", text: `${match.goalsConceded} conceded — only ${totalCs} clean sheet${totalCs === 1 ? "" : "s"} so far this season.` });
+  }
+
+  // Shots against — best defensive shift of the season?
+  const oa = tiles.find(t => t.id === "oppShots");
+  if (oa && oa.rank === 1 && (oa.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Fewest shots faced all season (${oa.value}).` });
+  const poss = tiles.find(t => t.id === "possession");
+  if (poss && poss.rank === 1 && (poss.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Best possession share of the season (${poss.value}%).` });
+  else if (poss && poss.rank === poss.outOf && (poss.outOf ?? 0) >= 3) insights.push({ tone: "info", text: `Lowest possession of the season (${poss.value}%) — worth pairing with the result before judging it.` });
+
+  // Assist milestone — did anyone move top of our assist charts today?
+  const teamTopAssists = Math.max(0, ...assistTally.values());
+  const todaysAssisters = new Set(matchGoals.map(g => g.assist?.trim()).filter((a): a is string => !!a && a !== "OG"));
+  for (const a of todaysAssisters) {
+    if ((assistTally.get(a) ?? 0) === teamTopAssists && teamTopAssists >= 2) {
+      insights.push({ tone: "good", text: `${a} now has ${teamTopAssists} assists — top of our charts.` });
+      break;
+    }
+  }
+
+  // Late drama
+  const winner = [...matchGoals].reverse().find(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  if (result === "W" && winner?.minuteScored != null && winner.minuteScored >= 85 && (match.goalsScored ?? 0) - (match.goalsConceded ?? 0) === 1) {
+    insights.push({ tone: "good", text: `Winner in the ${ord(winner.minuteScored)} minute — late, late show from ${winner.scorer}.` });
+  }
+
+  // League scorer headline (independent of who scored today)
+  const ourLeagueLeader = [...leagueTally.entries()]
+    .filter(([, e]) => e.club === focusClub)
+    .sort((a, b) => b[1].count - a[1].count)[0];
+  if (ourLeagueLeader && ourLeagueLeader[1].count === leagueMax && leagueMax >= 3) {
+    insights.push({ tone: "info", text: `${ourLeagueLeader[0]} sits top of the league scoring charts on ${leagueMax}.` });
+  }
+
+  if (ladderPos != null) {
+    insights.push({ tone: "info", text: `${ord(ladderPos)} of ${teamsInLeague} after this round on ${ladderPoints} points.` });
+  }
+
+  res.json(GetMatchReportResponse.parse({
+    header: {
+      matchLabel, opponent: match.opponent, matchDate: match.matchDate, venue: match.venue,
+      result, halfScore: match.halfScore, fullScore: match.fullScore,
+      goalsScored: match.goalsScored, goalsConceded: match.goalsConceded,
+      formation: match.formation, oppFormation: match.oppFormation, cleanSheet: match.cleanSheet,
+    },
+    tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
   }));
 });
 

@@ -60,6 +60,7 @@ import {
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
+import MatchReportTab from "@/components/MatchReportTab";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1913,11 +1914,17 @@ export default function SeasonStats() {
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <Tabs defaultValue="team" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-xl">
           <TabsTrigger value="team">Team Insights</TabsTrigger>
           <TabsTrigger value="player">Player Insights</TabsTrigger>
           <TabsTrigger value="opponent">Opponent Insights</TabsTrigger>
+          <TabsTrigger value="matchreport">Match Report</TabsTrigger>
         </TabsList>
+
+        {/* ════════════════ MATCH REPORT ════════════════ */}
+        <TabsContent value="matchreport" className="mt-4">
+          {isReady && <MatchReportTab teamId={tId!} seasonId={sId!} />}
+        </TabsContent>
 
         {/* ════════════════ TEAM INSIGHTS ════════════════ */}
         <TabsContent value="team" className="space-y-4 mt-4">

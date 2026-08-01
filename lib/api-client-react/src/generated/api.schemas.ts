@@ -745,6 +745,96 @@ export interface TeamForm {
   lossesLast5: number;
 }
 
+export interface MatchReportHeader {
+  matchLabel: string;
+  opponent: string;
+  /** @nullable */
+  matchDate?: string | null;
+  /** @nullable */
+  venue?: string | null;
+  /** @nullable */
+  result?: string | null;
+  /** @nullable */
+  halfScore?: string | null;
+  /** @nullable */
+  fullScore?: string | null;
+  /** @nullable */
+  goalsScored?: number | null;
+  /** @nullable */
+  goalsConceded?: number | null;
+  /** @nullable */
+  formation?: string | null;
+  /** @nullable */
+  oppFormation?: string | null;
+  /** @nullable */
+  cleanSheet?: boolean | null;
+}
+
+export interface MatchReportTile {
+  id: string;
+  label: string;
+  /** @nullable */
+  value: number | null;
+  unit: string;
+  decimals: number;
+  /** @nullable */
+  seasonAvg: number | null;
+  /** @nullable */
+  deltaPct: number | null;
+  /** @nullable */
+  rank: number | null;
+  /** @nullable */
+  outOf: number | null;
+  higherIsBetter: boolean;
+}
+
+export interface MatchReportGoal {
+  /** @nullable */
+  minute: number | null;
+  /** @nullable */
+  scorer: string | null;
+  /** @nullable */
+  assist: string | null;
+  ours: boolean;
+  /** @nullable */
+  note: string | null;
+}
+
+export type MatchReportInsightTone = typeof MatchReportInsightTone[keyof typeof MatchReportInsightTone];
+
+
+export const MatchReportInsightTone = {
+  good: 'good',
+  watch: 'watch',
+  info: 'info',
+} as const;
+
+export interface MatchReportInsight {
+  tone: MatchReportInsightTone;
+  text: string;
+}
+
+export interface MatchReportFormEntry {
+  result: string;
+  opponent: string;
+  score: string;
+  isThisMatch: boolean;
+}
+
+export interface MatchReportResponse {
+  header: MatchReportHeader;
+  tiles: MatchReportTile[];
+  goals: MatchReportGoal[];
+  insights: MatchReportInsight[];
+  form: MatchReportFormEntry[];
+  /** @nullable */
+  ladderPos: number | null;
+  /** @nullable */
+  ladderPoints: number | null;
+  /** @nullable */
+  teamsInLeague: number | null;
+}
+
 export interface GoalIntervalBucket {
   interval: string;
   goalsScored: number;
@@ -2763,6 +2853,15 @@ export type GetTeamFormParams = {
 teamId: number;
 seasonId: number;
 limit?: number;
+};
+
+export type GetMatchReportParams = {
+teamId: number;
+seasonId: number;
+/**
+ * The matches table row id (not the text match_id)
+ */
+matchRowId: number;
 };
 
 export type GetGoalsByIntervalParams = {
