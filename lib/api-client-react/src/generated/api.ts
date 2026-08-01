@@ -100,9 +100,13 @@ import type {
   GoalUpdate,
   GoalsByOpponentResponse,
   GpsLoadSummary,
+  GpsPlayerEmail,
+  GpsPlayerEmailInput,
+  GpsPlayerEmailsSaveResult,
   GpsPlayerPosition,
   GpsPlayerPositionInput,
   GpsPlayerPositionsSaveResult,
+  GpsReportEmailRequest,
   GpsSession,
   GpsSessionInput,
   HealthStatus,
@@ -173,6 +177,7 @@ import type {
   Season,
   SeasonInput,
   SeasonSummary,
+  SendGpsReportEmail200,
   SessionCreateRequest,
   SessionDeleteResult,
   SessionDetail,
@@ -2109,6 +2114,225 @@ export const useSaveGpsPlayerPositions = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveGpsPlayerPositionsMutationOptions(options));
+    }
+
+export const getListGpsPlayerEmailsUrl = () => {
+
+
+
+
+  return `/api/gps-player-emails`
+}
+
+/**
+ * @summary List email addresses for GPS-logged players (admin only)
+ */
+export const listGpsPlayerEmails = async ( options?: RequestInit): Promise<GpsPlayerEmail[]> => {
+
+  return customFetch<GpsPlayerEmail[]>(getListGpsPlayerEmailsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsPlayerEmailsQueryKey = () => {
+    return [
+    `/api/gps-player-emails`
+    ] as const;
+    }
+
+
+export const getListGpsPlayerEmailsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsPlayerEmails>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsPlayerEmailsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsPlayerEmails>>> = ({ signal }) => listGpsPlayerEmails({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerEmails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsPlayerEmailsQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsPlayerEmails>>>
+export type ListGpsPlayerEmailsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List email addresses for GPS-logged players (admin only)
+ */
+
+export function useListGpsPlayerEmails<TData = Awaited<ReturnType<typeof listGpsPlayerEmails>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsPlayerEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsPlayerEmailsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveGpsPlayerEmailsUrl = () => {
+
+
+
+
+  return `/api/gps-player-emails`
+}
+
+/**
+ * @summary Upsert player emails (a null/empty email removes the entry; admin only)
+ */
+export const saveGpsPlayerEmails = async (gpsPlayerEmailInput: GpsPlayerEmailInput[], options?: RequestInit): Promise<GpsPlayerEmailsSaveResult> => {
+
+  return customFetch<GpsPlayerEmailsSaveResult>(getSaveGpsPlayerEmailsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsPlayerEmailInput)
+  }
+);}
+
+
+
+
+
+export const getSaveGpsPlayerEmailsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerEmails>>, TError,{data: BodyType<GpsPlayerEmailInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerEmails>>, TError,{data: BodyType<GpsPlayerEmailInput[]>}, TContext> => {
+
+const mutationKey = ['saveGpsPlayerEmails'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGpsPlayerEmails>>, {data: BodyType<GpsPlayerEmailInput[]>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGpsPlayerEmails(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGpsPlayerEmailsMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsPlayerEmails>>>
+    export type SaveGpsPlayerEmailsMutationBody = BodyType<GpsPlayerEmailInput[]>
+    export type SaveGpsPlayerEmailsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upsert player emails (a null/empty email removes the entry; admin only)
+ */
+export const useSaveGpsPlayerEmails = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerEmails>>, TError,{data: BodyType<GpsPlayerEmailInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGpsPlayerEmails>>,
+        TError,
+        {data: BodyType<GpsPlayerEmailInput[]>},
+        TContext
+      > => {
+      return useMutation(getSaveGpsPlayerEmailsMutationOptions(options));
+    }
+
+export const getSendGpsReportEmailUrl = () => {
+
+
+
+
+  return `/api/gps-report-email`
+}
+
+/**
+ * @summary Email one player their personalised GPS report (PPTX built client-side, sent as attachment; admin only)
+ */
+export const sendGpsReportEmail = async (gpsReportEmailRequest: GpsReportEmailRequest, options?: RequestInit): Promise<SendGpsReportEmail200> => {
+
+  return customFetch<SendGpsReportEmail200>(getSendGpsReportEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsReportEmailRequest)
+  }
+);}
+
+
+
+
+
+export const getSendGpsReportEmailMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendGpsReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendGpsReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext> => {
+
+const mutationKey = ['sendGpsReportEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendGpsReportEmail>>, {data: BodyType<GpsReportEmailRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendGpsReportEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendGpsReportEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendGpsReportEmail>>>
+    export type SendGpsReportEmailMutationBody = BodyType<GpsReportEmailRequest>
+    export type SendGpsReportEmailMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Email one player their personalised GPS report (PPTX built client-side, sent as attachment; admin only)
+ */
+export const useSendGpsReportEmail = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendGpsReportEmail>>, TError,{data: BodyType<GpsReportEmailRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendGpsReportEmail>>,
+        TError,
+        {data: BodyType<GpsReportEmailRequest>},
+        TContext
+      > => {
+      return useMutation(getSendGpsReportEmailMutationOptions(options));
     }
 
 export const getListAthleticTestsUrl = (params: ListAthleticTestsParams,) => {

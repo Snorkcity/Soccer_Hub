@@ -386,6 +386,36 @@ export interface GpsPlayerPositionsSaveResult {
   removed: number;
 }
 
+export interface GpsPlayerEmail {
+  playerName: string;
+  email: string;
+}
+
+export interface GpsPlayerEmailInput {
+  playerName: string;
+  /** @nullable */
+  email?: string | null;
+}
+
+export interface GpsPlayerEmailsSaveResult {
+  saved: number;
+  removed: number;
+}
+
+export interface GpsReportEmailRequest {
+  to: string;
+  /** @minLength 1 */
+  subject: string;
+  body: string;
+  /** @minLength 3 */
+  from: string;
+  /** @minLength 1 */
+  fileName: string;
+  /** @minLength 1 */
+  pptxBase64: string;
+  leagueId: number;
+}
+
 export interface GpsSession {
   id: number;
   leagueId?: number;
@@ -2637,6 +2667,10 @@ playerName?: string;
  * Filter by split name (e.g. game, 1st.half, 2nd.half)
  */
 split?: string;
+};
+
+export type SendGpsReportEmail200 = {
+  sent: boolean;
 };
 
 export type ListAthleticTestsParams = {

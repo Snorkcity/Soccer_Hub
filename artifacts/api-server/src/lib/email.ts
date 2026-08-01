@@ -4,7 +4,15 @@ import { logger } from "./logger";
 // RESEND_API_KEY must be set in both dev (Replit secret) and prod (Railway).
 const FROM = "BUFC Performance Hub <noreply@gameinsights.com.au>";
 
-export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  /** Optional sender override — must be a gameinsights.com.au address (domain is Resend-verified). */
+  from?: string;
+  /** Optional attachments; content is base64. */
+  attachments?: Array<{ filename: string; content: string }>;
+}): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not set — cannot send email");
@@ -12,7 +20,13 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [opts.to], subject: opts.subject, html: opts.html }),
+    body: JSON.stringify({
+      from: opts.from ?? FROM,
+      to: [opts.to],
+      subject: opts.subject,
+      html: opts.html,
+      ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

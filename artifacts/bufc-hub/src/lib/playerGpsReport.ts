@@ -131,7 +131,14 @@ function trendWords(pct: number | null): string | null {
 
 // ── Generator ────────────────────────────────────────────────────────────────
 
-export async function generatePlayerGpsReport(input: ReportInput): Promise<void> {
+/**
+ * Build the report. `output: "download"` (default) triggers a browser download;
+ * `output: "base64"` returns the PPTX as base64 (used by the bulk-email flow).
+ */
+export async function generatePlayerGpsReport(
+  input: ReportInput,
+  output: "download" | "base64" = "download",
+): Promise<{ fileName: string; base64?: string }> {
   const { default: PptxGenJS } = await import("pptxgenjs");
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "WIDE", width: W, height: H });
@@ -505,7 +512,13 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
 
   const safe = input.playerName.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
   // Filename convention: Anneke-GPS_Report-2026_Season.pptx (spaces within a part become underscores)
-  await pptx.writeFile({ fileName: `${safe || "Player"}-GPS_Report-${input.seasonLabel.trim().replace(/[^\w]+/g, "_")}.pptx` });
+  const fileName = `${safe || "Player"}-GPS_Report-${input.seasonLabel.trim().replace(/[^\w]+/g, "_")}.pptx`;
+  if (output === "base64") {
+    const base64 = (await pptx.write({ outputType: "base64" })) as string;
+    return { fileName, base64 };
+  }
+  await pptx.writeFile({ fileName });
+  return { fileName };
 
   // ── slide furniture ──────────────────────────────────────────────────────
   function addHeader(s: ReturnType<typeof pptx.addSlide>, title: string, sub: string) {

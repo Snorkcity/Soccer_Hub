@@ -38,6 +38,8 @@ app.use("/api/journal/interview", express.json({ limit: "25mb" }));
 // Auth is checked BEFORE the large-body parser here so unauthenticated
 // callers can't make the server parse 25MB payloads.
 app.use("/api/library/practices/upload", requireSession, express.json({ limit: "25mb" }));
+// Bulk report emailing posts the built PPTX as base64 — auth first, then big parser.
+app.use("/api/gps-report-email", requireSession, express.json({ limit: "25mb" }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 

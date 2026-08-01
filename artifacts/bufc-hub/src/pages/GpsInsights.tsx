@@ -4,6 +4,10 @@ import {
   getListGpsSessionsQueryKey,
   useListGpsPlayerPositions,
   getListGpsPlayerPositionsQueryKey,
+  useListGpsPlayerEmails,
+  getListGpsPlayerEmailsQueryKey,
+  saveGpsPlayerEmails,
+  sendGpsReportEmail,
   type GpsSession,
 } from "@workspace/api-client-react";
 import type { ReportComparison } from "@/lib/playerGpsReport";
@@ -18,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, Mail, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
@@ -246,7 +250,8 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
           <SelectContent>{names.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">{bundles.length} games with GPS in {year}</p>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <EmailReportsDialog year={year} />
           <PlayerReportDialog player={player} year={year} bundles={bundles} />
         </div>
       </div>
@@ -503,6 +508,323 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
           <Button onClick={generate} disabled={busy}>
             {busy ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Building…</> : <><FileDown className="h-4 w-4 mr-1.5" /> Create report</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Bulk email reports ───────────────────────────────────────────────────────
+
+const FROM_OPTIONS = [
+  "BUFC Performance Hub <noreply@gameinsights.com.au>",
+  "Scott Conlon <scott@gameinsights.com.au>",
+];
+
+type SendState = { status: "pending" | "sending" | "sent" | "failed"; reason?: string };
+
+function EmailReportsDialog({ year }: { year: string }) {
+  const [open, setOpen] = useState(false);
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+
+  const { activeLeagueId } = useActiveLeague();
+  const allParams = { leagueId: activeLeagueId ?? 0, year };
+  const { data: allRows, isLoading: loadingAll } = useListGpsSessions(
+    allParams,
+    { query: { enabled: open && activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(allParams) } },
+  );
+  const { data: positions } = useListGpsPlayerPositions(
+    { query: { enabled: open, queryKey: getListGpsPlayerPositionsQueryKey() } },
+  );
+  const { data: emails, refetch: refetchEmails } = useListGpsPlayerEmails(
+    { query: { enabled: open && isAdmin, queryKey: getListGpsPlayerEmailsQueryKey() } },
+  );
+
+  const posOf = useMemo(() => new Map((positions ?? []).map(p => [p.playerName, p.position])), [positions]);
+  const savedEmailOf = useMemo(() => new Map((emails ?? []).map(e => [e.playerName, e.email])), [emails]);
+
+  // All player-game bundles for the year, per player, plus each player's squad (latest game wins)
+  const byPlayer = useMemo(() => {
+    const rowsByPlayer = new Map<string, GpsSession[]>();
+    for (const r of (allRows ?? []).filter(r => r.tags === "game")) {
+      if (!r.playerName) continue;
+      rowsByPlayer.set(r.playerName, [...(rowsByPlayer.get(r.playerName) ?? []), r]);
+    }
+    const out = new Map<string, { bundles: Bundle[]; squad: string }>();
+    for (const [p, rows] of rowsByPlayer) {
+      const bs = buildBundles(rows, r => r.round ?? "").sort((a, b) => (a.date ?? Infinity) - (b.date ?? Infinity));
+      if (bs.length) out.set(p, { bundles: bs, squad: squadOf(bs[bs.length - 1].key) });
+    }
+    return out;
+  }, [allRows]);
+
+  const allBundleEntries = useMemo(() => {
+    const out: { player: string; squad: string; bundle: Bundle }[] = [];
+    for (const [p, info] of byPlayer) for (const b of info.bundles) out.push({ player: p, squad: squadOf(b.key), bundle: b });
+    return out;
+  }, [byPlayer]);
+
+  const players = useMemo(() =>
+    [...byPlayer.keys()].sort((a, b) =>
+      SQUAD_LADDER.indexOf(byPlayer.get(b)!.squad) - SQUAD_LADDER.indexOf(byPlayer.get(a)!.squad) || a.localeCompare(b)),
+    [byPlayer]);
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [emailEdits, setEmailEdits] = useState<Map<string, string>>(new Map());
+  const emailOf = (p: string) => (emailEdits.has(p) ? emailEdits.get(p)! : savedEmailOf.get(p) ?? "");
+
+  // Averages: squad averages are global ticks; position averages follow each player's own position
+  const [squadTicks, setSquadTicks] = useState<Set<string>>(new Set(SQUAD_LADDER));
+  const [includePosAvgs, setIncludePosAvgs] = useState(true);
+
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [from, setFrom] = useState(FROM_OPTIONS[0]);
+  const [sendStates, setSendStates] = useState<Map<string, SendState>>(new Map());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelected(new Set());
+    setEmailEdits(new Map());
+    setSendStates(new Map());
+    setSquadTicks(new Set(SQUAD_LADDER));
+    setIncludePosAvgs(true);
+    setSubject(`Your ${year} GPS report`);
+    setBody("Hi,\n\nAttached is your personalised GPS report for the season so far. Have a look at how you're tracking and bring any questions to training.\n\nCheers,\nScott");
+    setFrom(FROM_OPTIONS[0]);
+    setBusy(false);
+    setDone(false);
+  }, [open, year]);
+
+  const toggle = (p: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(p)) next.delete(p); else next.add(p);
+    return next;
+  });
+  const selectWhere = (pred: (p: string) => boolean) => setSelected(prev => {
+    const next = new Set(prev);
+    let allIn = true;
+    for (const p of players) if (pred(p) && !next.has(p)) { allIn = false; break; }
+    for (const p of players) if (pred(p)) { if (allIn) next.delete(p); else next.add(p); }
+    return next;
+  });
+
+  const buildComparisons = (player: string): ReportComparison[] => {
+    const out: ReportComparison[] = [];
+    for (const squad of SQUAD_LADDER) {
+      if (!squadTicks.has(squad)) continue;
+      const bs = allBundleEntries.filter(e => e.squad === squad).map(e => e.bundle);
+      if (bs.length) out.push(groupAverages(`${squad} average`, bs));
+    }
+    const pos = posOf.get(player);
+    if (includePosAvgs && pos) {
+      for (const squad of SQUAD_LADDER) {
+        if (!squadTicks.has(squad)) continue;
+        const bs = allBundleEntries.filter(e => e.squad === squad && posOf.get(e.player) === pos).map(e => e.bundle);
+        if (bs.length) out.push(groupAverages(`${squad} ${plural(pos)} average`, bs));
+      }
+    }
+    return out;
+  };
+
+  const send = async () => {
+    if (activeLeagueId == null) return;
+    setBusy(true);
+    setDone(false);
+    const targets = players.filter(p => selected.has(p));
+    // Save any email edits first so the addresses used are the addresses stored
+    const edits = [...emailEdits.entries()].map(([playerName, email]) => ({ playerName, email: email.trim() || null }));
+    try {
+      if (edits.length) { await saveGpsPlayerEmails(edits); await refetchEmails(); setEmailEdits(new Map()); }
+    } catch {
+      setBusy(false);
+      return;
+    }
+    const states = new Map<string, SendState>(targets.map(p => [p, { status: "pending" as const }]));
+    setSendStates(new Map(states));
+
+    const { generatePlayerGpsReport } = await import("@/lib/playerGpsReport");
+    const today = new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+
+    for (const p of targets) {
+      const email = emailOf(p).trim();
+      if (!email) {
+        states.set(p, { status: "failed", reason: "No email on file" });
+        setSendStates(new Map(states));
+        continue;
+      }
+      states.set(p, { status: "sending" });
+      setSendStates(new Map(states));
+      try {
+        const info = byPlayer.get(p)!;
+        const { fileName, base64 } = await generatePlayerGpsReport({
+          playerName: p,
+          position: posOf.get(p) ?? null,
+          seasonLabel: `${year} Season`,
+          teamLabel: `Belconnen United FC — ${info.squad}`,
+          coachNote: "",
+          generatedOn: today,
+          metrics: PLAYER_METRICS.map(m => ({
+            id: m.id, title: m.title, unit: m.unit, decimals: m.decimals,
+            blurb: REPORT_BLURBS[m.id] ?? "", summable: REPORT_SUMMABLE.has(m.id),
+          })),
+          games: info.bundles.map(b => ({
+            round: b.key,
+            opponent: b.opponent,
+            dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? null,
+            mins: bundleMins(b),
+            values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, bundleTotal(b, m)])),
+            accel: bundleCount(b, "accel"),
+            decel: bundleCount(b, "decel"),
+            maxAcc: b.game?.maxAccelerationMss ?? null,
+            maxDec: b.game?.maxDecelerationMss ?? null,
+          })),
+          comparisons: buildComparisons(p),
+        }, "base64");
+        await sendGpsReportEmail({
+          to: email,
+          subject: subject.trim() || `Your ${year} GPS report`,
+          body,
+          from,
+          fileName,
+          pptxBase64: base64!,
+          leagueId: activeLeagueId,
+        });
+        states.set(p, { status: "sent" });
+      } catch (e) {
+        console.error(e);
+        states.set(p, { status: "failed", reason: "Send failed" });
+      }
+      setSendStates(new Map(states));
+    }
+    setBusy(false);
+    setDone(true);
+  };
+
+  if (!isAdmin) return null;
+
+  const positionsPresent = [...new Set(players.map(p => posOf.get(p)))].filter((p): p is NonNullable<typeof p> => p != null);
+  const sentCount = [...sendStates.values()].filter(s => s.status === "sent").length;
+  const failedCount = [...sendStates.values()].filter(s => s.status === "failed").length;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Mail className="h-4 w-4 mr-1.5" /> Email reports
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Email player reports</DialogTitle>
+          <DialogDescription>
+            Builds each ticked player's personalised {year} report and emails it to them as a PowerPoint attachment.
+          </DialogDescription>
+        </DialogHeader>
+        {loadingAll ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Loading players…</p>
+        ) : (
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Label className="mr-1">Players</Label>
+                <Button variant="secondary" size="sm" className="h-6 px-2 text-xs" onClick={() => selectWhere(() => true)}>All</Button>
+                {SQUAD_LADDER.map(s => (
+                  <Button key={s} variant="secondary" size="sm" className="h-6 px-2 text-xs"
+                    onClick={() => selectWhere(p => byPlayer.get(p)!.squad === s)}>{s}</Button>
+                ))}
+                {positionsPresent.map(pos => (
+                  <Button key={pos} variant="secondary" size="sm" className="h-6 px-2 text-xs"
+                    onClick={() => selectWhere(p => posOf.get(p) === pos)}>{plural(pos)}</Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Tap a filter to tick that group (tap again to untick). Fix or add an email right in the list — it's saved when you send.</p>
+              <div className="rounded-md border divide-y max-h-64 overflow-y-auto">
+                {players.map(p => {
+                  const st = sendStates.get(p);
+                  return (
+                    <div key={p} className="flex items-center gap-2 px-3 py-1.5">
+                      <Checkbox checked={selected.has(p)} onCheckedChange={() => toggle(p)} disabled={busy} />
+                      <button className="text-sm text-left min-w-0 shrink-0 w-28 truncate" onClick={() => !busy && toggle(p)}>{p}</button>
+                      <span className="text-[10px] text-muted-foreground w-20 shrink-0 truncate">
+                        {byPlayer.get(p)!.squad}{posOf.get(p) ? ` · ${posOf.get(p)}` : ""}
+                      </span>
+                      <Input
+                        value={emailOf(p)}
+                        onChange={e => setEmailEdits(prev => new Map(prev).set(p, e.target.value))}
+                        placeholder="No email on file"
+                        disabled={busy}
+                        className="h-7 text-xs flex-1 min-w-0"
+                      />
+                      <span className="w-5 shrink-0 flex justify-center">
+                        {st?.status === "sending" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                        {st?.status === "sent" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                        {st?.status === "failed" && (
+                          <span title={st.reason}><XCircle className="h-3.5 w-3.5 text-destructive" /></span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">{selected.size} of {players.length} players ticked</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Averages to include in every report</Label>
+              <div className="space-y-1.5 rounded-md border p-3">
+                {SQUAD_LADDER.map(s => (
+                  <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox checked={squadTicks.has(s)} disabled={busy}
+                      onCheckedChange={checked => setSquadTicks(prev => {
+                        const next = new Set(prev);
+                        if (checked === true) next.add(s); else next.delete(s);
+                        return next;
+                      })} />
+                    <span>{s} average</span>
+                  </label>
+                ))}
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={includePosAvgs} disabled={busy} onCheckedChange={c => setIncludePosAvgs(c === true)} />
+                  <span>Each player's own position average (per ticked squad)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="em-from">Send from</Label>
+              <Select value={from} onValueChange={setFrom} disabled={busy}>
+                <SelectTrigger id="em-from"><SelectValue /></SelectTrigger>
+                <SelectContent>{FROM_OPTIONS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="em-subject">Subject</Label>
+              <Input id="em-subject" value={subject} onChange={e => setSubject(e.target.value)} disabled={busy} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="em-body">Message</Label>
+              <Textarea id="em-body" rows={5} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+            </div>
+
+            {done && (
+              <div className={`flex items-center gap-2 text-sm rounded-md border p-3 ${failedCount ? "border-amber-500/50" : "border-green-500/50"}`}>
+                {failedCount ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+                <span>{sentCount} sent{failedCount ? `, ${failedCount} failed — check the list above (hover the red cross for the reason)` : " — all done"}</span>
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>{done ? "Close" : "Cancel"}</Button>
+          <Button onClick={send} disabled={busy || selected.size === 0}>
+            {busy
+              ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Sending {sentCount + failedCount + 1} of {selected.size}…</>
+              : <><Mail className="h-4 w-4 mr-1.5" /> Send to {selected.size} player{selected.size === 1 ? "" : "s"}</>}
           </Button>
         </DialogFooter>
       </DialogContent>

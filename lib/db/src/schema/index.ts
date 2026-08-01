@@ -13,6 +13,7 @@ export * from "./driblNoLineup";
 export * from "./gpsSessions";
 export * from "./gpsPlayerPositions";
 export * from "./gpsPlayerAliases";
+export * from "./gpsPlayerEmails";
 export * from "./athleticTests";
 export * from "./clubs";
 export * from "./practices";

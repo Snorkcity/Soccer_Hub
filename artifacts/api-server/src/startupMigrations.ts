@@ -164,6 +164,15 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE a.alias = p.player_name
   `);
 
+  // Player report emails (2026-08) — one address per canonical GPS player,
+  // used to bulk-email personalised GPS reports. Admin-only reads at the API.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gps_player_emails (
+      player_name text PRIMARY KEY,
+      email text NOT NULL
+    )
+  `);
+
   // Session-practice library (2026-07) — slides extracted from the coach's
   // master PowerPoint; content is loaded by lib/db/src/seedPractices.ts
   await db.execute(sql`

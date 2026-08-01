@@ -226,6 +226,8 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
 
   ["/gps-sessions", "gps"],
   ["/gps-player-positions", "gps"],
+  ["/gps-player-emails", "gps"],  // route additionally enforces admin-only (minors' emails)
+  ["/gps-report-email", "gps"],
   ["/athletic-tests", "testing"],
   ["/match-prep", "match-prep"],
   ["/journal", "reflections"], // reflection journal routes

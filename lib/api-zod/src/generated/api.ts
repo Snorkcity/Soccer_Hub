@@ -727,6 +727,56 @@ export const SaveGpsPlayerPositionsResponse = zod.object({
 
 
 /**
+ * @summary List email addresses for GPS-logged players (admin only)
+ */
+export const ListGpsPlayerEmailsResponseItem = zod.object({
+  "playerName": zod.string(),
+  "email": zod.string()
+})
+export const ListGpsPlayerEmailsResponse = zod.array(ListGpsPlayerEmailsResponseItem)
+
+
+/**
+ * @summary Upsert player emails (a null/empty email removes the entry; admin only)
+ */
+export const SaveGpsPlayerEmailsBodyItem = zod.object({
+  "playerName": zod.string(),
+  "email": zod.string().nullish()
+})
+export const SaveGpsPlayerEmailsBody = zod.array(SaveGpsPlayerEmailsBodyItem)
+
+export const SaveGpsPlayerEmailsResponse = zod.object({
+  "saved": zod.number(),
+  "removed": zod.number()
+})
+
+
+/**
+ * @summary Email one player their personalised GPS report (PPTX built client-side, sent as attachment; admin only)
+ */
+
+export const sendGpsReportEmailBodyFromMin = 3;
+
+
+
+
+
+export const SendGpsReportEmailBody = zod.object({
+  "to": zod.string(),
+  "subject": zod.string().min(1),
+  "body": zod.string(),
+  "from": zod.string().min(sendGpsReportEmailBodyFromMin),
+  "fileName": zod.string().min(1),
+  "pptxBase64": zod.string().min(1),
+  "leagueId": zod.number()
+})
+
+export const SendGpsReportEmailResponse = zod.object({
+  "sent": zod.boolean()
+})
+
+
+/**
  * @summary List athletic test results
  */
 export const ListAthleticTestsQueryParams = zod.object({

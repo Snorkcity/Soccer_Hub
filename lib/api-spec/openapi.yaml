@@ -543,6 +543,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/GpsPlayerPositionsSaveResult"
 
+  /gps-player-emails:
+    get:
+      operationId: listGpsPlayerEmails
+      tags: [gps]
+      summary: List email addresses for GPS-logged players (admin only)
+      responses:
+        "200":
+          description: Player emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GpsPlayerEmail"
+    put:
+      operationId: saveGpsPlayerEmails
+      tags: [gps]
+      summary: Upsert player emails (a null/empty email removes the entry; admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/GpsPlayerEmailInput"
+      responses:
+        "200":
+          description: Save result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GpsPlayerEmailsSaveResult"
+
+  /gps-report-email:
+    post:
+      operationId: sendGpsReportEmail
+      tags: [gps]
+      summary: Email one player their personalised GPS report (PPTX built client-side, sent as attachment; admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GpsReportEmailRequest"
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+                required: [sent]
+
   # ─── ATHLETIC TESTING ───────────────────────────────────────────────────────
 
   /athletic-tests:
@@ -2854,6 +2910,39 @@ components:
         saved:   { type: integer }
         removed: { type: integer }
       required: [saved, removed]
+
+    GpsPlayerEmail:
+      type: object
+      properties:
+        playerName: { type: string }
+        email:      { type: string }
+      required: [playerName, email]
+
+    GpsPlayerEmailInput:
+      type: object
+      properties:
+        playerName: { type: string }
+        email:      { type: ["string", "null"] }
+      required: [playerName]
+
+    GpsPlayerEmailsSaveResult:
+      type: object
+      properties:
+        saved:   { type: integer }
+        removed: { type: integer }
+      required: [saved, removed]
+
+    GpsReportEmailRequest:
+      type: object
+      properties:
+        to:         { type: string }
+        subject:    { type: string, minLength: 1 }
+        body:       { type: string }
+        from:       { type: string, minLength: 3 }
+        fileName:   { type: string, minLength: 1 }
+        pptxBase64: { type: string, minLength: 1 }
+        leagueId:   { type: integer }
+      required: [to, subject, body, from, fileName, pptxBase64, leagueId]
 
     GpsSession:
       type: object
