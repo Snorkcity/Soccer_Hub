@@ -423,12 +423,30 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     s.background = { color: BG };
     addHeader(s, "Accelerations / Decelerations >3 m/s²",
       "How many hard bursts and hard stops each game — the invisible work that doesn't show up as distance.");
-    s.addChart("bar", [
-      { name: "Accelerations", labels: cats, values: games.map(g => g.accel) as number[] },
-      { name: "Decelerations", labels: cats, values: games.map(g => g.decel) as number[] },
+    const accAvg = avg(games.filter(g => g.accel != null).map(g => g.accel as number));
+    const decAvg = avg(games.filter(g => g.decel != null).map(g => g.decel as number));
+    // Combo: clustered bars + dashed season-average lines colour-matched to their bars
+    (s.addChart as unknown as (types: unknown, opts: unknown) => void)([
+      {
+        type: "bar",
+        data: [
+          { name: "Accelerations", labels: cats, values: games.map(g => g.accel) as number[] },
+          { name: "Decelerations", labels: cats, values: games.map(g => g.decel) as number[] },
+        ],
+        options: { chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered" },
+      },
+      ...(accAvg != null ? [{
+        type: "line",
+        data: [{ name: "Accels average", labels: cats, values: cats.map(() => Math.round(accAvg)) }],
+        options: { chartColors: [SKY], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
+      }] : []),
+      ...(decAvg != null ? [{
+        type: "line",
+        data: [{ name: "Decels average", labels: cats, values: cats.map(() => Math.round(decAvg)) }],
+        options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
+      }] : []),
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
       valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
       showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
@@ -457,12 +475,29 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     s.background = { color: BG };
     addHeader(s, "Max Acceleration / Deceleration (m/s²)",
       "Not how often, but how hard — the single biggest burst and hardest stop each game.");
-    s.addChart("bar", [
-      { name: "Max acceleration", labels: cats, values: games.map(g => g.maxAcc) as number[] },
-      { name: "Max deceleration", labels: cats, values: games.map(g => g.maxDec) as number[] },
+    const maxAccAvg = avg(games.filter(g => g.maxAcc != null).map(g => g.maxAcc as number));
+    const maxDecAvg = avg(games.filter(g => g.maxDec != null).map(g => g.maxDec as number));
+    (s.addChart as unknown as (types: unknown, opts: unknown) => void)([
+      {
+        type: "bar",
+        data: [
+          { name: "Max acceleration", labels: cats, values: games.map(g => g.maxAcc) as number[] },
+          { name: "Max deceleration", labels: cats, values: games.map(g => g.maxDec) as number[] },
+        ],
+        options: { chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered" },
+      },
+      ...(maxAccAvg != null ? [{
+        type: "line",
+        data: [{ name: "Accel average", labels: cats, values: cats.map(() => Number(maxAccAvg.toFixed(1))) }],
+        options: { chartColors: [SKY], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
+      }] : []),
+      ...(maxDecAvg != null ? [{
+        type: "line",
+        data: [{ name: "Decel average", labels: cats, values: cats.map(() => Number(maxDecAvg.toFixed(1))) }],
+        options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
+      }] : []),
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
       valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
       showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
