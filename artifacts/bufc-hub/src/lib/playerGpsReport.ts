@@ -55,14 +55,18 @@ export interface ReportInput {
 
 // ── Brand ────────────────────────────────────────────────────────────────────
 
-const NAVY = "0F2C43";
+// Full dark theme — content pages share the title slide's deep-navy energy.
+const NAVY = "0F2C43";      // title/closing background
+const BG = "0C2436";        // content page background (a touch deeper than NAVY)
 const SKY = "87CEEB";
 const SKY_DARK = "4FA8CF";
-const PURPLE = "9B5DE5";
-const INK = "1C2B36";
-const GREY = "647484";
+const PURPLE = "B07CF0";    // brightened for dark background
+const INK = "DEEBF4";       // primary text on dark
+const GREY = "8FAEC2";      // secondary text on dark
 const PAPER = "FFFFFF";
-const TINT = "EFF7FB";
+const TINT = "16374E";      // panel/tile fill on dark
+const LINE = "265271";      // panel borders
+const GRID = "1E4058";      // chart gridlines
 
 const W = 13.33;
 const H = 7.5;
@@ -165,7 +169,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // ── Season snapshot slide ─────────────────────────────────────────────────
   {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Season snapshot", `${input.playerName} — ${input.seasonLabel}`);
 
     const dist = metricStats(games, "distance");
@@ -196,8 +200,8 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     tiles.forEach(([label, value], i) => {
       const x = x0 + (i % 3) * (tw + gx);
       const y = y0 + Math.floor(i / 3) * (th + 0.3);
-      s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: "D7E9F2", width: 1 } });
-      s.addText(value as never, { x: x + 0.25, y: y + 0.18, w: tw - 0.5, h: 0.6, fontSize: 28, bold: true, color: NAVY });
+      s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
+      s.addText(value as never, { x: x + 0.25, y: y + 0.18, w: tw - 0.5, h: 0.6, fontSize: 28, bold: true, color: SKY });
       s.addText(label.toUpperCase(), { x: x + 0.25, y: y + 0.85, w: tw - 0.5, h: 0.35, fontSize: 10.5, color: GREY, charSpacing: 2 });
     });
 
@@ -212,7 +216,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     if (loadTrend && load.last4PctVsSeason != null && Math.abs(load.last4PctVsSeason) >= 10)
       insights.push(`Overall workload (player load) in the last 4 games is ${loadTrend}.`);
 
-    s.addText("WHAT STANDS OUT", { x: 0.75, y: 5.05, w: 6, h: 0.35, fontSize: 12, bold: true, color: SKY_DARK, charSpacing: 3 });
+    s.addText("WHAT STANDS OUT", { x: 0.75, y: 5.05, w: 6, h: 0.35, fontSize: 12, bold: true, color: SKY, charSpacing: 3 });
     s.addText(
       insights.slice(0, 4).map(t => ({ text: t, options: { bullet: { code: "2022", indent: 14 }, breakLine: true } })),
       { x: 0.75, y: 5.4, w: 11.8, h: 1.7, fontSize: 13.5, color: INK, lineSpacing: 22 },
@@ -223,25 +227,25 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // ── How you compare slide ─────────────────────────────────────────────────
   if (comps.length) {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "How you compare", "Your per-game averages next to the group averages you're measured against. Aim to be at or above the line that matters for you.");
 
     type Cell = { text: string | Array<{ text: string; options?: Record<string, unknown> }>; options?: Record<string, unknown> };
     const headRow: Cell[] = [
-      { text: "Per game", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
-      { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
-      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" as const } })),
+      { text: "Per game", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "left" } },
+      { text: "You", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
+      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" as const } })),
     ];
     const rows: Cell[][] = [headRow];
     const pushRow = (label: string, you: number | null, compVals: (number | null)[], d: number, unit: string) => {
       if (you == null && compVals.every(v => v == null)) return;
-      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      const fillCol = rows.length % 2 === 1 ? TINT : BG;
       rows.push([
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
-        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: PAPER, fill: { color: fillCol } } },
         ...compVals.map(v => ({
           text: fmtCell(v, d, unit),
-          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
+          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY : GREY, fill: { color: fillCol } },
         })),
       ]);
     };
@@ -256,7 +260,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
 
     s.addTable(rows as never, {
       x: 0.75, y: 1.6, w: 11.8, colW: [4.2, ...Array(comps.length + 1).fill((11.8 - 4.2) / (comps.length + 1))],
-      fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+      fontSize: 12, rowH: 0.42, border: { type: "solid", color: LINE, pt: 0.5 },
       valign: "middle",
     });
     addInsightBar(s, `Group averages are per game, built from every tracked player-game this season (${comps.map(c => `${c.label.replace(/ average/i, "")}: ${c.games}`).join(", ")}). Sky-blue means you're at or above that group. The next page shows the same comparison scaled to 90 minutes.`);
@@ -268,7 +272,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // sides to a full 90 makes a 30-minute shift honestly comparable.
   if (comps.length) {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Per 90 minutes — levelling the playing field",
       "Someone playing 30 minutes can't match full-game totals. These numbers are scaled to 90 minutes of pitch time, for you and for every group.");
 
@@ -282,20 +286,20 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
 
     type Cell = { text: string | Array<{ text: string; options?: Record<string, unknown> }>; options?: Record<string, unknown> };
     const headRow: Cell[] = [
-      { text: "Per 90 min", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
-      { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
-      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" as const } })),
+      { text: "Per 90 min", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "left" } },
+      { text: "You", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
+      ...comps.map(c => ({ text: c.label.replace(/ average/i, ""), options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" as const } })),
     ];
     const rows: Cell[][] = [headRow];
     const pushRow = (label: string, you: number | null, compVals: (number | null)[], d: number, unit: string) => {
       if (you == null && compVals.every(v => v == null)) return;
-      const fillCol = rows.length % 2 === 1 ? TINT : PAPER;
+      const fillCol = rows.length % 2 === 1 ? TINT : BG;
       rows.push([
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
-        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
+        { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: PAPER, fill: { color: fillCol } } },
         ...compVals.map(v => ({
           text: fmtCell(v, d, unit),
-          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
+          options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY : GREY, fill: { color: fillCol } },
         })),
       ]);
     };
@@ -311,7 +315,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     if (rows.length > 1) {
       s.addTable(rows as never, {
         x: 0.75, y: 1.6, w: 11.8, colW: [4.2, ...Array(comps.length + 1).fill((11.8 - 4.2) / (comps.length + 1))],
-        fontSize: 12, rowH: 0.42, border: { type: "solid", color: "D7E9F2", pt: 0.5 },
+        fontSize: 12, rowH: 0.42, border: { type: "solid", color: LINE, pt: 0.5 },
         valign: "middle",
       });
     }
@@ -324,7 +328,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     const stats = metricStats(games, m.id);
     if (stats.seasonAvg == null) continue; // no data at all — skip slide
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, m.title + (m.unit ? ` (${m.unit})` : ""), m.blurb);
 
     const vals = games.map(g => g.values[m.id]);
@@ -333,7 +337,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         type: "bar",
         // null (not 0) for games without this metric — renders a gap, not a fake zero bar
         data: [{ name: m.title, labels: cats, values: vals as number[] }],
-        options: { chartColors: [SKY_DARK], barGapWidthPct: 40 },
+        options: { chartColors: [SKY], barGapWidthPct: 40 },
       },
       {
         type: "line",
@@ -366,11 +370,11 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       combo.push({
         type: "line",
         // empty name + paper-coloured line = no visible legend entry for the axis-driver series
-        data: [{ name: "", labels: cats, values: cats.map(() => kmMax / 3.6) }],
-        options: { chartColors: [PAPER], lineDataSymbol: "none", lineSize: 1, secondaryValAxis: true, secondaryCatAxis: true } as never,
+        data: [{ name: " ", labels: cats, values: cats.map(() => kmMax / 3.6) }],
+        options: { chartColors: [BG], lineDataSymbol: "none", lineSize: 1, secondaryValAxis: true, secondaryCatAxis: true } as never,
       });
       speedAxisOpts.valAxes = [
-        { valAxisTitle: "km/h", showValAxisTitle: false, valAxisMinVal: 0, valAxisMaxVal: kmMax, valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 } },
+        { valAxisTitle: "km/h", showValAxisTitle: false, valAxisMinVal: 0, valAxisMaxVal: kmMax, valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 } },
         { valAxisTitle: "m/s", showValAxisTitle: true, valAxisTitleFontSize: 9, valAxisTitleColor: GREY, valAxisMinVal: 0, valAxisMaxVal: Number((kmMax / 3.6).toFixed(2)), valAxisLabelFontSize: 9, valAxisLabelColor: GREY, valAxisLabelFormatCode: "0.0", valGridLine: { style: "none" } },
       ];
       speedAxisOpts.catAxes = [
@@ -384,9 +388,9 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
       ...(isSpeed ? {} : {
         catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
-        valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
+        valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
       }),
-      showLegend: true, legendPos: "b", legendFontSize: 10,
+      showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
       dataLabelFormatCode: "0", showValue: false,
       catGridLine: { style: "none" },
       ...speedAxisOpts,
@@ -416,7 +420,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // ── Accel/decel counts slide ──────────────────────────────────────────────
   if (games.some(g => g.accel != null || g.decel != null)) {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Accelerations / Decelerations >3 m/s²",
       "How many hard bursts and hard stops each game — the invisible work that doesn't show up as distance.");
     s.addChart("bar", [
@@ -424,10 +428,10 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       { name: "Decelerations", labels: cats, values: games.map(g => g.decel) as number[] },
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      chartColors: [SKY_DARK, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
+      chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
-      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
-      showLegend: true, legendPos: "b", legendFontSize: 10,
+      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
+      showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
       catGridLine: { style: "none" },
     });
     const accs = games.filter(g => g.accel != null);
@@ -450,7 +454,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // ── Max accel/decel slide ─────────────────────────────────────────────────
   if (games.some(g => g.maxAcc != null || g.maxDec != null)) {
     const s = pptx.addSlide();
-    s.background = { color: PAPER };
+    s.background = { color: BG };
     addHeader(s, "Max Acceleration / Deceleration (m/s²)",
       "Not how often, but how hard — the single biggest burst and hardest stop each game.");
     s.addChart("bar", [
@@ -458,10 +462,10 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
       { name: "Max deceleration", labels: cats, values: games.map(g => g.maxDec) as number[] },
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      chartColors: [SKY_DARK, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
+      chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered",
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
-      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: "E3EDF3", size: 0.5 },
-      showLegend: true, legendPos: "b", legendFontSize: 10,
+      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
+      showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
       catGridLine: { style: "none" },
     });
     const maxBits = comps
@@ -497,12 +501,12 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
   // ── slide furniture ──────────────────────────────────────────────────────
   function addHeader(s: ReturnType<typeof pptx.addSlide>, title: string, sub: string) {
     s.addShape("rect", { x: 0, y: 0, w: W, h: 0.12, fill: { color: SKY } });
-    s.addText(title, { x: 0.6, y: 0.35, w: 12.1, h: 0.55, fontSize: 26, bold: true, color: NAVY });
+    s.addText(title, { x: 0.6, y: 0.35, w: 12.1, h: 0.55, fontSize: 26, bold: true, color: PAPER });
     s.addText(sub, { x: 0.6, y: 0.95, w: 12.1, h: 0.4, fontSize: 12.5, color: GREY });
   }
   function addInsightBar(s: ReturnType<typeof pptx.addSlide>, text: string | Array<{ text: string; options?: Record<string, unknown> }>) {
     if (!text || (Array.isArray(text) && !text.length)) return;
-    s.addShape("roundRect", { x: 0.6, y: 6.35, w: 12.1, h: 0.62, fill: { color: TINT }, rectRadius: 0.06, line: { color: "D7E9F2", width: 1 } });
+    s.addShape("roundRect", { x: 0.6, y: 6.35, w: 12.1, h: 0.62, fill: { color: TINT }, rectRadius: 0.06, line: { color: LINE, width: 1 } });
     s.addText(text as never, { x: 0.85, y: 6.35, w: 11.7, h: 0.62, fontSize: 11.5, color: INK, valign: "middle" });
   }
   function addFooter(s: ReturnType<typeof pptx.addSlide>, inp: ReportInput) {
