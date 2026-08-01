@@ -78,10 +78,13 @@ const fmt = (v: number | null, d: number, unit?: string) =>
     : unit === "km/h" ? `${v.toFixed(d)} km/h (${(v / 3.6).toFixed(1)} m/s)`
     : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
 
-/** Compact cell format for comparison tables — narrow columns, so speeds drop "km/h" and keep just the m/s bracket. */
-const fmtCell = (v: number | null, d: number, unit?: string) =>
+/** Comparison-table cell text — speeds show km/h with the m/s bracket as a smaller grey run. */
+const fmtCell = (v: number | null, d: number, unit?: string): string | Array<{ text: string; options?: Record<string, unknown> }> =>
   v == null ? "—"
-    : unit === "km/h" ? `${v.toFixed(d)} (${(v / 3.6).toFixed(1)} m/s)`
+    : unit === "km/h" ? [
+        { text: `${v.toFixed(d)} km/h ` },
+        { text: `(${(v / 3.6).toFixed(1)} m/s)`, options: { fontSize: 11, color: GREY } },
+      ]
     : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
 
 function avg(vals: number[]): number | null {
@@ -223,7 +226,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     s.background = { color: PAPER };
     addHeader(s, "How you compare", "Your per-game averages next to the group averages you're measured against. Aim to be at or above the line that matters for you.");
 
-    type Cell = { text: string; options?: Record<string, unknown> };
+    type Cell = { text: string | Array<{ text: string; options?: Record<string, unknown> }>; options?: Record<string, unknown> };
     const headRow: Cell[] = [
       { text: "Per game", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
       { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
@@ -237,7 +240,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
         { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
         ...compVals.map(v => ({
-          text: fmt(v, d, unit),
+          text: fmtCell(v, d, unit),
           options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
         })),
       ]);
@@ -277,7 +280,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     const compPer90 = (v: number | null | undefined, c: ReportComparison): number | null =>
       v != null && c.mins ? (v / c.mins) * 90 : null;
 
-    type Cell = { text: string; options?: Record<string, unknown> };
+    type Cell = { text: string | Array<{ text: string; options?: Record<string, unknown> }>; options?: Record<string, unknown> };
     const headRow: Cell[] = [
       { text: "Per 90 min", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "left" } },
       { text: "You", options: { bold: true, color: PAPER, fill: { color: NAVY }, align: "center" } },
@@ -291,7 +294,7 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         { text: label, options: { align: "left", color: INK, fill: { color: fillCol } } },
         { text: fmtCell(you, d, unit), options: { align: "center", bold: true, color: NAVY, fill: { color: fillCol } } },
         ...compVals.map(v => ({
-          text: fmt(v, d, unit),
+          text: fmtCell(v, d, unit),
           options: { align: "center" as const, color: you != null && v != null && you >= v ? SKY_DARK : GREY, fill: { color: fillCol } },
         })),
       ]);
