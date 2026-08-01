@@ -22,6 +22,10 @@ const LINE_W = 1.25;
 const W = 13.33;
 const H = 7.5;
 const MX = 0.6;
+// Print sheets get a much tighter margin — the printer adds its own, so the
+// content should sit close to the slide edge (coach's request; balance doesn't
+// matter on the B/W print pages).
+const PMX = 0.25;
 
 export interface PitchPlayer {
   /** 0–1 across the pitch (0 = left touchline). */
@@ -97,16 +101,16 @@ function lightSlide(pptx: PptxGenJS, _kicker: string, title: string, matchInfo?:
   // The coach prefers the small spaced-caps style for print titles — the actual
   // title (e.g. "TEAM TALK — R17 V TUGGERANONG") replaces the old big heading.
   s.addText(title.toUpperCase(), {
-    x: MX, y: 0.42, w: W - 2 * MX, h: 0.3,
+    x: PMX, y: 0.22, w: W - 2 * PMX, h: 0.3,
     fontSize: 11, color: "000000", bold: true, charSpacing: 4,
   });
   if (matchInfo) {
     s.addText(matchInfo, {
-      x: W - MX - 4.5, y: 0.42, w: 4.5, h: 0.3,
+      x: W - PMX - 4.5, y: 0.22, w: 4.5, h: 0.3,
       fontSize: 11, color: "000000", bold: true, align: "right",
     });
   }
-  s.addShape("rect", { x: MX, y: 0.78, w: 1.1, h: 0.05, fill: { color: "000000" } });
+  s.addShape("rect", { x: PMX, y: 0.58, w: 1.1, h: 0.05, fill: { color: "000000" } });
   return s;
 }
 
@@ -501,10 +505,10 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       : darkSlide(pptx, kicker, title);
     // Print copies get a bigger field: tighter top/bottom margins and a
     // narrower role column, so the diagram dominates the A4 page.
-    const boxX = mono ? 0.35 : MX + 0.2;
-    const boxY = mono ? 1.7 : 2.05;
-    const bw = mono ? 8.9 : 7.4;
-    const bh = mono ? H - 2.0 : H - 2.55;
+    const boxX = mono ? PMX : MX + 0.2;
+    const boxY = mono ? 1.1 : 2.05;
+    const bw = mono ? 9.1 : 7.4;
+    const bh = mono ? H - 1.3 : H - 2.55;
     const plot = drawBoxView(s, boxX, boxY, bw, bh, mono);
     // Our players are always blue; explicit colours (e.g. the red opposition taker) win.
     void attacking;
@@ -517,8 +521,8 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     });
     // Initials in the circles are enough on set-piece diagrams — no names underneath.
     drawPlayers(s, plot, players.map((p) => ({ ...p, color: p.color ?? SKY_DARK })), { r: mono ? 0.21 : 0.19, names: false, mono });
-    const colX = mono ? boxX + bw + 0.45 : MX + bw + 0.75;
-    roleColumn(s, colX, W - (mono ? 0.35 : MX) - colX, groups, mono);
+    const colX = mono ? boxX + bw + 0.4 : MX + bw + 0.75;
+    roleColumn(s, colX, W - (mono ? PMX : MX) - colX, groups, mono);
     if (!mono) footer(s, foot);
   };
   const hasVar2 = !!input.cornersFor2 && (input.cornersFor2.groups.length > 0 || input.cornersFor2.players.length > 0);
@@ -562,8 +566,8 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     const rowH = 0.19;
     const colW = [1.3, 0.6, 0.5, 0.7];
     const tw = colW.reduce((a, b) => a + b, 0);
-    const ty = H - 0.28 - steps.length * rowH;
-    const tx = W - 0.45 - tw; // bottom-right corner
+    const ty = H - 0.18 - steps.length * rowH;
+    const tx = W - PMX - tw; // bottom-right corner
     const none = { type: "none" as const };
     const cell = (text: string, opts: Record<string, unknown> = {}) => ({
       text,
@@ -599,14 +603,14 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     ].filter(([, l]) => l.length) as Array<[string, string[]]>;
     const totalLines = sections.reduce((a, [, l]) => a + l.length, 0);
     // Shrink to fit when the talk runs long — never spill off the printed page.
-    const lineH = Math.min(0.24, (H - 1.4 - sections.length * 0.12) / Math.max(totalLines, 1));
+    const lineH = Math.min(0.24, (H - 1.1 - sections.length * 0.12) / Math.max(totalLines, 1));
     const fs = lineH >= 0.22 ? 11 : lineH >= 0.18 ? 10 : 8.5;
-    let y = 1.1;
+    let y = 0.85;
     for (const [label, ls] of sections) {
       const h = ls.length * lineH;
-      s.addText(label, { x: MX, y, w: 1.15, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
+      s.addText(label, { x: PMX, y, w: 1.45, h: lineH, fontSize: fs, color: "595959", bold: true, valign: "top" });
       s.addText(ls.map((t) => ({ text: t, options: { breakLine: true } })), {
-        x: MX + 1.25, y, w: W - 2 * MX - 1.25, h, fontSize: fs, color: "000000", valign: "top", lineSpacing: lineH * 72,
+        x: PMX + 1.55, y, w: W - 2 * PMX - 1.55, h, fontSize: fs, color: "000000", valign: "top", lineSpacing: lineH * 72,
       });
       y += h + 0.12;
     }
@@ -617,28 +621,28 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
   {
     const s = lightSlide(pptx, "Game day", `${input.round} v ${input.opponent}`, input.matchDate);
     // Left: comments/trends, then deliberate white space for in-game notes.
-    s.addText("COMMENTS / TRENDS", { x: MX, y: 1.1, w: 5.6, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
+    s.addText("COMMENTS / TRENDS", { x: PMX, y: 0.85, w: 5.6, h: 0.26, fontSize: 10, color: "000000", bold: true, charSpacing: 3 });
     const ct = input.commentsTrends ?? [];
     if (ct.length) {
       s.addText(ct.map((t) => ({ text: t, options: { breakLine: true } })), {
-        x: MX, y: 1.4, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
+        x: PMX, y: 1.15, w: 5.6, h: Math.min(2.8, ct.length * 0.24), fontSize: 11, color: "000000", valign: "top", lineSpacing: 17,
       });
     }
     // Right: subs column + three grey shape boxes (top one filled with the XI,
     // two blank for scribbling a reshuffle after subs/injuries).
-    const subsX = 8.6;
+    const subsX = 8.85;
     if (input.subs.length) {
       s.addText([{ text: "Subs", options: { bold: true, breakLine: true } }, ...input.subs.map((n) => ({ text: n, options: { breakLine: true } }))], {
-        x: subsX, y: 1.75, w: 0.8, h: 3.0, fontSize: 9, color: "000000", valign: "top", lineSpacing: 13,
+        x: subsX, y: 1.4, w: 0.8, h: 3.0, fontSize: 9, color: "000000", valign: "top", lineSpacing: 13,
       });
     }
     // Real 5×7 tables (editable in PowerPoint after download): header row holds the
     // formation name; the XI drop into cells by pitch position, GK ends up bottom middle.
     const COLS = 5, PLAYER_ROWS = 6;
-    const bx = 9.55, bw2 = W - 0.45 - bx, bh2 = 1.28;
+    const bx = 9.8, bw2 = W - PMX - bx, bh2 = 1.28;
     // Space the three tables evenly down the page (tables can grow a touch when
     // cells hold text, so the gap is generous and identical between all three).
-    const topY = 1.75, bottomY = H - 0.3;
+    const topY = 1.4, bottomY = H - 0.2;
     const gap2 = (bottomY - topY - 3 * bh2) / 2;
     for (let i = 0; i < 3; i++) {
       const by = topY + i * (bh2 + gap2);

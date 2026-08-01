@@ -346,7 +346,7 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Every player, against their own normal</CardTitle>
           <CardDescription className="text-xs">
-            "vs own normal" compares metres-per-minute with that player's other {model.year} games (45+ minute games only) — so short stints are judged on intensity, not volume.
+            "vs own normal" is one metric: running intensity (metres per minute) against that player's other {model.year} games (45+ minute games only) — so short stints are judged on intensity, not volume. High-speed running, top speed and season bests are flagged separately in the cards above.
           </CardDescription>
         </CardHeader>
         <CardContent>

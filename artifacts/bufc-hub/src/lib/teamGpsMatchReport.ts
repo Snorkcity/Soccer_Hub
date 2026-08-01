@@ -126,7 +126,7 @@ export async function generateTeamGpsMatchReport(
     const s = pptx.addSlide();
     s.background = { color: BG };
     addHeader(s, "Every player, against their own normal",
-      "Arrows compare per-minute rates with each player's own season baseline — so short stints are judged on intensity, not volume.");
+      "\"vs own normal\" is one metric — running intensity (m/min) against the player's own season baseline. High-speed and season bests are flagged on the standout pages.");
     const head = ["Player", "Mins", "Km", "m/min", "HS m", "VHS m", "Top km/h", "vs own normal"];
     const rows: Cell[][] = [head.map((h, i) => ({
       text: h, options: { bold: true, color: NAVY, fill: { color: SKY }, align: i === 0 ? "left" : "center" },
