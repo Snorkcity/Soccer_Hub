@@ -61,6 +61,7 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
 import MatchReportTab from "@/components/MatchReportTab";
+import OpponentMatchReport from "@/components/OpponentMatchReport";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1260,7 +1261,7 @@ export default function SeasonStats() {
   const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
   const [oppDnaLastN, setOppDnaLastN]     = useState(false); // opponent: scoring-DNA window
   const [oppDnaPlayer, setOppDnaPlayer]   = useState("");    // opponent: scoring-DNA focus player
-  const [oppView, setOppView]             = useState<"team" | "player">("team"); // opponent: Team / Players sub-view
+  const [oppView, setOppView]             = useState<"team" | "player" | "report">("team"); // opponent: Team / Players / Match report sub-view
 
   React.useEffect(() => {
     if (teams?.length && selectedTeamId === "") {
@@ -2666,15 +2667,25 @@ export default function SeasonStats() {
           )}
 
           {/* Team / Players sub-view — mirrors the main Team/Player split for easier navigation */}
-          <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player")}>
+          <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player" | "report")}>
             <TabsList>
               <TabsTrigger value="team">Team Charts</TabsTrigger>
               <TabsTrigger value="player">Player Charts</TabsTrigger>
+              <TabsTrigger value="report" disabled={isAll}>Match Report</TabsTrigger>
             </TabsList>
           </Tabs>
 
           {selectedClub && profile && (
             <>
+              {oppView === "report" && !isAll && isReady && (
+                <OpponentMatchReport
+                  teamId={tId!}
+                  seasonId={sId!}
+                  club={selectedClub}
+                  matches={profile.matches}
+                />
+              )}
+
               {oppView === "team" && (
               <>
               {isAll ? (

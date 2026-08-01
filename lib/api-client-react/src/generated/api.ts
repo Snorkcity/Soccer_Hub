@@ -79,6 +79,7 @@ import type {
   GetOpponentGoalBreakdownParams,
   GetOpponentGoalCombosParams,
   GetOpponentLeaderboardParams,
+  GetOpponentMatchReportParams,
   GetOpponentOnfieldImpactParams,
   GetOpponentPlayerDnaParams,
   GetOpponentPlayersByOpponentParams,
@@ -3001,6 +3002,90 @@ export function useGetMatchReport<TData = Awaited<ReturnType<typeof getMatchRepo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMatchReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOpponentMatchReportUrl = (params: GetOpponentMatchReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/opponent-match-report?${stringifiedParams}` : `/api/analytics/opponent-match-report`
+}
+
+/**
+ * @summary Slimmed scouting match report for any league club's game, from the league tables (no GPS/possession)
+ */
+export const getOpponentMatchReport = async (params: GetOpponentMatchReportParams, options?: RequestInit): Promise<MatchReportResponse> => {
+
+  return customFetch<MatchReportResponse>(getGetOpponentMatchReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpponentMatchReportQueryKey = (params?: GetOpponentMatchReportParams,) => {
+    return [
+    `/api/analytics/opponent-match-report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOpponentMatchReportQueryOptions = <TData = Awaited<ReturnType<typeof getOpponentMatchReport>>, TError = ErrorType<void>>(params: GetOpponentMatchReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentMatchReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpponentMatchReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpponentMatchReport>>> = ({ signal }) => getOpponentMatchReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpponentMatchReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpponentMatchReportQueryResult = NonNullable<Awaited<ReturnType<typeof getOpponentMatchReport>>>
+export type GetOpponentMatchReportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Slimmed scouting match report for any league club's game, from the league tables (no GPS/possession)
+ */
+
+export function useGetOpponentMatchReport<TData = Awaited<ReturnType<typeof getOpponentMatchReport>>, TError = ErrorType<void>>(
+ params: GetOpponentMatchReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpponentMatchReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpponentMatchReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -97,6 +97,7 @@ export * from './getOpponentFirstSubParams';
 export * from './getOpponentGoalBreakdownParams';
 export * from './getOpponentGoalCombosParams';
 export * from './getOpponentLeaderboardParams';
+export * from './getOpponentMatchReportParams';
 export * from './getOpponentOnfieldImpactParams';
 export * from './getOpponentPlayerDnaParams';
 export * from './getOpponentPlayersByOpponentParams';

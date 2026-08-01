@@ -1110,6 +1110,141 @@ export const GetMatchReportResponse = zod.object({
 
 
 /**
+ * @summary Slimmed scouting match report for any league club's game, from the league tables (no GPS/possession)
+ */
+export const GetOpponentMatchReportQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "matchId": zod.coerce.string().describe('The league_matches text match_id (e.g. R10-CRO-WAN)')
+})
+
+export const GetOpponentMatchReportResponse = zod.object({
+  "header": zod.object({
+  "matchLabel": zod.string(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullish(),
+  "venue": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "halfScore": zod.string().nullish(),
+  "fullScore": zod.string().nullish(),
+  "goalsScored": zod.number().nullish(),
+  "goalsConceded": zod.number().nullish(),
+  "formation": zod.string().nullish(),
+  "oppFormation": zod.string().nullish(),
+  "cleanSheet": zod.boolean().nullish()
+}),
+  "tiles": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "value": zod.number().nullable(),
+  "unit": zod.string(),
+  "decimals": zod.number(),
+  "seasonAvg": zod.number().nullable(),
+  "deltaPct": zod.number().nullable(),
+  "rank": zod.number().nullable(),
+  "outOf": zod.number().nullable(),
+  "higherIsBetter": zod.boolean(),
+  "oppAvg": zod.number().nullable().describe('Average of this metric across the other meetings with this opponent this season (null when no earlier data).'),
+  "oppGames": zod.number().nullable().describe('How many other meetings with this opponent the oppAvg is built from.')
+})),
+  "goals": zod.array(zod.object({
+  "minute": zod.number().nullable(),
+  "scorer": zod.string().nullable(),
+  "assist": zod.string().nullable(),
+  "ours": zod.boolean(),
+  "note": zod.string().nullable()
+})),
+  "insights": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+})),
+  "form": zod.array(zod.object({
+  "result": zod.string(),
+  "opponent": zod.string(),
+  "score": zod.string(),
+  "isThisMatch": zod.boolean()
+})),
+  "ladderPos": zod.number().nullable(),
+  "ladderPoints": zod.number().nullable(),
+  "teamsInLeague": zod.number().nullable(),
+  "gps": zod.union([zod.object({
+  "totalDistanceKm": zod.number().nullable(),
+  "defendersMPerMin": zod.number().nullable(),
+  "midfieldersMPerMin": zod.number().nullable(),
+  "forwardsHighSpeedM": zod.number().nullable(),
+  "playerCount": zod.number(),
+  "seasonAvgTotalDistanceKm": zod.number().nullable().describe('Per-round season average (other rounds this year, same squad).'),
+  "seasonAvgDefendersMPerMin": zod.number().nullable(),
+  "seasonAvgMidfieldersMPerMin": zod.number().nullable(),
+  "seasonAvgForwardsHighSpeedM": zod.number().nullable(),
+  "gamesInAvg": zod.number().nullable().describe('How many other rounds the season averages are built from.'),
+  "players": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullable(),
+  "mins": zod.number().nullable(),
+  "distanceKm": zod.number().nullable(),
+  "mPerMin": zod.number().nullable(),
+  "sprintDistanceM": zod.number().nullable()
+})).describe('Per-player game rows behind the position averages.')
+}).describe('GPS numbers for this game, when a Catapult upload exists for the round.'),zod.null()]),
+  "previousMeetings": zod.array(zod.object({
+  "matchLabel": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "score": zod.string(),
+  "result": zod.string().nullable()
+}).describe('An earlier meeting with the same opponent this season.')),
+  "ballUse": zod.union([zod.object({
+  "possession": zod.number(),
+  "passesPerShot": zod.number(),
+  "shotsPer100Passes": zod.number(),
+  "seasonAvgPossession": zod.number().nullable(),
+  "seasonAvgShotsPer100": zod.number().nullable(),
+  "quadrant": zod.union([zod.literal('control'),zod.literal('sterile'),zod.literal('direct'),zod.literal('chasing'),zod.literal(null)]).nullable(),
+  "points": zod.array(zod.object({
+  "label": zod.string(),
+  "possession": zod.number(),
+  "shotsPer100Passes": zod.number(),
+  "result": zod.string().nullable(),
+  "isThisMatch": zod.boolean()
+})),
+  "comments": zod.array(zod.string())
+}).describe('Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.'),zod.null()]),
+  "goalDna": zod.union([zod.object({
+  "scored": zod.object({
+  "totalTyped": zod.number().describe('Season-to-date goals with a goal type recorded.'),
+  "categories": zod.array(zod.object({
+  "id": zod.enum(['setPiece', 'frontThird', 'middleThird', 'backThird']),
+  "label": zod.string(),
+  "count": zod.number(),
+  "dt": zod.number().describe('During-transition goals in this category (regain categories only).'),
+  "at": zod.number().describe('After-transition goals in this category (regain categories only).'),
+  "pct": zod.number().nullable(),
+  "benchmarkLabel": zod.string().describe('e.g. 27% or 48-50%'),
+  "verdict": zod.union([zod.literal('high'),zod.literal('low'),zod.literal(null)]).nullable().describe('Season share sits clearly above\/below the benchmark band (null = typical or sample too small).')
+})),
+  "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
+}),
+  "conceded": zod.object({
+  "totalTyped": zod.number().describe('Season-to-date goals with a goal type recorded.'),
+  "categories": zod.array(zod.object({
+  "id": zod.enum(['setPiece', 'frontThird', 'middleThird', 'backThird']),
+  "label": zod.string(),
+  "count": zod.number(),
+  "dt": zod.number().describe('During-transition goals in this category (regain categories only).'),
+  "at": zod.number().describe('After-transition goals in this category (regain categories only).'),
+  "pct": zod.number().nullable(),
+  "benchmarkLabel": zod.string().describe('e.g. 27% or 48-50%'),
+  "verdict": zod.union([zod.literal('high'),zod.literal('low'),zod.literal(null)]).nullable().describe('Season share sits clearly above\/below the benchmark band (null = typical or sample too small).')
+})),
+  "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
+}),
+  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.')
+}).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
+})
+
+
+/**
  * @summary Goals scored and conceded by 15-minute interval
  */
 export const GetGoalsByIntervalQueryParams = zod.object({

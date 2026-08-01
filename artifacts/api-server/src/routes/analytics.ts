@@ -30,6 +30,7 @@ import {
   GetSubImpactQueryParams,
   GetSubImpactResponse,
   GetOpponentProfileQueryParams,
+  GetOpponentMatchReportQueryParams,
   GetPlayerTimelineQueryParams,
   GetPlayerTimelineResponse,
   GetOpponentProfileResponse,
@@ -3194,6 +3195,242 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     },
     tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
     gps, previousMeetings, ballUse, goalDna,
+  }));
+});
+
+// ── Opponent match report — scouting view of ANY league club's game ─────────
+// Built entirely from the league tables (league_matches + league_goals), so it
+// works for every club: no GPS, no possession/shots — a slimmed version of the
+// team match report, in a scouting voice ("they", strengths to watch /
+// weaknesses to exploit). Reuses the MatchReportResponse shape: tiles [],
+// gps/ballUse null.
+router.get("/analytics/opponent-match-report", async (req, res): Promise<void> => {
+  const query = GetOpponentMatchReportQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, matchId } = query.data;
+
+  const allLeagueMatches = await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  const clubMatches = allLeagueMatches
+    .filter(m => (m.homeTeam === club || m.awayTeam === club) && /^R\d/.test(m.matchId))
+    .sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? "") || a.matchId.localeCompare(b.matchId));
+  const match = clubMatches.find(m => m.matchId === matchId);
+  if (!match) { res.status(404).json({ error: "Match not found" }); return; }
+  const idx = clubMatches.findIndex(m => m.matchId === matchId);
+  const upTo = clubMatches.slice(0, idx + 1);
+
+  type LM = typeof allLeagueMatches[number];
+  const isHome = (m: LM) => m.homeTeam === club;
+  const scoredOf = (m: LM) => (isHome(m) ? m.homeGoals : m.awayGoals);
+  const concededOf = (m: LM) => (isHome(m) ? m.awayGoals : m.homeGoals);
+  const oppOf = (m: LM) => (isHome(m) ? m.awayTeam : m.homeTeam);
+  const resultOf = (m: LM): "W" | "D" | "L" | null => {
+    const s = scoredOf(m), c = concededOf(m);
+    return s == null || c == null ? null : s > c ? "W" : s < c ? "L" : "D";
+  };
+  const result = resultOf(match);
+  const roundShort = match.matchId.split("-")[0];
+  const opponent = oppOf(match);
+  const matchLabel = `${roundShort} v ${opponent}`;
+  const scored = scoredOf(match), conceded = concededOf(match);
+
+  // Half-time score oriented to the club (stored home–away).
+  const parseScore = (s: string | null): [number, number] | null => {
+    const m2 = s?.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    return m2 ? [Number(m2[1]), Number(m2[2])] : null;
+  };
+  const htRaw = parseScore(match.halfScore);
+  const ht = htRaw ? (isHome(match) ? htRaw : [htRaw[1], htRaw[0]] as [number, number]) : null;
+
+  // ── Goals in this match (ours = credited to the club) ────────────────────
+  const seasonGoals = await db
+    .select()
+    .from(leagueGoalsTable)
+    .where(eq(leagueGoalsTable.seasonId, seasonId));
+  const matchGoals = seasonGoals
+    .filter(g => g.matchId === match.matchId)
+    .sort((a, b) => (a.minuteScored ?? 999) - (b.minuteScored ?? 999));
+
+  const upToIds = new Set(upTo.map(m => m.matchId));
+  const clubGoalsUpTo = seasonGoals.filter(g => upToIds.has(g.matchId) && g.scorerTeam === club);
+  const clubConcededUpTo = seasonGoals.filter(g =>
+    upToIds.has(g.matchId) && g.scorerTeam !== club && (g.homeTeam === club || g.awayTeam === club));
+
+  const tally = new Map<string, number>();
+  for (const g of clubGoalsUpTo) {
+    const n = g.scorer?.trim();
+    if (n && n !== "OG") tally.set(n, (tally.get(n) ?? 0) + 1);
+  }
+  const goals = matchGoals.map(g => {
+    const ours = g.scorerTeam === club;
+    let note: string | null = null;
+    if (ours && g.scorer && g.scorer !== "OG") {
+      const season = tally.get(g.scorer.trim()) ?? 0;
+      const inGame = matchGoals.filter(x => x.scorerTeam === club && x.scorer?.trim() === g.scorer!.trim()).length;
+      const bits: string[] = [];
+      if (inGame >= 3) bits.push("hat-trick");
+      else if (inGame === 2) bits.push("brace");
+      bits.push(`${season} for the season`);
+      note = bits.join(" · ");
+    }
+    return {
+      minute: g.minuteScored,
+      scorer: g.scorer && g.scorer !== "OG" ? g.scorer : g.scorerTeam ?? null,
+      assist: ours ? g.assist : null,
+      ours, note,
+    };
+  });
+
+  // ── Form + ladder as of this date ─────────────────────────────────────────
+  const form = upTo.slice(-5).map(m => ({
+    result: resultOf(m) ?? "?",
+    opponent: oppOf(m),
+    score: scoredOf(m) != null && concededOf(m) != null ? `${scoredOf(m)}–${concededOf(m)}` : "—",
+    isThisMatch: m.matchId === matchId,
+  }));
+  const cutoff = match.matchDate ?? "9999";
+  const standings = new Map<string, { pts: number; gd: number; gf: number }>();
+  for (const m of allLeagueMatches) {
+    if (!/^R\d/.test(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
+    if ((m.matchDate ?? "") > cutoff) continue;
+    const upd = (c: string, gf: number, ga: number) => {
+      const e = standings.get(c) ?? { pts: 0, gd: 0, gf: 0 };
+      e.pts += gf > ga ? 3 : gf === ga ? 1 : 0;
+      e.gd += gf - ga; e.gf += gf;
+      standings.set(c, e);
+    };
+    upd(m.homeTeam, m.homeGoals, m.awayGoals);
+    upd(m.awayTeam, m.awayGoals, m.homeGoals);
+  }
+  const table = [...standings.entries()].sort((a, b) => b[1].pts - a[1].pts || b[1].gd - a[1].gd || b[1].gf - a[1].gf);
+  const posIdx = table.findIndex(([c]) => c === club);
+  const ladderPos = posIdx >= 0 ? posIdx + 1 : null;
+  const ladderPoints = posIdx >= 0 ? table[posIdx][1].pts : null;
+  const teamsInLeague = table.length || null;
+
+  // ── Insights — scouting voice ─────────────────────────────────────────────
+  const ord2 = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+  const insights: Array<{ tone: "good" | "watch" | "info"; text: string }> = [];
+  const resultsUpTo = upTo.map(resultOf);
+  let streak = 0;
+  const last = resultsUpTo[resultsUpTo.length - 1];
+  for (let i = resultsUpTo.length - 1; i >= 0 && resultsUpTo[i] === last; i--) streak++;
+  if (result === "W" && streak >= 2) insights.push({ tone: "watch", text: `That's ${streak} wins on the trot for them — arriving in form.` });
+  else if (result === "L" && streak >= 2) insights.push({ tone: "good", text: `${streak} losses in a row — confidence will be low.` });
+  let unbeaten = 0;
+  for (let i = resultsUpTo.length - 1; i >= 0 && resultsUpTo[i] !== null && resultsUpTo[i] !== "L"; i--) unbeaten++;
+  if (result !== "L" && unbeaten >= 3 && unbeaten > streak) insights.push({ tone: "watch", text: `Unbeaten in ${unbeaten}.` });
+
+  if (ht && result) {
+    const [h1, h2] = ht;
+    const htResult = h1 > h2 ? "W" : h1 < h2 ? "L" : "D";
+    if (htResult === "L" && result === "W") insights.push({ tone: "watch", text: `Came from ${h1}–${h2} down at the break to win — they don't go away.` });
+    else if (htResult === "W" && result === "L") insights.push({ tone: "good", text: `Led ${h1}–${h2} at half-time and lost — they can be got at after the break.` });
+    else if (htResult === "W" && result === "W" && (scored ?? 0) - h1 >= 2) insights.push({ tone: "watch", text: `Kicked on after the break — ${(scored ?? 0) - h1} second-half goals.` });
+  }
+  if (conceded === 0 && scored != null) {
+    let cs = 0;
+    for (let i = upTo.length - 1; i >= 0 && concededOf(upTo[i]) === 0; i--) cs++;
+    if (cs >= 2) insights.push({ tone: "watch", text: `Clean sheet — ${cs} shut-outs in a row now. Breaking them down first is the job.` });
+  }
+  // Their top scorer season-to-date.
+  const topScorer = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (topScorer && topScorer[1] >= 3) {
+    insights.push({ tone: "info", text: `${topScorer[0]} leads their scoring on ${topScorer[1]} — the main threat to shut down.` });
+  }
+  if (ladderPos != null) {
+    insights.push({ tone: "info", text: `${ord2(ladderPos)} of ${teamsInLeague} after this round on ${ladderPoints} points.` });
+  }
+
+  // ── Previous meetings of this pairing this season ─────────────────────────
+  const earlier = clubMatches.slice(0, idx).filter(m => oppOf(m) === opponent);
+  const previousMeetings = earlier.slice().reverse().map(m => ({
+    matchLabel: `${m.matchId.split("-")[0]} v ${oppOf(m)}`,
+    matchDate: m.matchDate,
+    score: scoredOf(m) != null && concededOf(m) != null ? `${scoredOf(m)}–${concededOf(m)}` : "—",
+    result: resultOf(m),
+  }));
+
+  // ── Goal DNA — scouting voice ─────────────────────────────────────────────
+  type DnaCatId = "setPiece" | "frontThird" | "middleThird" | "backThird";
+  const catOf = (t: string | null | undefined): DnaCatId | null => {
+    const s = t?.trim().toUpperCase();
+    if (!s) return null;
+    if (s.startsWith("SP")) return "setPiece";
+    if (s.startsWith("R-FT")) return "frontThird";
+    if (s.startsWith("R-MT")) return "middleThird";
+    if (s.startsWith("R-BT")) return "backThird";
+    return null;
+  };
+  const BENCH: Record<DnaCatId, { lo: number; hi: number; label: string }> = {
+    setPiece: { lo: 23, hi: 31, label: "27%" },
+    middleThird: { lo: 44, hi: 54, label: "48–50%" },
+    frontThird: { lo: 8, hi: 16, label: "~12%" },
+    backThird: { lo: 8, hi: 16, label: "~12%" },
+  };
+  const LABELS: Record<DnaCatId, string> = {
+    setPiece: "Set pieces", frontThird: "Front-third regains",
+    middleThird: "Middle-third regains", backThird: "Back-third regains",
+  };
+  const dnaSideOf = (rows: typeof seasonGoals, matchRows: typeof seasonGoals, isScoredSide: boolean) => {
+    const typed = rows.map(g => ({ cat: catOf(g.goalType), at: (g.goalType ?? "").toUpperCase().endsWith("-AT") })).filter(x => x.cat != null);
+    const totalTyped = typed.length;
+    const categories = (Object.keys(LABELS) as DnaCatId[]).map(id => {
+      const inCat = typed.filter(x => x.cat === id);
+      const at = id === "setPiece" ? 0 : inCat.filter(x => x.at).length;
+      const pct = totalTyped ? (inCat.length / totalTyped) * 100 : null;
+      return {
+        id, label: LABELS[id], count: inCat.length, dt: id === "setPiece" ? 0 : inCat.length - at, at,
+        pct, benchmarkLabel: BENCH[id].label,
+        verdict: totalTyped >= 12 && pct != null ? (pct > BENCH[id].hi ? "high" as const : pct < BENCH[id].lo ? "low" as const : null) : null,
+      };
+    });
+    const matchCats = new Map<DnaCatId, number>();
+    for (const g of matchRows) {
+      const c = catOf(g.goalType);
+      if (c) matchCats.set(c, (matchCats.get(c) ?? 0) + 1);
+    }
+    const matchLines: string[] = [];
+    if (totalTyped >= 12) {
+      const sig = categories.slice().sort((a, b) =>
+        (b.verdict === "high" ? 1000 : 0) + b.count - ((a.verdict === "high" ? 1000 : 0) + a.count))[0];
+      const nToday = sig ? matchCats.get(sig.id) ?? 0 : 0;
+      if (sig && nToday > 0 && sig.pct != null && sig.pct >= 25) {
+        matchLines.push(isScoredSide
+          ? `${nToday > 1 ? `${nToday} more` : "Another one"} from ${sig.label.toLowerCase()} — their signature. ${sig.count} of their ${totalTyped} this season have come that way; plan for it.`
+          : `They conceded from ${sig.label.toLowerCase()} again — ${sig.count} of the ${totalTyped} they've let in this season. That's the door to knock on.`);
+      }
+    }
+    return { totalTyped, categories, matchLines: matchLines.slice(0, 2) };
+  };
+  const matchClubGoals = matchGoals.filter(g => g.scorerTeam === club);
+  const matchOppGoals = matchGoals.filter(g => g.scorerTeam !== club);
+  const dnaScored = dnaSideOf(clubGoalsUpTo, matchClubGoals, true);
+  const dnaConceded = dnaSideOf(clubConcededUpTo, matchOppGoals, false);
+  const dnaComments: string[] = [];
+  for (const c of dnaScored.categories) {
+    if (c.verdict === "high") dnaComments.push(`${c.label} are ${c.pct!.toFixed(0)}% of their goals (benchmark ${c.benchmarkLabel}) — their go-to weapon; plan against it.`);
+    else if (c.verdict === "low") dnaComments.push(`Only ${c.pct!.toFixed(0)}% of their goals come from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — not a threat they use much.`);
+  }
+  for (const c of dnaConceded.categories) {
+    if (c.verdict === "high") dnaComments.push(`${c.pct!.toFixed(0)}% of what they concede comes from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to exploit.`);
+    else if (c.verdict === "low") dnaComments.push(`They concede just ${c.pct!.toFixed(0)}% from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — hard to hurt them that way.`);
+  }
+  const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
+    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments }
+    : null;
+
+  res.json(GetMatchReportResponse.parse({
+    header: {
+      matchLabel, opponent, matchDate: match.matchDate, venue: null,
+      result, halfScore: match.halfScore, fullScore: match.fullScore,
+      goalsScored: scored, goalsConceded: conceded,
+      formation: null, oppFormation: null, cleanSheet: conceded === 0 && scored != null,
+    },
+    tiles: [], goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
+    gps: null, previousMeetings, ballUse: null, goalDna,
   }));
 });
 

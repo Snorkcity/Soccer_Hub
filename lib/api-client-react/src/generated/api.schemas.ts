@@ -3088,6 +3088,16 @@ seasonId: number;
 matchRowId: number;
 };
 
+export type GetOpponentMatchReportParams = {
+teamId: number;
+seasonId: number;
+club: string;
+/**
+ * The league_matches text match_id (e.g. R10-CRO-WAN)
+ */
+matchId: string;
+};
+
 export type GetGoalsByIntervalParams = {
 teamId: number;
 seasonId: number;

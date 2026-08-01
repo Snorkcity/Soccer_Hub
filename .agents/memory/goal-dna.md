@@ -25,4 +25,7 @@ Scott calls this "the gold" of the whole app — the reason the project started.
 - Front-third **~12%**, Back-third **~12%** (bands 8–16)
 - Above/below band = strength to exploit (scored high / conceded low) or weakness to mitigate (conceded high / scored low). Verdicts gated on ≥12 typed goals.
 
+## Insight voice — selective, not exhaustive
+Coach's direction: don't comment on every goal — the analyst reads the charts; insights should find "something to remember". Per-match Goal DNA lines fire only for signature patterns (side's dominant/over-benchmark category) or rarities (≤2 all season). Future direction: a full pass to align all app insight wording with the coaching language in the Coach Assistant curriculum docs ("coach packs") — do when Scott says the time is right.
+
 **How to apply:** implemented in the match-report `goalDna` block; reuse the same benchmarks, category mapping, and voice anywhere goals-by-type analysis appears (decks, season summaries, opponent profiles).

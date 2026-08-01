@@ -800,6 +800,39 @@ paths:
         "404":
           description: Match not found
 
+  /analytics/opponent-match-report:
+    get:
+      operationId: getOpponentMatchReport
+      tags: [analytics]
+      summary: Slimmed scouting match report for any league club's game, from the league tables (no GPS/possession)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: matchId
+          in: query
+          required: true
+          description: The league_matches text match_id (e.g. R10-CRO-WAN)
+          schema: { type: string }
+      responses:
+        "200":
+          description: Match report model (tiles empty, gps/ballUse null)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchReportResponse"
+        "404":
+          description: Match not found
+
   /analytics/goals-by-interval:
     get:
       operationId: getGoalsByInterval

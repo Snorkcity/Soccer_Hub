@@ -12,6 +12,8 @@ export interface FootballMatchReportModel {
   opponent: string;
   matchDate: string | null;
   generatedOn: string;        // "3 August 2026"
+  /** Set for the opponent scouting version — the league club the report is about. */
+  subjectClub?: string;
 }
 
 // ── Brand (identical to teamGpsMatchReport.ts) ───────────────────────────────
@@ -46,7 +48,8 @@ export async function generateFootballMatchReport(
   pptx.layout = "WIDE";
   const { report, matchLabel } = model;
   const h = report.header;
-  pptx.title = `Match Report — ${matchLabel}`;
+  const subject = model.subjectClub;
+  pptx.title = subject ? `Scouting Report — ${subject} ${matchLabel}` : `Match Report — ${matchLabel}`;
 
   const resultWord = h.result === "W" ? "Win" : h.result === "L" ? "Loss" : h.result === "D" ? "Draw" : null;
   const scoreLine = h.goalsScored != null && h.goalsConceded != null
@@ -57,7 +60,7 @@ export async function generateFootballMatchReport(
     const s = pptx.addSlide();
     s.background = { color: NAVY };
     s.addShape("rect", { x: 0, y: 0, w: 0.22, h: H, fill: { color: SKY } });
-    s.addText("MATCH REPORT", { x: 0.9, y: 1.5, w: 11, h: 0.5, fontSize: 20, color: SKY, bold: true, charSpacing: 6 });
+    s.addText(subject ? `SCOUTING MATCH REPORT  •  ${subject.toUpperCase()}` : "MATCH REPORT", { x: 0.9, y: 1.5, w: 11.5, h: 0.5, fontSize: 20, color: SKY, bold: true, charSpacing: 6 });
     s.addText(matchLabel, { x: 0.9, y: 2.1, w: 11.5, h: 1.4, fontSize: 48, color: PAPER, bold: true });
     if (scoreLine) {
       s.addText(scoreLine + (h.cleanSheet ? "  •  Clean sheet" : ""), {
@@ -135,6 +138,102 @@ export async function generateFootballMatchReport(
     addFooter(s);
   }
 
+  // ── GPS physical output (team report only) ─────────────────────────────────
+  if (report.gps) {
+    const g = report.gps;
+    const s = pptx.addSlide();
+    s.background = { color: BG };
+    addHeader(s, "Physical output", `GPS numbers for this game against the season average${g.gamesInAvg != null ? ` (${g.gamesInAvg} other games)` : ""}.`);
+    const stats: Array<[string, number | null | undefined, number | null | undefined, string, number]> = [
+      ["Team distance", g.totalDistanceKm, g.seasonAvgTotalDistanceKm, "km", 1],
+      ["Defenders", g.defendersMPerMin, g.seasonAvgDefendersMPerMin, "m/min", 0],
+      ["Midfielders", g.midfieldersMPerMin, g.seasonAvgMidfieldersMPerMin, "m/min", 0],
+      ["Forwards HSM", g.forwardsHighSpeedM, g.seasonAvgForwardsHighSpeedM, "m", 0],
+    ];
+    const tw = 2.85, th = 1.7, gx = 0.3, x0 = 0.75, y0 = 2.0;
+    stats.forEach(([label, v, sAvg, unit, dp], i) => {
+      const x = x0 + i * (tw + gx);
+      s.addShape("roundRect", { x, y: y0, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
+      s.addText(label.toUpperCase(), { x: x + 0.2, y: y0 + 0.15, w: tw - 0.4, h: 0.3, fontSize: 10.5, color: GREY, charSpacing: 2 });
+      s.addText(v != null ? `${v.toFixed(dp)} ${unit}` : "—", { x: x + 0.2, y: y0 + 0.45, w: tw - 0.4, h: 0.55, fontSize: 24, bold: true, color: SKY });
+      if (sAvg != null) {
+        const delta = v != null && sAvg > 0 ? ((v - sAvg) / sAvg) * 100 : null;
+        const runs: Runs = [{ text: `season avg ${sAvg.toFixed(dp)} ${unit}`, options: { color: GREY } }];
+        if (delta != null && Math.abs(delta) >= 3) runs.push({ text: `  ${delta > 0 ? "+" : ""}${delta.toFixed(0)}%`, options: { bold: true, color: delta > 0 ? GOOD : ORANGE } });
+        s.addText(runs as never, { x: x + 0.2, y: y0 + 1.1, w: tw - 0.4, h: 0.35, fontSize: 10.5, italic: true });
+      }
+    });
+    addInsightBar(s, "Distance and intensity read against the rest of the season — a big plus on Forwards HSM usually means a game spent running in behind.");
+    addFooter(s);
+  }
+
+  // ── Ball use ────────────────────────────────────────────────────────────────
+  if (report.ballUse) {
+    const bu = report.ballUse;
+    const s = pptx.addSlide();
+    s.background = { color: BG };
+    addHeader(s, "Ball use", "How much of the ball we had, and how often having it turned into a shot.");
+    const boxes: Array<[string, string, string | null]> = [
+      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
+      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
+      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
+    ];
+    const tw2 = 3.85, gx2 = 0.35, x02 = 0.75, y02 = 1.9;
+    boxes.forEach(([label, v, sub], i) => {
+      const x = x02 + i * (tw2 + gx2);
+      s.addShape("roundRect", { x, y: y02, w: tw2, h: 1.6, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
+      s.addText(label.toUpperCase(), { x: x + 0.25, y: y02 + 0.15, w: tw2 - 0.5, h: 0.3, fontSize: 10.5, color: GREY, charSpacing: 2 });
+      s.addText(v, { x: x + 0.25, y: y02 + 0.45, w: tw2 - 0.5, h: 0.6, fontSize: 28, bold: true, color: SKY });
+      if (sub) s.addText(sub, { x: x + 0.25, y: y02 + 1.1, w: tw2 - 0.5, h: 0.3, fontSize: 10.5, italic: true, color: GREY });
+    });
+    if (bu.comments.length) {
+      const runs: Runs = bu.comments.slice(0, 4).flatMap(c => ([
+        { text: "•  ", options: { bold: true, color: SKY } },
+        { text: c, options: { color: INK, breakLine: true } },
+      ]));
+      s.addText(runs as never, { x: 0.75, y: 3.9, w: 11.8, h: 2.2, fontSize: 13.5, lineSpacing: 24, paraSpaceAfter: 6 });
+    }
+    addFooter(s);
+  }
+
+  // ── Goal DNA ────────────────────────────────────────────────────────────────
+  if (report.goalDna) {
+    const dna = report.goalDna;
+    const s = pptx.addSlide();
+    s.background = { color: BG };
+    addHeader(s, "Goal DNA — how the goals really came",
+      "Season mix by goal type vs benchmark: set pieces 27%, middle-third 48–50%, front & back thirds ~12% each.");
+    const sides = [
+      { d: dna.scored, title: subject ? "They scored" : "Scored", isScored: true, x: 0.7 },
+      { d: dna.conceded, title: subject ? "They conceded" : "Conceded", isScored: false, x: 6.95 },
+    ];
+    for (const { d, title, isScored, x } of sides) {
+      s.addText(`${title} — ${d.totalTyped} typed this season`, { x, y: 1.55, w: 5.6, h: 0.35, fontSize: 14, bold: true, color: isScored ? GOOD : BAD });
+      let y = 2.0;
+      for (const c of d.categories) {
+        const flagged = c.verdict != null;
+        const goodFlag = c.verdict === "high" ? isScored : !isScored;
+        s.addText(c.label, { x, y, w: 2.3, h: 0.3, fontSize: 10.5, color: INK });
+        s.addShape("rect", { x: x + 2.35, y: y + 0.06, w: 2.0, h: 0.16, fill: { color: TINT }, line: { color: LINE, width: 0.5 } });
+        s.addShape("rect", { x: x + 2.35, y: y + 0.06, w: Math.max(0.02, 2.0 * Math.min(100, c.pct ?? 0) / 100), h: 0.16, fill: { color: flagged ? (goodFlag ? GOOD : BAD) : SKY } });
+        s.addText(`${c.pct != null ? `${c.pct.toFixed(0)}%` : "—"} / ${c.benchmarkLabel}`, { x: x + 4.45, y, w: 1.3, h: 0.3, fontSize: 9.5, color: GREY });
+        y += 0.38;
+      }
+      const lines = d.matchLines;
+      if (lines.length) {
+        const runs: Runs = lines.flatMap(l => ([
+          { text: isScored ? "▲  " : "▼  ", options: { bold: true, color: isScored ? GOOD : ORANGE } },
+          { text: l, options: { color: INK, breakLine: true } },
+        ]));
+        s.addText(runs as never, { x, y: y + 0.1, w: 5.7, h: 1.3, fontSize: 11, lineSpacing: 17, paraSpaceAfter: 5 });
+      }
+    }
+    if (dna.comments.length) {
+      addInsightBar(s, dna.comments.slice(0, 2).join("  •  "));
+    }
+    addFooter(s);
+  }
+
   // ── Analyst's notes ────────────────────────────────────────────────────────
   {
     const s = pptx.addSlide();
@@ -183,7 +282,10 @@ export async function generateFootballMatchReport(
 
   const safeRound = model.round.replace(/[^\w\-]+/g, "");
   const safeOpp = model.opponent.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
-  const fileName = `Match_Report-${safeRound}${safeOpp ? `-v-${safeOpp}` : ""}.pptx`;
+  const safeSubject = subject ? subject.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") : null;
+  const fileName = safeSubject
+    ? `Match_Report-${safeSubject}-${safeRound}${safeOpp ? `-v-${safeOpp}` : ""}.pptx`
+    : `Match_Report-${safeRound}${safeOpp ? `-v-${safeOpp}` : ""}.pptx`;
   if (output === "base64") {
     const base64 = (await pptx.write({ outputType: "base64" })) as string;
     return { fileName, base64 };
