@@ -115,7 +115,7 @@ function ReportBody({ report, club }: { report: MatchReportResponse; club: strin
               <CardDescription className="text-xs">
                 Scouting view — results and badges read from {club}'s side of the game.
                 {report.header.matchDate ? ` · ${report.header.matchDate}` : ""}
-                {report.header.halfScore ? ` · HT ${report.header.halfScore} (home–away)` : ""}
+                {report.header.halfScore ? ` · HT ${report.header.halfScore}` : ""}
               </CardDescription>
             </div>
             <div className="flex items-center gap-1.5">

@@ -3425,7 +3425,9 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   res.json(GetMatchReportResponse.parse({
     header: {
       matchLabel, opponent, matchDate: match.matchDate, venue: null,
-      result, halfScore: match.halfScore, fullScore: match.fullScore,
+      result,
+      halfScore: ht ? `${ht[0]}–${ht[1]}` : null, // oriented to the club, like the score
+      fullScore: match.fullScore,
       goalsScored: scored, goalsConceded: conceded,
       formation: null, oppFormation: null, cleanSheet: conceded === 0 && scored != null,
     },

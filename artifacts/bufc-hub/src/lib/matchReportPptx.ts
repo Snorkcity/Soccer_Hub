@@ -212,7 +212,11 @@ export async function generateFootballMatchReport(
       let y = 2.0;
       for (const c of d.categories) {
         const flagged = c.verdict != null;
-        const goodFlag = c.verdict === "high" ? isScored : !isScored;
+        // Team report: our high scoring = good. Scouting report: THEIR high
+        // scoring = threat (red/amber), their high conceding = our opening.
+        const goodFlag = subject
+          ? (c.verdict === "high" ? !isScored : isScored)
+          : (c.verdict === "high" ? isScored : !isScored);
         s.addText(c.label, { x, y, w: 2.3, h: 0.3, fontSize: 10.5, color: INK });
         s.addShape("rect", { x: x + 2.35, y: y + 0.06, w: 2.0, h: 0.16, fill: { color: TINT }, line: { color: LINE, width: 0.5 } });
         s.addShape("rect", { x: x + 2.35, y: y + 0.06, w: Math.max(0.02, 2.0 * Math.min(100, c.pct ?? 0) / 100), h: 0.16, fill: { color: flagged ? (goodFlag ? GOOD : BAD) : SKY } });
