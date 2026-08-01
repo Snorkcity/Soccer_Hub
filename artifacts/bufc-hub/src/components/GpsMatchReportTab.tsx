@@ -229,7 +229,37 @@ export function GpsMatchReportTab({ year, metaRows }: { year: string; metaRows: 
 // Report body
 // ─────────────────────────────────────────────────────────────────────────────
 
+type SortKey = "name" | "mins" | "km" | "dpm" | "hsm" | "vhs" | "topSpeed" | "hsmPctOfDist" | "dpmDelta";
+
 function ReportBody({ model }: { model: GpsMatchReportModel }) {
+  const [sortKey, setSortKey] = useState<SortKey>("mins");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(key); setSortDir(key === "name" ? "asc" : "desc"); }
+  };
+  const sortedPlayers = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...model.players].sort((a, b) => {
+      if (sortKey === "name") return mul * a.name.localeCompare(b.name);
+      const va = a[sortKey], vb = b[sortKey];
+      if (va == null && vb == null) return a.name.localeCompare(b.name);
+      if (va == null) return 1;   // blanks always sink to the bottom
+      if (vb == null) return -1;
+      return mul * (va - vb) || a.name.localeCompare(b.name);
+    });
+  }, [model.players, sortKey, sortDir]);
+  const Th = ({ k, label, first }: { k: SortKey; label: string; first?: boolean }) => (
+    <th className={`py-1.5 font-medium ${first ? "pr-3 text-left" : "px-2 text-center"}`}>
+      <button
+        className={`inline-flex items-center gap-0.5 hover:text-foreground ${sortKey === k ? "text-foreground" : ""}`}
+        onClick={() => toggleSort(k)}
+      >
+        {label}
+        <span className="w-3 text-[9px]">{sortKey === k ? (sortDir === "desc" ? "▼" : "▲") : ""}</span>
+      </button>
+    </th>
+  );
   return (
     <div className="space-y-6">
       {/* Team at a glance */}
@@ -324,19 +354,19 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="py-1.5 pr-3 font-medium">Player</th>
-                  <th className="py-1.5 px-2 text-center font-medium">Mins</th>
-                  <th className="py-1.5 px-2 text-center font-medium">Km</th>
-                  <th className="py-1.5 px-2 text-center font-medium">m/min</th>
-                  <th className="py-1.5 px-2 text-center font-medium">HS m</th>
-                  <th className="py-1.5 px-2 text-center font-medium">VHS m</th>
-                  <th className="py-1.5 px-2 text-center font-medium">Top km/h</th>
-                  <th className="py-1.5 px-2 text-center font-medium">HS % of dist</th>
-                  <th className="py-1.5 pl-2 text-center font-medium">vs own normal</th>
+                  <Th k="name" label="Player" first />
+                  <Th k="mins" label="Mins" />
+                  <Th k="km" label="Km" />
+                  <Th k="dpm" label="m/min" />
+                  <Th k="hsm" label="HS m" />
+                  <Th k="vhs" label="VHS m" />
+                  <Th k="topSpeed" label="Top km/h" />
+                  <Th k="hsmPctOfDist" label="HS % of dist" />
+                  <Th k="dpmDelta" label="vs own normal" />
                 </tr>
               </thead>
               <tbody>
-                {model.players.map(p => <PlayerRow key={p.name} p={p} />)}
+                {sortedPlayers.map(p => <PlayerRow key={p.name} p={p} />)}
               </tbody>
             </table>
           </div>

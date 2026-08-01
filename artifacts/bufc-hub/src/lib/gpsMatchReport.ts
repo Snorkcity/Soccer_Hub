@@ -347,8 +347,14 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     // Under normal
     if (m >= MIN_FLAG_MINS && base.games >= 2 && p.dpmDelta != null && p.dpmDelta <= -DOWN_PCT)
       push(watch, "down", p.name, `Intensity ${fmt(Math.abs(p.dpmDelta), 0)}% under their normal (${fmt(p.dpm, 0)} vs a usual ${fmt(base.dpm, 0)} m/min) — could be tactical role, could be fatigue; worth a conversation.`);
-    if (m < MIN_FLAG_MINS && m > 0)
-      push(watch, "note", p.name, `Only ${fmt(p.mins, 0)} minutes — judged on per-minute rate, not volume${p.dpmDelta != null ? ` (intensity ${p.dpmDelta >= 0 ? "up" : "down"} ${fmt(Math.abs(p.dpmDelta), 0)}% on their normal)` : ""}.`);
+    if (m < MIN_FLAG_MINS && m > 0) {
+      // A short stint with the rate UP is a positive, not a worry — it belongs
+      // in the standouts. Only downs/unknowns go on the watch list.
+      if (p.dpmDelta != null && p.dpmDelta >= UP_PCT)
+        push(standouts, "up", p.name, `Made ${fmt(p.mins, 0)} minutes count — ran ${fmt(p.dpmDelta, 0)}% above their normal intensity off the bench.`);
+      else
+        push(watch, "note", p.name, `Only ${fmt(p.mins, 0)} minutes — judged on per-minute rate, not volume${p.dpmDelta != null ? ` (intensity ${p.dpmDelta >= 0 ? "up" : "down"} ${fmt(Math.abs(p.dpmDelta), 0)}% on their normal)` : ""}.`);
+    }
 
     // Month-long slide
     if (base.recentDpm != null && base.earlierDpm != null && base.earlierDpm > 0) {
