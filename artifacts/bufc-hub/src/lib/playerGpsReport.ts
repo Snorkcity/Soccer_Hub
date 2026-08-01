@@ -445,6 +445,21 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         data: [{ name: "Decels average", labels: cats, values: cats.map(() => Math.round(decAvg)) }],
         options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
       }] : []),
+      // Dotted lines for the comparison groups chosen for the report (squad / position)
+      ...comps
+        .map((c, i) => ({ c, color: COMP_COLORS[i % COMP_COLORS.length] }))
+        .flatMap(({ c, color }) => [
+          ...(c.accel != null ? [{
+            type: "line",
+            data: [{ name: `${c.label.replace(/ average/i, "")} accels`, labels: cats, values: cats.map(() => Math.round(c.accel as number)) }],
+            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDot", lineSize: 1.25 },
+          }] : []),
+          ...(c.decel != null ? [{
+            type: "line",
+            data: [{ name: `${c.label.replace(/ average/i, "")} decels`, labels: cats, values: cats.map(() => Math.round(c.decel as number)) }],
+            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDash", lineSize: 1.25 },
+          }] : []),
+        ]),
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
@@ -496,6 +511,21 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
         data: [{ name: "Decel average", labels: cats, values: cats.map(() => Number(maxDecAvg.toFixed(1))) }],
         options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
       }] : []),
+      // Dotted lines for the comparison groups chosen for the report (squad / position)
+      ...comps
+        .map((c, i) => ({ c, color: COMP_COLORS[i % COMP_COLORS.length] }))
+        .flatMap(({ c, color }) => [
+          ...(c.maxAcc != null ? [{
+            type: "line",
+            data: [{ name: `${c.label.replace(/ average/i, "")} max accel`, labels: cats, values: cats.map(() => Number((c.maxAcc as number).toFixed(1))) }],
+            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDot", lineSize: 1.25 },
+          }] : []),
+          ...(c.maxDec != null ? [{
+            type: "line",
+            data: [{ name: `${c.label.replace(/ average/i, "")} max decel`, labels: cats, values: cats.map(() => Number((c.maxDec as number).toFixed(1))) }],
+            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDash", lineSize: 1.25 },
+          }] : []),
+        ]),
     ], {
       x: 0.6, y: 1.55, w: 12.1, h: 4.7,
       catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
