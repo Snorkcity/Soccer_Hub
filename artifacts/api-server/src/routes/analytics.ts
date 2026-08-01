@@ -2644,7 +2644,12 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     const all = ordered.map(f).filter((v): v is number => v != null);
     const rank = value == null ? null
       : 1 + all.filter(v => (higherIsBetter ? v > value : v < value)).length;
-    return { id, label, value, unit, decimals, seasonAvg, deltaPct, rank: value == null ? null : rank, outOf: value == null ? null : all.length, higherIsBetter };
+    // Average across the OTHER meetings with this opponent this season.
+    const oppVals = ordered
+      .filter(m => m.id !== matchRowId && m.opponent === match.opponent)
+      .map(f).filter((v): v is number => v != null);
+    const oppAvg = oppVals.length ? oppVals.reduce((a, b) => a + b, 0) / oppVals.length : null;
+    return { id, label, value, unit, decimals, seasonAvg, deltaPct, rank: value == null ? null : rank, outOf: value == null ? null : all.length, higherIsBetter, oppAvg, oppGames: oppVals.length ? oppVals.length : null };
   };
   const tiles = [
     tile("goalsFor", "Goals scored", "", 0, m => m.goalsScored, true),
@@ -2871,7 +2876,8 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
 
   // ── Previous meetings with this opponent this season ─────────────────────
   const earlier = ordered.slice(0, idx).filter(m => m.opponent === match.opponent);
-  const previousMeetings = earlier.map(m => ({
+  // Listed most-recent first for the report card.
+  const previousMeetings = earlier.slice().reverse().map(m => ({
     matchLabel: `${m.matchId.split("-")[0]} v ${m.opponent}`,
     matchDate: m.matchDate,
     score: m.goalsScored != null && m.goalsConceded != null ? `${m.goalsScored}–${m.goalsConceded}` : "—",
@@ -2905,6 +2911,14 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     midfieldersMPerMin: number | null;
     forwardsHighSpeedM: number | null;
     playerCount: number;
+    players: Array<{
+      name: string;
+      position: string | null;
+      mins: number | null;
+      distanceKm: number | null;
+      mPerMin: number | null;
+      sprintDistanceM: number | null;
+    }>;
   } | null = null;
   const [seasonRow] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
   if (seasonRow) {
@@ -2936,12 +2950,27 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
         const mins = sum(rows, r => num(r.minsPlayed));
         return mins > 0 ? (sum(rows, r => num(r.distanceKm)) * 1000) / mins : null;
       };
+      const players = gpsRows
+        .map(r => {
+          const mins = num(r.minsPlayed);
+          const distKm = num(r.distanceKm);
+          return {
+            name: r.name,
+            position: posOf.get(r.name) ?? null,
+            mins,
+            distanceKm: distKm,
+            mPerMin: mins && mins > 0 && distKm != null ? (distKm * 1000) / mins : null,
+            sprintDistanceM: num(r.sprintDistanceM),
+          };
+        })
+        .sort((a, b) => (b.mins ?? 0) - (a.mins ?? 0));
       gps = {
         totalDistanceKm: sum(gpsRows, r => num(r.distanceKm)) || null,
         defendersMPerMin: mPerMin(bucket("Defender")),
         midfieldersMPerMin: mPerMin(bucket("Midfielder")),
         forwardsHighSpeedM: bucket("Forward").length ? sum(bucket("Forward"), r => num(r.sprintDistanceM)) : null,
         playerCount: gpsRows.length,
+        players,
       };
       if (gps.totalDistanceKm != null && gps.totalDistanceKm >= 1) {
         insights.push({ tone: "info", text: `The team covered ${gps.totalDistanceKm.toFixed(1)} km in this one.` });

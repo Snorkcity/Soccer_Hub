@@ -218,6 +218,7 @@ export * from './matchPrepReportUpdateRequestData';
 export * from './matchReportFormEntry';
 export * from './matchReportGoal';
 export * from './matchReportGps';
+export * from './matchReportGpsPlayer';
 export * from './matchReportHeader';
 export * from './matchReportInsight';
 export * from './matchReportInsightTone';

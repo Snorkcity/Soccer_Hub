@@ -22,4 +22,14 @@ export interface MatchReportTile {
   /** @nullable */
   outOf: number | null;
   higherIsBetter: boolean;
+  /**
+     * Average of this metric across the other meetings with this opponent this season (null when no earlier data).
+     * @nullable
+     */
+  oppAvg: number | null;
+  /**
+     * How many other meetings with this opponent the oppAvg is built from.
+     * @nullable
+     */
+  oppGames: number | null;
 }

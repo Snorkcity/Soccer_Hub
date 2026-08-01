@@ -124,7 +124,12 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                     <CardContent className="pt-4 pb-3">
                       <div className="text-xs text-muted-foreground">{t.label}</div>
                       <div className="text-2xl font-semibold">{t.value?.toFixed(t.decimals)}{t.unit}</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {t.oppAvg != null && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          avg v {report.header.opponent} {t.oppAvg.toFixed(t.decimals === 0 ? 1 : t.decimals)}{t.unit}
+                        </div>
+                      )}
+                      <div className={`text-[11px] text-muted-foreground ${t.oppAvg != null ? "" : "mt-0.5"}`}>
                         season avg {t.seasonAvg != null ? `${t.seasonAvg.toFixed(t.decimals === 0 ? 1 : t.decimals)}${t.unit}` : "—"}
                       </div>
                       {t.rank != null && t.outOf != null && (
@@ -150,16 +155,35 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {([
-                      ["Team distance", report.gps.totalDistanceKm, "km", 1],
-                      ["Defenders", report.gps.defendersMPerMin, "m/min", 0],
-                      ["Midfielders", report.gps.midfieldersMPerMin, "m/min", 0],
-                      ["Forwards HSM", report.gps.forwardsHighSpeedM, "m", 0],
-                    ] as const).map(([label, v, unit, dp]) => (
-                      <div key={label}>
-                        <div className="text-xs text-muted-foreground">{label}</div>
-                        <div className="text-xl font-semibold">{v != null ? v.toFixed(dp) : "—"}<span className="text-xs font-normal text-muted-foreground ml-1">{unit}</span></div>
-                      </div>
-                    ))}
+                      ["Team distance", report.gps.totalDistanceKm, "km", 1, null, "distanceKm", "km", 1],
+                      ["Defenders", report.gps.defendersMPerMin, "m/min", 0, "Defender", "mPerMin", "m/min", 0],
+                      ["Midfielders", report.gps.midfieldersMPerMin, "m/min", 0, "Midfielder", "mPerMin", "m/min", 0],
+                      ["Forwards HSM", report.gps.forwardsHighSpeedM, "m", 0, "Forward", "sprintDistanceM", "m", 0],
+                    ] as const).map(([label, v, unit, dp, pos, field, fUnit, fDp]) => {
+                      const rows = (report.gps?.players ?? []).filter(p => pos == null || p.position === pos);
+                      const stat = (
+                        <div className={rows.length ? "cursor-default" : undefined}>
+                          <div className="text-xs text-muted-foreground">{label}</div>
+                          <div className="text-xl font-semibold">{v != null ? v.toFixed(dp) : "—"}<span className="text-xs font-normal text-muted-foreground ml-1">{unit}</span></div>
+                        </div>
+                      );
+                      if (!rows.length) return <div key={label}>{stat}</div>;
+                      return (
+                        <Tooltip key={label}>
+                          <TooltipTrigger asChild>{stat}</TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs">
+                            <div className="space-y-0.5">
+                              {rows.map(p => (
+                                <div key={p.name} className="flex justify-between gap-4">
+                                  <span>{p.name}{p.mins != null ? ` · ${Math.round(p.mins)} min` : ""}</span>
+                                  <span className="font-mono">{p[field] != null ? `${p[field]!.toFixed(fDp)} ${fUnit}` : "—"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
                   </CardContent>
                 </Card>
               )}

@@ -786,6 +786,16 @@ export interface MatchReportTile {
   /** @nullable */
   outOf: number | null;
   higherIsBetter: boolean;
+  /**
+     * Average of this metric across the other meetings with this opponent this season (null when no earlier data).
+     * @nullable
+     */
+  oppAvg: number | null;
+  /**
+     * How many other meetings with this opponent the oppAvg is built from.
+     * @nullable
+     */
+  oppGames: number | null;
 }
 
 export interface MatchReportGoal {
@@ -821,6 +831,20 @@ export interface MatchReportFormEntry {
   isThisMatch: boolean;
 }
 
+export interface MatchReportGpsPlayer {
+  name: string;
+  /** @nullable */
+  position: string | null;
+  /** @nullable */
+  mins: number | null;
+  /** @nullable */
+  distanceKm: number | null;
+  /** @nullable */
+  mPerMin: number | null;
+  /** @nullable */
+  sprintDistanceM: number | null;
+}
+
 /**
  * GPS numbers for this game, when a Catapult upload exists for the round.
  */
@@ -834,6 +858,8 @@ export interface MatchReportGps {
   /** @nullable */
   forwardsHighSpeedM: number | null;
   playerCount: number;
+  /** Per-player game rows behind the position averages. */
+  players: MatchReportGpsPlayer[];
 }
 
 /**

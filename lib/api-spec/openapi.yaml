@@ -3390,7 +3390,13 @@ components:
         rank:      { type: ["integer", "null"] }
         outOf:     { type: ["integer", "null"] }
         higherIsBetter: { type: boolean }
-      required: [id, label, value, unit, decimals, seasonAvg, deltaPct, rank, outOf, higherIsBetter]
+        oppAvg:
+          type: ["number", "null"]
+          description: Average of this metric across the other meetings with this opponent this season (null when no earlier data).
+        oppGames:
+          type: ["integer", "null"]
+          description: How many other meetings with this opponent the oppAvg is built from.
+      required: [id, label, value, unit, decimals, seasonAvg, deltaPct, rank, outOf, higherIsBetter, oppAvg, oppGames]
 
     MatchReportGoal:
       type: object
@@ -3427,7 +3433,22 @@ components:
         midfieldersMPerMin: { type: ["number", "null"] }
         forwardsHighSpeedM: { type: ["number", "null"] }
         playerCount:      { type: integer }
-      required: [totalDistanceKm, defendersMPerMin, midfieldersMPerMin, forwardsHighSpeedM, playerCount]
+        players:
+          type: array
+          description: Per-player game rows behind the position averages.
+          items: { $ref: "#/components/schemas/MatchReportGpsPlayer" }
+      required: [totalDistanceKm, defendersMPerMin, midfieldersMPerMin, forwardsHighSpeedM, playerCount, players]
+
+    MatchReportGpsPlayer:
+      type: object
+      properties:
+        name:     { type: string }
+        position: { type: ["string", "null"] }
+        mins:     { type: ["number", "null"] }
+        distanceKm: { type: ["number", "null"] }
+        mPerMin:  { type: ["number", "null"] }
+        sprintDistanceM: { type: ["number", "null"] }
+      required: [name, position, mins, distanceKm, mPerMin, sprintDistanceM]
 
     MatchReportMeeting:
       type: object

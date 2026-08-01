@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchReportGpsPlayer } from './matchReportGpsPlayer';
 
 /**
  * GPS numbers for this game, when a Catapult upload exists for the round.
@@ -19,4 +20,6 @@ export interface MatchReportGps {
   /** @nullable */
   forwardsHighSpeedM: number | null;
   playerCount: number;
+  /** Per-player game rows behind the position averages. */
+  players: MatchReportGpsPlayer[];
 }

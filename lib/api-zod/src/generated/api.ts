@@ -991,7 +991,9 @@ export const GetMatchReportResponse = zod.object({
   "deltaPct": zod.number().nullable(),
   "rank": zod.number().nullable(),
   "outOf": zod.number().nullable(),
-  "higherIsBetter": zod.boolean()
+  "higherIsBetter": zod.boolean(),
+  "oppAvg": zod.number().nullable().describe('Average of this metric across the other meetings with this opponent this season (null when no earlier data).'),
+  "oppGames": zod.number().nullable().describe('How many other meetings with this opponent the oppAvg is built from.')
 })),
   "goals": zod.array(zod.object({
   "minute": zod.number().nullable(),
@@ -1018,7 +1020,15 @@ export const GetMatchReportResponse = zod.object({
   "defendersMPerMin": zod.number().nullable(),
   "midfieldersMPerMin": zod.number().nullable(),
   "forwardsHighSpeedM": zod.number().nullable(),
-  "playerCount": zod.number()
+  "playerCount": zod.number(),
+  "players": zod.array(zod.object({
+  "name": zod.string(),
+  "position": zod.string().nullable(),
+  "mins": zod.number().nullable(),
+  "distanceKm": zod.number().nullable(),
+  "mPerMin": zod.number().nullable(),
+  "sprintDistanceM": zod.number().nullable()
+})).describe('Per-player game rows behind the position averages.')
 }).describe('GPS numbers for this game, when a Catapult upload exists for the round.'),zod.null()]),
   "previousMeetings": zod.array(zod.object({
   "matchLabel": zod.string(),
