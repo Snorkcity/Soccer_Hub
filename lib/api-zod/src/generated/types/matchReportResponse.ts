@@ -7,8 +7,10 @@
  */
 import type { MatchReportFormEntry } from './matchReportFormEntry';
 import type { MatchReportGoal } from './matchReportGoal';
+import type { MatchReportGps } from './matchReportGps';
 import type { MatchReportHeader } from './matchReportHeader';
 import type { MatchReportInsight } from './matchReportInsight';
+import type { MatchReportMeeting } from './matchReportMeeting';
 import type { MatchReportTile } from './matchReportTile';
 
 export interface MatchReportResponse {
@@ -23,4 +25,6 @@ export interface MatchReportResponse {
   ladderPoints: number | null;
   /** @nullable */
   teamsInLeague: number | null;
+  gps: MatchReportGps | null;
+  previousMeetings: MatchReportMeeting[];
 }

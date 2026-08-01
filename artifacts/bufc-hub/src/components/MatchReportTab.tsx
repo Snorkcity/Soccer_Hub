@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, ShieldCheck, AlertTriangle, Info } from "lucide-react";
+import { Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History } from "lucide-react";
 
 interface Props {
   teamId: number;
@@ -128,6 +128,51 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </Card>
                 );
               })}
+            </div>
+          )}
+
+          {/* ── GPS + previous meetings ────────────────────────────────────── */}
+          {(report.gps || report.previousMeetings.length > 0) && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {report.gps && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-emerald-500" />Physical output (GPS)</CardTitle>
+                    <CardDescription className="text-xs">From the Catapult upload for this round — {report.gps.playerCount} players tracked.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {([
+                      ["Team distance", report.gps.totalDistanceKm, "km", 1],
+                      ["Defenders", report.gps.defendersMPerMin, "m/min", 0],
+                      ["Midfielders", report.gps.midfieldersMPerMin, "m/min", 0],
+                      ["Forwards HSM", report.gps.forwardsHighSpeedM, "m", 0],
+                    ] as const).map(([label, v, unit, dp]) => (
+                      <div key={label}>
+                        <div className="text-xs text-muted-foreground">{label}</div>
+                        <div className="text-xl font-semibold">{v != null ? v.toFixed(dp) : "—"}<span className="text-xs font-normal text-muted-foreground ml-1">{unit}</span></div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+              {report.previousMeetings.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4 text-sky-500" />Earlier this season v {report.header.opponent}</CardTitle>
+                    <CardDescription className="text-xs">How the previous meetings went.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-1.5">
+                    {report.previousMeetings.map((m, i) => (
+                      <div key={i} className="flex items-center gap-3 rounded-md border p-2 text-sm">
+                        <Badge variant="outline" className={resultBadge(m.result)}>{m.result ?? "?"}</Badge>
+                        <span className="font-medium">{m.matchLabel}</span>
+                        <span className="font-mono">{m.score}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">{m.matchDate}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

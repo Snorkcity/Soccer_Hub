@@ -1012,7 +1012,20 @@ export const GetMatchReportResponse = zod.object({
 })),
   "ladderPos": zod.number().nullable(),
   "ladderPoints": zod.number().nullable(),
-  "teamsInLeague": zod.number().nullable()
+  "teamsInLeague": zod.number().nullable(),
+  "gps": zod.union([zod.object({
+  "totalDistanceKm": zod.number().nullable(),
+  "defendersMPerMin": zod.number().nullable(),
+  "midfieldersMPerMin": zod.number().nullable(),
+  "forwardsHighSpeedM": zod.number().nullable(),
+  "playerCount": zod.number()
+}).describe('GPS numbers for this game, when a Catapult upload exists for the round.'),zod.null()]),
+  "previousMeetings": zod.array(zod.object({
+  "matchLabel": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "score": zod.string(),
+  "result": zod.string().nullable()
+}).describe('An earlier meeting with the same opponent this season.'))
 })
 
 

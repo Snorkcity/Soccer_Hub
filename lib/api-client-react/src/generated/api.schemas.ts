@@ -821,6 +821,33 @@ export interface MatchReportFormEntry {
   isThisMatch: boolean;
 }
 
+/**
+ * GPS numbers for this game, when a Catapult upload exists for the round.
+ */
+export interface MatchReportGps {
+  /** @nullable */
+  totalDistanceKm: number | null;
+  /** @nullable */
+  defendersMPerMin: number | null;
+  /** @nullable */
+  midfieldersMPerMin: number | null;
+  /** @nullable */
+  forwardsHighSpeedM: number | null;
+  playerCount: number;
+}
+
+/**
+ * An earlier meeting with the same opponent this season.
+ */
+export interface MatchReportMeeting {
+  matchLabel: string;
+  /** @nullable */
+  matchDate: string | null;
+  score: string;
+  /** @nullable */
+  result: string | null;
+}
+
 export interface MatchReportResponse {
   header: MatchReportHeader;
   tiles: MatchReportTile[];
@@ -833,6 +860,8 @@ export interface MatchReportResponse {
   ladderPoints: number | null;
   /** @nullable */
   teamsInLeague: number | null;
+  gps: MatchReportGps | null;
+  previousMeetings: MatchReportMeeting[];
 }
 
 export interface GoalIntervalBucket {

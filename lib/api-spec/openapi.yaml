@@ -3418,6 +3418,27 @@ components:
         isThisMatch: { type: boolean }
       required: [result, opponent, score, isThisMatch]
 
+    MatchReportGps:
+      type: object
+      description: GPS numbers for this game, when a Catapult upload exists for the round.
+      properties:
+        totalDistanceKm:  { type: ["number", "null"] }
+        defendersMPerMin: { type: ["number", "null"] }
+        midfieldersMPerMin: { type: ["number", "null"] }
+        forwardsHighSpeedM: { type: ["number", "null"] }
+        playerCount:      { type: integer }
+      required: [totalDistanceKm, defendersMPerMin, midfieldersMPerMin, forwardsHighSpeedM, playerCount]
+
+    MatchReportMeeting:
+      type: object
+      description: An earlier meeting with the same opponent this season.
+      properties:
+        matchLabel: { type: string }
+        matchDate:  { type: ["string", "null"] }
+        score:      { type: string }
+        result:     { type: ["string", "null"] }
+      required: [matchLabel, matchDate, score, result]
+
     MatchReportResponse:
       type: object
       properties:
@@ -3437,7 +3458,14 @@ components:
         ladderPos:    { type: ["integer", "null"] }
         ladderPoints: { type: ["integer", "null"] }
         teamsInLeague: { type: ["integer", "null"] }
-      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague]
+        gps:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchReportGps" }
+            - { type: "null" }
+        previousMeetings:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportMeeting" }
+      required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings]
 
     GoalIntervalBucket:
       type: object

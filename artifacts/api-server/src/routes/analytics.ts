@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, inArray, desc, ne, isNotNull } from "drizzle-orm";
-import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, teamsTable, seasonsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
+import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, gpsPlayerPositionsTable, teamsTable, seasonsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
 import { GetGoalsByOpponentQueryParams, GetGoalsByOpponentResponse } from "@workspace/api-zod"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import {
   GetSeasonSummaryQueryParams,
@@ -2853,6 +2853,98 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     insights.push({ tone: "info", text: `${ord(ladderPos)} of ${teamsInLeague} after this round on ${ladderPoints} points.` });
   }
 
+  // ── Ball work: passes-per-shot vs season usual ────────────────────────────
+  if (match.passes != null && match.shots != null && match.shots > 0) {
+    const pps = match.passes / match.shots;
+    const others = ordered.filter(m => m.id !== matchRowId && m.passes != null && m.shots != null && m.shots > 0);
+    if (others.length >= 3) {
+      const avg = others.reduce((a, m) => a + m.passes! / m.shots!, 0) / others.length;
+      const diff = ((pps - avg) / avg) * 100;
+      if (diff <= -20) insights.push({ tone: "good", text: `A shot every ${pps.toFixed(0)} passes — much more direct than our season usual (one every ${avg.toFixed(0)}).` });
+      else if (diff >= 25) insights.push({ tone: "info", text: `${pps.toFixed(0)} passes per shot — a lot of ball without cutting through (season usual is ${avg.toFixed(0)}).` });
+    }
+    if (match.possession != null) {
+      const possN = num(match.possession);
+      if (possN != null && possN < 45 && result === "W") insights.push({ tone: "info", text: `Won it with just ${possN}% of the ball — clinical on the counter.` });
+    }
+  }
+
+  // ── Previous meetings with this opponent this season ─────────────────────
+  const earlier = ordered.slice(0, idx).filter(m => m.opponent === match.opponent);
+  const previousMeetings = earlier.map(m => ({
+    matchLabel: `${m.matchId.split("-")[0]} v ${m.opponent}`,
+    matchDate: m.matchDate,
+    score: m.goalsScored != null && m.goalsConceded != null ? `${m.goalsScored}–${m.goalsConceded}` : "—",
+    result: resultOf(m),
+  }));
+  if (earlier.length) {
+    const w = earlier.filter(m => resultOf(m) === "W").length;
+    const l = earlier.filter(m => resultOf(m) === "L").length;
+    const d = earlier.filter(m => resultOf(m) === "D").length;
+    const meetingNo = earlier.length + 1;
+    const parts = [
+      w ? `${w} win${w === 1 ? "" : "s"}` : null,
+      d ? `${d} draw${d === 1 ? "" : "s"}` : null,
+      l ? `${l} loss${l === 1 ? "" : "es"}` : null,
+    ].filter(Boolean).join(", ");
+    const summary =
+      l === 0 && w === earlier.length ? `we'd won ${earlier.length === 1 ? `the first one ${earlier[0].goalsScored}–${earlier[0].goalsConceded}` : `all ${earlier.length} before today`}`
+      : w === 0 && l === earlier.length ? `they'd ${earlier.length === 1 ? `beaten us ${earlier[0].goalsConceded}–${earlier[0].goalsScored}` : `won all ${earlier.length} earlier meetings`}`
+      : l === 0 ? `unbeaten in the earlier games (${parts})`
+      : w === 0 ? `still waiting on a win against them (${parts})`
+      : `honours were shared coming in (${parts})`;
+    insights.push({ tone: "info", text: `${ord(meetingNo)} meeting with ${match.opponent} this season — ${summary}.` });
+  }
+
+  // ── GPS numbers for this round, if a Catapult upload exists ──────────────
+  // GPS rows are keyed by round tag + squad suffix (e.g. "R14-1sts") and by
+  // season YEAR (text), not seasonId. Only game-total rows (split "game").
+  let gps: {
+    totalDistanceKm: number | null;
+    defendersMPerMin: number | null;
+    midfieldersMPerMin: number | null;
+    forwardsHighSpeedM: number | null;
+    playerCount: number;
+  } | null = null;
+  const [seasonRow] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
+  if (seasonRow) {
+    const gpsRows = await db
+      .select({
+        name: sql<string>`coalesce(${gpsPlayerAliasesTable.canonical}, ${gpsSessionsTable.playerName})`,
+        distanceKm: gpsSessionsTable.distanceKm,
+        minsPlayed: gpsSessionsTable.minsPlayed,
+        sprintDistanceM: gpsSessionsTable.sprintDistanceM,
+      })
+      .from(gpsSessionsTable)
+      .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
+      .where(and(
+        eq(gpsSessionsTable.year, seasonRow.year),
+        eq(gpsSessionsTable.splitName, "game"),
+        inArray(gpsSessionsTable.round, [roundShort, `${roundShort}-1sts`]),
+      ));
+    if (gpsRows.length) {
+      const positions = await db.select().from(gpsPlayerPositionsTable);
+      const posOf = new Map(positions.map(p => [p.playerName, p.position]));
+      const bucket = (want: string) => gpsRows.filter(r => posOf.get(r.name) === want);
+      const sum = (rows: typeof gpsRows, f: (r: typeof gpsRows[number]) => number | null) =>
+        rows.reduce((a, r) => a + (f(r) ?? 0), 0);
+      const mPerMin = (rows: typeof gpsRows) => {
+        const mins = sum(rows, r => num(r.minsPlayed));
+        return mins > 0 ? (sum(rows, r => num(r.distanceKm)) * 1000) / mins : null;
+      };
+      gps = {
+        totalDistanceKm: sum(gpsRows, r => num(r.distanceKm)) || null,
+        defendersMPerMin: mPerMin(bucket("Defender")),
+        midfieldersMPerMin: mPerMin(bucket("Midfielder")),
+        forwardsHighSpeedM: bucket("Forward").length ? sum(bucket("Forward"), r => num(r.sprintDistanceM)) : null,
+        playerCount: gpsRows.length,
+      };
+      if (gps.totalDistanceKm != null && gps.totalDistanceKm >= 1) {
+        insights.push({ tone: "info", text: `The team covered ${gps.totalDistanceKm.toFixed(1)} km in this one.` });
+      }
+    }
+  }
+
   res.json(GetMatchReportResponse.parse({
     header: {
       matchLabel, opponent: match.opponent, matchDate: match.matchDate, venue: match.venue,
@@ -2861,6 +2953,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       formation: match.formation, oppFormation: match.oppFormation, cleanSheet: match.cleanSheet,
     },
     tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
+    gps, previousMeetings,
   }));
 });
 
