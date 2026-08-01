@@ -534,6 +534,13 @@ function EmailTestingReportsDialog({ tests, year, years, allTests, teamLabel }: 
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [from, setFrom] = useState(FROM_OPTIONS[0]);
+  const [sharedNote, setSharedNote] = useState("");
+  const [perPlayerNotes, setPerPlayerNotes] = useState(false);
+  const [noteEdits, setNoteEdits] = useState<Map<string, string>>(new Map());
+  const noteFor = (p: string) => {
+    const own = perPlayerNotes ? (noteEdits.get(p) ?? "").trim() : "";
+    return own || sharedNote.trim();
+  };
   const [sendStates, setSendStates] = useState<Map<string, SendState>>(new Map());
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -543,6 +550,9 @@ function EmailTestingReportsDialog({ tests, year, years, allTests, teamLabel }: 
     setSelected(new Set());
     setEmailEdits(new Map());
     setSendStates(new Map());
+    setSharedNote("");
+    setPerPlayerNotes(false);
+    setNoteEdits(new Map());
     setSubject(`Your ${year} athletic testing report`);
     setBody("Hi,\n\nAttached is your personalised athletic testing report — your results, where you sit in the squad, and what it means on the pitch. Bring any questions to training.\n\nCheers,\nScott");
     setFrom(FROM_OPTIONS[0]);
@@ -593,7 +603,8 @@ function EmailTestingReportsDialog({ tests, year, years, allTests, teamLabel }: 
       try {
         const input = buildTestingReportInput(p, tests, year, years, allTests, teamLabel);
         if (!input) throw new Error("no test row");
-        const { fileName, base64 } = await generatePlayerTestingReport(input, "base64");
+        const note = noteFor(p);
+        const { fileName, base64 } = await generatePlayerTestingReport({ ...input, coachNote: note || undefined }, "base64");
         await sendGpsReportEmail({
           to: email,
           subject: subject.trim() || `Your ${year} athletic testing report`,
@@ -689,6 +700,30 @@ function EmailTestingReportsDialog({ tests, year, years, allTests, teamLabel }: 
           <div className="space-y-1.5">
             <Label htmlFor="tem-body">Message</Label>
             <Textarea id="tem-body" rows={5} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tem-note">A note from you (optional — closes every report)</Label>
+            <Textarea id="tem-note" rows={3} value={sharedNote} onChange={e => setSharedNote(e.target.value)} disabled={busy}
+              placeholder="e.g. Your first step is a real weapon — I want to see you trusting it in 1v1s this season." />
+            <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+              <Checkbox checked={perPlayerNotes} disabled={busy} onCheckedChange={c => setPerPlayerNotes(c === true)} />
+              <span>Write a personal note for each player</span>
+            </label>
+            {perPlayerNotes && (
+              <div className="rounded-md border divide-y max-h-64 overflow-y-auto">
+                {players.filter(p => selected.has(p)).length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-3 py-2">Tick some players above first.</p>
+                ) : players.filter(p => selected.has(p)).map(p => (
+                  <div key={p} className="px-3 py-2 space-y-1">
+                    <p className="text-xs font-medium">{p}</p>
+                    <Textarea rows={2} value={noteEdits.get(p) ?? ""} disabled={busy}
+                      onChange={e => setNoteEdits(prev => new Map(prev).set(p, e.target.value))}
+                      placeholder="Personal note (blank = use the shared note above)"
+                      className="text-xs" />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {done && (

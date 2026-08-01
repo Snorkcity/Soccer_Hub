@@ -587,6 +587,13 @@ function EmailReportsDialog({ year }: { year: string }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [from, setFrom] = useState(FROM_OPTIONS[0]);
+  const [sharedNote, setSharedNote] = useState("");
+  const [perPlayerNotes, setPerPlayerNotes] = useState(false);
+  const [noteEdits, setNoteEdits] = useState<Map<string, string>>(new Map());
+  const noteFor = (p: string) => {
+    const own = perPlayerNotes ? (noteEdits.get(p) ?? "").trim() : "";
+    return own || sharedNote.trim();
+  };
   const [sendStates, setSendStates] = useState<Map<string, SendState>>(new Map());
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -598,6 +605,9 @@ function EmailReportsDialog({ year }: { year: string }) {
     setSendStates(new Map());
     setSquadTicks(new Set(SQUAD_LADDER));
     setIncludePosAvgs(true);
+    setSharedNote("");
+    setPerPlayerNotes(false);
+    setNoteEdits(new Map());
     setSubject(`Your ${year} GPS report`);
     setBody("Hi,\n\nAttached is your personalised GPS report for the season so far. Have a look at how you're tracking and bring any questions to training.\n\nCheers,\nScott");
     setFrom(FROM_OPTIONS[0]);
@@ -673,7 +683,7 @@ function EmailReportsDialog({ year }: { year: string }) {
           position: posOf.get(p) ?? null,
           seasonLabel: `${year} Season`,
           teamLabel: `Belconnen United FC — ${info.squad}`,
-          coachNote: "",
+          coachNote: noteFor(p),
           generatedOn: today,
           metrics: PLAYER_METRICS.map(m => ({
             id: m.id, title: m.title, unit: m.unit, decimals: m.decimals,
@@ -816,6 +826,30 @@ function EmailReportsDialog({ year }: { year: string }) {
             <div className="space-y-1.5">
               <Label htmlFor="em-body">Message</Label>
               <Textarea id="em-body" rows={5} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="em-note">A note from you (optional — goes on the final slide of every report)</Label>
+              <Textarea id="em-note" rows={3} value={sharedNote} onChange={e => setSharedNote(e.target.value)} disabled={busy}
+                placeholder="e.g. Great first half of the season — your work rate has jumped. Keep attacking those sprints." />
+              <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+                <Checkbox checked={perPlayerNotes} disabled={busy} onCheckedChange={c => setPerPlayerNotes(c === true)} />
+                <span>Write a personal note for each player</span>
+              </label>
+              {perPlayerNotes && (
+                <div className="rounded-md border divide-y max-h-64 overflow-y-auto">
+                  {players.filter(p => selected.has(p)).length === 0 ? (
+                    <p className="text-xs text-muted-foreground px-3 py-2">Tick some players above first.</p>
+                  ) : players.filter(p => selected.has(p)).map(p => (
+                    <div key={p} className="px-3 py-2 space-y-1">
+                      <p className="text-xs font-medium">{p}</p>
+                      <Textarea rows={2} value={noteEdits.get(p) ?? ""} disabled={busy}
+                        onChange={e => setNoteEdits(prev => new Map(prev).set(p, e.target.value))}
+                        placeholder="Personal note (blank = use the shared note above)"
+                        className="text-xs" />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {done && (
