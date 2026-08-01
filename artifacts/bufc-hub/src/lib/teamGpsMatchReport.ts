@@ -90,27 +90,39 @@ export async function generateTeamGpsMatchReport(
   if (model.halves.length) {
     const s = pptx.addSlide();
     s.background = { color: BG };
-    addHeader(s, "First half vs second half", "Summed across every player with half splits. A big second-half drop can mean fatigue — or game state.");
+    addHeader(s, "First half vs second half", "Summed across every player with half splits. Season columns show the squad's usual second-half change and the best/worst game this year.");
+    const pctTxt = (p: number | null | undefined) =>
+      p == null ? "—" : `${p >= 0 ? "up" : "down"} ${Math.abs(p).toFixed(0)}%`;
     const rows: Cell[][] = [[
       { text: "Team output", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "left" } },
       { text: "1st half", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
       { text: "2nd half", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
       { text: "Change", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
+      { text: "Season usual", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
+      { text: "Best · worst", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
     ]];
     for (const hl of model.halves) {
       if (hl.h1 == null && hl.h2 == null) continue;
       const fillCol = rows.length % 2 === 1 ? TINT : BG;
+      const bw: Runs | string = hl.bestChange == null || hl.worstChange == null ? "—" : [
+        { text: `${hl.bestChange.pct >= 0 ? "+" : "−"}${Math.abs(hl.bestChange.pct).toFixed(0)}% `, options: { color: GOOD } },
+        { text: `${hl.bestChange.round}  ·  `, options: { color: GREY } },
+        { text: `${hl.worstChange.pct >= 0 ? "+" : "−"}${Math.abs(hl.worstChange.pct).toFixed(0)}% `, options: { color: ORANGE } },
+        { text: hl.worstChange.round, options: { color: GREY } },
+      ];
       rows.push([
         { text: hl.label, options: { align: "left", color: INK, fill: { color: fillCol } } },
         { text: fmt(hl.h1, hl.decimals, hl.unit), options: { align: "center", color: PAPER, fill: { color: fillCol } } },
         { text: fmt(hl.h2, hl.decimals, hl.unit), options: { align: "center", color: PAPER, fill: { color: fillCol } } },
-        { text: hl.changePct == null ? "—" : `${hl.changePct >= 0 ? "up" : "down"} ${Math.abs(hl.changePct).toFixed(0)}%`,
+        { text: pctTxt(hl.changePct),
           options: { align: "center", bold: true, color: hl.changePct != null && hl.changePct < -10 ? ORANGE : SKY, fill: { color: fillCol } } },
+        { text: pctTxt(hl.seasonChangePct), options: { align: "center", color: GREY, fill: { color: fillCol } } },
+        { text: bw as never, options: { align: "center", fontSize: 10.5, fill: { color: fillCol } } },
       ]);
     }
     s.addTable(rows as never, {
-      x: 0.75, y: 1.7, w: 11.8, colW: [4.6, 2.4, 2.4, 2.4],
-      fontSize: 13, rowH: 0.5, border: { type: "solid", color: LINE, pt: 0.5 }, valign: "middle",
+      x: 0.55, y: 1.7, w: 12.2, colW: [3.4, 1.7, 1.7, 1.7, 1.7, 2.0],
+      fontSize: 12, rowH: 0.5, border: { type: "solid", color: LINE, pt: 0.5 }, valign: "middle",
     });
     const drop = model.halves.find(h => h.id === "km")?.changePct ?? null;
     addInsightBar(s, drop == null

@@ -37,6 +37,11 @@ export interface TeamStatLine {
 export interface HalfLine {
   id: string; label: string; unit: string; decimals: number;
   h1: number | null; h2: number | null; changePct: number | null;
+  /** Season context (optional — absent in reports saved before it existed):
+   * the squad's usual 2nd-half change plus the best/worst game this season. */
+  seasonChangePct?: number | null;
+  bestChange?: { pct: number; round: string } | null;
+  worstChange?: { pct: number; round: string } | null;
 }
 export interface PlayerLine {
   name: string;
@@ -297,9 +302,34 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const vs = bothHalves.map(b => (b[side] ? f(b[side]!) : null)).filter((v): v is number => v != null);
     return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
   };
+  // Season context: the same 1st→2nd-half change computed for every OTHER
+  // round this season (only bundles with both halves count, same as above).
+  const halfChangeForRound = (rd: string, f: (r: GpsSession) => Num): Num => {
+    const bs = [...byKey.entries()]
+      .filter(([k]) => k.endsWith(`|${rd}`))
+      .map(([, b]) => b)
+      .filter(b => b.h1 && b.h2);
+    if (!bs.length) return null;
+    const sumSide = (side: "h1" | "h2") => {
+      const vs = bs.map(b => f(b[side]!)).filter((v): v is number => v != null);
+      return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
+    };
+    return pctDelta(sumSide("h2"), sumSide("h1"));
+  };
   const halfLine = (id: string, label: string, unit: string, decimals: number, f: (r: GpsSession) => Num): HalfLine => {
     const h1 = halfSum("h1", f); const h2 = halfSum("h2", f);
-    return { id, label, unit, decimals, h1, h2, changePct: pctDelta(h2, h1) };
+    const others = roundsAll
+      .filter(r => r !== round)
+      .map(rd => ({ rd, pct: halfChangeForRound(rd, f) }))
+      .filter((x): x is { rd: string; pct: number } => x.pct != null);
+    const bestX = others.length ? others.reduce((p, x) => (x.pct > p.pct ? x : p)) : null;
+    const worstX = others.length ? others.reduce((p, x) => (x.pct < p.pct ? x : p)) : null;
+    return {
+      id, label, unit, decimals, h1, h2, changePct: pctDelta(h2, h1),
+      seasonChangePct: avg(others.map(x => x.pct)),
+      bestChange: bestX ? { pct: bestX.pct, round: bestX.rd } : null,
+      worstChange: worstX ? { pct: worstX.pct, round: worstX.rd } : null,
+    };
   };
   const halves: HalfLine[] = bothHalves.length
     ? [

@@ -292,7 +292,7 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">First half vs second half</CardTitle>
-            <CardDescription className="text-xs">Summed across players with half splits. A big drop can mean fatigue — or game state.</CardDescription>
+            <CardDescription className="text-xs">Summed across players with half splits. A big drop can mean fatigue — or game state. Season columns show the squad's usual second-half change and the best/worst game this year.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -302,7 +302,9 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                     <th className="py-1.5 pr-3 font-medium">Team output</th>
                     <th className="py-1.5 px-3 text-center font-medium">1st half</th>
                     <th className="py-1.5 px-3 text-center font-medium">2nd half</th>
-                    <th className="py-1.5 pl-3 text-center font-medium">Change</th>
+                    <th className="py-1.5 px-3 text-center font-medium">Change</th>
+                    <th className="py-1.5 px-3 text-center font-medium">Season usual</th>
+                    <th className="py-1.5 pl-3 text-center font-medium">Best · worst</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -311,8 +313,20 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                       <td className="py-1.5 pr-3">{h.label}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h1, h.decimals, h.unit)}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h2, h.decimals, h.unit)}</td>
-                      <td className={`py-1.5 pl-3 text-center font-medium ${h.changePct != null && h.changePct < -10 ? "text-amber-500" : ""}`}>
+                      <td className={`py-1.5 px-3 text-center font-medium ${h.changePct != null && h.changePct < -10 ? "text-amber-500" : ""}`}>
                         {h.changePct == null ? "—" : `${h.changePct >= 0 ? "up" : "down"} ${Math.abs(h.changePct).toFixed(0)}%`}
+                      </td>
+                      <td className="py-1.5 px-3 text-center text-muted-foreground">
+                        {h.seasonChangePct == null ? "—" : `${h.seasonChangePct >= 0 ? "up" : "down"} ${Math.abs(h.seasonChangePct).toFixed(0)}%`}
+                      </td>
+                      <td className="py-1.5 pl-3 text-center text-xs text-muted-foreground whitespace-nowrap">
+                        {h.bestChange == null || h.worstChange == null ? "—" : (
+                          <>
+                            <span className="text-green-500">{h.bestChange.pct >= 0 ? "+" : "−"}{Math.abs(h.bestChange.pct).toFixed(0)}%</span> {h.bestChange.round}
+                            <span className="mx-1">·</span>
+                            <span className="text-amber-500">{h.worstChange.pct >= 0 ? "+" : "−"}{Math.abs(h.worstChange.pct).toFixed(0)}%</span> {h.worstChange.round}
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
