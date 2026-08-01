@@ -14,6 +14,8 @@ export * from "./gpsSessions";
 export * from "./gpsPlayerPositions";
 export * from "./gpsPlayerAliases";
 export * from "./gpsPlayerEmails";
+export * from "./gpsMatchReports";
+export * from "./gpsCoachEmails";
 export * from "./athleticTests";
 export * from "./clubs";
 export * from "./practices";

@@ -173,6 +173,31 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // Team GPS match reports (2026-08) — saved Monday-after physical reviews,
+  // plus the per-squad coach email list they get sent to.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gps_match_reports (
+      id serial PRIMARY KEY,
+      league_id integer NOT NULL REFERENCES leagues(id),
+      title text NOT NULL,
+      round text,
+      opponent text,
+      match_date text,
+      data jsonb NOT NULL DEFAULT '{}',
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gps_coach_emails (
+      id serial PRIMARY KEY,
+      league_id integer NOT NULL REFERENCES leagues(id),
+      squad text NOT NULL,
+      name text,
+      email text NOT NULL
+    )
+  `);
+
   // Session-practice library (2026-07) — slides extracted from the coach's
   // master PowerPoint; content is loaded by lib/db/src/seedPractices.ts
   await db.execute(sql`

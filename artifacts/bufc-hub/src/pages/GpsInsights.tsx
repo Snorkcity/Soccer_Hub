@@ -29,6 +29,7 @@ import {
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -203,12 +204,16 @@ export default function GpsInsights() {
           <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
             <TabsTrigger value="player">Player GPS</TabsTrigger>
             <TabsTrigger value="team">Team Overview</TabsTrigger>
+            <TabsTrigger value="matchReport">Match Report</TabsTrigger>
           </TabsList>
           <TabsContent value="player" className="mt-6">
             <PlayerGpsTab year={year} metaRows={metaRows} />
           </TabsContent>
           <TabsContent value="team" className="mt-6">
             <TeamGpsTab year={year} metaRows={metaRows} />
+          </TabsContent>
+          <TabsContent value="matchReport" className="mt-6">
+            <GpsMatchReportTab year={year} metaRows={metaRows} />
           </TabsContent>
         </Tabs>
       )}

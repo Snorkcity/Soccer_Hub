@@ -3589,6 +3589,136 @@ export const DeleteMatchPrepReportResponse = zod.object({
 
 
 /**
+ * @summary List saved team GPS match reports, newest first
+ */
+export const ListGpsMatchReportsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListGpsMatchReportsResponseItem = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "title": zod.string(),
+  "round": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListGpsMatchReportsResponse = zod.array(ListGpsMatchReportsResponseItem)
+
+
+/**
+ * @summary Save a team GPS match report
+ */
+
+
+
+export const CreateGpsMatchReportBody = zod.object({
+  "leagueId": zod.number(),
+  "title": zod.string().min(1),
+  "round": zod.string().optional(),
+  "opponent": zod.string().optional(),
+  "matchDate": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown())
+})
+
+export const CreateGpsMatchReportResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "title": zod.string(),
+  "round": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a saved team GPS match report
+ */
+export const UpdateGpsMatchReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateGpsMatchReportBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "opponent": zod.string().nullish(),
+  "matchDate": zod.string().nullish(),
+  "data": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const UpdateGpsMatchReportResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "title": zod.string(),
+  "round": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "matchDate": zod.string().nullable(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a saved team GPS match report
+ */
+export const DeleteGpsMatchReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteGpsMatchReportResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary List the coach email list for a league (all squads)
+ */
+export const ListGpsCoachEmailsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListGpsCoachEmailsResponseItem = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "squad": zod.string(),
+  "name": zod.string().nullable(),
+  "email": zod.string()
+})
+export const ListGpsCoachEmailsResponse = zod.array(ListGpsCoachEmailsResponseItem)
+
+
+/**
+ * @summary Replace the coach email list for one league + squad
+ */
+
+export const saveGpsCoachEmailsBodyCoachesItemEmailMin = 3;
+
+
+
+export const SaveGpsCoachEmailsBody = zod.object({
+  "leagueId": zod.number(),
+  "squad": zod.string().min(1),
+  "coaches": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "email": zod.string().min(saveGpsCoachEmailsBodyCoachesItemEmailMin)
+}))
+})
+
+export const SaveGpsCoachEmailsResponse = zod.object({
+  "saved": zod.number()
+})
+
+
+/**
  * @summary Convert interview question text to spoken audio (coach's OpenAI key)
  */
 export const journalInterviewSpeakBodyTextMax = 2000;

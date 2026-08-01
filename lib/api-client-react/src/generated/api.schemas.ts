@@ -2513,6 +2513,69 @@ export interface MatchPrepReportUpdateRequest {
   data?: MatchPrepReportUpdateRequestData;
 }
 
+export type GpsMatchReportData = { [key: string]: unknown };
+
+export interface GpsMatchReport {
+  id: number;
+  leagueId: number;
+  title: string;
+  /** @nullable */
+  round: string | null;
+  /** @nullable */
+  opponent: string | null;
+  /** @nullable */
+  matchDate: string | null;
+  data: GpsMatchReportData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type GpsMatchReportCreateRequestData = { [key: string]: unknown };
+
+export interface GpsMatchReportCreateRequest {
+  leagueId: number;
+  /** @minLength 1 */
+  title: string;
+  round?: string;
+  opponent?: string;
+  matchDate?: string;
+  data: GpsMatchReportCreateRequestData;
+}
+
+export type GpsMatchReportUpdateRequestData = { [key: string]: unknown };
+
+export interface GpsMatchReportUpdateRequest {
+  /** @minLength 1 */
+  title?: string;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  matchDate?: string | null;
+  data?: GpsMatchReportUpdateRequestData;
+}
+
+export interface GpsCoachEmail {
+  id: number;
+  leagueId: number;
+  squad: string;
+  /** @nullable */
+  name: string | null;
+  email: string;
+}
+
+export type GpsCoachEmailsSaveRequestCoachesItem = {
+  name?: string;
+  /** @minLength 3 */
+  email: string;
+};
+
+export interface GpsCoachEmailsSaveRequest {
+  leagueId: number;
+  /** @minLength 1 */
+  squad: string;
+  coaches: GpsCoachEmailsSaveRequestCoachesItem[];
+}
+
 export interface JournalDeleteResult {
   deleted: boolean;
 }
@@ -2906,5 +2969,17 @@ leagueId: number;
 
 export type ListMatchPrepReportsParams = {
 leagueId: number;
+};
+
+export type ListGpsMatchReportsParams = {
+leagueId: number;
+};
+
+export type ListGpsCoachEmailsParams = {
+leagueId: number;
+};
+
+export type SaveGpsCoachEmails200 = {
+  saved: number;
 };
 

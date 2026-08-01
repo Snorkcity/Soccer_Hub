@@ -99,7 +99,12 @@ import type {
   GoalTallyResponse,
   GoalUpdate,
   GoalsByOpponentResponse,
+  GpsCoachEmail,
+  GpsCoachEmailsSaveRequest,
   GpsLoadSummary,
+  GpsMatchReport,
+  GpsMatchReportCreateRequest,
+  GpsMatchReportUpdateRequest,
   GpsPlayerEmail,
   GpsPlayerEmailInput,
   GpsPlayerEmailsSaveResult,
@@ -137,6 +142,8 @@ import type {
   ListEntryGoalsParams,
   ListEntryPlayerStatsParams,
   ListGoalsParams,
+  ListGpsCoachEmailsParams,
+  ListGpsMatchReportsParams,
   ListGpsSessionsParams,
   ListJournalCyclesParams,
   ListJournalReflectionsParams,
@@ -174,6 +181,7 @@ import type {
   ResetPasswordRequest,
   ReviewLibraryPracticeRequest,
   ReviewLibraryPracticeResult,
+  SaveGpsCoachEmails200,
   Season,
   SeasonInput,
   SeasonSummary,
@@ -9356,6 +9364,459 @@ export const useDeleteMatchPrepReport = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteMatchPrepReportMutationOptions(options));
+    }
+
+export const getListGpsMatchReportsUrl = (params: ListGpsMatchReportsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-match-reports?${stringifiedParams}` : `/api/gps-match-reports`
+}
+
+/**
+ * @summary List saved team GPS match reports, newest first
+ */
+export const listGpsMatchReports = async (params: ListGpsMatchReportsParams, options?: RequestInit): Promise<GpsMatchReport[]> => {
+
+  return customFetch<GpsMatchReport[]>(getListGpsMatchReportsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsMatchReportsQueryKey = (params?: ListGpsMatchReportsParams,) => {
+    return [
+    `/api/gps-match-reports`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGpsMatchReportsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsMatchReports>>, TError = ErrorType<unknown>>(params: ListGpsMatchReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsMatchReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsMatchReportsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsMatchReports>>> = ({ signal }) => listGpsMatchReports(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsMatchReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsMatchReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsMatchReports>>>
+export type ListGpsMatchReportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved team GPS match reports, newest first
+ */
+
+export function useListGpsMatchReports<TData = Awaited<ReturnType<typeof listGpsMatchReports>>, TError = ErrorType<unknown>>(
+ params: ListGpsMatchReportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsMatchReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsMatchReportsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateGpsMatchReportUrl = () => {
+
+
+
+
+  return `/api/gps-match-reports`
+}
+
+/**
+ * @summary Save a team GPS match report
+ */
+export const createGpsMatchReport = async (gpsMatchReportCreateRequest: GpsMatchReportCreateRequest, options?: RequestInit): Promise<GpsMatchReport> => {
+
+  return customFetch<GpsMatchReport>(getCreateGpsMatchReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsMatchReportCreateRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateGpsMatchReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGpsMatchReport>>, TError,{data: BodyType<GpsMatchReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGpsMatchReport>>, TError,{data: BodyType<GpsMatchReportCreateRequest>}, TContext> => {
+
+const mutationKey = ['createGpsMatchReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGpsMatchReport>>, {data: BodyType<GpsMatchReportCreateRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGpsMatchReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGpsMatchReportMutationResult = NonNullable<Awaited<ReturnType<typeof createGpsMatchReport>>>
+    export type CreateGpsMatchReportMutationBody = BodyType<GpsMatchReportCreateRequest>
+    export type CreateGpsMatchReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a team GPS match report
+ */
+export const useCreateGpsMatchReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGpsMatchReport>>, TError,{data: BodyType<GpsMatchReportCreateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGpsMatchReport>>,
+        TError,
+        {data: BodyType<GpsMatchReportCreateRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateGpsMatchReportMutationOptions(options));
+    }
+
+export const getUpdateGpsMatchReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/gps-match-reports/${id}`
+}
+
+/**
+ * @summary Update a saved team GPS match report
+ */
+export const updateGpsMatchReport = async (id: number,
+    gpsMatchReportUpdateRequest: GpsMatchReportUpdateRequest, options?: RequestInit): Promise<GpsMatchReport> => {
+
+  return customFetch<GpsMatchReport>(getUpdateGpsMatchReportUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsMatchReportUpdateRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateGpsMatchReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGpsMatchReport>>, TError,{id: number;data: BodyType<GpsMatchReportUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGpsMatchReport>>, TError,{id: number;data: BodyType<GpsMatchReportUpdateRequest>}, TContext> => {
+
+const mutationKey = ['updateGpsMatchReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGpsMatchReport>>, {id: number;data: BodyType<GpsMatchReportUpdateRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGpsMatchReport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGpsMatchReportMutationResult = NonNullable<Awaited<ReturnType<typeof updateGpsMatchReport>>>
+    export type UpdateGpsMatchReportMutationBody = BodyType<GpsMatchReportUpdateRequest>
+    export type UpdateGpsMatchReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a saved team GPS match report
+ */
+export const useUpdateGpsMatchReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGpsMatchReport>>, TError,{id: number;data: BodyType<GpsMatchReportUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGpsMatchReport>>,
+        TError,
+        {id: number;data: BodyType<GpsMatchReportUpdateRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateGpsMatchReportMutationOptions(options));
+    }
+
+export const getDeleteGpsMatchReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/gps-match-reports/${id}`
+}
+
+/**
+ * @summary Delete a saved team GPS match report
+ */
+export const deleteGpsMatchReport = async (id: number, options?: RequestInit): Promise<JournalDeleteResult> => {
+
+  return customFetch<JournalDeleteResult>(getDeleteGpsMatchReportUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteGpsMatchReportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGpsMatchReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGpsMatchReport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteGpsMatchReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGpsMatchReport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteGpsMatchReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGpsMatchReportMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGpsMatchReport>>>
+
+    export type DeleteGpsMatchReportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a saved team GPS match report
+ */
+export const useDeleteGpsMatchReport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGpsMatchReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGpsMatchReport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteGpsMatchReportMutationOptions(options));
+    }
+
+export const getListGpsCoachEmailsUrl = (params: ListGpsCoachEmailsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-coach-emails?${stringifiedParams}` : `/api/gps-coach-emails`
+}
+
+/**
+ * @summary List the coach email list for a league (all squads)
+ */
+export const listGpsCoachEmails = async (params: ListGpsCoachEmailsParams, options?: RequestInit): Promise<GpsCoachEmail[]> => {
+
+  return customFetch<GpsCoachEmail[]>(getListGpsCoachEmailsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsCoachEmailsQueryKey = (params?: ListGpsCoachEmailsParams,) => {
+    return [
+    `/api/gps-coach-emails`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGpsCoachEmailsQueryOptions = <TData = Awaited<ReturnType<typeof listGpsCoachEmails>>, TError = ErrorType<unknown>>(params: ListGpsCoachEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsCoachEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsCoachEmailsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsCoachEmails>>> = ({ signal }) => listGpsCoachEmails(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsCoachEmails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsCoachEmailsQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsCoachEmails>>>
+export type ListGpsCoachEmailsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the coach email list for a league (all squads)
+ */
+
+export function useListGpsCoachEmails<TData = Awaited<ReturnType<typeof listGpsCoachEmails>>, TError = ErrorType<unknown>>(
+ params: ListGpsCoachEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsCoachEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsCoachEmailsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveGpsCoachEmailsUrl = () => {
+
+
+
+
+  return `/api/gps-coach-emails`
+}
+
+/**
+ * @summary Replace the coach email list for one league + squad
+ */
+export const saveGpsCoachEmails = async (gpsCoachEmailsSaveRequest: GpsCoachEmailsSaveRequest, options?: RequestInit): Promise<SaveGpsCoachEmails200> => {
+
+  return customFetch<SaveGpsCoachEmails200>(getSaveGpsCoachEmailsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsCoachEmailsSaveRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveGpsCoachEmailsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsCoachEmails>>, TError,{data: BodyType<GpsCoachEmailsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGpsCoachEmails>>, TError,{data: BodyType<GpsCoachEmailsSaveRequest>}, TContext> => {
+
+const mutationKey = ['saveGpsCoachEmails'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGpsCoachEmails>>, {data: BodyType<GpsCoachEmailsSaveRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGpsCoachEmails(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGpsCoachEmailsMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsCoachEmails>>>
+    export type SaveGpsCoachEmailsMutationBody = BodyType<GpsCoachEmailsSaveRequest>
+    export type SaveGpsCoachEmailsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Replace the coach email list for one league + squad
+ */
+export const useSaveGpsCoachEmails = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsCoachEmails>>, TError,{data: BodyType<GpsCoachEmailsSaveRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGpsCoachEmails>>,
+        TError,
+        {data: BodyType<GpsCoachEmailsSaveRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveGpsCoachEmailsMutationOptions(options));
     }
 
 export const getJournalInterviewSpeakUrl = () => {
