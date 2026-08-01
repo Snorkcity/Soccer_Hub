@@ -29,3 +29,9 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - Dates are `DD/MM/YYYY` text; parse manually, treat unparseable as unknown and sort last.
 
 **Why:** these conventions came out of matching the coach's old app exactly (he asked for like-for-like charts) plus an architect-review fix for the lone-half false-zero bug.
+
+## Bulk report emailing (2026-08)
+- `gps_player_emails(player_name PK, email)` — global table keyed by CANONICAL GPS name; mostly minors' addresses so ALL routes (reads too) are admin-only in-route, on top of session auth.
+- Send flow: client builds PPTX via `generatePlayerGpsReport(input, "base64")` and POSTs to `/gps-report-email` per player (sequential loop = per-player progress). Server validates from-address ends `@gameinsights.com.au` (whole domain Resend-verified) and attaches base64.
+- `/api/gps-report-email` has its own 25mb json parser mounted AFTER requireSession in app.ts.
+- Name-matching gotchas when seeding emails: alias 'Alyssa'→canonical 'DC'; Emily Hay = Emily.H (emilyvhay3@), Emily Evans = Emily.E (evans.emilyh@ — confusingly named).
