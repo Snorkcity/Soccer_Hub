@@ -46,5 +46,6 @@
 - [League-private coaching data](league-private-data.md) — match prep/reflections/GPS/testing rows carry league_id; lists require leagueId, id-routes use mayTouchLeagueRow; snapshot syncs must stamp it too.
 - [Dribl sync](dribl-sync.md) — mc-api.dribl.com blocks Node TLS (curl passes, shell out); matchcentre has HT score + goal scorer/minute; OG credit flips team.
 - [AI club setup & Wikipedia logos](club-setup-ai.md) — extract-clubs flow: LLM won't give logo URLs; Wikipedia pageimages needs pilicense=any and sequential calls (429s bursts).
+- [gitPush can silently no-op](gitpush-verify.md) — after every deploy push, verify with `git fetch && git log origin/main`; then confirm prod serves the change (report code lives in the lazy playerGpsReport chunk, not index.js).
 - [GPS report PPTX styling](gps-report-pptx.md) — report deck is FULL DARK theme by coach choice; dual-unit speed runs; pptxgenjs secondary-axis + soffice render-check gotchas.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
