@@ -88,6 +88,7 @@ import type {
   GetPlayerTallyParams,
   GetPlayerTimelineParams,
   GetSeasonSummaryParams,
+  GetSubImpactParams,
   GetTeamFormParams,
   Goal,
   GoalBreakdownResponse,
@@ -180,6 +181,7 @@ import type {
   SessionSummaryList,
   SessionUpdateRequest,
   SetSharedOkRequest,
+  SubImpactResponse,
   Team,
   TeamForm,
   UpdateProfileRequest,
@@ -3512,6 +3514,90 @@ export function useGetPlayerImpact<TData = Awaited<ReturnType<typeof getPlayerIm
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPlayerImpactQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSubImpactUrl = (params: GetSubImpactParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/sub-impact?${stringifiedParams}` : `/api/analytics/sub-impact`
+}
+
+/**
+ * @summary Substitute impact — team goals for/against while each sub was on the pitch
+ */
+export const getSubImpact = async (params: GetSubImpactParams, options?: RequestInit): Promise<SubImpactResponse> => {
+
+  return customFetch<SubImpactResponse>(getGetSubImpactUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSubImpactQueryKey = (params?: GetSubImpactParams,) => {
+    return [
+    `/api/analytics/sub-impact`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSubImpactQueryOptions = <TData = Awaited<ReturnType<typeof getSubImpact>>, TError = ErrorType<unknown>>(params: GetSubImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSubImpactQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubImpact>>> = ({ signal }) => getSubImpact(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSubImpact>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSubImpactQueryResult = NonNullable<Awaited<ReturnType<typeof getSubImpact>>>
+export type GetSubImpactQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Substitute impact — team goals for/against while each sub was on the pitch
+ */
+
+export function useGetSubImpact<TData = Awaited<ReturnType<typeof getSubImpact>>, TError = ErrorType<unknown>>(
+ params: GetSubImpactParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubImpact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSubImpactQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

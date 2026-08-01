@@ -27,6 +27,8 @@ import {
   GetOpponentGoalBreakdownResponse,
   GetOpponentOnfieldImpactQueryParams,
   GetOpponentOnfieldImpactResponse,
+  GetSubImpactQueryParams,
+  GetSubImpactResponse,
   GetOpponentProfileQueryParams,
   GetPlayerTimelineQueryParams,
   GetPlayerTimelineResponse,
@@ -1599,6 +1601,119 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
+});
+
+// ─── Substitute impact (team goals for/against while a sub was on) ─────────────
+//
+// Same minute-window model as opponent-onfield-impact, but restricted to
+// SUBSTITUTE appearances (appearance && !started): a sub who played M minutes
+// in a match of effective length L is on for [L-M, L]. Team goals in that
+// window count for (gf) / against (ga) regardless of who scored them.
+
+router.get("/analytics/sub-impact", async (req, res): Promise<void> => {
+  const query = GetSubImpactQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { seasonId, club, lastN } = query.data;
+  const isAll = club === "__ALL__";
+
+  const matches = await db
+    .select({
+      matchId: leagueMatchesTable.matchId,
+      homeTeam: leagueMatchesTable.homeTeam,
+      awayTeam: leagueMatchesTable.awayTeam,
+      matchDate: leagueMatchesTable.matchDate,
+    })
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId));
+  if (!matches.length) { res.json(GetSubImpactResponse.parse({ players: [] })); return; }
+
+  const matchInfo = new Map<string, typeof matches[number]>();
+  for (const m of matches) matchInfo.set(m.matchId, m);
+  const relevant = isAll ? matches : matches.filter(m => m.homeTeam === club || m.awayTeam === club);
+
+  // "Last N rounds" window — same convention as the other analytics endpoints.
+  let relevantIds: Set<string>;
+  if (lastN != null && lastN > 0) {
+    if (isAll) {
+      const dates = Array.from(new Set(relevant.map(m => m.matchDate ?? "").filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)).slice(0, lastN);
+      const dateSet = new Set(dates);
+      relevantIds = new Set(relevant.filter(m => dateSet.has(m.matchDate ?? "")).map(m => m.matchId));
+    } else {
+      relevantIds = new Set(
+        relevant.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).slice(0, lastN).map(m => m.matchId),
+      );
+    }
+  } else {
+    relevantIds = new Set(relevant.map(m => m.matchId));
+  }
+  if (relevantIds.size === 0) { res.json(GetSubImpactResponse.parse({ players: [] })); return; }
+
+  const relevantList = Array.from(relevantIds);
+  const [ps, goalRows] = await Promise.all([
+    db.select({
+        playerName: leaguePlayerStatsTable.playerName,
+        matchId: leaguePlayerStatsTable.matchId,
+        minsPlayed: leaguePlayerStatsTable.minsPlayed,
+        started: leaguePlayerStatsTable.started,
+        appearance: leaguePlayerStatsTable.appearance,
+        club: leaguePlayerStatsTable.club,
+      })
+      .from(leaguePlayerStatsTable)
+      .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, relevantList))),
+    db.select({
+        matchId: leagueGoalsTable.matchId,
+        scorerTeam: leagueGoalsTable.scorerTeam,
+        minuteScored: leagueGoalsTable.minuteScored,
+      })
+      .from(leagueGoalsTable)
+      .where(and(eq(leagueGoalsTable.seasonId, seasonId), inArray(leagueGoalsTable.matchId, relevantList))),
+  ]);
+
+  // Goals per match + effective match length (stoppage time raises it past 90).
+  const goalsByMatch = new Map<string, Array<{ team: string; minute: number | null }>>();
+  const matchLen = new Map<string, number>();
+  for (const g of goalRows) {
+    if (!g.scorerTeam) continue;
+    (goalsByMatch.get(g.matchId) ?? goalsByMatch.set(g.matchId, []).get(g.matchId)!)
+      .push({ team: g.scorerTeam, minute: g.minuteScored });
+    if (g.minuteScored != null) matchLen.set(g.matchId, Math.max(matchLen.get(g.matchId) ?? 90, g.minuteScored));
+  }
+  for (const r of ps) {
+    if (r.minsPlayed != null) matchLen.set(r.matchId, Math.max(matchLen.get(r.matchId) ?? 90, r.minsPlayed));
+  }
+
+  const byPlayer = new Map<string, { playerName: string; club: string; subApps: number; mins: number; gf: number; ga: number }>();
+  for (const r of ps) {
+    if (!r.playerName || !r.club) continue;
+    if (!r.appearance || r.started) continue; // substitute appearances only
+    if (!isAll && r.club !== club) continue;
+    if (!matchInfo.has(r.matchId)) continue;
+
+    const L = matchLen.get(r.matchId) ?? 90;
+    const mins = r.minsPlayed ?? 0;
+    const winStart = Math.max(0, L - mins);
+
+    let gf = 0, ga = 0;
+    for (const g of goalsByMatch.get(r.matchId) ?? []) {
+      const on = g.minute == null || mins <= 0 ? mins > 0 : g.minute >= winStart && g.minute <= L;
+      if (!on) continue;
+      if (g.team === r.club) gf += 1; else ga += 1;
+    }
+
+    const key = `${r.playerName}|${r.club}`;
+    const row = byPlayer.get(key) ?? { playerName: r.playerName, club: r.club, subApps: 0, mins: 0, gf: 0, ga: 0 };
+    row.subApps += 1;
+    row.mins += mins;
+    row.gf += gf;
+    row.ga += ga;
+    byPlayer.set(key, row);
+  }
+
+  const players = Array.from(byPlayer.values())
+    .map(p => ({ ...p, net: p.gf - p.ga }))
+    .sort((a, b) => b.net - a.net || b.gf - a.gf);
+  res.json(GetSubImpactResponse.parse({ players }));
 });
 
 // ─── Opponent On-Field Impact (team GD while a player was on the pitch) ────────

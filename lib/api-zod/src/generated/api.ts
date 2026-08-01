@@ -1318,6 +1318,28 @@ export const GetPlayerImpactResponse = zod.object({
 
 
 /**
+ * @summary Substitute impact — team goals for/against while each sub was on the pitch
+ */
+export const GetSubImpactQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetSubImpactResponse = zod.object({
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string(),
+  "subApps": zod.number(),
+  "mins": zod.number(),
+  "gf": zod.number(),
+  "ga": zod.number(),
+  "net": zod.number()
+}))
+})
+
+
+/**
  * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
  */
 export const GetOpponentOnfieldImpactQueryParams = zod.object({

@@ -31,6 +31,8 @@ import {
   getGetPlayerTimelineQueryKey,
   useGetPlayerImpact,
   getGetPlayerImpactQueryKey,
+  useGetSubImpact,
+  getGetSubImpactQueryKey,
   type PlayerImpactPlayer,
   type PlayerImpactSide,
   useGetClubs,
@@ -2569,6 +2571,7 @@ export default function SeasonStats() {
 
           {/* Player Impact — win % when starting vs not */}
           <PlayerImpactChart seasonId={sId} club={focusClub} enabled={isReady && !!focusClub} />
+          <SubImpactChart seasonId={sId} club={focusClub} enabled={isReady && !!focusClub} />
 
           {/* Full Leaderboard Table */}
           <Card>
@@ -2985,6 +2988,7 @@ export default function SeasonStats() {
 
               {/* 17f. Player Impact — team record when player starts vs not */}
               <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} colorMap={clubColorMap} />
+              <SubImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} />
 
               {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
               <ClutchChart
@@ -4117,6 +4121,107 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
         </ResponsiveContainer>
       )}
     </ChartCard>
+  );
+}
+
+// Substitute impact: for every game a player came on as a sub, count TEAM goals
+// scored (up) and conceded (down) while they were on the pitch — the "super sub"
+// chart. Fetches its own data so it can sit on both the Player Insights tab
+// (focus club) and Opponent Insights (any club / __ALL__).
+function SubImpactChart({ seasonId, club, isAll, enabled }: {
+  seasonId: number; club: string; isAll?: boolean; enabled: boolean;
+}) {
+  const [win, setWin] = useState<"4" | "10" | "all">("all");
+  const [sort, setSort] = useState<"best" | "worst" | "gf">("best");
+  const lastN = win === "all" ? undefined : Number(win);
+  const params = { seasonId, club, ...(lastN ? { lastN } : {}) };
+  const { data, isLoading } = useGetSubImpact(params, {
+    query: { enabled: enabled && !!club, queryKey: getGetSubImpactQueryKey(params) },
+  });
+
+  const rows = useMemo(() => {
+    const list = (data?.players ?? []).slice();
+    if (sort === "gf") list.sort((a, b) => b.gf - a.gf || b.net - a.net);
+    else if (sort === "worst") list.sort((a, b) => a.net - b.net || a.gf - b.gf);
+    else list.sort((a, b) => b.net - a.net || b.gf - a.gf);
+    return list.slice(0, 20).map(p => ({
+      name: isAll ? `${p.playerName} · ${p.club.slice(0, 3)}` : p.playerName,
+      gf: p.gf,
+      gaNeg: -p.ga,
+      p,
+    }));
+  }, [data, sort, isAll]);
+
+  return (
+    <ChartCard
+      title={`${isAll ? "League" : club} — Sub Impact — Team Goals While On`}
+      description="Substitute appearances only: team goals scored (up) and conceded (down) from the minute each player came on. Any goal counts, not just their own."
+      tooltip="For every game a player entered as a substitute, we count the TEAM's goals for and against from their entry minute to full time — whoever scored them. A player who keeps coming on and the team scores (rather than concedes) shows a big blue bar and small amber bar. Net = for minus against. Small samples swing hard — check the apps count in the hover."
+      controls={
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <PillGroup
+            options={[
+              { value: "4",   label: "Last 4 rounds" },
+              { value: "10",  label: "Last 10 rounds" },
+              { value: "all", label: "Season" },
+            ]}
+            value={win}
+            onChange={v => setWin(v as "4" | "10" | "all")}
+          />
+          <PillGroup
+            options={[
+              { value: "best",  label: "Best net impact" },
+              { value: "worst", label: "Worst net impact" },
+              { value: "gf",    label: "Most team goals" },
+            ]}
+            value={sort}
+            onChange={v => setSort(v as "best" | "worst" | "gf")}
+          />
+        </div>
+      }
+      tall
+    >
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No substitute appearances in this window</div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 10, right: 10, left: -20, bottom: 60 }} stackOffset="sign">
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={70} />
+            <YAxis {...AXIS_STYLE} allowDecimals={false} />
+            <Tooltip content={<SubImpactTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Legend
+              iconType="circle"
+              wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+              payload={[
+                { value: "Team goals scored while on", type: "circle", color: "#3b82f6" },
+                { value: "Team goals conceded while on", type: "circle", color: "#f59e0b" },
+              ]}
+            />
+            <ReferenceLine y={0} stroke="hsl(var(--muted-foreground)/0.5)" />
+            <Bar dataKey="gf" stackId="a" fill="#3b82f6" legendType="none" />
+            <Bar dataKey="gaNeg" stackId="a" fill="#f59e0b" legendType="none" radius={[0, 0, 3, 3]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+function SubImpactTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload?: { p?: { playerName: string; club: string; subApps: number; mins: number; gf: number; ga: number; net: number } } }> }) {
+  const p = active ? payload?.[0]?.payload?.p : undefined;
+  if (!p) return null;
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md">
+      <div className="font-semibold text-foreground">{p.playerName} <span className="text-muted-foreground font-normal">· {p.club}</span></div>
+      <div className="mt-1 space-y-0.5 text-muted-foreground">
+        <div>{p.subApps} sub appearance{p.subApps === 1 ? "" : "s"} · {p.mins} mins off the bench</div>
+        <div>While on: <span className="text-foreground">{p.gf} scored</span> / <span className="text-foreground">{p.ga} conceded</span></div>
+        <div>Net impact: <span className={p.net > 0 ? "text-green-500 font-semibold" : p.net < 0 ? "text-red-500 font-semibold" : "text-foreground font-semibold"}>{p.net > 0 ? "+" : ""}{p.net}</span></div>
+      </div>
+    </div>
   );
 }
 

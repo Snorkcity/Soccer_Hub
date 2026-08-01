@@ -988,6 +988,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlayerImpactResponse"
 
+  /analytics/sub-impact:
+    get:
+      operationId: getSubImpact
+      tags: [analytics]
+      summary: Substitute impact — team goals for/against while each sub was on the pitch
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-player aggregates over substitute appearances only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubImpactResponse"
+
   /analytics/opponent-onfield-impact:
     get:
       operationId: getOpponentOnfieldImpact
@@ -3446,6 +3472,29 @@ components:
           items:
             $ref: "#/components/schemas/OpponentOnfieldImpactPlayer"
       required: [opponents, players]
+
+    # ── Substitute impact (team goals while a sub was on the pitch) ────────────
+
+    SubImpactPlayer:
+      type: object
+      properties:
+        playerName: { type: string }
+        club:       { type: string }
+        subApps:    { type: integer }
+        mins:       { type: integer }
+        gf:         { type: integer }
+        ga:         { type: integer }
+        net:        { type: integer }
+      required: [playerName, club, subApps, mins, gf, ga, net]
+
+    SubImpactResponse:
+      type: object
+      properties:
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubImpactPlayer"
+      required: [players]
 
     # ── Clutch goals (big goals in close matches) ──────────────────────────────
 

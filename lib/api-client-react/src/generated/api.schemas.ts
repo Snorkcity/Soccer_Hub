@@ -1000,6 +1000,20 @@ export interface OpponentOnfieldImpactResponse {
   players: OpponentOnfieldImpactPlayer[];
 }
 
+export interface SubImpactPlayer {
+  playerName: string;
+  club: string;
+  subApps: number;
+  mins: number;
+  gf: number;
+  ga: number;
+  net: number;
+}
+
+export interface SubImpactResponse {
+  players: SubImpactPlayer[];
+}
+
 export type ClutchGoalDetailCategory = typeof ClutchGoalDetailCategory[keyof typeof ClutchGoalDetailCategory];
 
 
@@ -2729,6 +2743,12 @@ export const GetPlayerImpactSort = {
   start: 'start',
   gap: 'gap',
 } as const;
+
+export type GetSubImpactParams = {
+seasonId: number;
+club: string;
+lastN?: number;
+};
 
 export type GetOpponentOnfieldImpactParams = {
 teamId: number;
