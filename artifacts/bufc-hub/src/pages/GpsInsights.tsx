@@ -516,12 +516,11 @@ function SpeedAxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { 
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={-4} y={0} dy={0} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={11}>{v}</text>
-      {v > 0 && (
-        <text x={-4} y={0} dy={11} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={8} opacity={0.75}>
-          {(v / 3.6).toFixed(1)} m/s
-        </text>
-      )}
+      {/* km/h value with the m/s equivalent side-by-side — smaller and lighter so it reads as secondary */}
+      <text x={-4} y={0} dy={4} textAnchor="end">
+        <tspan fill="hsl(var(--muted-foreground))" fontSize={11}>{v}</tspan>
+        {v > 0 && <tspan fill="hsl(var(--muted-foreground))" fontSize={8} opacity={0.65}>{` (${(v / 3.6).toFixed(1)})`}</tspan>}
+      </text>
     </g>
   );
 }
