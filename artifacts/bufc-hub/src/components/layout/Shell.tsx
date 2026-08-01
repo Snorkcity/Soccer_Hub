@@ -120,6 +120,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+
+        {/* Build stamp — superadmin only, answers "has the latest deploy landed?" */}
+        {isSuperadmin && (
+          <div className={`px-3 py-2 border-t border-border text-[10px] text-muted-foreground/70 ${mobileOpen ? "block" : "hidden md:block"} ${collapsed ? "md:hidden" : ""}`}>
+            {import.meta.env.DEV
+              ? "dev build"
+              : `Updated ${new Date(__BUILD_INFO__.time).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${__BUILD_INFO__.sha ? ` · ${__BUILD_INFO__.sha}` : ""}`}
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}

@@ -29,6 +29,14 @@ if (!basePath) {
 
 export default defineConfig({
   base: basePath,
+  define: {
+    // Build stamp shown to superadmins so "is prod current?" is a 5-second check.
+    // Railway exposes the commit via RAILWAY_GIT_COMMIT_SHA at build time.
+    __BUILD_INFO__: JSON.stringify({
+      time: new Date().toISOString(),
+      sha: (process.env.RAILWAY_GIT_COMMIT_SHA ?? '').slice(0, 7),
+    }),
+  },
   plugins: [
     react(),
     tailwindcss(),
