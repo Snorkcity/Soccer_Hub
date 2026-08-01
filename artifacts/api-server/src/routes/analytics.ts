@@ -2918,6 +2918,8 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       .from(gpsSessionsTable)
       .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
       .where(and(
+        eq(gpsSessionsTable.teamId, teamId),
+        eq(gpsSessionsTable.leagueId, seasonRow.leagueId),
         eq(gpsSessionsTable.year, seasonRow.year),
         eq(gpsSessionsTable.splitName, "game"),
         inArray(gpsSessionsTable.round, [roundShort, `${roundShort}-1sts`]),
