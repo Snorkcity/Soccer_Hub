@@ -12,6 +12,10 @@ import {
   useGetGoalOptions,
   getGetGoalOptionsQueryKey,
   useCreateEntryMatch,
+  useListMatches,
+  getListMatchesQueryKey,
+  useUpdateMatch,
+  type Match,
   useCreateEntryGoal,
   useGetGoalTally,
   getGetGoalTallyQueryKey,
@@ -281,6 +285,125 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
           </Button>
           <StatusLine ok={ok} err={err} />
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Edit match stats — fill in possession/shots/passes on an existing Belconnen
+// match (e.g. Dribl-imported games) without re-entering the whole match.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MatchStatsEditor({ teamId, seasonId }: { teamId: number; seasonId: number }) {
+  const queryClient = useQueryClient();
+  const listParams = { teamId, seasonId };
+  const { data: matches } = useListMatches(listParams, {
+    query: { queryKey: getListMatchesQueryKey(listParams) },
+  });
+  const sorted = useMemo(
+    () => [...(matches ?? [])].sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")),
+    [matches],
+  );
+
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selected: Match | undefined = sorted.find(m => m.id === selectedId);
+
+  const [possession, setPossession] = useState("");
+  const [shots, setShots] = useState("");
+  const [oppShots, setOppShots] = useState("");
+  const [passes, setPasses] = useState("");
+  const [oppPasses, setOppPasses] = useState("");
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Pre-fill from the selected match so existing values can be tweaked.
+  useEffect(() => {
+    setOk(null); setErr(null);
+    setPossession(selected?.possession != null ? String(selected.possession) : "");
+    setShots(selected?.shots != null ? String(selected.shots) : "");
+    setOppShots(selected?.oppShots != null ? String(selected.oppShots) : "");
+    setPasses(selected?.passes != null ? String(selected.passes) : "");
+    setOppPasses(selected?.oppPasses != null ? String(selected.oppPasses) : "");
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = useUpdateMatch({ mutation: {
+    onSuccess: () => {
+      setOk("Saved — the Match Report tab will pick these up straight away.");
+      // Refresh anything built from match rows (match list + match report).
+      void queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/analytics/match-report"] });
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  const num = (v: string) => (v.trim() === "" ? null : Number(v));
+  const missing = (m: Match) => m.possession == null || m.shots == null || m.passes == null || m.oppShots == null || m.oppPasses == null;
+  const label = (m: Match) => {
+    const round = /^R(\d+)/i.exec(m.matchId)?.[0] ?? m.matchId;
+    return `${round} v ${m.opponent}${m.fullScore ? ` (${m.fullScore})` : ""}${m.matchDate ? ` — ${m.matchDate}` : ""}`;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Add Veo stats to a saved match</CardTitle>
+        <CardDescription>
+          Pick a match that's already in (e.g. synced from Dribl) and fill in possession, shots and passes —
+          no need to re-enter the match. Missing numbers hide their tiles on the Match Report tab.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Field label="Match">
+          <Select value={selectedId != null ? String(selectedId) : ""} onValueChange={v => setSelectedId(Number(v))}>
+            <SelectTrigger className="max-w-md"><SelectValue placeholder="Choose a match" /></SelectTrigger>
+            <SelectContent>
+              {sorted.map(m => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {label(m)}{missing(m) ? "  ·  stats missing" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {selected && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <Field label="Possession %">
+                <Input type="number" min={0} max={100} step="0.1" value={possession} onChange={e => setPossession(e.target.value)} />
+              </Field>
+              <Field label="Our shots">
+                <Input type="number" min={0} value={shots} onChange={e => setShots(e.target.value)} />
+              </Field>
+              <Field label="Their shots">
+                <Input type="number" min={0} value={oppShots} onChange={e => setOppShots(e.target.value)} />
+              </Field>
+              <Field label="Our passes">
+                <Input type="number" min={0} value={passes} onChange={e => setPasses(e.target.value)} />
+              </Field>
+              <Field label="Their passes">
+                <Input type="number" min={0} value={oppPasses} onChange={e => setOppPasses(e.target.value)} />
+              </Field>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                disabled={update.isPending}
+                onClick={() => {
+                  setOk(null); setErr(null);
+                  update.mutate({ id: selected.id, data: {
+                    possession: num(possession),
+                    shots: num(shots), oppShots: num(oppShots),
+                    passes: num(passes), oppPasses: num(oppPasses),
+                  }});
+                }}
+              >
+                {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save stats"}
+              </Button>
+              <StatusLine ok={ok} err={err} />
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -2433,10 +2556,13 @@ function EntryWorkspace() {
           </TabsContent>
         )}
         <TabsContent value="match" className="mt-6">
-          <MatchForm
-            teamId={teamId} seasonId={seasonId} clubs={clubNames} options={options}
-            onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
-          />
+          <div className="space-y-6">
+            <MatchForm
+              teamId={teamId} seasonId={seasonId} clubs={clubNames} options={options}
+              onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
+            />
+            <MatchStatsEditor teamId={teamId} seasonId={seasonId} />
+          </div>
         </TabsContent>
         <TabsContent value="goals" className="mt-6">
           <GoalForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} options={options} />

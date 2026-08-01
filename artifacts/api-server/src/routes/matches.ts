@@ -78,7 +78,13 @@ router.patch("/matches/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [match] = await db.update(matchesTable).set({ ...parsed.data, possession: n2s(parsed.data.possession) }).where(eq(matchesTable.id, params.data.id)).returning();
+  // Only touch possession when the client actually sent it — a partial update
+  // (e.g. just shots/passes) must not wipe an existing possession value.
+  const { possession, ...rest } = parsed.data;
+  const [match] = await db.update(matchesTable)
+    .set({ ...rest, ...("possession" in req.body ? { possession: n2s(possession) } : {}) })
+    .where(eq(matchesTable.id, params.data.id))
+    .returning();
   if (!match) {
     res.status(404).json({ error: "Match not found" });
     return;
