@@ -2917,9 +2917,11 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       })
       .from(gpsSessionsTable)
       .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
+      // Scoped by team + season year + round. NOT by league_id: historical GPS
+      // uploads carry the original league stamp (1) while newer seasons live
+      // under their own league ids, so a league filter silently drops rows.
       .where(and(
         eq(gpsSessionsTable.teamId, teamId),
-        eq(gpsSessionsTable.leagueId, seasonRow.leagueId),
         eq(gpsSessionsTable.year, seasonRow.year),
         eq(gpsSessionsTable.splitName, "game"),
         inArray(gpsSessionsTable.round, [roundShort, `${roundShort}-1sts`]),
