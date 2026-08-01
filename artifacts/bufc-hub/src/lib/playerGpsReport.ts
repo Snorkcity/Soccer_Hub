@@ -484,62 +484,6 @@ export async function generatePlayerGpsReport(input: ReportInput): Promise<void>
     addFooter(s, input);
   }
 
-  // ── Max accel/decel slide ─────────────────────────────────────────────────
-  if (games.some(g => g.maxAcc != null || g.maxDec != null)) {
-    const s = pptx.addSlide();
-    s.background = { color: BG };
-    addHeader(s, "Max Acceleration / Deceleration (m/s²)",
-      "Not how often, but how hard — the single biggest burst and hardest stop each game.");
-    const maxAccAvg = avg(games.filter(g => g.maxAcc != null).map(g => g.maxAcc as number));
-    const maxDecAvg = avg(games.filter(g => g.maxDec != null).map(g => g.maxDec as number));
-    (s.addChart as unknown as (types: unknown, opts: unknown) => void)([
-      {
-        type: "bar",
-        data: [
-          { name: "Max acceleration", labels: cats, values: games.map(g => g.maxAcc) as number[] },
-          { name: "Max deceleration", labels: cats, values: games.map(g => g.maxDec) as number[] },
-        ],
-        options: { chartColors: [SKY, PURPLE], barGapWidthPct: 40, barGrouping: "clustered" },
-      },
-      ...(maxAccAvg != null ? [{
-        type: "line",
-        data: [{ name: "Accel average", labels: cats, values: cats.map(() => Number(maxAccAvg.toFixed(1))) }],
-        options: { chartColors: [SKY], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
-      }] : []),
-      ...(maxDecAvg != null ? [{
-        type: "line",
-        data: [{ name: "Decel average", labels: cats, values: cats.map(() => Number(maxDecAvg.toFixed(1))) }],
-        options: { chartColors: [PURPLE], lineDataSymbol: "none", lineDash: "dash", lineSize: 1.5 },
-      }] : []),
-      // Dotted lines for the comparison groups chosen for the report (squad / position)
-      ...comps
-        .map((c, i) => ({ c, color: COMP_COLORS[i % COMP_COLORS.length] }))
-        .flatMap(({ c, color }) => [
-          ...(c.maxAcc != null ? [{
-            type: "line",
-            data: [{ name: `${c.label.replace(/ average/i, "")} max accel`, labels: cats, values: cats.map(() => Number((c.maxAcc as number).toFixed(1))) }],
-            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDot", lineSize: 1.25 },
-          }] : []),
-          ...(c.maxDec != null ? [{
-            type: "line",
-            data: [{ name: `${c.label.replace(/ average/i, "")} max decel`, labels: cats, values: cats.map(() => Number((c.maxDec as number).toFixed(1))) }],
-            options: { chartColors: [color], lineDataSymbol: "none", lineDash: "sysDash", lineSize: 1.25 },
-          }] : []),
-        ]),
-    ], {
-      x: 0.6, y: 1.55, w: 12.1, h: 4.7,
-      catAxisLabelFontSize: 9, catAxisLabelColor: GREY, catAxisLabelRotate: cats.length > 10 ? -45 : 0,
-      valAxisLabelFontSize: 10, valAxisLabelColor: GREY, valGridLine: { style: "dash", color: GRID, size: 0.5 },
-      showLegend: true, legendPos: "b", legendFontSize: 10, legendColor: GREY,
-      catGridLine: { style: "none" },
-    });
-    const maxBits = comps
-      .filter(c => c.maxAcc != null || c.maxDec != null)
-      .map(c => `${c.label}: ${fmt(c.maxAcc, 1, "")} accel / ${fmt(c.maxDec, 1, "")} decel m/s²`);
-    if (maxBits.length) addInsightBar(s, `Typical game peaks — ${maxBits.join("   •   ")}`);
-    addFooter(s, input);
-  }
-
   // ── Closing slide ─────────────────────────────────────────────────────────
   {
     const s = pptx.addSlide();
