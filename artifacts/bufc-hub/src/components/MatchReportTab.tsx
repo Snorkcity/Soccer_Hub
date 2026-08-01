@@ -30,9 +30,6 @@ import {
   Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History, Save, FileDown, Loader2, Trash2, ArrowLeft,
   Mail, CheckCircle2, XCircle, Plus,
 } from "lucide-react";
-import {
-  ScatterChart, Scatter, XAxis, YAxis, ReferenceLine, ResponsiveContainer, Tooltip as RTooltip, Cell,
-} from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import type { FootballMatchReportModel } from "@/lib/matchReportPptx";
@@ -275,16 +272,27 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {([
-                      ["Team distance", report.gps.totalDistanceKm, "km", 1, null, "distanceKm", "km", 1],
-                      ["Defenders", report.gps.defendersMPerMin, "m/min", 0, "Defender", "mPerMin", "m/min", 0],
-                      ["Midfielders", report.gps.midfieldersMPerMin, "m/min", 0, "Midfielder", "mPerMin", "m/min", 0],
-                      ["Forwards HSM", report.gps.forwardsHighSpeedM, "m", 0, "Forward", "sprintDistanceM", "m", 0],
-                    ] as const).map(([label, v, unit, dp, pos, field, fUnit, fDp]) => {
+                      ["Team distance", report.gps.totalDistanceKm, report.gps.seasonAvgTotalDistanceKm, "km", 1, null, "distanceKm", "km", 1],
+                      ["Defenders", report.gps.defendersMPerMin, report.gps.seasonAvgDefendersMPerMin, "m/min", 0, "Defender", "mPerMin", "m/min", 0],
+                      ["Midfielders", report.gps.midfieldersMPerMin, report.gps.seasonAvgMidfieldersMPerMin, "m/min", 0, "Midfielder", "mPerMin", "m/min", 0],
+                      ["Forwards HSM", report.gps.forwardsHighSpeedM, report.gps.seasonAvgForwardsHighSpeedM, "m", 0, "Forward", "sprintDistanceM", "m", 0],
+                    ] as const).map(([label, v, sAvg, unit, dp, pos, field, fUnit, fDp]) => {
                       const rows = (report.gps?.players ?? []).filter(p => pos == null || p.position === pos);
+                      const delta = v != null && sAvg != null && sAvg > 0 ? ((v - sAvg) / sAvg) * 100 : null;
                       const stat = (
                         <div className={rows.length ? "cursor-default" : undefined}>
                           <div className="text-xs text-muted-foreground">{label}</div>
                           <div className="text-xl font-semibold">{v != null ? v.toFixed(dp) : "—"}<span className="text-xs font-normal text-muted-foreground ml-1">{unit}</span></div>
+                          {sAvg != null && (
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              season avg {sAvg.toFixed(dp)}{unit === "km" || unit === "m" ? ` ${unit}` : ` ${unit}`}
+                              {delta != null && Math.abs(delta) >= 3 && (
+                                <span className={delta > 0 ? "text-green-500 ml-1" : "text-amber-500 ml-1"}>
+                                  {delta > 0 ? "+" : ""}{delta.toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                       if (!rows.length) return <div key={label}>{stat}</div>;
@@ -346,7 +354,7 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No typed {isScored ? "goals scored" : "goals conceded"} in this game.</div>
+                  <div className="text-xs text-muted-foreground">Nothing out of the ordinary in {isScored ? "how the goals came" : "what we gave up"} today.</div>
                 )}
                 {side.totalTyped > 0 && (
                   <div className="space-y-1">
@@ -423,55 +431,30 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                     {quadrantTitle && <Badge variant="outline" className={quadrantTone}>{quadrantTitle}</Badge>}
                   </div>
                   <CardDescription className="text-xs">
-                    Possession vs how often it turned into a shot. Top-right is the philosophy corner — keeping the ball AND cutting through with it. Lines sit at our season averages; each dot is a game.
+                    How much of the ball we had, and how often having it turned into a shot.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div className="h-56">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ScatterChart margin={{ top: 10, right: 10, bottom: 5, left: -20 }}>
-                          <XAxis type="number" dataKey="possession" name="Possession" unit="%" domain={["dataMin - 5", "dataMax + 5"]} tick={{ fontSize: 11 }} />
-                          <YAxis type="number" dataKey="shotsPer100Passes" name="Shots per 100 passes" domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 11 }} />
-                          {bu.seasonAvgPossession != null && <ReferenceLine x={bu.seasonAvgPossession} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
-                          {bu.seasonAvgShotsPer100 != null && <ReferenceLine y={bu.seasonAvgShotsPer100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
-                          <RTooltip
-                            cursor={{ strokeDasharray: "3 3" }}
-                            content={({ payload }) => {
-                              const p = payload?.[0]?.payload as (typeof bu.points)[number] | undefined;
-                              if (!p) return null;
-                              return (
-                                <div className="rounded-md border bg-popover px-2 py-1 text-xs shadow">
-                                  <div className="font-medium">{p.label}{p.result ? ` · ${p.result}` : ""}</div>
-                                  <div>{p.possession}% ball · {p.shotsPer100Passes.toFixed(1)} shots per 100 passes</div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Scatter data={bu.points}>
-                            {bu.points.map((p, i) => (
-                              <Cell
-                                key={i}
-                                fill={p.isThisMatch ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
-                                fillOpacity={p.isThisMatch ? 1 : 0.45}
-                                r={p.isThisMatch ? 8 : 4}
-                              />
-                            ))}
-                          </Scatter>
-                        </ScatterChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="space-y-2">
-                      {bu.comments.map((c, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
-                          <span>{c}</span>
-                        </div>
-                      ))}
-                      <div className="text-[11px] text-muted-foreground pt-1">
-                        This game: {bu.possession}% possession · a shot every {bu.passesPerShot.toFixed(0)} passes ({bu.shotsPer100Passes.toFixed(1)} per 100).
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
+                      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
+                      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
+                    ] as const).map(([label, v, sub]) => (
+                      <div key={label} className="rounded-md border p-3">
+                        <div className="text-xs text-muted-foreground">{label}</div>
+                        <div className="text-xl font-semibold">{v}</div>
+                        {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    {bu.comments.map((c, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
+                        <span>{c}</span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

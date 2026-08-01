@@ -2920,32 +2920,49 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       };
     });
 
-    // Interpretation lines for THIS match's goals on this side.
-    const lineFor = (t: string, n: number): string | null => {
-      const s = t.toUpperCase();
-      const pre = n > 1 ? `${n} goals` : "Goal";
-      if (ours) {
-        if (s.startsWith("SP")) return `${pre} from a set piece${n > 1 ? "s" : ""} — the rehearsed stuff paying off.`;
-        if (s.startsWith("R-FT")) return `${pre} from a front-third regain — won it high; they're either playing out under pressure or vulnerable to our press.`;
-        if (s === "R-MT-DT") return `${pre} from a middle-third regain, during transition — they didn't reset quickly enough at the turnover and we went straight through.`;
-        if (s === "R-MT-AT") return `${pre} from a middle-third regain, after transition — they were set and organised, and we still worked through them.`;
-        if (s.startsWith("R-BT")) return `${pre} built from a back-third regain — played right through them from deep. Either they're easy to play through, or that's proper football${s.endsWith("-AT") ? " against a set defence" : ""}.`;
-      } else {
-        if (s.startsWith("SP")) return `Conceded from a set piece — marking and organisation to review.`;
-        if (s.startsWith("R-FT")) return `Conceded from a front-third regain — we lost it playing out and got punished. Vulnerable to the press; a mitigation job.`;
-        if (s === "R-MT-DT") return `Conceded during transition from a middle-third loss — we didn't get set quickly enough at the change of possession.`;
-        if (s === "R-MT-AT") return `Conceded after transition from a middle-third loss — we were set and they still worked through us.`;
-        if (s.startsWith("R-BT")) return `Conceded from their back-third regain — they played through our whole block from deep. Too much space between the lines.`;
-      }
-      return null;
-    };
-    const byType = new Map<string, number>();
+    // Selective lines for THIS match — not a listing of every goal. We only
+    // call out something worth remembering: a goal that fits the side's
+    // signature pattern (its biggest / over-benchmark season category), or a
+    // genuine rarity (first or second of the season from that category).
+    const matchCats = new Map<DnaCatId, number>();
     for (const g of matchGoalsForSide) {
-      const t = g.goalType?.trim();
-      if (t && dnaCatOf(t)) byType.set(t, (byType.get(t) ?? 0) + 1);
+      const c = dnaCatOf(g.goalType);
+      if (c) matchCats.set(c, (matchCats.get(c) ?? 0) + 1);
     }
-    const matchLines = [...byType.entries()].map(([t, n]) => lineFor(t, n)).filter((l): l is string => l != null);
-    return { totalTyped, categories, matchLines };
+    const flavour = (id: DnaCatId): string => {
+      if (ours) {
+        if (id === "setPiece") return "the rehearsed stuff paying off";
+        if (id === "frontThird") return "winning it high — teams keep coughing it up against our press";
+        if (id === "middleThird") return "regain in the middle and go";
+        return "playing right through teams from deep";
+      }
+      if (id === "setPiece") return "set-piece organisation keeps costing us";
+      if (id === "frontThird") return "losing it playing out and getting punished";
+      if (id === "middleThird") return "not getting set quickly enough at the turnover";
+      return "teams playing through our whole block from deep";
+    };
+    const matchLines: string[] = [];
+    if (totalTyped >= 12) {
+      // Signature = the biggest season category (prefer one flagged "high").
+      const sig = categories.slice().sort((a, b) =>
+        (b.verdict === "high" ? 1000 : 0) + b.count - ((a.verdict === "high" ? 1000 : 0) + a.count))[0];
+      const nToday = sig ? matchCats.get(sig.id) ?? 0 : 0;
+      if (sig && nToday > 0 && sig.pct != null && sig.pct >= 25) {
+        matchLines.push(ours
+          ? `${nToday > 1 ? `${nToday} more` : "Another one"} from ${sig.label.toLowerCase()} — our signature. ${sig.count} of our ${totalTyped} this season have come that way: ${flavour(sig.id)}.`
+          : `Conceded from ${sig.label.toLowerCase()} again — that's ${sig.count} of the ${totalTyped} we've let in this season: ${flavour(sig.id)}. The pattern to break.`);
+      }
+    }
+    // Rarity — first or second of the whole season from that category.
+    for (const [id, n] of matchCats) {
+      const seasonCount = categories.find(c => c.id === id)?.count ?? 0;
+      if (n > 0 && seasonCount > 0 && seasonCount <= 2 && totalTyped >= 12 && matchLines.length < 2) {
+        matchLines.push(ours
+          ? `Only our ${seasonCount === 1 ? "first" : "second"} goal all season from ${DNA_LABELS[id].toLowerCase()} — one to remember.`
+          : `${seasonCount === 1 ? "First" : "Only second"} goal we've conceded all season from ${DNA_LABELS[id].toLowerCase()} — unusual, worth a look on the tape.`);
+      }
+    }
+    return { totalTyped, categories, matchLines: matchLines.slice(0, 2) };
   };
   const goalsUpToAll = seasonGoals.filter(g => matchIdsUpTo.has(g.matchId));
   const concededUpTo = goalsUpToAll.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
@@ -3066,6 +3083,11 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     midfieldersMPerMin: number | null;
     forwardsHighSpeedM: number | null;
     playerCount: number;
+    seasonAvgTotalDistanceKm: number | null;
+    seasonAvgDefendersMPerMin: number | null;
+    seasonAvgMidfieldersMPerMin: number | null;
+    seasonAvgForwardsHighSpeedM: number | null;
+    gamesInAvg: number | null;
     players: Array<{
       name: string;
       position: string | null;
@@ -3077,9 +3099,10 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   } | null = null;
   const [seasonRow] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, seasonId));
   if (seasonRow) {
-    const gpsRows = await db
+    const gpsRowsQuery = db
       .select({
         name: sql<string>`coalesce(${gpsPlayerAliasesTable.canonical}, ${gpsSessionsTable.playerName})`,
+        round: gpsSessionsTable.round,
         distanceKm: gpsSessionsTable.distanceKm,
         minsPlayed: gpsSessionsTable.minsPlayed,
         sprintDistanceM: gpsSessionsTable.sprintDistanceM,
@@ -3093,17 +3116,40 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
         eq(gpsSessionsTable.teamId, teamId),
         eq(gpsSessionsTable.year, seasonRow.year),
         eq(gpsSessionsTable.splitName, "game"),
-        inArray(gpsSessionsTable.round, [roundShort, `${roundShort}-1sts`]),
       ));
+    // 1sts rounds only: bare "R7" or "R14-1sts" — reserves/juniors carry other
+    // suffixes. Normalise the suffix away so both spellings pool per round.
+    const allRows = (await gpsRowsQuery).filter(r => /^R\d+(-1sts)?$/i.test(r.round ?? ""));
+    const roundKey = (r: string) => r.replace(/-1sts$/i, "").toUpperCase();
+    const gpsRows = allRows.filter(r => roundKey(r.round!) === roundShort.toUpperCase());
     if (gpsRows.length) {
       const positions = await db.select().from(gpsPlayerPositionsTable);
       const posOf = new Map(positions.map(p => [p.playerName, p.position]));
-      const bucket = (want: string) => gpsRows.filter(r => posOf.get(r.name) === want);
-      const sum = (rows: typeof gpsRows, f: (r: typeof gpsRows[number]) => number | null) =>
+      type GpsRow = typeof allRows[number];
+      const sum = (rows: GpsRow[], f: (r: GpsRow) => number | null) =>
         rows.reduce((a, r) => a + (f(r) ?? 0), 0);
-      const mPerMin = (rows: typeof gpsRows) => {
+      const mPerMin = (rows: GpsRow[]) => {
         const mins = sum(rows, r => num(r.minsPlayed));
         return mins > 0 ? (sum(rows, r => num(r.distanceKm)) * 1000) / mins : null;
+      };
+      const bucket = (rows: GpsRow[], want: string) => rows.filter(r => posOf.get(r.name) === want);
+      const metricsOf = (rows: GpsRow[]) => ({
+        total: sum(rows, r => num(r.distanceKm)) || null,
+        def: mPerMin(bucket(rows, "Defender")),
+        mid: mPerMin(bucket(rows, "Midfielder")),
+        fwd: bucket(rows, "Forward").length ? sum(bucket(rows, "Forward"), r => num(r.sprintDistanceM)) : null,
+      });
+      // Season averages: per-round metrics across the OTHER rounds this year.
+      const byRound = new Map<string, GpsRow[]>();
+      for (const r of allRows) {
+        const k = roundKey(r.round!);
+        if (k === roundShort.toUpperCase()) continue;
+        byRound.set(k, [...(byRound.get(k) ?? []), r]);
+      }
+      const otherMetrics = [...byRound.values()].map(metricsOf);
+      const avgOf = (pick: (m: ReturnType<typeof metricsOf>) => number | null) => {
+        const vals = otherMetrics.map(pick).filter((v): v is number => v != null);
+        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       };
       const players = gpsRows
         .map(r => {
@@ -3119,12 +3165,18 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
           };
         })
         .sort((a, b) => (b.mins ?? 0) - (a.mins ?? 0));
+      const thisRound = metricsOf(gpsRows);
       gps = {
-        totalDistanceKm: sum(gpsRows, r => num(r.distanceKm)) || null,
-        defendersMPerMin: mPerMin(bucket("Defender")),
-        midfieldersMPerMin: mPerMin(bucket("Midfielder")),
-        forwardsHighSpeedM: bucket("Forward").length ? sum(bucket("Forward"), r => num(r.sprintDistanceM)) : null,
+        totalDistanceKm: thisRound.total,
+        defendersMPerMin: thisRound.def,
+        midfieldersMPerMin: thisRound.mid,
+        forwardsHighSpeedM: thisRound.fwd,
         playerCount: gpsRows.length,
+        seasonAvgTotalDistanceKm: avgOf(m => m.total),
+        seasonAvgDefendersMPerMin: avgOf(m => m.def),
+        seasonAvgMidfieldersMPerMin: avgOf(m => m.mid),
+        seasonAvgForwardsHighSpeedM: avgOf(m => m.fwd),
+        gamesInAvg: otherMetrics.length || null,
         players,
       };
       if (gps.totalDistanceKm != null && gps.totalDistanceKm >= 1) {

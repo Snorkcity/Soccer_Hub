@@ -1039,6 +1039,11 @@ export const GetMatchReportResponse = zod.object({
   "midfieldersMPerMin": zod.number().nullable(),
   "forwardsHighSpeedM": zod.number().nullable(),
   "playerCount": zod.number(),
+  "seasonAvgTotalDistanceKm": zod.number().nullable().describe('Per-round season average (other rounds this year, same squad).'),
+  "seasonAvgDefendersMPerMin": zod.number().nullable(),
+  "seasonAvgMidfieldersMPerMin": zod.number().nullable(),
+  "seasonAvgForwardsHighSpeedM": zod.number().nullable(),
+  "gamesInAvg": zod.number().nullable().describe('How many other rounds the season averages are built from.'),
   "players": zod.array(zod.object({
   "name": zod.string(),
   "position": zod.string().nullable(),

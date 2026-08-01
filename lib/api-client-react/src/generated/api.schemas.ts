@@ -866,6 +866,22 @@ export interface MatchReportGps {
   /** @nullable */
   forwardsHighSpeedM: number | null;
   playerCount: number;
+  /**
+     * Per-round season average (other rounds this year, same squad).
+     * @nullable
+     */
+  seasonAvgTotalDistanceKm: number | null;
+  /** @nullable */
+  seasonAvgDefendersMPerMin: number | null;
+  /** @nullable */
+  seasonAvgMidfieldersMPerMin: number | null;
+  /** @nullable */
+  seasonAvgForwardsHighSpeedM: number | null;
+  /**
+     * How many other rounds the season averages are built from.
+     * @nullable
+     */
+  gamesInAvg: number | null;
   /** Per-player game rows behind the position averages. */
   players: MatchReportGpsPlayer[];
 }

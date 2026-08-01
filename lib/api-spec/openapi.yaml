@@ -3583,11 +3583,16 @@ components:
         midfieldersMPerMin: { type: ["number", "null"] }
         forwardsHighSpeedM: { type: ["number", "null"] }
         playerCount:      { type: integer }
+        seasonAvgTotalDistanceKm:   { type: ["number", "null"], description: "Per-round season average (other rounds this year, same squad)." }
+        seasonAvgDefendersMPerMin:  { type: ["number", "null"] }
+        seasonAvgMidfieldersMPerMin: { type: ["number", "null"] }
+        seasonAvgForwardsHighSpeedM: { type: ["number", "null"] }
+        gamesInAvg: { type: ["integer", "null"], description: "How many other rounds the season averages are built from." }
         players:
           type: array
           description: Per-player game rows behind the position averages.
           items: { $ref: "#/components/schemas/MatchReportGpsPlayer" }
-      required: [totalDistanceKm, defendersMPerMin, midfieldersMPerMin, forwardsHighSpeedM, playerCount, players]
+      required: [totalDistanceKm, defendersMPerMin, midfieldersMPerMin, forwardsHighSpeedM, playerCount, seasonAvgTotalDistanceKm, seasonAvgDefendersMPerMin, seasonAvgMidfieldersMPerMin, seasonAvgForwardsHighSpeedM, gamesInAvg, players]
 
     MatchReportGpsPlayer:
       type: object
