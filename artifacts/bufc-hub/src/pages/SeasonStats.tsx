@@ -1916,7 +1916,7 @@ export default function SeasonStats() {
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <Tabs defaultValue="team" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-xl">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 max-w-xl">
           <TabsTrigger value="team">Team Insights</TabsTrigger>
           <TabsTrigger value="player">Player Insights</TabsTrigger>
           <TabsTrigger value="opponent">Opponent Insights</TabsTrigger>
@@ -2668,10 +2668,10 @@ export default function SeasonStats() {
 
           {/* Team / Players sub-view — mirrors the main Team/Player split for easier navigation */}
           <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player" | "report")}>
-            <TabsList>
+            <TabsList className="h-auto flex-wrap justify-start gap-1">
               <TabsTrigger value="team">Team Charts</TabsTrigger>
               <TabsTrigger value="player">Player Charts</TabsTrigger>
-              <TabsTrigger value="report" disabled={isAll}>Match Report</TabsTrigger>
+              <TabsTrigger value="report" disabled={isAll}>Scouting Report</TabsTrigger>
             </TabsList>
           </Tabs>
 
