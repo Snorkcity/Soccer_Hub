@@ -32,7 +32,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
-import { buildGpsMatchReport, groupInsights, type GpsMatchReportModel, type InsightLine, type PlayerLine } from "@/lib/gpsMatchReport";
+import { buildGpsMatchReport, groupInsights, type GpsMatchReportModel, type InsightLine, type PlayerLine, type TrendGroupLine } from "@/lib/gpsMatchReport";
 
 const SQUADS = ["1sts", "Reserves", "17s / 18s"];
 const FROM_OPTIONS = [
@@ -402,15 +402,14 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                 round: t.round,
                 km: t.kmTotal == null ? null : Number(t.kmTotal.toFixed(1)),
                 dpm: t.dpmAvg == null ? null : Number(t.dpmAvg.toFixed(0)),
+                opponent: t.opponent,
+                groups: t.groups,
               }))} margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="round" {...AXIS} />
                 <YAxis yAxisId="km" {...AXIS} fontSize={11} />
                 <YAxis yAxisId="dpm" orientation="right" {...AXIS} fontSize={11} />
-                <Tooltip contentStyle={{
-                  backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))",
-                  color: "hsl(var(--foreground))", fontSize: 12, borderRadius: 8,
-                }} />
+                <Tooltip content={<TrendTooltip />} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                 <Bar yAxisId="km" dataKey="km" name="Total distance (km)" fill="hsl(var(--chart-1))" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="dpm" dataKey="dpm" name="Avg intensity (m/min)" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 3 }} />
@@ -446,6 +445,47 @@ function PlayerRow({ p }: { p: PlayerLine }) {
         {delta == null ? (p.baselineGames ? "—" : "first game") : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta).toFixed(0)}%`}
       </td>
     </tr>
+  );
+}
+
+const GROUP_LABELS: Record<string, string> = { GK: "GK", Def: "Defenders", Mid: "Midfielders", For: "Forwards" };
+
+/** Trend hover: totals plus distance + intensity per coaching line. */
+function TrendTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: { payload?: { km: number | null; dpm: number | null; opponent: string | null; groups: TrendGroupLine[] } }[];
+  label?: string;
+}) {
+  if (!active || !payload?.length || !payload[0].payload) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2 text-xs text-foreground shadow-md">
+      <div className="font-semibold mb-1">{label}{d.opponent ? ` v ${d.opponent}` : ""}</div>
+      <div className="mb-1.5 space-y-0.5">
+        <div>Total distance: <span className="font-medium">{d.km == null ? "—" : `${d.km} km`}</span></div>
+        <div>Avg intensity: <span className="font-medium">{d.dpm == null ? "—" : `${d.dpm} m/min`}</span></div>
+      </div>
+      {(d.groups?.length ?? 0) > 0 && (
+        <table className="w-full">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="text-left font-normal pr-3"> </th>
+              <th className="text-right font-normal pr-3">km</th>
+              <th className="text-right font-normal">m/min</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.groups.map(g => (
+              <tr key={g.label}>
+                <td className="pr-3">{GROUP_LABELS[g.label] ?? g.label} <span className="text-muted-foreground">({g.players})</span></td>
+                <td className="text-right pr-3 font-medium">{g.km == null ? "—" : g.km.toFixed(1)}</td>
+                <td className="text-right font-medium">{g.dpm == null ? "—" : g.dpm.toFixed(0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 

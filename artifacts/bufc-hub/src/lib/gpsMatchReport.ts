@@ -76,9 +76,16 @@ export function groupInsights(items: InsightLine[]): { player: string | null; li
   }
   return groups;
 }
+export interface TrendGroupLine {
+  label: "GK" | "Def" | "Mid" | "For";
+  players: number;
+  km: number | null;      // total distance for the group
+  dpm: number | null;     // avg intensity (m/min) for the group
+}
 export interface TrendPoint {
   round: string; opponent: string | null; dateLabel: string | null;
   players: number; kmTotal: number | null; dpmAvg: number | null; hsmPerMinAvg: number | null;
+  groups: TrendGroupLine[]; // per coaching line (GK/Def/Mid/For), for the hover
 }
 export interface GpsMatchReportModel {
   version: 1;
@@ -430,6 +437,42 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     .map(([r]) => r);
   const upto = orderedRounds.indexOf(round);
   const trendRounds = (upto >= 0 ? orderedRounds.slice(0, upto + 1) : orderedRounds).slice(-TREND_GAMES);
+  // Per-position-group distance + intensity for a round (drives the trend hover).
+  const bucketOf = (name: string): TrendGroupLine["label"] | null => {
+    const g = posGroupOf(positions.get(name));
+    if (g === "GK") return "GK";
+    if (g === "Fullback" || g === "CB") return "Def";
+    if (g === "Midfielder") return "Mid";
+    if (g === "Forward") return "For";
+    return null;
+  };
+  const groupsOf = (rd: string): TrendGroupLine[] => {
+    const perBucket = new Map<TrendGroupLine["label"], { kms: number[]; dpms: number[]; n: number }>();
+    for (const [key, b] of byKey.entries()) {
+      if (!key.endsWith(`|${rd}`)) continue;
+      const bucket = bucketOf(key.slice(0, key.lastIndexOf("|")));
+      if (!bucket) continue;
+      let acc = perBucket.get(bucket);
+      if (!acc) { acc = { kms: [], dpms: [], n: 0 }; perBucket.set(bucket, acc); }
+      acc.n++;
+      const km = total(b, val.km, true);
+      if (km != null) acc.kms.push(km);
+      const direct = b.game?.distancePerMinMm ?? null;
+      const m = mins(b);
+      const dpm = direct ?? (m && km != null ? (km * 1000) / m : null);
+      if (dpm != null) acc.dpms.push(dpm);
+    }
+    return (["GK", "Def", "Mid", "For"] as const)
+      .filter(l => perBucket.has(l))
+      .map(l => {
+        const acc = perBucket.get(l)!;
+        return {
+          label: l, players: acc.n,
+          km: acc.kms.length ? acc.kms.reduce((a, b) => a + b, 0) : null,
+          dpm: avg(acc.dpms),
+        };
+      });
+  };
   const trend: TrendPoint[] = trendRounds.map(rd => {
     const g = teamGame(rd);
     const info = roundDates.get(rd)!;
@@ -437,6 +480,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
       round: rd, opponent: info.opponent, dateLabel: info.dateLabel,
       players: g.players, kmTotal: g.km, dpmAvg: g.dpmAvg,
       hsmPerMinAvg: g.hsm != null && g.minsTotal ? g.hsm / g.minsTotal : null,
+      groups: groupsOf(rd),
     };
   });
 
