@@ -1008,7 +1008,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base">{metric.title}{metric.unit ? ` (${metric.unit})` : ""}{norm ? " — per 90 mins" : ""}</CardTitle>
           <CardDescription className="text-xs">
@@ -1017,7 +1017,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
               : metric.additive ? " 1st half at the bottom, 2nd half stacked on top." : ""} Dashed line = {player}'s season average{norm ? " (per 90)" : ""}.
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canPer90 && (
             <div className="flex rounded-md border overflow-hidden shrink-0">
               <Button variant={norm ? "ghost" : "secondary"} size="sm" className="rounded-none h-7 px-2.5 text-xs" onClick={() => setPer90(false)}>Total</Button>
@@ -1143,7 +1143,7 @@ function PlayerAccelCountCard({ bundles, player }: { bundles: Bundle[]; player: 
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base">Accelerations / Decelerations &gt;3m/s²{per10 ? " (per 10 min)" : ""}</CardTitle>
           <CardDescription className="text-xs">
@@ -1190,7 +1190,7 @@ function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: strin
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base">Max Acceleration / Deceleration (m/s²)</CardTitle>
           <CardDescription className="text-xs">
@@ -1360,7 +1360,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base">{metric.title}{unitLabel ? ` (${unitLabel})` : ""}</CardTitle>
           <CardDescription className="text-xs">
@@ -1447,7 +1447,7 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base">Accelerations / Decelerations &gt;3m/s²{per10 ? " (per 10 min)" : ""}</CardTitle>
           <CardDescription className="text-xs">

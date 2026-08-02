@@ -50,4 +50,5 @@
 - [GPS report PPTX styling](gps-report-pptx.md) — report deck is FULL DARK theme by coach choice; dual-unit speed runs; pptxgenjs secondary-axis + soffice render-check gotchas.
 - [Football Match Report](football-match-report.md) — Season Stats tab; half/full scores are HOME–AWAY not us–them (derive flip from goalsScored/Conceded); league context = date-<= "after this round".
 - [Goal DNA framework](goal-dna.md) — the coach's core goals-by-type analysis: SP / regain-third × DT-AT codes, benchmark mix (SP 27%, MT 48–50%, FT/BT ~12%), interpretation voice. Reuse everywhere goals are analysed.
+- [Headless mobile overflow sweep](mobile-sweep.md) — puppeteer-core + nix chromium with login cookie; DOM-measure overflow per tab; skip overflow-hidden ancestors to avoid truncate false positives.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
