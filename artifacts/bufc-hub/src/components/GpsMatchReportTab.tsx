@@ -32,7 +32,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
-import { buildGpsMatchReport, type GpsMatchReportModel, type InsightLine, type PlayerLine } from "@/lib/gpsMatchReport";
+import { buildGpsMatchReport, groupInsights, type GpsMatchReportModel, type InsightLine, type PlayerLine } from "@/lib/gpsMatchReport";
 
 const SQUADS = ["1sts", "Reserves", "17s / 18s"];
 const FROM_OPTIONS = [
@@ -472,14 +472,20 @@ function InsightCard({ title, desc, items, empty, tone }: {
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground italic py-4 text-center">{empty}</p>
         ) : (
-          <ul className="space-y-2">
-            {items.map((it, i) => (
-              <li key={i} className="flex gap-2 text-sm">
-                {INSIGHT_ICONS[it.kind]}
-                <span>
-                  {it.player && <span className={`font-semibold ${tone === "good" ? "text-green-500" : "text-amber-500"}`}>{it.player} — </span>}
-                  {it.text}
-                </span>
+          <ul className="space-y-3">
+            {groupInsights(items).map((g, i) => (
+              <li key={i} className="text-sm">
+                {g.player != null && (
+                  <div className={`font-semibold mb-0.5 ${tone === "good" ? "text-green-500" : "text-amber-500"}`}>{g.player}</div>
+                )}
+                <ul className={g.player != null ? "space-y-1 pl-1" : "space-y-1"}>
+                  {g.lines.map((it, j) => (
+                    <li key={j} className="flex gap-2">
+                      {INSIGHT_ICONS[it.kind]}
+                      <span>{it.text}</span>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>

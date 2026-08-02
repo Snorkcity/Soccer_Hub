@@ -62,6 +62,20 @@ export interface PlayerLine {
 }
 export type InsightKind = "best" | "up" | "radar" | "position" | "down" | "trend" | "note";
 export interface InsightLine { kind: InsightKind; player: string | null; text: string; }
+/** Group insight lines by player (first-appearance order) so multiple
+ *  highlights for one player read as one block instead of scattered lines.
+ *  Player-less lines each get their own group. */
+export function groupInsights(items: InsightLine[]): { player: string | null; lines: InsightLine[] }[] {
+  const groups: { player: string | null; lines: InsightLine[] }[] = [];
+  const byPlayer = new Map<string, { player: string | null; lines: InsightLine[] }>();
+  for (const it of items) {
+    if (it.player == null) { groups.push({ player: null, lines: [it] }); continue; }
+    let g = byPlayer.get(it.player);
+    if (!g) { g = { player: it.player, lines: [] }; byPlayer.set(it.player, g); groups.push(g); }
+    g.lines.push(it);
+  }
+  return groups;
+}
 export interface TrendPoint {
   round: string; opponent: string | null; dateLabel: string | null;
   players: number; kmTotal: number | null; dpmAvg: number | null; hsmPerMinAvg: number | null;

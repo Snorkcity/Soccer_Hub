@@ -2,7 +2,7 @@
  * Team GPS Match Report deck — same dark family as the player GPS / testing
  * reports. Renders the computed GpsMatchReportModel (see gpsMatchReport.ts).
  */
-import type { GpsMatchReportModel, PlayerLine, InsightLine } from "./gpsMatchReport";
+import { groupInsights, type GpsMatchReportModel, type PlayerLine, type InsightLine } from "./gpsMatchReport";
 
 // ── Brand (identical to playerGpsReport.ts) ──────────────────────────────────
 const NAVY = "0F2C43";
@@ -263,10 +263,17 @@ export async function generateTeamGpsMatchReport(
       });
     } else {
       const shown = items.slice(0, 9);
-      const runs: Runs = shown.flatMap(it => ([
-        { text: it.player ? `${it.player} — ` : "", options: { bold: true, color: accent } },
-        { text: it.text, options: { color: INK, breakLine: true } },
-      ]));
+      // Group by player so several highlights for one player read as one block.
+      const runs: Runs = groupInsights(shown).flatMap(g => {
+        if (g.player == null) return g.lines.map(it => ({ text: it.text, options: { color: INK, breakLine: true } }));
+        return [
+          { text: g.player, options: { bold: true, color: accent, breakLine: g.lines.length > 1 } },
+          ...g.lines.map((it, j) => ({
+            text: g.lines.length > 1 ? `   •  ${it.text}` : ` — ${it.text}`,
+            options: { color: INK, breakLine: true },
+          })),
+        ];
+      });
       s.addText(runs as never, {
         x: 0.75, y: 1.7, w: 11.8, h: 4.5, fontSize: shown.length > 6 ? 12.5 : 14,
         lineSpacing: shown.length > 6 ? 22 : 26,
