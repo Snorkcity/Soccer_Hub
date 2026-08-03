@@ -935,6 +935,57 @@ export interface MatchReportGoalDnaSide {
   matchLines: string[];
 }
 
+export type MatchReportGoalDnaGoalSide = typeof MatchReportGoalDnaGoalSide[keyof typeof MatchReportGoalDnaGoalSide];
+
+
+export const MatchReportGoalDnaGoalSide = {
+  scored: 'scored',
+  conceded: 'conceded',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MatchReportGoalDnaGoalTiming = typeof MatchReportGoalDnaGoalTiming[keyof typeof MatchReportGoalDnaGoalTiming] | null;
+
+
+export const MatchReportGoalDnaGoalTiming = {
+  DT: 'DT',
+  AT: 'AT',
+} as const;
+
+export type MatchReportGoalDnaGoalBadgeTone = typeof MatchReportGoalDnaGoalBadgeTone[keyof typeof MatchReportGoalDnaGoalBadgeTone];
+
+
+export const MatchReportGoalDnaGoalBadgeTone = {
+  signature: 'signature',
+  rare: 'rare',
+  typical: 'typical',
+  untyped: 'untyped',
+} as const;
+
+/**
+ * One goal from THIS match, with a badge placing it against the season DNA.
+ */
+export interface MatchReportGoalDnaGoal {
+  side: MatchReportGoalDnaGoalSide;
+  /** @nullable */
+  minute: number | null;
+  /** @nullable */
+  scorer: string | null;
+  /** @nullable */
+  goalType: string | null;
+  /**
+     * Human label, e.g. middle-third regain
+     * @nullable
+     */
+  category: string | null;
+  /** @nullable */
+  timing: MatchReportGoalDnaGoalTiming;
+  badgeTone: MatchReportGoalDnaGoalBadgeTone;
+  badgeText: string;
+}
+
 /**
  * The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
  */
@@ -943,6 +994,10 @@ export interface MatchReportGoalDna {
   conceded: MatchReportGoalDnaSide;
   /** Season-level strength/weakness headlines from benchmark deviations. */
   comments: string[];
+  /** This match's goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed. */
+  matchGoals?: MatchReportGoalDnaGoal[];
+  /** 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports. */
+  tacticalRead?: string[];
 }
 
 export interface MatchReportBallUsePoint {

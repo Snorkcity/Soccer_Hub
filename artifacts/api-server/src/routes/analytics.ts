@@ -56,6 +56,7 @@ import {
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
+import { buildDnaStory } from "../lib/goalDnaStory";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -2980,8 +2981,16 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     if (c.verdict === "high") dnaComments.push(`${c.pct!.toFixed(0)}% of goals conceded come from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to mitigate.`);
     else if (c.verdict === "low") dnaComments.push(`We concede just ${c.pct!.toFixed(0)}% from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — holding up well there.`);
   }
+  const dnaStory = buildDnaStory({
+    scored: matchOurGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
+    conceded: matchConcededGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
+    catsScored: dnaScored.categories, catsConceded: dnaConceded.categories,
+    totalTypedScored: dnaScored.totalTyped, totalTypedConceded: dnaConceded.totalTyped,
+    voice: "team",
+  });
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
-    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments }
+    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
+        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead }
     : null;
 
   // ── Ball use: possession vs possession-effectiveness quadrant ────────────
@@ -3418,8 +3427,16 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
     if (c.verdict === "high") dnaComments.push(`${c.pct!.toFixed(0)}% of what they concede comes from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to exploit.`);
     else if (c.verdict === "low") dnaComments.push(`They concede just ${c.pct!.toFixed(0)}% from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — hard to hurt them that way.`);
   }
+  const dnaStory = buildDnaStory({
+    scored: matchClubGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
+    conceded: matchOppGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
+    catsScored: dnaScored.categories, catsConceded: dnaConceded.categories,
+    totalTypedScored: dnaScored.totalTyped, totalTypedConceded: dnaConceded.totalTyped,
+    voice: "scout",
+  });
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
-    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments }
+    ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
+        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead }
     : null;
 
   res.json(GetMatchReportResponse.parse({

@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchReportGoalDnaGoal } from './matchReportGoalDnaGoal';
 import type { MatchReportGoalDnaSide } from './matchReportGoalDnaSide';
 
 /**
@@ -15,4 +16,8 @@ export interface MatchReportGoalDna {
   conceded: MatchReportGoalDnaSide;
   /** Season-level strength/weakness headlines from benchmark deviations. */
   comments: string[];
+  /** This match's goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed. */
+  matchGoals?: MatchReportGoalDnaGoal[];
+  /** 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports. */
+  tacticalRead?: string[];
 }

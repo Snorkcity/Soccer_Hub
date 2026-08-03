@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { GoalDnaStoryBlock } from "@/components/GoalDnaStoryBlock";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Sparkles, ShieldCheck, AlertTriangle, Info, History, FileDown, Loader2 } from "lucide-react";
@@ -149,12 +150,13 @@ function ReportBody({ report, club }: { report: MatchReportResponse; club: strin
       {/* ── Goal DNA (scouting voice from the server) ─────────────────────── */}
       {report.goalDna && (() => {
         const dna = report.goalDna;
+        const hasStory = dna.matchGoals != null;
         const sideBlock = (side: typeof dna.scored, title: string, isScored: boolean) => (
           <div className="space-y-3">
             <div className={`text-sm font-semibold ${isScored ? "text-green-600" : "text-red-500"}`}>
               {title} — {side.totalTyped} typed this season
             </div>
-            {side.matchLines.length > 0 ? (
+            {!hasStory && (side.matchLines.length > 0 ? (
               <div className="space-y-1.5">
                 {side.matchLines.map((l, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
@@ -167,7 +169,7 @@ function ReportBody({ report, club }: { report: MatchReportResponse; club: strin
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">Nothing out of the ordinary in this game.</div>
-            )}
+            ))}
             {side.totalTyped > 0 && (
               <div className="space-y-1">
                 <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Season mix ({side.totalTyped} goals)</div>
@@ -204,6 +206,9 @@ function ReportBody({ report, club }: { report: MatchReportResponse; club: strin
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {hasStory && (
+                <GoalDnaStoryBlock matchGoals={dna.matchGoals ?? []} tacticalRead={dna.tacticalRead ?? []} scouting />
+              )}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {sideBlock(dna.scored, "They scored", true)}
                 {sideBlock(dna.conceded, "They conceded", false)}

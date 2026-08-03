@@ -1104,7 +1104,18 @@ export const GetMatchReportResponse = zod.object({
 })),
   "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
 }),
-  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.')
+  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.'),
+  "matchGoals": zod.array(zod.object({
+  "side": zod.enum(['scored', 'conceded']),
+  "minute": zod.number().nullable(),
+  "scorer": zod.string().nullable(),
+  "goalType": zod.string().nullable(),
+  "category": zod.string().nullable().describe('Human label, e.g. middle-third regain'),
+  "timing": zod.union([zod.literal('DT'),zod.literal('AT'),zod.literal(null)]).nullable(),
+  "badgeTone": zod.enum(['signature', 'rare', 'typical', 'untyped']),
+  "badgeText": zod.string()
+}).describe('One goal from THIS match, with a badge placing it against the season DNA.')).optional().describe('This match\'s goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed.'),
+  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 
@@ -1239,7 +1250,18 @@ export const GetOpponentMatchReportResponse = zod.object({
 })),
   "matchLines": zod.array(zod.string()).describe('Interpretation lines for THIS match\'s goals on this side.')
 }),
-  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.')
+  "comments": zod.array(zod.string()).describe('Season-level strength\/weakness headlines from benchmark deviations.'),
+  "matchGoals": zod.array(zod.object({
+  "side": zod.enum(['scored', 'conceded']),
+  "minute": zod.number().nullable(),
+  "scorer": zod.string().nullable(),
+  "goalType": zod.string().nullable(),
+  "category": zod.string().nullable().describe('Human label, e.g. middle-third regain'),
+  "timing": zod.union([zod.literal('DT'),zod.literal('AT'),zod.literal(null)]).nullable(),
+  "badgeTone": zod.enum(['signature', 'rare', 'typical', 'untyped']),
+  "badgeText": zod.string()
+}).describe('One goal from THIS match, with a badge placing it against the season DNA.')).optional().describe('This match\'s goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed.'),
+  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 

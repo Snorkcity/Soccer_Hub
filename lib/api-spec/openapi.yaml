@@ -3707,6 +3707,22 @@ components:
           description: Interpretation lines for THIS match's goals on this side.
       required: [totalTyped, categories, matchLines]
 
+    MatchReportGoalDnaGoal:
+      type: object
+      description: One goal from THIS match, with a badge placing it against the season DNA.
+      properties:
+        side:      { type: string, enum: [scored, conceded] }
+        minute:    { type: ["integer", "null"] }
+        scorer:    { type: ["string", "null"] }
+        goalType:  { type: ["string", "null"] }
+        category:  { type: ["string", "null"], description: "Human label, e.g. middle-third regain" }
+        timing:
+          type: ["string", "null"]
+          enum: [DT, AT, null]
+        badgeTone: { type: string, enum: [signature, rare, typical, untyped] }
+        badgeText: { type: string }
+      required: [side, minute, scorer, goalType, category, timing, badgeTone, badgeText]
+
     MatchReportGoalDna:
       type: object
       description: The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
@@ -3717,6 +3733,14 @@ components:
           type: array
           items: { type: string }
           description: Season-level strength/weakness headlines from benchmark deviations.
+        matchGoals:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportGoalDnaGoal" }
+          description: This match's goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed.
+        tacticalRead:
+          type: array
+          items: { type: string }
+          description: 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.
       required: [scored, conceded, comments]
 
     MatchReportBallUsePoint:

@@ -223,18 +223,30 @@ export async function generateFootballMatchReport(
         s.addText(`${c.pct != null ? `${c.pct.toFixed(0)}%` : "—"} / ${c.benchmarkLabel}`, { x: x + 4.45, y, w: 1.3, h: 0.3, fontSize: 9.5, color: GREY });
         y += 0.38;
       }
-      const lines = d.matchLines;
-      if (lines.length) {
-        const runs: Runs = lines.flatMap(l => ([
+      // Per-goal story rows (newer reports); older saved reports fall back to
+      // the legacy interpretation lines.
+      const story = (dna.matchGoals ?? []).filter(g => (g.side === "scored") === isScored);
+      if (dna.matchGoals != null) {
+        if (story.length) {
+          // Scouting deck flips meaning: their scoring = threat, their conceding = our opening.
+          const goodRow = subject ? !isScored : isScored;
+          const runs: Runs = story.flatMap(g => ([
+            { text: goodRow ? "▲  " : "▼  ", options: { bold: true, color: goodRow ? GOOD : ORANGE } },
+            { text: `${g.minute != null ? `${g.minute}'` : "—"}  ${g.scorer ?? (isScored ? "Scored" : "Conceded")}`, options: { bold: true, color: INK } },
+            { text: `${g.category ? ` — ${g.category}${g.timing ? (g.timing === "DT" ? ", before they reset" : ", vs a set defence") : ""}` : ""}  · ${g.badgeText}`, options: { color: GREY, breakLine: true } },
+          ]));
+          s.addText(runs as never, { x, y: y + 0.1, w: 5.7, h: 1.6, fontSize: 10.5, lineSpacing: 16, paraSpaceAfter: 4 });
+        }
+      } else if (d.matchLines.length) {
+        const runs: Runs = d.matchLines.flatMap(l => ([
           { text: isScored ? "▲  " : "▼  ", options: { bold: true, color: isScored ? GOOD : ORANGE } },
           { text: l, options: { color: INK, breakLine: true } },
         ]));
         s.addText(runs as never, { x, y: y + 0.1, w: 5.7, h: 1.3, fontSize: 11, lineSpacing: 17, paraSpaceAfter: 5 });
       }
     }
-    if (dna.comments.length) {
-      addInsightBar(s, dna.comments.slice(0, 2).join("  •  "));
-    }
+    const bar = dna.tacticalRead?.length ? dna.tacticalRead.join("  ") : dna.comments.slice(0, 2).join("  •  ");
+    if (bar) addInsightBar(s, bar);
     addFooter(s);
   }
 

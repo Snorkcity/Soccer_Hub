@@ -18,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { GoalDnaStoryBlock } from "@/components/GoalDnaStoryBlock";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
@@ -339,10 +340,13 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
           {/* ── Goal DNA: goals-by-type story ──────────────────────────────── */}
           {report.goalDna && (() => {
             const dna = report.goalDna;
+            // Older saved reports won't have the per-goal story — fall back to
+            // the legacy per-side matchLines rendering for those.
+            const hasStory = dna.matchGoals != null;
             const sideBlock = (side: typeof dna.scored, title: string, isScored: boolean) => (
               <div className="space-y-3">
                 <div className="text-sm font-semibold">{title}</div>
-                {side.matchLines.length > 0 ? (
+                {!hasStory && (side.matchLines.length > 0 ? (
                   <div className="space-y-1.5">
                     {side.matchLines.map((l, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
@@ -353,9 +357,9 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : !hasStory ? (
                   <div className="text-xs text-muted-foreground">Nothing out of the ordinary in {isScored ? "how the goals came" : "what we gave up"} today.</div>
-                )}
+                ) : null)}
                 {side.totalTyped > 0 && (
                   <div className="space-y-1">
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Season mix ({side.totalTyped} goals)</div>
@@ -390,6 +394,9 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {hasStory && (
+                    <GoalDnaStoryBlock matchGoals={dna.matchGoals ?? []} tacticalRead={dna.tacticalRead ?? []} />
+                  )}
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {sideBlock(dna.scored, "Scored", true)}
                     {sideBlock(dna.conceded, "Conceded", false)}
