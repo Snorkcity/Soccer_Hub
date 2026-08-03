@@ -53,20 +53,8 @@ function safeJsonParse(raw: unknown): Record<string, unknown> {
   }
 }
 
-/** The coach's OpenAI account has run out of credits (429 insufficient_quota). */
-export class OpenAiQuotaError extends Error {
-  constructor() {
-    super("Your OpenAI account has no credits left — top up at platform.openai.com.");
-    this.name = "OpenAiQuotaError";
-  }
-}
-
-/** Throw the specific quota error when OpenAI says the account is out of credits. */
-function throwIfQuota(status: number, bodyText: string): void {
-  if (status === 429 && bodyText.includes("insufficient_quota")) {
-    throw new OpenAiQuotaError();
-  }
-}
+export { OpenAiQuotaError } from "../lib/openaiQuota";
+import { OpenAiQuotaError, throwIfQuota } from "../lib/openaiQuota";
 
 async function openaiJson(path: string, body: unknown, key: string): Promise<any> {
   const r = await fetch(`${OPENAI_BASE}${path}`, {
@@ -584,8 +572,9 @@ Return JSON: {"review": string[], "pointers": string[]}.
   }
 });
 
-// GET /journal/last-meeting — headline facts from the last league meeting vs an opponent,
-// shown on screen before a briefing is generated (same lines the AI prompt/PPTX use).
+// GET /journal/last-meeting — headline facts from the last league meeting vs
+// an opponent this season, shown in the Week Ahead card as soon as the
+// opponent is picked.
 router.get("/journal/last-meeting", async (req, res, next) => {
   try {
     const seasonId = Number(req.query.seasonId);

@@ -25,6 +25,8 @@ export interface CurriculumChunk {
   embedding: number[] | null;
 }
 
+import { throwIfQuota } from "../lib/openaiQuota";
+
 const EMBED_MODEL = "text-embedding-3-small";
 
 function embedKey(): string | null {
@@ -40,7 +42,11 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model: EMBED_MODEL, input: texts }),
   });
-  if (!res.ok) throw new Error(`Embeddings API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throwIfQuota(res.status, text);
+    throw new Error(`Embeddings API ${res.status}: ${text.slice(0, 300)}`);
+  }
   const json = (await res.json()) as { data: { index: number; embedding: number[] }[] };
   const out: number[][] = new Array(texts.length);
   for (const d of json.data) out[d.index] = d.embedding;

@@ -10,6 +10,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { loadChunks, embedTexts, cosine, type CurriculumChunk } from "../assistant/curriculumStore";
+import { OpenAiQuotaError, throwIfQuota } from "../lib/openaiQuota";
 
 const router: IRouter = Router();
 
@@ -177,6 +178,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     if (!aiRes.ok || !aiRes.body) {
       const text = await aiRes.text();
       logger.error({ status: aiRes.status, text: text.slice(0, 400) }, "Assistant chat request failed");
+      throwIfQuota(aiRes.status, text);
       res.write(`data: ${JSON.stringify({ error: "The assistant had a problem answering — please try again." })}\n\n`);
       res.end();
       return;
@@ -205,6 +207,17 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     res.end();
   } catch (err) {
     logger.error({ err }, "Assistant chat error");
+    // Out-of-credits OpenAI account → specific, user-facing message (402 when
+    // headers haven't been sent yet, SSE error frame when they have).
+    if (err instanceof OpenAiQuotaError) {
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(402).json({ error: err.message });
+      }
+      return;
+    }
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ error: "The assistant had a problem answering — please try again." })}\n\n`);
       res.end();

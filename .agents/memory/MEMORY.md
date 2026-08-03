@@ -52,4 +52,5 @@
 - [Goal DNA framework](goal-dna.md) — the coach's core goals-by-type analysis: SP / regain-third × DT-AT codes, benchmark mix (SP 27%, MT 48–50%, FT/BT ~12%), interpretation voice. Reuse everywhere goals are analysed.
 - [Headless mobile overflow sweep](mobile-sweep.md) — puppeteer-core + nix chromium with login cookie; DOM-measure overflow per tab; skip overflow-hidden ancestors to avoid truncate false positives.
 - [Week Ahead brief server context](week-ahead-brief.md) — Monday brief pulls last-meeting facts + latest Friday deck server-side; coach's own OpenAI key can be out of credits (429) — not a code bug.
+- [OpenAI quota error pattern](openai-quota-pattern.md) — shared OpenAiQuotaError/throwIfQuota in api-server lib; every direct api.openai.com call must use it → 402 JSON or SSE error frame.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
