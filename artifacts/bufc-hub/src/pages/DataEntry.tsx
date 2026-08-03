@@ -2398,13 +2398,14 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
   const browserSync = async (recheck: boolean): Promise<DriblPreviewResponse> => {
     setPhase("Server can't reach Dribl — fetching from your browser instead…");
     const cfg = await getDriblConfig({ seasonId });
-    const tenant: string = (await driblJson("/tenants", { slug: "capital" }))?.data?.id;
-    if (!tenant) throw new Error("Couldn't find Capital Football on Dribl");
+    const tenantSlug = cfg.driblTenantSlug || "capital";
+    const tenant: string = (await driblJson("/tenants", { slug: tenantSlug }))?.data?.id;
+    if (!tenant) throw new Error(`Couldn't find the ${tenantSlug} federation on Dribl`);
     const seasonList: Array<{ id: string; title: string; year: number; is_current: boolean }> =
       (await driblJson("/list/seasons", { tenant }))?.data ?? [];
     const yearSeasons = seasonList.filter(s => String(s.year) === cfg.driblYear);
     const driblSeason = yearSeasons.find(s => s.is_current) ?? yearSeasons[yearSeasons.length - 1];
-    if (!driblSeason) throw new Error(`Dribl has no ${cfg.driblYear} season for Capital Football`);
+    if (!driblSeason) throw new Error(`Dribl has no ${cfg.driblYear} season for this federation`);
     const comps: Array<{ id: string; name?: string; title?: string }> =
       (await driblJson("/list/competitions", { tenant }))?.data ?? [];
     const competition = comps.find(c => (c.name ?? c.title) === cfg.driblCompetition);

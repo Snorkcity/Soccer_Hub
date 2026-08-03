@@ -4891,7 +4891,10 @@ components:
         driblLeague:      { type: string }
         driblCompetition: { type: string }
         driblYear:        { type: string }
-      required: [driblLeague, driblCompetition, driblYear]
+        driblTenantSlug:
+          type: string
+          description: Dribl federation subdomain, e.g. "capital" (Capital Football) or "fv" (Football Victoria).
+      required: [driblLeague, driblCompetition, driblYear, driblTenantSlug]
 
     DriblRawFixture:
       type: object

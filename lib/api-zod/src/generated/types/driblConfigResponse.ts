@@ -10,4 +10,6 @@ export interface DriblConfigResponse {
   driblLeague: string;
   driblCompetition: string;
   driblYear: string;
+  /** Dribl federation subdomain, e.g. "capital" (Capital Football) or "fv" (Football Victoria). */
+  driblTenantSlug: string;
 }

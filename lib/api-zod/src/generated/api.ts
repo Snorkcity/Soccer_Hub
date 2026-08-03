@@ -2649,7 +2649,8 @@ export const GetDriblConfigQueryParams = zod.object({
 export const GetDriblConfigResponse = zod.object({
   "driblLeague": zod.string(),
   "driblCompetition": zod.string(),
-  "driblYear": zod.string()
+  "driblYear": zod.string(),
+  "driblTenantSlug": zod.string().describe('Dribl federation subdomain, e.g. \"capital\" (Capital Football) or \"fv\" (Football Victoria).')
 })
 
 

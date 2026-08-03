@@ -27,33 +27,39 @@ const execFileAsync = promisify(execFile);
 const router: IRouter = Router();
 
 const DRIBL_API = "https://mc-api.dribl.com/api";
-const DRIBL_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-  Accept: "application/json",
-  Origin: "https://capital.dribl.com",
-  Referer: "https://capital.dribl.com/",
-};
+function driblHeaders(tenantSlug: string) {
+  return {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    Accept: "application/json",
+    Origin: `https://${tenantSlug}.dribl.com`,
+    Referer: `https://${tenantSlug}.dribl.com/`,
+  };
+}
 
-// Which Dribl league + competition a local league maps to. The competition
-// hash filters the fixtures feed down from thousands of rows (every grade in
-// the ACT) to just the NPL games. Extend as leagues are added.
-function driblLeagueFor(leagueName: string): { league: string; competition: string } | null {
-  if (/NPLM.*U.?23/i.test(leagueName)) return { league: "NPLM U23", competition: "National Premier League Men's" };
-  if (/NPLM/i.test(leagueName)) return { league: "NPLM 1st Grade", competition: "National Premier League Men's" };
-  if (/NPLW.*Reserve/i.test(leagueName)) return { league: "NPLW Reserve Grade", competition: "National Premier League Women's" };
-  if (/NPLW/i.test(leagueName)) return { league: "NPLW 1st Grade", competition: "National Premier League Women's" };
+// Which Dribl tenant (federation) + league + competition a local league maps
+// to. The competition hash filters the fixtures feed down from thousands of
+// rows (every grade in the federation) to just the NPL games. Extend as
+// leagues are added. Tenant slugs: capital = Capital Football (ACT),
+// fv = Football Victoria.
+function driblLeagueFor(leagueName: string): { tenant: string; league: string; competition: string } | null {
+  if (/VIC.*NPLW|NPLW.*VIC/i.test(leagueName))
+    return { tenant: "fv", league: "NPL VIC Women", competition: "Senol NPL Victoria Women" };
+  if (/NPLM.*U.?23/i.test(leagueName)) return { tenant: "capital", league: "NPLM U23", competition: "National Premier League Men's" };
+  if (/NPLM/i.test(leagueName)) return { tenant: "capital", league: "NPLM 1st Grade", competition: "National Premier League Men's" };
+  if (/NPLW.*Reserve/i.test(leagueName)) return { tenant: "capital", league: "NPLW Reserve Grade", competition: "National Premier League Women's" };
+  if (/NPLW/i.test(leagueName)) return { tenant: "capital", league: "NPLW 1st Grade", competition: "National Premier League Women's" };
   return null;
 }
 
 // Cloudflare fingerprints Node's TLS stack and returns 403 for fetch/https
 // requests even with browser headers, but curl's fingerprint passes. So all
 // server-side Dribl calls shell out to curl.
-async function driblGet(path: string, params: Record<string, string>): Promise<any> {
+async function driblGet(path: string, params: Record<string, string>, tenantSlug = "capital"): Promise<any> {
   const url = new URL(`${DRIBL_API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const args = ["-sS", "-m", "30", "-w", "\n%{http_code}"];
-  for (const [k, v] of Object.entries(DRIBL_HEADERS)) args.push("-H", `${k}: ${v}`);
+  for (const [k, v] of Object.entries(driblHeaders(tenantSlug))) args.push("-H", `${k}: ${v}`);
   args.push(url.toString());
   const { stdout } = await execFileAsync("curl", args, { maxBuffer: 20 * 1024 * 1024 });
   const cut = stdout.lastIndexOf("\n");
@@ -63,38 +69,41 @@ async function driblGet(path: string, params: Record<string, string>): Promise<a
 }
 
 // Tenant + season hashes never change once issued — cache for the process.
-let tenantCache: string | null = null;
-async function driblTenant(): Promise<string> {
-  if (tenantCache) return tenantCache;
-  const data = await driblGet("/tenants", { slug: "capital" });
+const tenantCache = new Map<string, string>();
+async function driblTenant(tenantSlug: string): Promise<string> {
+  const cached = tenantCache.get(tenantSlug);
+  if (cached) return cached;
+  const data = await driblGet("/tenants", { slug: tenantSlug }, tenantSlug);
   const id: string | undefined = data?.data?.id ?? data?.data?.hash_id ?? data?.data?.[0]?.id;
-  if (!id) throw new Error("Could not resolve Dribl tenant for capital.dribl.com");
-  tenantCache = id;
+  if (!id) throw new Error(`Could not resolve Dribl tenant for ${tenantSlug}.dribl.com`);
+  tenantCache.set(tenantSlug, id);
   return id;
 }
 
 const competitionHashCache = new Map<string, string>();
-async function driblCompetitionHash(tenant: string, name: string): Promise<string> {
-  const cached = competitionHashCache.get(name);
+async function driblCompetitionHash(tenant: string, name: string, tenantSlug: string): Promise<string> {
+  const key = `${tenant}:${name}`;
+  const cached = competitionHashCache.get(key);
   if (cached) return cached;
-  const data = await driblGet("/list/competitions", { tenant });
+  const data = await driblGet("/list/competitions", { tenant }, tenantSlug);
   const rows: Array<{ id: string; name?: string; title?: string }> = data?.data ?? [];
   const pick = rows.find(c => (c.name ?? c.title) === name);
-  if (!pick) throw new Error(`Dribl has no "${name}" competition for Capital Football`);
-  competitionHashCache.set(name, pick.id);
+  if (!pick) throw new Error(`Dribl has no "${name}" competition for tenant ${tenantSlug}`);
+  competitionHashCache.set(key, pick.id);
   return pick.id;
 }
 
 const seasonHashCache = new Map<string, string>();
-async function driblSeasonHash(tenant: string, year: string): Promise<{ hash: string; title: string }> {
-  const cached = seasonHashCache.get(year);
+async function driblSeasonHash(tenant: string, year: string, tenantSlug: string): Promise<{ hash: string; title: string }> {
+  const key = `${tenant}:${year}`;
+  const cached = seasonHashCache.get(key);
   if (cached) return { hash: cached, title: year };
-  const data = await driblGet("/list/seasons", { tenant });
+  const data = await driblGet("/list/seasons", { tenant }, tenantSlug);
   const rows: Array<{ id: string; title: string; year: number; is_current: boolean }> = data?.data ?? [];
   const matches = rows.filter(s => String(s.year) === year);
   const pick = matches.find(s => s.is_current) ?? matches[matches.length - 1];
-  if (!pick) throw new Error(`Dribl has no ${year} season for Capital Football`);
-  seasonHashCache.set(year, pick.id);
+  if (!pick) throw new Error(`Dribl has no ${year} season for tenant ${tenantSlug}`);
+  seasonHashCache.set(key, pick.id);
   return { hash: pick.id, title: pick.title };
 }
 
@@ -106,15 +115,15 @@ export async function driblClubNamesFor(leagueName: string, year: string): Promi
   const dribl = driblLeagueFor(leagueName);
   if (!dribl) return null;
   try {
-    const tenant = await driblTenant();
-    const { hash: seasonHash } = await driblSeasonHash(tenant, year);
-    const competition = await driblCompetitionHash(tenant, dribl.competition);
+    const tenant = await driblTenant(dribl.tenant);
+    const { hash: seasonHash } = await driblSeasonHash(tenant, year, dribl.tenant);
+    const competition = await driblCompetitionHash(tenant, dribl.competition, dribl.tenant);
     const names = new Set<string>();
     let cursor: string | null = null;
     for (let page = 0; page < 60; page++) {
       const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
       if (cursor) params.cursor = cursor;
-      const data = await driblGet("/fixtures", params);
+      const data = await driblGet("/fixtures", params, dribl.tenant);
       const rows = data?.data ?? [];
       if (rows.length === 0) break;
       for (const row of rows) {
@@ -570,7 +579,7 @@ router.get("/entry/dribl-config", async (req, res): Promise<void> => {
     res.status(400).json({ error: `Dribl sync isn't set up for ${seasonRow.leagueName} yet` });
     return;
   }
-  res.json(GetDriblConfigResponse.parse({ driblLeague: dribl.league, driblCompetition: dribl.competition, driblYear: seasonRow.year }));
+  res.json(GetDriblConfigResponse.parse({ driblLeague: dribl.league, driblCompetition: dribl.competition, driblYear: seasonRow.year, driblTenantSlug: dribl.tenant }));
 });
 
 // Server-side fetch path.
@@ -594,9 +603,9 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
   const driblLeague = dribl.league;
 
   try {
-    const tenant = await driblTenant();
-    const { hash: seasonHash, title: seasonTitle } = await driblSeasonHash(tenant, seasonRow.year);
-    const competition = await driblCompetitionHash(tenant, dribl.competition);
+    const tenant = await driblTenant(dribl.tenant);
+    const { hash: seasonHash, title: seasonTitle } = await driblSeasonHash(tenant, seasonRow.year, dribl.tenant);
+    const competition = await driblCompetitionHash(tenant, dribl.competition, dribl.tenant);
 
     // Page through the whole season's fixtures and keep only this league's
     // games. NOTE: the /results feed silently drops early-season rounds —
@@ -606,7 +615,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     for (let page = 0; page < 60; page++) {
       const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
       if (cursor) params.cursor = cursor;
-      const data = await driblGet("/fixtures", params);
+      const data = await driblGet("/fixtures", params, dribl.tenant);
       const rows = data?.data ?? [];
       if (rows.length === 0) break;
       for (const row of rows) {
@@ -628,7 +637,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     const { matches, skippedNoLineups } = await buildPreview(
       seasonId, seasonRow, fixtures,
       async (hash) => {
-        const mc = await driblGet(`/matchcentre/${hash}`, { tenant });
+        const mc = await driblGet(`/matchcentre/${hash}`, { tenant }, dribl.tenant);
         const a = mc?.data?.attributes ?? {};
         return {
           homeScoreHt: a.home_score_ht ?? null,
@@ -658,7 +667,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       },
       async (matchHash, teamHash) => {
         try {
-          const lu = await driblGet(`/matchcentre-match-members/match/${matchHash}/team/${teamHash}`, { tenant });
+          const lu = await driblGet(`/matchcentre-match-members/match/${matchHash}/team/${teamHash}`, { tenant }, dribl.tenant);
           const rows = Array.isArray(lu) ? lu : lu?.data ?? [];
           return rows.map((r: any) => {
             const a = r?.attributes ?? r ?? {};
