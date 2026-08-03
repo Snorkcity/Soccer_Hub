@@ -9,6 +9,8 @@
 export interface WeekAheadBriefRequest {
   /** @minLength 1 */
   opponent: string;
+  seasonId?: number;
+  leagueId?: number;
   reflectionsText?: string;
   lastVsOpponentText?: string;
   theirGamesText?: string;

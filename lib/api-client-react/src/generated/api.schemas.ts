@@ -3098,6 +3098,8 @@ export interface InterviewWriteupRequest {
 export interface WeekAheadBriefRequest {
   /** @minLength 1 */
   opponent: string;
+  seasonId?: number;
+  leagueId?: number;
   reflectionsText?: string;
   lastVsOpponentText?: string;
   theirGamesText?: string;
@@ -3109,6 +3111,7 @@ export interface WeekAheadBriefRequest {
 export interface WeekAheadBriefResponse {
   review: string[];
   pointers: string[];
+  lastMeeting?: string[];
 }
 
 export interface PrematchBriefRequest {
@@ -3466,4 +3469,3 @@ leagueId: number;
 export type SaveGpsCoachEmails200 = {
   saved: number;
 };
-

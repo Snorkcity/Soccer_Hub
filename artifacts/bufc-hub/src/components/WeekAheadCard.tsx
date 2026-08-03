@@ -247,7 +247,7 @@ export default function WeekAheadCard() {
     await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(leagueParams) });
   }
 
-  type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[] };
+  type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[]; lastMeeting?: string[] };
 
   /** "Sunday 2 August 2026" from the yyyy-mm-dd date input. */
   function niceGameDate(iso: string): string {
@@ -277,7 +277,7 @@ export default function WeekAheadCard() {
         kind: "monday",
         title: briefTitle("", opponent, ""),
         opponent,
-        data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [] },
+        data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [], lastMeeting: data.lastMeeting ?? [] },
       });
       await refreshList();
       toast({ title: "New briefing created from that one", description: `Dated ${wk}.` });
@@ -387,6 +387,8 @@ export default function WeekAheadCard() {
       );
       const brief = await createWeekAheadBrief({
         opponent: weekOpp,
+        seasonId,
+        leagueId: activeLeagueId ?? undefined,
         reflectionsText: recent
           .map((r) => `${KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind} (${r.entryDate ?? ""}):\n${reflectionText(r)}`)
           .join("\n\n") || undefined,
@@ -411,6 +413,7 @@ export default function WeekAheadCard() {
           matchDate: weekDate || undefined,
           review: brief.review,
           pointers: brief.pointers,
+          lastMeeting: brief.lastMeeting ?? [],
         },
       });
       await refreshList();
@@ -458,6 +461,7 @@ export default function WeekAheadCard() {
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
         review: data.review ?? [],
         pointers: data.pointers ?? [],
+        lastMeeting: data.lastMeeting ?? [],
         lastVsOpponent: lastVsOpp
           ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }
           : null,

@@ -45,6 +45,8 @@ export interface WeekAheadInput {
   generatedOn: string;
   review: string[];
   pointers: string[];
+  /** Headline facts from the last league meeting vs this opponent (score, scorers, goal types). */
+  lastMeeting?: string[];
   lastVsOpponent: WeekAheadReflection | null;
   theirGames: WeekAheadGame[];
   ourGames: WeekAheadGame[];
@@ -187,6 +189,13 @@ export function buildWeekAheadPptx(input: WeekAheadInput): PptxGenJS {
   if (input.review.length) {
     const s = darkSlide(pptx, "Last week", "Last week in review");
     bulletCards(s, input.review);
+    footer(s, foot);
+  }
+
+  // ── The last meeting — what actually happened (league facts) ──
+  if (input.lastMeeting?.length) {
+    const s = darkSlide(pptx, "Know your opponent", `What happened last time vs ${input.opponent}`);
+    bulletCards(s, input.lastMeeting.slice(0, 6));
     footer(s, foot);
   }
 

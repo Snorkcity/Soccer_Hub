@@ -13,6 +13,10 @@
  *  - /writeup  — full Q&A → journal field content in the coach's voice
  */
 import { Router, type IRouter } from "express";
+import { and, eq } from "drizzle-orm";
+import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable } from "@workspace/db";
+import { focusClubForSeason } from "../lib/focusClub";
+import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import {
   JournalInterviewSpeakBody,
   JournalInterviewTurnBody,
@@ -381,6 +385,114 @@ Return JSON: {"bp": ${unitShape}, "bpo": ${unitShape}}.
   }
 });
 
+// ── Week-ahead server-side context lookups ─────────────────────────────────
+
+/** Headline-fact lines from the most recent league meeting vs `opponent` this season. */
+export async function lastMeetingFacts(seasonId: number, opponent: string): Promise<string[]> {
+  const focus = await focusClubForSeason(seasonId);
+  const opp = opponent.trim().toLowerCase();
+  const isMeeting = (home: string | null, away: string | null) => {
+    const h = (home ?? "").trim().toLowerCase();
+    const a = (away ?? "").trim().toLowerCase();
+    const f = focus.trim().toLowerCase();
+    return (h === f && a === opp) || (a === f && h === opp);
+  };
+  const matches = (
+    await db
+      .select()
+      .from(leagueMatchesTable)
+      .where(eq(leagueMatchesTable.seasonId, seasonId))
+  )
+    .filter(
+      (m) => isMeeting(m.homeTeam, m.awayTeam) && m.homeGoals != null && m.awayGoals != null,
+    )
+    .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""));
+  const m = matches[0];
+  if (!m) return []; // first meeting of the season — nothing to report
+
+  const usHome = (m.homeTeam ?? "").trim().toLowerCase() === focus.trim().toLowerCase();
+  const our = usHome ? m.homeGoals! : m.awayGoals!;
+  const their = usHome ? m.awayGoals! : m.homeGoals!;
+  const res = our > their ? "won" : our < their ? "lost" : "drew";
+  // league_matches dates are sortable "yyyy/mm/dd" strings — show them nicely.
+  const niceDate = (md: string | null): string => {
+    if (!md) return "";
+    const t = new Date(md.replace(/\//g, "-"));
+    return Number.isNaN(t.getTime())
+      ? md
+      : t.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+  };
+  const lines: string[] = [
+    `We ${res} ${our}–${their} (${usHome ? "home" : "away"}${m.matchDate ? `, ${niceDate(m.matchDate)}` : ""}).`,
+  ];
+
+  const goals = (
+    await db
+      .select()
+      .from(leagueGoalsTable)
+      .where(
+        and(eq(leagueGoalsTable.seasonId, seasonId), eq(leagueGoalsTable.matchId, m.matchId)),
+      )
+  ).sort((a, b) => (Number(a.minuteScored) || 999) - (Number(b.minuteScored) || 999));
+  for (const g of goals) {
+    const ours = (g.scorerTeam ?? "").trim().toLowerCase() === focus.trim().toLowerCase();
+    const cat = dnaCatOfType(g.goalType);
+    const type = g.goalType
+      ? `${g.goalType}${cat ? ` — ${dnaCatLabel(cat)}` : ""}`
+      : "type not recorded";
+    const min = g.minuteScored ? `${g.minuteScored}' ` : "";
+    lines.push(
+      `${min}${ours ? "Us" : "Them"}: ${g.scorer ?? "unknown scorer"}${g.assist ? ` (assist ${g.assist})` : ""} — ${type}`,
+    );
+  }
+  return lines;
+}
+
+/** Condensed text from our latest saved Friday pre-match deck whose game has been played. */
+export async function previousDeckText(leagueId: number): Promise<string | null> {
+  const rows = await db
+    .select()
+    .from(matchPrepReportsTable)
+    .where(
+      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "friday")),
+    );
+  const now = Date.now();
+  const time = (md: string | null) => {
+    if (!md) return NaN;
+    const t = new Date(md).getTime(); // "2 August 2026" parses in V8
+    return Number.isNaN(t) ? NaN : t;
+  };
+  const played = rows
+    .map((r) => ({ r, t: time(r.matchDate) }))
+    .filter((x) => !Number.isNaN(x.t) && x.t <= now)
+    .sort((a, b) => b.t - a.t);
+  const pick = played[0]?.r;
+  if (!pick) return null;
+
+  const d = (pick.data ?? {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string).trim() : "");
+  const unit = (k: string) => {
+    const u = (d[k] ?? {}) as Record<string, unknown>;
+    const theme = typeof u.theme === "string" ? u.theme.trim() : "";
+    const arrs = ["gk", "defenders", "midfielders", "attackers"]
+      .flatMap((g) => (Array.isArray(u[g]) ? (u[g] as unknown[]) : []))
+      .filter((x): x is string => typeof x === "string" && !!x.trim());
+    if (!theme && !arrs.length) return "";
+    return `${theme ? `${theme}. ` : ""}${arrs.join("; ")}`;
+  };
+  const parts = [
+    `Opponent: ${pick.opponent ?? (str("opponent") || "?")}${pick.matchDate ? ` (${pick.matchDate})` : ""}`,
+    str("gamePlan") && `Game plan: ${str("gamePlan")}`,
+    unit("bp") && `In possession: ${unit("bp")}`,
+    unit("bpo") && `Out of possession: ${unit("bpo")}`,
+    str("commentsTrends") && `Comments/trends: ${str("commentsTrends")}`,
+    str("ourBpNotes") && `Our BP notes: ${str("ourBpNotes")}`,
+    str("ourBpoNotes") && `Our BPO notes: ${str("ourBpoNotes")}`,
+  ].filter(Boolean) as string[];
+  if (parts.length <= 1) return null; // a deck with no written content isn't worth quoting
+  return parts.join("\n").slice(0, 2000);
+}
+
 // POST /journal/week-ahead-brief — review bullets + prep pointers for the Monday report
 router.post("/journal/week-ahead-brief", async (req, res, next) => {
   try {
@@ -388,11 +500,22 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
     if (!key) return noKey(res);
     const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-    const { opponent, reflectionsText, lastVsOpponentText, theirGamesText, ourGamesText,
-      lastMeetingText, lastReportText } = parsed.data;
+    const { opponent, seasonId, leagueId, reflectionsText, lastVsOpponentText, theirGamesText,
+      ourGamesText, lastMeetingText, lastReportText } = parsed.data;
+
+    // Server-side context: the last league meeting vs this opponent and our
+    // latest saved pre-match deck. Both are optional — first meeting of the
+    // season / no saved deck simply contributes nothing.
+    const [lastMeeting, prevDeck] = await Promise.all([
+      seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
+      leagueId != null ? previousDeckText(leagueId).catch(() => null) : Promise.resolve(null),
+    ]);
 
     const sections = [
       reflectionsText ? `## The coach's recent reflections\n${reflectionsText}` : "",
+      lastMeeting.length
+        ? `## What actually happened last time we played ${opponent} this season\n${lastMeeting.join("\n")}`
+        : "",
       lastVsOpponentText
         ? `## His match reflection from the last time we played ${opponent}\n${lastVsOpponentText}`
         : "",
@@ -400,6 +523,7 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
         ? `## What actually happened last time we played ${opponent} (recorded match facts)\n${lastMeetingText}`
         : "",
       lastReportText ? `## Our most recent match report (analyst's read of our last game)\n${lastReportText}` : "",
+      prevDeck ? `## Our match plan from our most recent game\n${prevDeck}` : "",
       theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
       ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
     ]
@@ -419,7 +543,7 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
 Return JSON: {"review": string[], "pointers": string[]}.
 - "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
 - "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
-- If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice.
+- If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice. When the input includes our match plan from our most recent game, carry forward anything still relevant rather than starting from scratch.
 - Use the club's principles-of-play vocabulary where it fits naturally (the coaches speak this language): patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, be the team that isn't scored against in transition; stay compact vertically and horizontally, reduce the space between the lines. Never force a term where it doesn't fit the facts.
 - Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
           },
@@ -436,7 +560,7 @@ Return JSON: {"review": string[], "pointers": string[]}.
     if (!review.length && !pointers.length) {
       return res.status(502).json({ error: "The briefing came back empty. Please try again." });
     }
-    return res.json({ review, pointers });
+    return res.json({ review, pointers, lastMeeting });
   } catch (err) {
     return next(err);
   }

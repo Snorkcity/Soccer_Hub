@@ -23,6 +23,8 @@ const CAT_SHORT: Record<DnaCatId, string> = {
   middleThird: "middle-third regain", backThird: "back-third regain",
 };
 
+/** Human label for a Goal DNA category (e.g. "middle-third regain"). */
+export const dnaCatLabel = (c: DnaCatId): string => CAT_SHORT[c];
 export interface DnaStoryGoalIn {
   minute: number | null;
   scorer: string | null;

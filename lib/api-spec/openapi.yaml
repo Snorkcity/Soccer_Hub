@@ -5796,6 +5796,10 @@ components:
       type: object
       properties:
         opponent: { type: string, minLength: 1 }
+        # When provided, the server also looks up the last league meeting vs the
+        # opponent (league tables) and our latest saved pre-match deck.
+        seasonId: { type: integer }
+        leagueId: { type: integer }
         # Condensed plain-text blocks assembled client-side
         reflectionsText:    { type: string }
         lastVsOpponentText: { type: string }
@@ -5813,6 +5817,11 @@ components:
           type: array
           items: { type: string }
         pointers:
+          type: array
+          items: { type: string }
+        # Deterministic headline facts from the last league meeting vs this
+        # opponent (score, scorers, goal types) — empty when it's the first meeting.
+        lastMeeting:
           type: array
           items: { type: string }
       required: [review, pointers]
