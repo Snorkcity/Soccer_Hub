@@ -3195,9 +3195,9 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   // Candidate angles are weighted so the most striking one per kind shows,
   // and the mix varies game to game (goal type, timing, scorer, assists,
   // defence). Each badge: big value line + a season/vs-them context sub-line.
-  const insightBadges: Array<{ label: string; value: string; sub: string | null }> = [];
+  const insightBadges: Array<{ label: string; value: string; sub: string | null; tone?: "watch" }> = [];
   {
-    const cands: Array<{ kind: string; w: number; label: string; value: string; sub: string | null }> = [];
+    const cands: Array<{ kind: string; w: number; label: string; value: string; sub: string | null; tone?: "watch" }> = [];
     // Goal type — today's dominant scored category vs its season share.
     {
       const todayCats = new Map<string, number>();
@@ -3301,13 +3301,104 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
         sub: backline.length ? backline.slice(0, 4).join(", ") : `${totalCs} shut-out${totalCs === 1 ? "" : "s"} this season`,
       });
     }
+    // ── Concern candidates — the negative stories worth resolving ──────────
+    // Conceded goal type — are we leaking the same kind of goal again?
+    {
+      const todayCats = new Map<string, number>();
+      for (const g of matchConcededGoals) {
+        const c = dnaCatOfType(g.goalType);
+        if (c) todayCats.set(c, (todayCats.get(c) ?? 0) + 1);
+      }
+      const top = [...todayCats.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top) {
+        const seasonCat = dnaConceded.categories.find(c => c.id === top[0]);
+        const seasonN = seasonCat?.count ?? top[1];
+        const l = top[1] > 1 ? `${dnaCatLabel(top[0] as never)}s ×${top[1]}` : dnaCatLabel(top[0] as never);
+        cands.push({
+          kind: "concededType", tone: "watch",
+          // A repeat pattern (3+ this season) weighs heavier than a one-off.
+          w: 22 + top[1] * 8 + (seasonN >= 3 ? 12 : 0),
+          label: "Conceded",
+          value: l.charAt(0).toUpperCase() + l.slice(1),
+          sub: seasonN > top[1]
+            ? `${seasonN} of the ${concededUpTo.length} we've let in this season — a pattern to break`
+            : seasonCat?.pct != null ? `${seasonCat.pct.toFixed(0)}% of goals we've let in` : null,
+        });
+      }
+    }
+    // Conceded timing — do we keep getting hurt at the same stage of games?
+    {
+      const mins = matchConcededGoals.map(g => g.minuteScored).filter((m): m is number => m != null);
+      const seasonMins = concededUpTo.map(g => g.minuteScored).filter((m): m is number => m != null);
+      if (mins.length >= 1 && seasonMins.length >= 5) {
+        const lateToday = mins.filter(m => m >= 75).length;
+        const latePct = (seasonMins.filter(m => m >= 75).length / seasonMins.length) * 100;
+        const earlyToday = mins.filter(m => m <= 15).length;
+        const earlyPct = (seasonMins.filter(m => m <= 15).length / seasonMins.length) * 100;
+        if (lateToday > 0 && latePct >= 35) {
+          cands.push({
+            kind: "concededTiming", tone: "watch", w: 30 + latePct * 0.4,
+            label: "When we leak",
+            value: lateToday > 1 ? `${lateToday} conceded after the 75th` : "Conceded after the 75th again",
+            sub: `${latePct.toFixed(0)}% of our season concessions come in the last 15`,
+          });
+        } else if (earlyToday > 0 && earlyPct >= 30) {
+          cands.push({
+            kind: "concededTiming", tone: "watch", w: 30 + earlyPct * 0.4,
+            label: "When we leak",
+            value: "Caught early again",
+            sub: `${earlyPct.toFixed(0)}% of our season concessions come inside 15 minutes`,
+          });
+        }
+      }
+    }
+    // Their threat — an opponent player who keeps scoring against us.
+    {
+      const idsVsOpp = new Set(upTo.filter(m => m.opponent === match.opponent).map(m => m.id));
+      const vsUs = new Map<string, number>();
+      for (const g of concededUpTo) {
+        const s = g.scorer?.trim();
+        if (s && s !== "OG" && idsVsOpp.has(g.matchId)) vsUs.set(s, (vsUs.get(s) ?? 0) + 1);
+      }
+      let best: { name: string; n: number } | null = null;
+      for (const g of matchConcededGoals) {
+        const s = g.scorer?.trim();
+        if (!s || s === "OG") continue;
+        const n = vsUs.get(s) ?? 1;
+        if (n >= 2 && (!best || n > best.n)) best = { name: s, n };
+      }
+      if (best) {
+        cands.push({
+          kind: "theirThreat", tone: "watch", w: 28 + best.n * 10,
+          label: "Their threat",
+          value: `${best.name} — ${best.n} v us this season`,
+          sub: "worth a specific plan next meeting",
+        });
+      }
+    }
+    // Opponent tally — this opponent has taken an outsized share of what we concede.
+    {
+      const idsVsOpp = new Set(upTo.filter(m => m.opponent === match.opponent).map(m => m.id));
+      const vsOppN = concededUpTo.filter(g => idsVsOpp.has(g.matchId)).length;
+      const totalConceded = concededUpTo.length;
+      if (matchConcededGoals.length > 0 && vsOppN >= 3 && totalConceded > 0 && vsOppN / totalConceded >= 0.3) {
+        cands.push({
+          kind: "oppTally", tone: "watch",
+          w: 30 + (vsOppN / totalConceded) * 40,
+          label: "Head-to-head",
+          value: `${match.opponent}: ${vsOppN} v us this season`,
+          sub: `${((vsOppN / totalConceded) * 100).toFixed(0)}% of everything we've let in`,
+        });
+      }
+    }
+
     const byKind = new Map<string, typeof cands[number]>();
     for (const c of cands) {
       const cur = byKind.get(c.kind);
       if (!cur || c.w > cur.w) byKind.set(c.kind, c);
     }
     insightBadges.push(...[...byKind.values()].sort((a, b) => b.w - a.w).slice(0, 4)
-      .map(({ label, value, sub }) => ({ label, value, sub })));
+      .map(({ label, value, sub, tone }) => (tone ? { label, value, sub, tone } : { label, value, sub })));
   }
 
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0

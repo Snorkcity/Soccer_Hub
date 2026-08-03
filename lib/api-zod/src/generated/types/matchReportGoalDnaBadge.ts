@@ -5,10 +5,13 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchReportGoalDnaBadgeTone } from './matchReportGoalDnaBadgeTone';
 
 export interface MatchReportGoalDnaBadge {
   label: string;
   value: string;
   /** @nullable */
   sub: string | null;
+  /** Optional — "watch" marks a concern badge (something to resolve), rendered amber. */
+  tone?: MatchReportGoalDnaBadgeTone;
 }

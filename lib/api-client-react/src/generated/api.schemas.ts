@@ -1008,11 +1008,23 @@ export interface MatchReportGoalDnaGoal {
   badgeText: string;
 }
 
+/**
+ * Optional — "watch" marks a concern badge (something to resolve), rendered amber.
+ */
+export type MatchReportGoalDnaBadgeTone = typeof MatchReportGoalDnaBadgeTone[keyof typeof MatchReportGoalDnaBadgeTone];
+
+
+export const MatchReportGoalDnaBadgeTone = {
+  watch: 'watch',
+} as const;
+
 export interface MatchReportGoalDnaBadge {
   label: string;
   value: string;
   /** @nullable */
   sub: string | null;
+  /** Optional — "watch" marks a concern badge (something to resolve), rendered amber. */
+  tone?: MatchReportGoalDnaBadgeTone;
 }
 
 /**

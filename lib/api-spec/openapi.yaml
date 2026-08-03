@@ -3924,6 +3924,10 @@ components:
         label: { type: string }
         value: { type: string }
         sub:   { type: ["string", "null"] }
+        tone:
+          type: string
+          enum: [watch]
+          description: Optional — "watch" marks a concern badge (something to resolve), rendered amber.
       required: [label, value, sub]
 
     MatchReportBallUsePoint:

@@ -1149,7 +1149,8 @@ export const GetMatchReportResponse = zod.object({
   "insightBadges": zod.array(zod.object({
   "label": zod.string(),
   "value": zod.string(),
-  "sub": zod.string().nullable()
+  "sub": zod.string().nullable(),
+  "tone": zod.enum(['watch']).optional().describe('Optional — \"watch\" marks a concern badge (something to resolve), rendered amber.')
 })).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
@@ -1304,7 +1305,8 @@ export const GetOpponentMatchReportResponse = zod.object({
   "insightBadges": zod.array(zod.object({
   "label": zod.string(),
   "value": zod.string(),
-  "sub": zod.string().nullable()
+  "sub": zod.string().nullable(),
+  "tone": zod.enum(['watch']).optional().describe('Optional — \"watch\" marks a concern badge (something to resolve), rendered amber.')
 })).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })

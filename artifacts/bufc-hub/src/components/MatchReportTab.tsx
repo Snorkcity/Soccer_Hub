@@ -385,8 +385,8 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   {(dna.insightBadges ?? []).length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {(dna.insightBadges ?? []).map((b, i) => (
-                        <div key={i} className="rounded-md border p-3">
-                          <div className="text-xs text-muted-foreground">{b.label}</div>
+                        <div key={i} className={`rounded-md border p-3 ${b.tone === "watch" ? "border-amber-500/40 bg-amber-500/5" : ""}`}>
+                          <div className={`text-xs ${b.tone === "watch" ? "text-amber-600" : "text-muted-foreground"}`}>{b.label}</div>
                           <div className="text-sm font-semibold leading-snug mt-0.5">{b.value}</div>
                           {b.sub && <div className="text-[11px] text-muted-foreground mt-0.5">{b.sub}</div>}
                         </div>
