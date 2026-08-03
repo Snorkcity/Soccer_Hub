@@ -3039,6 +3039,24 @@ export const SaveEntryAthleticTestsResponse = zod.object({
 
 
 /**
+ * @summary Known fixtures (this league + any leagues its GPS feeds) for the GPS upload game picker
+ */
+export const ListEntryGpsFixturesQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListEntryGpsFixturesResponseItem = zod.object({
+  "round": zod.string(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullable(),
+  "matchDateIso": zod.string().nullable(),
+  "year": zod.string(),
+  "squad": zod.string()
+})
+export const ListEntryGpsFixturesResponse = zod.array(ListEntryGpsFixturesResponseItem)
+
+
+/**
  * @summary Replace one match's GPS rows (all players & splits) with rows read from the Catapult CSV
  */
 

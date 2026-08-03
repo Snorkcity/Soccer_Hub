@@ -34,6 +34,8 @@ import {
   useExtractPlayersFromImage,
   useSaveEntryAthleticTests,
   useSaveEntryGpsSessions,
+  useListEntryGpsFixtures,
+  getListEntryGpsFixturesQueryKey,
   useListGpsSessions,
   getListGpsSessionsQueryKey,
   useListGpsPlayerPositions,
@@ -2027,6 +2029,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
   const [roundCode, setRoundCode] = useState("");
   const [squad, setSquad] = useState<string>("1sts");
   const [opponent, setOpponent] = useState("");
+  const [fixtureKey, setFixtureKey] = useState("");
   const [entries, setEntries] = useState<GpsEntry[]>([]);
   const [ignoredSplits, setIgnoredSplits] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -2043,6 +2046,24 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
   const fileMode = entries.length > 0 && entries[0].fileRound != null;
 
   const save = useSaveEntryGpsSessions();
+
+  // Known fixtures (this league's + its fed reserves league's) — picking one
+  // fills date/round/squad/opponent so the round code always matches a real game.
+  const { data: gpsFixtures } = useListEntryGpsFixtures(
+    { leagueId },
+    { query: { queryKey: getListEntryGpsFixturesQueryKey({ leagueId }) } },
+  );
+  const squadValueOf = (label: string) =>
+    label === "Reserves" ? "res" : label === "17s / 18s" ? "18s" : "1sts";
+  const pickFixture = (key: string) => {
+    setFixtureKey(key);
+    const f = gpsFixtures?.[Number(key)];
+    if (!f) return;
+    setMatchDate(f.matchDateIso ?? "");
+    setRoundCode(f.round);
+    setSquad(squadValueOf(f.squad));
+    setOpponent(f.opponent);
+  };
 
   async function handleFile(file: File) {
     await parseInput(() => file.arrayBuffer(), file.name);
@@ -2199,7 +2220,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
       setEntries([]); setIgnoredSplits(0); setFileName(null); setPasteText("");
-      setMatchDate(""); setRoundCode(""); setSquad("1sts"); setOpponent("");
+      setMatchDate(""); setRoundCode(""); setSquad("1sts"); setOpponent(""); setFixtureKey("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       // Saves run one round at a time — tell the coach exactly what did and didn't go in
@@ -2262,15 +2283,31 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
               {needsFormDate && " — the file has no date, so set the match date below."}
             </div>
           ) : null}
+          {!fileMode && (gpsFixtures?.length ?? 0) > 0 && (
+            <Field label="Link to a game (fills the four fields below — or fill them in by hand)">
+              <Select value={fixtureKey} onValueChange={pickFixture}>
+                <SelectTrigger><SelectValue placeholder="Pick the game this GPS data is from…" /></SelectTrigger>
+                <SelectContent>
+                  {gpsFixtures?.map((f, i) => (
+                    <SelectItem key={i} value={String(i)}>
+                      {f.round} v {f.opponent}
+                      {f.squad !== "1sts" ? ` (${f.squad})` : ""}
+                      {f.matchDate ? ` — ${f.matchDate}` : ""} · {f.year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Match date">
-              <Input type="date" value={matchDate} onChange={e => setMatchDate(e.target.value)} disabled={fileMode && !needsFormDate} />
+              <Input type="date" value={matchDate} onChange={e => { setMatchDate(e.target.value); setFixtureKey(""); }} disabled={fileMode && !needsFormDate} />
             </Field>
             <Field label="Round (e.g. R13, GF)">
-              <Input value={roundCode} onChange={e => setRoundCode(e.target.value)} placeholder="R13" disabled={fileMode} />
+              <Input value={roundCode} onChange={e => { setRoundCode(e.target.value); setFixtureKey(""); }} placeholder="R13" disabled={fileMode} />
             </Field>
             <Field label="Squad">
-              <Select value={squad} onValueChange={setSquad} disabled={fileMode}>
+              <Select value={squad} onValueChange={v => { setSquad(v); setFixtureKey(""); }} disabled={fileMode}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SQUAD_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -2278,7 +2315,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
               </Select>
             </Field>
             <Field label="Opponent">
-              <Input value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="Majura" disabled={fileMode} />
+              <Input value={opponent} onChange={e => { setOpponent(e.target.value); setFixtureKey(""); }} placeholder="Majura" disabled={fileMode} />
             </Field>
           </div>
           {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}

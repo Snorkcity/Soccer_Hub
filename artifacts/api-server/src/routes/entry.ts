@@ -54,6 +54,8 @@ import {
   SaveEntryAthleticTestsResponse,
   SaveEntryGpsSessionsBody,
   SaveEntryGpsSessionsResponse,
+  ListEntryGpsFixturesQueryParams,
+  ListEntryGpsFixturesResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { focusClubForRequest } from "../lib/focusClub";
@@ -1495,6 +1497,78 @@ router.post("/entry/athletic-tests", async (req, res): Promise<void> => {
   });
 
   res.json(SaveEntryAthleticTestsResponse.parse({ saved, replaced }));
+});
+
+// ── GPS fixture picker ────────────────────────────────────────────────────────
+// Known fixtures for the GPS upload form: this league's own games (1sts) plus
+// the games of any league that reads its GPS from this one (e.g. the Reserves
+// feed league). Picking a Reserves fixture lets the form stamp the R#-res
+// round the feed relies on.
+
+/** Fixture match_date arrives as free text ("2026/07/25", "25/07/2026", ISO…) — normalise to YYYY-MM-DD where possible. */
+function fixtureDateIso(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  let m = /^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})/.exec(s);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/.exec(s);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return null;
+}
+
+router.get("/entry/gps-fixtures", async (req, res): Promise<void> => {
+  const query = ListEntryGpsFixturesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { leagueId } = query.data;
+
+  const leagues = await db.select().from(leaguesTable);
+  const mine = leagues.find(l => l.id === leagueId);
+  if (!mine) {
+    res.status(404).json({ error: "League not found" });
+    return;
+  }
+  // Squad per league: the GPS league itself is the 1sts; leagues fed from it
+  // (leagues.gps_source_league_id) carry their configured squad label.
+  const squadOfLeague = new Map<number, string>([[mine.id, "1sts"]]);
+  for (const l of leagues) {
+    if (l.gpsSourceLeagueId === mine.id && l.gpsSourceSquad) squadOfLeague.set(l.id, l.gpsSourceSquad);
+  }
+
+  const seasons = await db.select().from(seasonsTable)
+    .where(inArray(seasonsTable.leagueId, [...squadOfLeague.keys()]));
+  if (!seasons.length) {
+    res.json(ListEntryGpsFixturesResponse.parse([]));
+    return;
+  }
+  const seasonInfo = new Map(seasons.map(s => [s.id, { year: s.year, squad: squadOfLeague.get(s.leagueId)! }]));
+
+  const fixtures = await db.select().from(matchesTable)
+    .where(inArray(matchesTable.seasonId, [...seasonInfo.keys()]));
+
+  const out = fixtures.flatMap(f => {
+    const info = seasonInfo.get(f.seasonId);
+    if (!info) return [];
+    const rd = /^(R\d+)(?:$|-)/i.exec(f.matchId ?? "");
+    if (!rd) return [];
+    return [{
+      round: rd[1].toUpperCase(),
+      opponent: f.opponent,
+      matchDate: f.matchDate,
+      matchDateIso: fixtureDateIso(f.matchDate),
+      year: info.year,
+      squad: info.squad,
+    }];
+  });
+  const roundNum = (r: string) => Number(r.slice(1)) || 0;
+  const squadRank = (s: string) => (s === "1sts" ? 0 : 1);
+  out.sort((a, b) =>
+    b.year.localeCompare(a.year) ||
+    roundNum(b.round) - roundNum(a.round) ||
+    squadRank(a.squad) - squadRank(b.squad));
+  res.json(ListEntryGpsFixturesResponse.parse(out));
 });
 
 // ── GPS match upload (Catapult CSV) ──────────────────────────────────────────

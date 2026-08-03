@@ -108,6 +108,7 @@ import type {
   GoalsByOpponentResponse,
   GpsCoachEmail,
   GpsCoachEmailsSaveRequest,
+  GpsFixtureInfo,
   GpsLoadSummary,
   GpsMatchReport,
   GpsMatchReportCreateRequest,
@@ -150,6 +151,7 @@ import type {
   LibraryPracticeList,
   ListAthleticTestsParams,
   ListEntryGoalsParams,
+  ListEntryGpsFixturesParams,
   ListEntryPlayerStatsParams,
   ListGoalsParams,
   ListGpsCoachEmailsParams,
@@ -7772,6 +7774,90 @@ export const useSaveEntryAthleticTests = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getSaveEntryAthleticTestsMutationOptions(options));
     }
+
+export const getListEntryGpsFixturesUrl = (params: ListEntryGpsFixturesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/gps-fixtures?${stringifiedParams}` : `/api/entry/gps-fixtures`
+}
+
+/**
+ * @summary Known fixtures (this league + any leagues its GPS feeds) for the GPS upload game picker
+ */
+export const listEntryGpsFixtures = async (params: ListEntryGpsFixturesParams, options?: RequestInit): Promise<GpsFixtureInfo[]> => {
+
+  return customFetch<GpsFixtureInfo[]>(getListEntryGpsFixturesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEntryGpsFixturesQueryKey = (params?: ListEntryGpsFixturesParams,) => {
+    return [
+    `/api/entry/gps-fixtures`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEntryGpsFixturesQueryOptions = <TData = Awaited<ReturnType<typeof listEntryGpsFixtures>>, TError = ErrorType<unknown>>(params: ListEntryGpsFixturesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsFixtures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEntryGpsFixturesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEntryGpsFixtures>>> = ({ signal }) => listEntryGpsFixtures(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsFixtures>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEntryGpsFixturesQueryResult = NonNullable<Awaited<ReturnType<typeof listEntryGpsFixtures>>>
+export type ListEntryGpsFixturesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Known fixtures (this league + any leagues its GPS feeds) for the GPS upload game picker
+ */
+
+export function useListEntryGpsFixtures<TData = Awaited<ReturnType<typeof listEntryGpsFixtures>>, TError = ErrorType<unknown>>(
+ params: ListEntryGpsFixturesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsFixtures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEntryGpsFixturesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSaveEntryGpsSessionsUrl = () => {
 

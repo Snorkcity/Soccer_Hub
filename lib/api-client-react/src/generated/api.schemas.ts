@@ -1827,6 +1827,17 @@ export interface LeagueMatchInfo {
   awayGoals: number | null;
 }
 
+export interface GpsFixtureInfo {
+  round: string;
+  opponent: string;
+  /** @nullable */
+  matchDate: string | null;
+  /** @nullable */
+  matchDateIso: string | null;
+  year: string;
+  squad: string;
+}
+
 export interface GoalOptionsResponse {
   goalTypes: string[];
   assistTypes: string[];
@@ -3454,6 +3465,10 @@ export type DeleteEntryPlayerStatsParams = {
 seasonId: number;
 matchId: string;
 club: string;
+};
+
+export type ListEntryGpsFixturesParams = {
+leagueId: number;
 };
 
 export type ListLibraryPracticesParams = {

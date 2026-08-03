@@ -2116,6 +2116,25 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EntryAthleticTestsSaveResponse" }
 
+  /entry/gps-fixtures:
+    get:
+      operationId: listEntryGpsFixtures
+      tags: [entry]
+      summary: Known fixtures (this league + any leagues its GPS feeds) for the GPS upload game picker
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Fixtures, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GpsFixtureInfo" }
+
   /entry/gps-sessions:
     post:
       operationId: saveEntryGpsSessions
@@ -4736,6 +4755,17 @@ components:
         homeGoals: { type: ["integer", "null"] }
         awayGoals: { type: ["integer", "null"] }
       required: [id, matchId, matchDate, homeTeam, awayTeam, fullScore, homeGoals, awayGoals]
+
+    GpsFixtureInfo:
+      type: object
+      properties:
+        round:        { type: string }
+        opponent:     { type: string }
+        matchDate:    { type: ["string", "null"] }
+        matchDateIso: { type: ["string", "null"] }
+        year:         { type: string }
+        squad:        { type: string }
+      required: [round, opponent, matchDate, matchDateIso, year, squad]
 
     GoalOptionsResponse:
       type: object
