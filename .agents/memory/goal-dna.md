@@ -35,3 +35,9 @@ The Goal DNA card leads with THIS match: per-goal rows (minute, scorer, category
 
 ## Parked next: "week ahead" (Monday) report inputs
 Once match/scout report content is settled, Scott wants the Monday match-prep report generation to also consider (a) the previous meeting vs that opponent and (b) our own previous match report, on top of what it already uses.
+
+## Principles-of-play vocabulary (Aug 2026, coach directive)
+All generated report language should speak the club's coaching terminology so coaches see the same words in training and in reports: patience in buildup vs an organised block; penetrate / break the line when the moment arrives, don't force it; be brave, take responsibility; transition = the 5–7 seconds after losing/winning the ball — think faster, move faster, be the team not scored against in transition (DT); compact vertically and horizontally, reduce space between the lines. Curriculum docs (lib/db/src/data/curriculum.json) confirm this vocabulary (compact/transition/patience/be brave/break the line all frequent). Applied in Goal DNA tactical reads and in the Week Ahead AI brief system prompt ("use where it fits, never force").
+
+## Week Ahead continuity inputs
+Monday brief generation feeds the AI two extra optional text blocks built client-side: last recorded meeting vs the opponent (played fixtures only, told via the match report's per-goal DNA + tactical read) and the latest SAVED match report. Both fail-soft (.catch → undefined) so the brief still generates without them.
