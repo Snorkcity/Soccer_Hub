@@ -3469,3 +3469,4 @@ leagueId: number;
 export type SaveGpsCoachEmails200 = {
   saved: number;
 };
+
