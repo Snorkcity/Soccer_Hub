@@ -22,6 +22,7 @@ import {
   useListEntryGoals,
   getListEntryGoalsQueryKey,
   useDeleteEntryGoal,
+  useUpdateEntryGoal,
   useGetPlayerTally,
   getGetPlayerTallyQueryKey,
   useSaveEntryPlayerStats,
@@ -60,6 +61,7 @@ import {
   getListSeasonsQueryKey,
   getGetClubsQueryKey,
   type LeagueMatchInfo,
+  type EntryGoalListItem,
   type GoalOptionsResponse,
   type EntryPlayerRow,
 } from "@workspace/api-client-react";
@@ -521,14 +523,51 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
     onError: (e) => setErr(errMsg(e)),
   }});
 
+  const clearDetail = () => {
+    setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
+    setHowPenetrated(""); setBuildupLane(""); setFinishType(""); setFirstTime(false);
+    setPassString(""); setGoalX(null); setGoalY(null);
+  };
+
   const create = useCreateEntryGoal({ mutation: {
     onSuccess: (res) => {
       invalidateGoalQueries();
       setOk(`Goal saved${res.belconnenGoalId != null ? " (Belconnen copy written too)" : ""} — ready for the next one`);
       // keep match + scorer team selected for rapid entry; clear the goal detail
-      setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
-      setHowPenetrated(""); setBuildupLane(""); setFinishType(""); setFirstTime(false);
-      setPassString(""); setGoalX(null); setGoalY(null);
+      clearDetail();
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  // Edit mode: load a logged goal into the form, then save updates it in place.
+  // Switching fixture is a full edit cancel — stale detail must not leak into
+  // a create for the new match.
+  const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
+  useEffect(() => { setEditingGoalId(null); clearDetail(); }, [matchId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const startGoalEdit = (g: EntryGoalListItem) => {
+    setOk(null); setErr(null);
+    setEditingGoalId(g.id);
+    setScorerTeam(g.scorerTeam ?? "");
+    setMinute(g.minuteScored == null ? "" : String(g.minuteScored));
+    setScorer(g.scorer ?? "");
+    setAssist(g.assist ?? "");
+    setGoalType(g.goalType ?? "");
+    setAssistType(g.assistType ?? "");
+    setHowPenetrated(g.howPenetrated ?? "");
+    setBuildupLane(g.buildupLane ?? "");
+    setFinishType(g.finishType ?? "");
+    setFirstTime(g.firstTimeFinish === true);
+    setPassString(g.passString ?? "");
+    setGoalX(g.goalX == null ? null : Number(g.goalX));
+    setGoalY(g.goalY == null ? null : Number(g.goalY));
+  };
+  const cancelGoalEdit = () => { setEditingGoalId(null); clearDetail(); };
+  const update = useUpdateEntryGoal({ mutation: {
+    onSuccess: (res) => {
+      invalidateGoalQueries();
+      setEditingGoalId(null);
+      clearDetail();
+      setOk(`Goal updated${res.belconnenUpdated ? " (Belconnen copy updated too)" : ""}`);
     },
     onError: (e) => setErr(errMsg(e)),
   }});
@@ -595,11 +634,23 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
                 <span className="text-muted-foreground">({g.scorerTeam ?? "?"})</span>
                 {g.assist && <span className="text-xs text-muted-foreground">assist: {g.assist}</span>}
                 {g.goalType && <Badge variant="outline" className="text-xs">{g.goalType}</Badge>}
+                {!g.goalType && !g.assistType && !g.finishType && (
+                  <Badge variant="outline" className="text-xs text-muted-foreground">details to add</Badge>
+                )}
+                {editingGoalId === g.id && <Badge className="text-xs">editing below</Badge>}
                 <Button
                   variant="ghost" size="icon"
                   className="h-7 w-7 ml-auto text-muted-foreground"
+                  disabled={update.isPending}
+                  onClick={() => startGoalEdit(g)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 text-muted-foreground"
                   disabled={removeGoal.isPending}
-                  onClick={() => { setOk(null); setErr(null); removeGoal.mutate({ goalId: g.id }); }}
+                  onClick={() => { setOk(null); setErr(null); if (editingGoalId === g.id) cancelGoalEdit(); removeGoal.mutate({ goalId: g.id }); }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -638,11 +689,11 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
 
         <div className="flex items-center gap-3">
           <Button
-            disabled={!fixture || !scorerTeam || create.isPending}
+            disabled={!fixture || !scorerTeam || create.isPending || update.isPending}
             onClick={() => {
               setOk(null); setErr(null);
-              create.mutate({ data: {
-                teamId, seasonId, matchId, scorerTeam,
+              const detail = {
+                scorerTeam,
                 minuteScored: minute.trim() === "" ? null : Number(minute),
                 scorer: scorer.trim() || null,
                 assist: assist.trim() || null,
@@ -654,11 +705,16 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
                 finishType: finishType.trim() || null,
                 passString: passString.trim() || null,
                 goalX, goalY,
-              }});
+              };
+              if (editingGoalId != null) update.mutate({ goalId: editingGoalId, data: detail });
+              else create.mutate({ data: { teamId, seasonId, matchId, ...detail } });
             }}
           >
-            {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save goal"}
+            {(create.isPending || update.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : editingGoalId != null ? "Update goal" : "Save goal"}
           </Button>
+          {editingGoalId != null && (
+            <Button variant="ghost" onClick={cancelGoalEdit}>Cancel edit</Button>
+          )}
           <StatusLine ok={ok} err={err} />
         </div>
       </CardContent>

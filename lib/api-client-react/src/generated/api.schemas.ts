@@ -2045,10 +2045,71 @@ export interface EntryGoalListItem {
   assist: string | null;
   /** @nullable */
   goalType: string | null;
+  /** @nullable */
+  assistType: string | null;
+  /** @nullable */
+  howPenetrated: string | null;
+  /** @nullable */
+  buildupLane: string | null;
+  /** @nullable */
+  firstTimeFinish: boolean | null;
+  /** @nullable */
+  finishType: string | null;
+  /** @nullable */
+  passString: string | null;
+  /** @nullable */
+  goalX: number | null;
+  /** @nullable */
+  goalY: number | null;
 }
 
 export interface EntryGoalListResponse {
   goals: EntryGoalListItem[];
+}
+
+export interface EntryGoalEditBody {
+  /** @minLength 1 */
+  scorerTeam: string;
+  /**
+     * @minimum 0
+     * @maximum 130
+     * @nullable
+     */
+  minuteScored?: number | null;
+  /** @nullable */
+  scorer?: string | null;
+  /** @nullable */
+  assist?: string | null;
+  /** @nullable */
+  goalType?: string | null;
+  /** @nullable */
+  assistType?: string | null;
+  /** @nullable */
+  howPenetrated?: string | null;
+  /** @nullable */
+  buildupLane?: string | null;
+  /** @nullable */
+  firstTimeFinish?: boolean | null;
+  /** @nullable */
+  finishType?: string | null;
+  /** @nullable */
+  passString?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  goalX?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  goalY?: number | null;
+}
+
+export interface EntryGoalEditResponse {
+  updated: boolean;
+  belconnenUpdated: boolean;
 }
 
 export interface EntryGoalDeleteResponse {

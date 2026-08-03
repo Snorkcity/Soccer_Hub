@@ -50,6 +50,8 @@ export * from './entryAthleticTestsSaveRequest';
 export * from './entryAthleticTestsSaveResponse';
 export * from './entryGoalBody';
 export * from './entryGoalDeleteResponse';
+export * from './entryGoalEditBody';
+export * from './entryGoalEditResponse';
 export * from './entryGoalListItem';
 export * from './entryGoalListResponse';
 export * from './entryGoalResponse';

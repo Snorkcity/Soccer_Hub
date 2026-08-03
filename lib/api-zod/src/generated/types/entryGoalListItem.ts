@@ -18,4 +18,20 @@ export interface EntryGoalListItem {
   assist: string | null;
   /** @nullable */
   goalType: string | null;
+  /** @nullable */
+  assistType: string | null;
+  /** @nullable */
+  howPenetrated: string | null;
+  /** @nullable */
+  buildupLane: string | null;
+  /** @nullable */
+  firstTimeFinish: boolean | null;
+  /** @nullable */
+  finishType: string | null;
+  /** @nullable */
+  passString: string | null;
+  /** @nullable */
+  goalX: number | null;
+  /** @nullable */
+  goalY: number | null;
 }

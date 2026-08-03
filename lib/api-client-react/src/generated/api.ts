@@ -43,6 +43,8 @@ import type {
   EntryAthleticTestsSaveResponse,
   EntryGoalBody,
   EntryGoalDeleteResponse,
+  EntryGoalEditBody,
+  EntryGoalEditResponse,
   EntryGoalListResponse,
   EntryGoalResponse,
   EntryGpsSessionsSaveRequest,
@@ -6511,6 +6513,78 @@ export function useListEntryGoals<TData = Awaited<ReturnType<typeof listEntryGoa
 
 
 
+
+export const getUpdateEntryGoalUrl = (goalId: number,) => {
+
+
+
+
+  return `/api/entry/goal/${goalId}`
+}
+
+/**
+ * @summary Edit a logged goal in place (updates the Belconnen copy too when applicable)
+ */
+export const updateEntryGoal = async (goalId: number,
+    entryGoalEditBody: EntryGoalEditBody, options?: RequestInit): Promise<EntryGoalEditResponse> => {
+
+  return customFetch<EntryGoalEditResponse>(getUpdateEntryGoalUrl(goalId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryGoalEditBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateEntryGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryGoal>>, TError,{goalId: number;data: BodyType<EntryGoalEditBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEntryGoal>>, TError,{goalId: number;data: BodyType<EntryGoalEditBody>}, TContext> => {
+
+const mutationKey = ['updateEntryGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEntryGoal>>, {goalId: number;data: BodyType<EntryGoalEditBody>}> = (props) => {
+          const {goalId,data} = props ?? {};
+
+          return  updateEntryGoal(goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEntryGoalMutationResult = NonNullable<Awaited<ReturnType<typeof updateEntryGoal>>>
+    export type UpdateEntryGoalMutationBody = BodyType<EntryGoalEditBody>
+    export type UpdateEntryGoalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Edit a logged goal in place (updates the Belconnen copy too when applicable)
+ */
+export const useUpdateEntryGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryGoal>>, TError,{goalId: number;data: BodyType<EntryGoalEditBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEntryGoal>>,
+        TError,
+        {goalId: number;data: BodyType<EntryGoalEditBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateEntryGoalMutationOptions(options));
+    }
 
 export const getDeleteEntryGoalUrl = (goalId: number,) => {
 

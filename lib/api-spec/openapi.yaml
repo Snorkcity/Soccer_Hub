@@ -1800,6 +1800,26 @@ paths:
               schema: { $ref: "#/components/schemas/EntryGoalListResponse" }
 
   /entry/goal/{goalId}:
+    patch:
+      operationId: updateEntryGoal
+      tags: [entry]
+      summary: Edit a logged goal in place (updates the Belconnen copy too when applicable)
+      parameters:
+        - name: goalId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryGoalEditBody" }
+      responses:
+        "200":
+          description: Goal updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGoalEditResponse" }
     delete:
       operationId: deleteEntryGoal
       tags: [entry]
@@ -4910,13 +4930,21 @@ components:
     EntryGoalListItem:
       type: object
       properties:
-        id:           { type: integer }
-        scorerTeam:   { type: ["string", "null"] }
-        minuteScored: { type: ["integer", "null"] }
-        scorer:       { type: ["string", "null"] }
-        assist:       { type: ["string", "null"] }
-        goalType:     { type: ["string", "null"] }
-      required: [id, scorerTeam, minuteScored, scorer, assist, goalType]
+        id:              { type: integer }
+        scorerTeam:      { type: ["string", "null"] }
+        minuteScored:    { type: ["integer", "null"] }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        finishType:      { type: ["string", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["number", "null"] }
+        goalY:           { type: ["number", "null"] }
+      required: [id, scorerTeam, minuteScored, scorer, assist, goalType, assistType, howPenetrated, buildupLane, firstTimeFinish, finishType, passString, goalX, goalY]
 
     EntryGoalListResponse:
       type: object
@@ -4925,6 +4953,31 @@ components:
           type: array
           items: { $ref: "#/components/schemas/EntryGoalListItem" }
       required: [goals]
+
+    EntryGoalEditBody:
+      type: object
+      properties:
+        scorerTeam:      { type: string, minLength: 1 }
+        minuteScored:    { type: ["integer", "null"], minimum: 0, maximum: 130 }
+        scorer:          { type: ["string", "null"] }
+        assist:          { type: ["string", "null"] }
+        goalType:        { type: ["string", "null"] }
+        assistType:      { type: ["string", "null"] }
+        howPenetrated:   { type: ["string", "null"] }
+        buildupLane:     { type: ["string", "null"] }
+        firstTimeFinish: { type: ["boolean", "null"] }
+        finishType:      { type: ["string", "null"] }
+        passString:      { type: ["string", "null"] }
+        goalX:           { type: ["number", "null"], minimum: 0, maximum: 100 }
+        goalY:           { type: ["number", "null"], minimum: 0 }
+      required: [scorerTeam]
+
+    EntryGoalEditResponse:
+      type: object
+      properties:
+        updated:          { type: boolean }
+        belconnenUpdated: { type: boolean }
+      required: [updated, belconnenUpdated]
 
     EntryGoalDeleteResponse:
       type: object

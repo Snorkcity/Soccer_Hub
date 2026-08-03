@@ -2433,8 +2433,56 @@ export const ListEntryGoalsResponse = zod.object({
   "minuteScored": zod.number().nullable(),
   "scorer": zod.string().nullable(),
   "assist": zod.string().nullable(),
-  "goalType": zod.string().nullable()
+  "goalType": zod.string().nullable(),
+  "assistType": zod.string().nullable(),
+  "howPenetrated": zod.string().nullable(),
+  "buildupLane": zod.string().nullable(),
+  "firstTimeFinish": zod.boolean().nullable(),
+  "finishType": zod.string().nullable(),
+  "passString": zod.string().nullable(),
+  "goalX": zod.number().nullable(),
+  "goalY": zod.number().nullable()
 }))
+})
+
+
+/**
+ * @summary Edit a logged goal in place (updates the Belconnen copy too when applicable)
+ */
+export const UpdateEntryGoalParams = zod.object({
+  "goalId": zod.coerce.number()
+})
+
+
+export const updateEntryGoalBodyMinuteScoredMin = 0;
+export const updateEntryGoalBodyMinuteScoredMax = 130;
+
+export const updateEntryGoalBodyGoalXMin = 0;
+export const updateEntryGoalBodyGoalXMax = 100;
+
+export const updateEntryGoalBodyGoalYMin = 0;
+
+
+
+export const UpdateEntryGoalBody = zod.object({
+  "scorerTeam": zod.string().min(1),
+  "minuteScored": zod.number().min(updateEntryGoalBodyMinuteScoredMin).max(updateEntryGoalBodyMinuteScoredMax).nullish(),
+  "scorer": zod.string().nullish(),
+  "assist": zod.string().nullish(),
+  "goalType": zod.string().nullish(),
+  "assistType": zod.string().nullish(),
+  "howPenetrated": zod.string().nullish(),
+  "buildupLane": zod.string().nullish(),
+  "firstTimeFinish": zod.boolean().nullish(),
+  "finishType": zod.string().nullish(),
+  "passString": zod.string().nullish(),
+  "goalX": zod.number().min(updateEntryGoalBodyGoalXMin).max(updateEntryGoalBodyGoalXMax).nullish(),
+  "goalY": zod.number().min(updateEntryGoalBodyGoalYMin).nullish()
+})
+
+export const UpdateEntryGoalResponse = zod.object({
+  "updated": zod.boolean(),
+  "belconnenUpdated": zod.boolean()
 })
 
 

@@ -38,6 +38,8 @@ import {
   ListEntryPlayerStatsQueryParams,
   ListEntryPlayerStatsResponse,
   DeleteEntryPlayerStatResponse,
+  UpdateEntryGoalBody,
+  UpdateEntryGoalResponse,
   UpdateEntryPlayerStatBody,
   UpdateEntryPlayerStatResponse,
   DeleteEntryPlayerStatsQueryParams,
@@ -152,11 +154,25 @@ router.get("/entry/goals", async (req, res): Promise<void> => {
       scorer: leagueGoalsTable.scorer,
       assist: leagueGoalsTable.assist,
       goalType: leagueGoalsTable.goalType,
+      assistType: leagueGoalsTable.assistType,
+      howPenetrated: leagueGoalsTable.howPenetrated,
+      buildupLane: leagueGoalsTable.buildupLane,
+      firstTimeFinish: leagueGoalsTable.firstTimeFinish,
+      finishType: leagueGoalsTable.finishType,
+      passString: leagueGoalsTable.passString,
+      goalX: leagueGoalsTable.goalX,
+      goalY: leagueGoalsTable.goalY,
     })
     .from(leagueGoalsTable)
     .where(and(eq(leagueGoalsTable.seasonId, seasonId), eq(leagueGoalsTable.matchId, matchId)))
     .orderBy(leagueGoalsTable.minuteScored, leagueGoalsTable.id);
-  res.json(ListEntryGoalsResponse.parse({ goals: rows }));
+  // numeric columns come back as strings from Drizzle — convert for the schema
+  const goals = rows.map(g => ({
+    ...g,
+    goalX: g.goalX == null ? null : Number(g.goalX),
+    goalY: g.goalY == null ? null : Number(g.goalY),
+  }));
+  res.json(ListEntryGoalsResponse.parse({ goals }));
 });
 
 
@@ -222,6 +238,8 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
         nullSafe(goalsTable.firstTimeFinish, goal.firstTimeFinish),
         nullSafe(goalsTable.finishType, goal.finishType),
         nullSafe(goalsTable.passString, goal.passString),
+        nullSafe(goalsTable.goalX, goal.goalX),
+        nullSafe(goalsTable.goalY, goal.goalY),
       ));
     if (candidates.length === 0) {
       logger.warn({ leagueGoalId: goalId, matchId: goal.matchId }, "No matching Belconnen goal copy found to delete");
@@ -233,6 +251,98 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
   });
 
   res.json(DeleteEntryGoalResponse.parse({ deleted: true, belconnenDeleted }));
+});
+
+// ── Edit a logged goal in place (league row + Belconnen mirror copy) ─────────
+router.patch("/entry/goal/:goalId", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.goalId);
+  if (!Number.isInteger(goalId)) {
+    res.status(400).json({ error: "Invalid goal id" });
+    return;
+  }
+  const parsed = UpdateEntryGoalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const b = parsed.data;
+
+  const [goal] = await db.select().from(leagueGoalsTable).where(eq(leagueGoalsTable.id, goalId));
+  if (!goal) {
+    res.status(404).json({ error: "That goal no longer exists" });
+    return;
+  }
+  if (!(await canEnterDataForSeason(req, goal.seasonId))) {
+    res.status(403).json({ error: "You don't have data entry access for this league" });
+    return;
+  }
+  if (b.scorerTeam !== goal.homeTeam && b.scorerTeam !== goal.awayTeam) {
+    res.status(400).json({ error: `Scorer team must be ${goal.homeTeam} or ${goal.awayTeam}` });
+    return;
+  }
+
+  const focusClub = await focusClubForRequest(req, goal.seasonId);
+
+  const detail = {
+    scorerTeam: b.scorerTeam,
+    minuteScored: b.minuteScored ?? null,
+    scorer: b.scorer ?? null,
+    assist: b.assist ?? null,
+    goalType: b.goalType ?? null,
+    assistType: b.assistType ?? null,
+    howPenetrated: b.howPenetrated ?? null,
+    buildupLane: b.buildupLane ?? null,
+    firstTimeFinish: b.firstTimeFinish ?? null,
+    finishType: b.finishType ?? null,
+    passString: b.passString ?? null,
+    goalX: n2s(b.goalX),
+    goalY: n2s(b.goalY),
+  };
+
+  // Single transaction: update league goal + its Belconnen copy together.
+  const belconnenUpdated = await db.transaction(async (tx) => {
+    await tx.update(leagueGoalsTable).set(detail).where(eq(leagueGoalsTable.id, goalId));
+
+    if (goal.homeTeam !== focusClub && goal.awayTeam !== focusClub) return false;
+    const matchRows = await tx
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .where(and(eq(matchesTable.matchId, goal.matchId), eq(matchesTable.seasonId, goal.seasonId)));
+    if (matchRows.length === 0) return false;
+
+    // Locate the legacy copy by exact-match on the goal's OLD values (null-safe),
+    // same as the delete route — we can only ever hit an exact duplicate.
+    const nullSafe = <T extends AnyColumn>(col: T, val: unknown) =>
+      val == null ? isNull(col) : eq(col, val as never);
+    const candidates = await tx
+      .select({ id: goalsTable.id })
+      .from(goalsTable)
+      .where(and(
+        inArray(goalsTable.matchId, matchRows.map(m => m.id)),
+        eq(goalsTable.seasonId, goal.seasonId),
+        nullSafe(goalsTable.scorerTeam, goal.scorerTeam),
+        nullSafe(goalsTable.minuteScored, goal.minuteScored),
+        nullSafe(goalsTable.scorer, goal.scorer),
+        nullSafe(goalsTable.assist, goal.assist),
+        nullSafe(goalsTable.goalType, goal.goalType),
+        nullSafe(goalsTable.assistType, goal.assistType),
+        nullSafe(goalsTable.howPenetrated, goal.howPenetrated),
+        nullSafe(goalsTable.buildupLane, goal.buildupLane),
+        nullSafe(goalsTable.firstTimeFinish, goal.firstTimeFinish),
+        nullSafe(goalsTable.finishType, goal.finishType),
+        nullSafe(goalsTable.passString, goal.passString),
+        nullSafe(goalsTable.goalX, goal.goalX),
+        nullSafe(goalsTable.goalY, goal.goalY),
+      ));
+    if (candidates.length === 0) {
+      logger.warn({ leagueGoalId: goalId, matchId: goal.matchId }, "No matching Belconnen goal copy found to edit");
+      return false;
+    }
+    await tx.update(goalsTable).set(detail).where(eq(goalsTable.id, candidates[0].id));
+    return true;
+  });
+
+  res.json(UpdateEntryGoalResponse.parse({ updated: true, belconnenUpdated }));
 });
 
 router.get("/entry/goal-options", async (req, res): Promise<void> => {
