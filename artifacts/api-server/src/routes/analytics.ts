@@ -3637,9 +3637,153 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
     totalTypedScored: dnaScored.totalTyped, totalTypedConceded: dnaConceded.totalTyped,
     voice: "scout",
   });
-  const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
+  // ── "What to watch" — scout insights across four sources ─────────────────
+  // Coach-requested mix: assist→scorer partnerships, a player in form
+  // (scoring streaks), a goal type they've been scoring LATELY (recent-form
+  // DNA vs season mix), and league-wide on-field impact ("when she starts
+  // they win"). Threats read amber-ish in text; their conceding trends read
+  // as openings. Mirrors the team report's dayInsights pattern.
+  const pairIns: { n: number; text: string }[] = [];
+  const streakIns: string[] = [];
+  const trendIns: string[] = [];
+  const impactIns: string[] = [];
+
+  // 1. Partnerships that keep combining (both directions), season-to-date.
+  {
+    const pairCounts = new Map<string, { assist: string; scorer: string; n: number }>();
+    for (const g of clubGoalsUpTo) {
+      const scorer = g.scorer?.trim(), assist = g.assist?.trim();
+      if (!scorer || !assist || scorer === "OG" || assist === "OG" || scorer === assist) continue;
+      const key = `${assist}\u0000${scorer}`;
+      const e = pairCounts.get(key);
+      if (e) e.n++; else pairCounts.set(key, { assist, scorer, n: 1 });
+    }
+    for (const p of [...pairCounts.values()].sort((a, b) => b.n - a.n)) {
+      if (p.n >= 3) pairIns.push({ n: p.n, text: `${p.assist} → ${p.scorer} is their supply line — that partnership has produced ${p.n} of their goals this season. Cut the service and you cut the threat.` });
+    }
+  }
+
+  // 2. A player in form — scored in consecutive club games ending at this one.
+  {
+    const scorersToday = [...new Set(matchClubGoals.map(g => g.scorer?.trim()).filter((s): s is string => !!s && s !== "OG"))];
+    const before = upTo.slice(0, -1);
+    for (const name of scorersToday) {
+      let run = 1;
+      for (let i = before.length - 1; i >= 0; i--) {
+        const scoredIn = seasonGoals.some(g => g.matchId === before[i].matchId && g.scorerTeam === club && g.scorer?.trim() === name);
+        if (scoredIn) run++; else break;
+      }
+      if (run >= 3) streakIns.push(`${name} has scored in ${run} straight games — the form player, and the first name on the scouting board.`);
+    }
+    // Fallback: a hot recent scorer even without a game-by-game streak.
+    if (streakIns.length === 0) {
+      const recentIds = new Set(upTo.slice(-3).map(m => m.matchId));
+      const recentTally = new Map<string, number>();
+      for (const g of clubGoalsUpTo) {
+        const n = g.scorer?.trim();
+        if (n && n !== "OG" && recentIds.has(g.matchId)) recentTally.set(n, (recentTally.get(n) ?? 0) + 1);
+      }
+      const hot = [...recentTally.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (hot && hot[1] >= 3) streakIns.push(`${hot[0]} has ${hot[1]} goals in their last 3 games — in form right now.`);
+    }
+  }
+
+  // 3. Recent-form goal-type trend — last 4 club games vs their season DNA.
+  {
+    const recentIds = new Set(upTo.slice(-4).map(m => m.matchId));
+    const trendSide = (rows: typeof seasonGoals, isScoredSide: boolean) => {
+      const seasonTyped = rows.map(g => dnaCatOfType(g.goalType)).filter((c): c is NonNullable<ReturnType<typeof dnaCatOfType>> => c != null);
+      const recentTyped = rows.filter(g => recentIds.has(g.matchId)).map(g => dnaCatOfType(g.goalType)).filter((c): c is NonNullable<ReturnType<typeof dnaCatOfType>> => c != null);
+      if (recentTyped.length < 3 || seasonTyped.length < 8) return;
+      const count = (arr: typeof seasonTyped, id: string) => arr.filter(c => c === id).length;
+      for (const id of ["setPiece", "frontThird", "middleThird", "backThird"] as const) {
+        const rn = count(recentTyped, id), sn = count(seasonTyped, id);
+        const rPct = (rn / recentTyped.length) * 100, sPct = (sn / seasonTyped.length) * 100;
+        if (rn >= 2 && rPct >= 40 && rPct - sPct >= 15) {
+          trendIns.push(isScoredSide
+            ? `Lately it's ${dnaCatLabel(id)} goals — ${rn} of their last ${recentTyped.length} typed goals (season mix is ${sPct.toFixed(0)}%). That's the in-form weapon to plan for.`
+            : `They've been leaking from ${dnaCatLabel(id)}s lately — ${rn} of the last ${recentTyped.length} they've conceded (season mix ${sPct.toFixed(0)}%). That's the door that's open right now.`);
+          break; // one trend line per side is enough
+        }
+      }
+    };
+    trendSide(clubGoalsUpTo, true);
+    trendSide(clubConcededUpTo, false);
+  }
+
+  // 4. League-wide on-field impact — minute-window GD across ALL clubs up to
+  // this round; a club player high (or climbing) in those rankings is a threat.
+  {
+    const leagueIdsUpTo = allLeagueMatches
+      .filter(m => /^R\d/.test(m.matchId) && (m.matchDate ?? "") <= cutoff && m.homeGoals != null && m.awayGoals != null)
+      .map(m => m.matchId);
+    if (leagueIdsUpTo.length) {
+      const lps = await db
+        .select({
+          playerName: leaguePlayerStatsTable.playerName,
+          matchId: leaguePlayerStatsTable.matchId,
+          minsPlayed: leaguePlayerStatsTable.minsPlayed,
+          started: leaguePlayerStatsTable.started,
+          appearance: leaguePlayerStatsTable.appearance,
+          club: leaguePlayerStatsTable.club,
+        })
+        .from(leaguePlayerStatsTable)
+        .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, leagueIdsUpTo)));
+      const idsUpToSet = new Set(leagueIdsUpTo);
+      const goalsByMatch = new Map<string, Array<{ team: string | null; minute: number | null }>>();
+      const matchLen = new Map<string, number>();
+      for (const g of seasonGoals) {
+        if (!idsUpToSet.has(g.matchId)) continue;
+        (goalsByMatch.get(g.matchId) ?? goalsByMatch.set(g.matchId, []).get(g.matchId)!)
+          .push({ team: g.scorerTeam, minute: g.minuteScored });
+        if (g.minuteScored != null) matchLen.set(g.matchId, Math.max(matchLen.get(g.matchId) ?? 90, g.minuteScored));
+      }
+      for (const r of lps) if (r.minsPlayed != null) matchLen.set(r.matchId, Math.max(matchLen.get(r.matchId) ?? 90, r.minsPlayed));
+
+      const recentIds = new Set(upTo.slice(-3).map(m => m.matchId));
+      type Imp = { playerName: string; club: string; gd: number; apps: number; recentGd: number; recentApps: number };
+      const impMap = new Map<string, Imp>();
+      for (const r of lps) {
+        if (!r.playerName || !r.club || !r.appearance) continue;
+        const L = matchLen.get(r.matchId) ?? 90;
+        const mins = r.minsPlayed ?? 0;
+        const winStart = r.started ? 0 : Math.max(0, L - mins);
+        const winEnd = r.started ? mins : L;
+        let gf = 0, ga = 0;
+        for (const g of goalsByMatch.get(r.matchId) ?? []) {
+          const on = g.minute == null || mins <= 0 ? mins > 0 : g.minute >= winStart && g.minute <= winEnd;
+          if (!on) continue;
+          if (g.team === r.club) gf++; else ga++;
+        }
+        const key = `${r.playerName}|${r.club}`;
+        const e = impMap.get(key) ?? { playerName: r.playerName, club: r.club, gd: 0, apps: 0, recentGd: 0, recentApps: 0 };
+        e.gd += gf - ga; e.apps++;
+        if (recentIds.has(r.matchId)) { e.recentGd += gf - ga; e.recentApps++; }
+        impMap.set(key, e);
+      }
+      const ranked = [...impMap.values()].filter(p => p.apps >= 3).sort((a, b) => b.gd - a.gd);
+      const ord3 = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+      const clubTop = ranked.map((p, i) => ({ ...p, rank: i + 1 })).filter(p => p.club === club);
+      const star = clubTop.find(p => p.rank <= 5 && p.gd > 0);
+      if (star) {
+        impactIns.push(`When ${star.playerName} plays, they win — the team is +${star.gd} with her on the pitch, the ${ord3(star.rank)}-best on-field impact in the whole league.`);
+      } else {
+        const climber = clubTop.filter(p => p.recentApps >= 2 && p.recentGd >= 3).sort((a, b) => b.recentGd - a.recentGd)[0];
+        if (climber) impactIns.push(`${climber.playerName}'s influence is climbing — +${climber.recentGd} with her on the pitch across their last ${climber.recentApps} games. One to track.`);
+      }
+    }
+  }
+
+  // Mix the sources — best of each kind first, then backfill, capped at 3.
+  const sortedPairs = pairIns.sort((a, b) => b.n - a.n).map(p => p.text);
+  const watchInsights = [sortedPairs[0], streakIns[0], trendIns[0], impactIns[0], trendIns[1], ...sortedPairs.slice(1), ...streakIns.slice(1)]
+    .filter((s): s is string => !!s)
+    .slice(0, 3);
+
+  const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0 || watchInsights.length > 0
     ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
-        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead }
+        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead,
+        dayInsights: watchInsights }
     : null;
 
   res.json(GetMatchReportResponse.parse({
