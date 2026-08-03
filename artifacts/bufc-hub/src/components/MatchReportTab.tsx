@@ -379,8 +379,10 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Per-goal table dropped by coach request — the season DNA
+                      table lower in the report covers it. Keep the tactical read. */}
                   {hasStory && (
-                    <GoalDnaStoryBlock matchGoals={dna.matchGoals ?? []} tacticalRead={dna.tacticalRead ?? []} />
+                    <GoalDnaStoryBlock matchGoals={[]} tacticalRead={dna.tacticalRead ?? []} />
                   )}
                   {(dna.dayInsights ?? []).length > 0 && (
                     <div className="space-y-1.5">
@@ -429,9 +431,10 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {([
                       ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
+                      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null],
                       ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
                       ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
                     ] as const).map(([label, v, sub]) => (

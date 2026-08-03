@@ -3931,6 +3931,9 @@ components:
         possession:        { type: number }
         passesPerShot:     { type: number }
         shotsPer100Passes: { type: number }
+        # Optional (not required) — older saved reports won't carry them.
+        passes:            { type: number }
+        seasonAvgPasses:   { type: ["number", "null"] }
         seasonAvgPossession: { type: ["number", "null"] }
         seasonAvgShotsPer100: { type: ["number", "null"] }
         quadrant:

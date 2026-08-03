@@ -3206,6 +3206,8 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     possession: number;
     passesPerShot: number;
     shotsPer100Passes: number;
+    passes: number;
+    seasonAvgPasses: number | null;
     seasonAvgPossession: number | null;
     seasonAvgShotsPer100: number | null;
     quadrant: "control" | "sterile" | "direct" | "chasing" | null;
@@ -3255,7 +3257,60 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       else if (quadrant === "chasing") comments.push(`Below our usual on both counts — less ball (${possN}%) and fewer shots from it.`);
       if (possN < 45 && result === "W") comments.push(`Won it with just ${possN}% possession — clinical on the counter.`);
 
-      ballUse = { possession: possN, passesPerShot: pps, shotsPer100Passes: sp100, seasonAvgPossession, seasonAvgShotsPer100, quadrant, points, comments };
+      // ── Passing insight: several candidate angles, weighted; the heaviest
+      // (most striking) one is shown, so the sentence varies game to game.
+      const passesN = match.passes;
+      const passGames = ordered.filter(m => m.passes != null && m.passes > 0);
+      const passOthers = passGames.filter(m => m.id !== matchRowId);
+      const seasonAvgPasses = passOthers.length
+        ? passOthers.reduce((a, m) => a + m.passes!, 0) / passOthers.length : null;
+      {
+        const cands: Array<{ w: number; text: string }> = [];
+        // Season high / low pass count (needs a few games of context).
+        if (passOthers.length >= 4) {
+          const maxOther = Math.max(...passOthers.map(m => m.passes!));
+          const minOther = Math.min(...passOthers.map(m => m.passes!));
+          if (passesN > maxOther) cands.push({ w: 60, text: `${passesN} passes — our biggest passing game of the season (previous best ${maxOther}).` });
+          else if (passesN < minOther) cands.push({ w: 45, text: `${passesN} passes — our lowest passing game of the season. Worth asking why the ball wouldn't stick.` });
+        }
+        // Run of above-average passing games ending today.
+        if (seasonAvgPasses != null && passGames.length >= 4) {
+          const chron = passGames; // already chronological (ordered)
+          const myPos = chron.findIndex(m => m.id === matchRowId);
+          let run = 0;
+          for (let i = myPos; i >= 0; i--) {
+            if (chron[i].passes! > seasonAvgPasses) run++;
+            else break;
+          }
+          if (run >= 3) cands.push({ w: 30 + run * 8, text: `That's ${run} straight games above our season passing average (${seasonAvgPasses.toFixed(0)}) — the passing game is trending up.` });
+        }
+        // Versus this opponent: earlier meetings this season.
+        const prevOppPasses = ordered.slice(0, idx)
+          .filter(m => m.opponent === match.opponent && m.passes != null && m.passes > 0)
+          .map(m => m.passes!);
+        if (prevOppPasses.length > 0) {
+          const oppAvg = prevOppPasses.reduce((a, b) => a + b, 0) / prevOppPasses.length;
+          const diff = ((passesN - oppAvg) / oppAvg) * 100;
+          if (Math.abs(diff) >= 10) {
+            cands.push({
+              w: Math.min(55, Math.abs(diff) * 1.5),
+              text: diff > 0
+                ? `${passesN} passes against ${match.opponent} — well up on the ${oppAvg.toFixed(0)} we've averaged against them this season.`
+                : `${passesN} passes against ${match.opponent} — down on the ${oppAvg.toFixed(0)} we've averaged against them this season.`,
+            });
+          }
+        }
+        // Fallback: plain season-average comparison, weighted by how far off it was.
+        if (seasonAvgPasses != null && passOthers.length >= 2) {
+          const diff = ((passesN - seasonAvgPasses) / seasonAvgPasses) * 100;
+          const cmp = diff >= 12 ? "well above" : diff >= 5 ? "above" : diff <= -12 ? "well below" : diff <= -5 ? "below" : "right on";
+          cands.push({ w: Math.min(40, Math.abs(diff)), text: `${passesN} passes — ${cmp} our season average of ${seasonAvgPasses.toFixed(0)}.` });
+        }
+        const best = cands.sort((a, b) => b.w - a.w)[0];
+        if (best) comments.push(best.text);
+      }
+
+      ballUse = { possession: possN, passesPerShot: pps, shotsPer100Passes: sp100, passes: passesN, seasonAvgPasses, seasonAvgPossession, seasonAvgShotsPer100, quadrant, points, comments };
     }
   }
 

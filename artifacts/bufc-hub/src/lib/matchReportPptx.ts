@@ -175,10 +175,11 @@ export async function generateFootballMatchReport(
     addHeader(s, "Ball use", "How much of the ball we had, and how often having it turned into a shot.");
     const boxes: Array<[string, string, string | null]> = [
       ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
+      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null],
       ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
       ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
     ];
-    const tw2 = 3.85, gx2 = 0.35, x02 = 0.75, y02 = 1.9;
+    const tw2 = 2.85, gx2 = 0.3, x02 = 0.75, y02 = 1.9;
     boxes.forEach(([label, v, sub], i) => {
       const x = x02 + i * (tw2 + gx2);
       s.addShape("roundRect", { x, y: y02, w: tw2, h: 1.6, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });

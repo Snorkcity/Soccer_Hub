@@ -15,6 +15,9 @@ export interface MatchReportBallUse {
   possession: number;
   passesPerShot: number;
   shotsPer100Passes: number;
+  passes?: number;
+  /** @nullable */
+  seasonAvgPasses?: number | null;
   /** @nullable */
   seasonAvgPossession: number | null;
   /** @nullable */
