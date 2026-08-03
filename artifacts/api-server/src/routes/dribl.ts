@@ -403,8 +403,14 @@ async function buildPreview(
   // Process in date order so name claims ("first player keeps the short name")
   // follow the season chronologically, whatever order the fixtures feed uses.
   const orderedFixtures = [...fixtures].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  for (const f of orderedFixtures) {
-    if (f.status !== "complete" || f.homeScore == null || f.awayScore == null) continue;
+  // Big federations (e.g. VIC NPLW) carry 150+ completed games in one season —
+  // far too many for one sync. Cap at the 50 most recent completed games —
+  // the current form window — rather than dragging in the whole season.
+  const completedFixtures = orderedFixtures
+    .filter((f): f is typeof f & { homeScore: number; awayScore: number } =>
+      f.status === "complete" && f.homeScore != null && f.awayScore != null)
+    .slice(-50);
+  for (const f of completedFixtures) {
     const home = matchClub(f.homeTeamName, clubs);
     const away = matchClub(f.awayTeamName, clubs);
     const unmatched: string[] = [];
