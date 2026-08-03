@@ -7,3 +7,6 @@ description: Monday briefing now pulls last-meeting facts + latest Friday deck s
 - The deterministic fact lines are also returned as `lastMeeting` in the response, saved into the monday report jsonb, and rendered as a "What happened last time" slide in the Week Ahead PPTX.
 - **Why:** the coach wanted the Monday prep continuous with what actually happened, not just season aggregates; deterministic facts also survive AI-model drift.
 - **Gotcha (Aug 2026):** the coach's own OPENAI_API_KEY had zero credits — all journal AI endpoints (which deliberately bypass the Replit proxy) return 429 insufficient_quota. Not a code bug; test DB-side helpers directly (they're exported from journalInterview.ts) instead of burning a round trip on the AI call.
+
+## U16+ language bank is the app's register
+Coach directive: report/brief language should draw on the U16+/senior phase curriculum (app serves U18s and above). The U16+ Coach Pack "Language Bank" chunk in lib/db/src/data/curriculum.json is the canonical source of cues ("lose it — close it", "fast brain, calm feet", "control the tempo — accelerate or secure", "dominate transitions through anticipation, not reaction"). The week-ahead-brief system prompt embeds these; use the same register in any future generated-language feature.
