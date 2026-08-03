@@ -5801,6 +5801,9 @@ components:
         lastVsOpponentText: { type: string }
         theirGamesText:     { type: string }
         ourGamesText:       { type: string }
+        # Continuity inputs (Task: consider previous meeting + our last match report)
+        lastMeetingText:    { type: string }
+        lastReportText:     { type: string }
       required: [opponent]
 
     WeekAheadBriefResponse:

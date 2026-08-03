@@ -14,7 +14,11 @@ import {
   getListMatchPrepReportsQueryKey,
   createMatchPrepReport,
   deleteMatchPrepReport,
+  listMatches,
+  getMatchReport,
+  listMatchReports,
   type OpponentProfileResponse,
+  type MatchReportResponse,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -152,6 +156,28 @@ function gamesText(games: ReturnType<typeof lastGames>): string {
     .join("\n");
 }
 
+/** Plain-text facts of one of OUR matches, from the match report: score line,
+ * each goal with its Goal DNA category, and the tactical read. Feeds the AI. */
+function matchFactsText(rep: MatchReportResponse): string {
+  const h = rep.header;
+  const lines: string[] = [
+    `${h.matchLabel}${h.matchDate ? ` (${h.matchDate})` : ""} — result ${h.result ?? "?"}, score ${h.goalsScored ?? "?"}–${h.goalsConceded ?? "?"} to us${h.cleanSheet ? ", clean sheet" : ""}`,
+  ];
+  for (const g of rep.goalDna?.matchGoals ?? []) {
+    lines.push(
+      [
+        g.side === "scored" ? "We scored" : "We conceded",
+        g.minute != null ? `${g.minute}'` : "",
+        g.scorer ?? "",
+        g.category ? `— ${g.category}` : "",
+        g.timing ? `(${g.timing === "DT" ? "in transition, before they reset" : "vs an organised defence"})` : "",
+      ].filter(Boolean).join(" "),
+    );
+  }
+  lines.push(...(rep.goalDna?.tacticalRead ?? []));
+  return lines.join("\n");
+}
+
 /** The Monday of the coming week (today if it's Monday). */
 function comingMonday(): string {
   const d = new Date();
@@ -285,12 +311,53 @@ export default function WeekAheadCard() {
     if (!weekOpp || teamId == null || seasonId == null) return;
     setDrafting(true);
     try {
-      const [theirs, ours] = await Promise.all([
+      const [theirs, ours, ourMatches, savedMatchReports] = await Promise.all([
         getOpponentProfile({ teamId, seasonId, club: weekOpp }),
         getOpponentProfile({ teamId, seasonId, club: "Belconnen" }),
+        listMatches({ teamId, seasonId }).catch(() => []),
+        activeLeagueId != null
+          ? listMatchReports({ leagueId: activeLeagueId }).catch(() => [])
+          : Promise.resolve([]),
       ]);
       const theirGames = lastGames(theirs, 3);
       const ourGames = lastGames(ours, 3);
+
+      // Continuity input 1 — what actually happened last time we met them:
+      // the most recent recorded fixture vs this opponent, told through its
+      // match report (score, each goal's DNA category, tactical read).
+      const oppLc = weekOpp.trim().toLowerCase();
+      // Played fixtures only (a future fixture vs them may already be listed),
+      // newest first; if the top one's report fails, try the meeting before it.
+      const now = Date.now();
+      const pastMeetings = [...ourMatches]
+        .filter((m) => (m.opponent ?? "").trim().toLowerCase() === oppLc)
+        .filter((m) => {
+          const t = parseMatchDate(m.matchDate);
+          return t > 0 && t <= now;
+        })
+        .sort((a, b) => parseMatchDate(b.matchDate) - parseMatchDate(a.matchDate));
+      let lastMeetingText: string | undefined;
+      for (const meeting of pastMeetings.slice(0, 2)) {
+        lastMeetingText = await getMatchReport({ teamId, seasonId, matchRowId: meeting.id })
+          .then(matchFactsText)
+          .catch(() => undefined);
+        if (lastMeetingText) break;
+      }
+
+      // Continuity input 2 — the analyst's most recent SAVED match report
+      // (whoever we played): its frozen report carries the same facts + read.
+      const latestSaved = [...savedMatchReports].sort(
+        (a, b) => parseMatchDate(b.matchDate) - parseMatchDate(a.matchDate)
+          || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      )[0];
+      const savedModel = latestSaved?.data as { report?: MatchReportResponse } | undefined;
+      const lastReportText = savedModel?.report
+        ? `${latestSaved.title}\n${matchFactsText(savedModel.report)}${
+            savedModel.report.goalDna?.comments?.length
+              ? `\nSeason patterns flagged: ${savedModel.report.goalDna.comments.join(" ")}`
+              : ""
+          }`
+        : undefined;
 
       const sorted = [...(reflections ?? [])].sort(
         (a, b) =>
@@ -324,6 +391,8 @@ export default function WeekAheadCard() {
           .map((r) => `${KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind} (${r.entryDate ?? ""}):\n${reflectionText(r)}`)
           .join("\n\n") || undefined,
         lastVsOpponentText: lastVsOpp ? reflectionText(lastVsOpp) : undefined,
+        lastMeetingText,
+        lastReportText,
         theirGamesText: gamesText(theirGames) || undefined,
         ourGamesText: gamesText(ourGames) || undefined,
       });

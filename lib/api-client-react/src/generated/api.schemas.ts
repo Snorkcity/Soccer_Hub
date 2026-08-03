@@ -3102,6 +3102,8 @@ export interface WeekAheadBriefRequest {
   lastVsOpponentText?: string;
   theirGamesText?: string;
   ourGamesText?: string;
+  lastMeetingText?: string;
+  lastReportText?: string;
 }
 
 export interface WeekAheadBriefResponse {

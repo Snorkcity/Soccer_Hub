@@ -388,14 +388,18 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
     if (!key) return noKey(res);
     const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-    const { opponent, reflectionsText, lastVsOpponentText, theirGamesText, ourGamesText } =
-      parsed.data;
+    const { opponent, reflectionsText, lastVsOpponentText, theirGamesText, ourGamesText,
+      lastMeetingText, lastReportText } = parsed.data;
 
     const sections = [
       reflectionsText ? `## The coach's recent reflections\n${reflectionsText}` : "",
       lastVsOpponentText
         ? `## His match reflection from the last time we played ${opponent}\n${lastVsOpponentText}`
         : "",
+      lastMeetingText
+        ? `## What actually happened last time we played ${opponent} (recorded match facts)\n${lastMeetingText}`
+        : "",
+      lastReportText ? `## Our most recent match report (analyst's read of our last game)\n${lastReportText}` : "",
       theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
       ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
     ]
@@ -414,7 +418,9 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
             content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
 Return JSON: {"review": string[], "pointers": string[]}.
 - "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
-- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+- If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice.
+- Use the club's principles-of-play vocabulary where it fits naturally (the coaches speak this language): patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, be the team that isn't scored against in transition; stay compact vertically and horizontally, reduce the space between the lines. Never force a term where it doesn't fit the facts.
 - Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
           },
           { role: "user", content: sections || "(no input provided)" },

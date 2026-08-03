@@ -4278,7 +4278,9 @@ export const CreateWeekAheadBriefBody = zod.object({
   "reflectionsText": zod.string().optional(),
   "lastVsOpponentText": zod.string().optional(),
   "theirGamesText": zod.string().optional(),
-  "ourGamesText": zod.string().optional()
+  "ourGamesText": zod.string().optional(),
+  "lastMeetingText": zod.string().optional(),
+  "lastReportText": zod.string().optional()
 })
 
 export const CreateWeekAheadBriefResponse = zod.object({

@@ -124,7 +124,7 @@ export function buildDnaStory(opts: {
     ? `We answered within ${Math.max(1, hitBack)} minute${hitBack === 1 ? "" : "s"} of conceding — the response was there.`
     : `They answered within ${Math.max(1, hitBack)} minute${hitBack === 1 ? "" : "s"} of conceding — expect a reaction if you score.`);
   if (gaveBack != null && read.length < 3) read.push(opts.voice === "team"
-    ? `We gave one back within ${Math.max(1, gaveBack)} minute${gaveBack === 1 ? "" : "s"} of scoring — the restart period after our goals needs attention.`
+    ? `We gave one back within ${Math.max(1, gaveBack)} minute${gaveBack === 1 ? "" : "s"} of scoring — the transition moments straight after our goals need attention; think faster, move faster when the ball turns over.`
     : `They conceded within ${Math.max(1, gaveBack)} minute${gaveBack === 1 ? "" : "s"} of scoring — the moments straight after their goals are a window.`);
 
   // 2. Transition timing across this match's typed regain goals (scored side).
@@ -134,12 +134,12 @@ export function buildDnaStory(opts: {
   if (regains.length >= 2 && read.length < 3) {
     if (regains.every(x => x.t.endsWith("-DT"))) {
       read.push(opts.voice === "team"
-        ? `Every regain goal was struck before the opposition could reset — the damage came inside the transition window.`
-        : `Every regain goal came before the defence could reset — slow transitions are what they punish.`);
+        ? `Every regain goal came inside the transition window — we thought faster and moved faster in the seconds after winning the ball, before they could reset.`
+        : `Every regain goal came inside the transition window — the seconds after they win the ball are where they hurt you; a slow reset gets punished.`);
     } else if (regains.every(x => x.t.endsWith("-AT"))) {
       read.push(opts.voice === "team"
-        ? `Each regain goal came against a set defence — patient work through an organised block, not just transition moments.`
-        : `Each regain goal came against a set defence — they can break down an organised block, sitting deep won't be enough.`);
+        ? `Each regain goal came against an organised defence — patient buildup, then the bravery to break the line when the moment arrived.`
+        : `Each regain goal came against an organised defence — they stay patient against a set block and break the line when the moment comes; sitting deep won't be enough.`);
     }
   }
 
