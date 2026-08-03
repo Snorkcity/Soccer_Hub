@@ -3098,6 +3098,7 @@ export interface InterviewWriteupRequest {
 export interface LastMeetingFactsResponse {
   facts: string[];
 }
+
 export interface WeekAheadBriefRequest {
   /** @minLength 1 */
   opponent: string;
@@ -3480,3 +3481,4 @@ seasonId: number;
  */
 opponent: string;
 };
+
