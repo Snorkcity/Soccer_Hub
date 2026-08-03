@@ -1957,6 +1957,8 @@ export default function SeasonStats() {
                       <TableHead className="h-8 py-1 text-right">W</TableHead>
                       <TableHead className="h-8 py-1 text-right">D</TableHead>
                       <TableHead className="h-8 py-1 text-right">L</TableHead>
+                      <TableHead className="h-8 py-1 text-right">F</TableHead>
+                      <TableHead className="h-8 py-1 text-right">A</TableHead>
                       <TableHead className="h-8 py-1 text-right">GD</TableHead>
                       <TableHead className="h-8 py-1 text-right font-bold">PTS</TableHead>
                       <TableHead className="h-8 py-1 pl-4">Form</TableHead>
@@ -1976,6 +1978,8 @@ export default function SeasonStats() {
                         <TableCell className="py-1.5 text-right">{entry.won}</TableCell>
                         <TableCell className="py-1.5 text-right">{entry.drawn}</TableCell>
                         <TableCell className="py-1.5 text-right">{entry.lost}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.goalsFor}</TableCell>
+                        <TableCell className="py-1.5 text-right">{entry.goalsAgainst}</TableCell>
                         <TableCell className="py-1.5 text-right">{entry.goalDiff > 0 ? `+${entry.goalDiff}` : entry.goalDiff}</TableCell>
                         <TableCell className="py-1.5 text-right font-bold">{entry.points}</TableCell>
                         <TableCell className="py-1.5 pl-4">
