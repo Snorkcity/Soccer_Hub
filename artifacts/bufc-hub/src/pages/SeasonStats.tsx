@@ -1976,7 +1976,7 @@ export default function SeasonStats() {
                         <TableCell className="py-1.5 text-right text-muted-foreground">{entry.won}</TableCell>
                         <TableCell className="py-1.5 text-right text-muted-foreground">{entry.drawn}</TableCell>
                         <TableCell className="py-1.5 text-right text-muted-foreground">{entry.lost}</TableCell>
-                        <TableCell className={cn("py-1.5 text-right font-medium", entry.goalDiff > 0 ? "text-[hsl(var(--chart-3))]" : entry.goalDiff < 0 ? "text-[hsl(var(--chart-4))]" : "text-muted-foreground")}>
+                        <TableCell className="py-1.5 text-right font-medium">
                           <RadixTooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-default underline decoration-dotted decoration-muted-foreground/40 underline-offset-2">
