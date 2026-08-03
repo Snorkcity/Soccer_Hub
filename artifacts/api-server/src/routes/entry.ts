@@ -38,6 +38,8 @@ import {
   ListEntryPlayerStatsQueryParams,
   ListEntryPlayerStatsResponse,
   DeleteEntryPlayerStatResponse,
+  UpdateEntryPlayerStatBody,
+  UpdateEntryPlayerStatResponse,
   DeleteEntryPlayerStatsQueryParams,
   DeleteEntryPlayerStatsResponse,
   ExtractPlayersFromImageBody,
@@ -663,6 +665,121 @@ router.delete("/entry/player-stats", async (req, res): Promise<void> => {
   });
 
   res.json(DeleteEntryPlayerStatsResponse.parse({ removed, belconnenRemoved }));
+});
+
+// ── Edit one saved player row (league row + Belconnen mirror copy) ──────────
+router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
+  const rowId = Number(req.params.rowId);
+  if (!Number.isInteger(rowId)) {
+    res.status(400).json({ error: "Invalid row id" });
+    return;
+  }
+  const body = UpdateEntryPlayerStatBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const edit = body.data;
+  if (edit.playerName === undefined && edit.minsPlayed === undefined && edit.started === undefined && edit.appearance === undefined) {
+    res.status(400).json({ error: "Nothing to change" });
+    return;
+  }
+
+  const [row] = await db.select().from(leaguePlayerStatsTable).where(eq(leaguePlayerStatsTable.id, rowId));
+  if (!row) {
+    res.status(404).json({ error: "That player row no longer exists" });
+    return;
+  }
+  if (row.seasonId == null) {
+    res.status(400).json({ error: "Row has no season — cannot safely mirror-edit" });
+    return;
+  }
+  if (!(await canEnterDataForSeason(req, row.seasonId))) {
+    res.status(403).json({ error: "You don't have data entry access for this league" });
+    return;
+  }
+
+  const newName = edit.playerName?.trim();
+  if (newName !== undefined && newName.length === 0) {
+    res.status(400).json({ error: "Player name can't be empty" });
+    return;
+  }
+  // Names are unique per club per match — renaming onto an existing teammate is a mistake.
+  if (newName !== undefined && newName !== row.playerName) {
+    const [clash] = await db
+      .select({ id: leaguePlayerStatsTable.id })
+      .from(leaguePlayerStatsTable)
+      .where(and(
+        eq(leaguePlayerStatsTable.seasonId, row.seasonId),
+        eq(leaguePlayerStatsTable.matchId, row.matchId),
+        eq(leaguePlayerStatsTable.club, row.club ?? ""),
+        eq(leaguePlayerStatsTable.playerName, newName),
+      ));
+    if (clash) {
+      res.status(409).json({ error: `"${newName}" is already saved for ${row.club} in this match` });
+      return;
+    }
+  }
+
+  const focusClub = await focusClubForRequest(req, row.seasonId);
+
+  // Status invariant: a starter always counts as an appearance. Check against
+  // the row's final (merged) values so partial patches can't sneak in an
+  // impossible combination.
+  const finalStarted = edit.started ?? row.started ?? false;
+  const finalAppearance = edit.appearance ?? row.appearance ?? false;
+  if (finalStarted && !finalAppearance) {
+    res.status(400).json({ error: "A player who started must also count as an appearance" });
+    return;
+  }
+
+  const patch: { playerName?: string; minsPlayed?: number | null; started?: boolean; appearance?: boolean } = {};
+  if (newName !== undefined) patch.playerName = newName;
+  if (edit.minsPlayed !== undefined) patch.minsPlayed = edit.minsPlayed;
+  if (edit.started !== undefined) patch.started = edit.started;
+  if (edit.appearance !== undefined) patch.appearance = edit.appearance;
+
+  const belconnenUpdated = await db.transaction(async (tx) => {
+    await tx.update(leaguePlayerStatsTable).set(patch).where(eq(leaguePlayerStatsTable.id, rowId));
+
+    const [fixture] = await tx
+      .select()
+      .from(leagueMatchesTable)
+      .where(and(eq(leagueMatchesTable.matchId, row.matchId), eq(leagueMatchesTable.seasonId, row.seasonId!)));
+    if (!fixture || (fixture.homeTeam !== focusClub && fixture.awayTeam !== focusClub)) return false;
+
+    const matchRows = await tx
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .where(and(eq(matchesTable.matchId, row.matchId), eq(matchesTable.seasonId, row.seasonId!)));
+    if (matchRows.length === 0) return false;
+
+    // Locate the legacy copy by matching every mirrored field against the row's
+    // OLD values (null-safe), same as the delete route — exact duplicates only.
+    const nullSafe = <T extends AnyColumn>(col: T, val: unknown) =>
+      val == null ? isNull(col) : eq(col, val as never);
+    const candidates = await tx
+      .select({ id: playerStatsTable.id })
+      .from(playerStatsTable)
+      .where(and(
+        inArray(playerStatsTable.matchId, matchRows.map(m => m.id)),
+        eq(playerStatsTable.playerName, row.playerName),
+        nullSafe(playerStatsTable.club, row.club),
+        nullSafe(playerStatsTable.minsPlayed, row.minsPlayed),
+        nullSafe(playerStatsTable.position, row.position),
+        nullSafe(playerStatsTable.discipline, row.discipline),
+        nullSafe(playerStatsTable.started, row.started),
+        nullSafe(playerStatsTable.appearance, row.appearance),
+      ));
+    if (candidates.length === 0) {
+      logger.warn({ leagueRowId: rowId, matchId: row.matchId }, "No matching Belconnen player-stats copy found to edit");
+      return false;
+    }
+    await tx.update(playerStatsTable).set(patch).where(eq(playerStatsTable.id, candidates[0].id));
+    return true;
+  });
+
+  res.json(UpdateEntryPlayerStatResponse.parse({ updated: true, belconnenUpdated }));
 });
 
 // ── Delete one saved player row (league row + Belconnen mirror copy) ─────────

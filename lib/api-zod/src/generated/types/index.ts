@@ -60,6 +60,8 @@ export * from './entryMatchBody';
 export * from './entryMatchResponse';
 export * from './entryPlayerRow';
 export * from './entryPlayerStatDeleteResponse';
+export * from './entryPlayerStatEditBody';
+export * from './entryPlayerStatEditResponse';
 export * from './entryPlayerStatsBody';
 export * from './entryPlayerStatsClearResponse';
 export * from './entryPlayerStatsResponse';

@@ -2797,6 +2797,32 @@ export const SaveEntryPlayerStatsResponse = zod.object({
 
 
 /**
+ * @summary Edit one saved player row (name, minutes, status) — updates the Belconnen mirror copy too when applicable
+ */
+export const UpdateEntryPlayerStatParams = zod.object({
+  "rowId": zod.coerce.number()
+})
+
+
+export const updateEntryPlayerStatBodyMinsPlayedMin = 0;
+export const updateEntryPlayerStatBodyMinsPlayedMax = 130;
+
+
+
+export const UpdateEntryPlayerStatBody = zod.object({
+  "playerName": zod.string().min(1).optional(),
+  "minsPlayed": zod.number().min(updateEntryPlayerStatBodyMinsPlayedMin).max(updateEntryPlayerStatBodyMinsPlayedMax).nullish(),
+  "started": zod.boolean().optional(),
+  "appearance": zod.boolean().optional()
+})
+
+export const UpdateEntryPlayerStatResponse = zod.object({
+  "updated": zod.boolean(),
+  "belconnenUpdated": zod.boolean()
+})
+
+
+/**
  * @summary Delete one saved player row (removes the Belconnen mirror copy too when applicable)
  */
 export const DeleteEntryPlayerStatParams = zod.object({

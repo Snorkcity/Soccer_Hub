@@ -50,6 +50,8 @@ import type {
   EntryMatchBody,
   EntryMatchResponse,
   EntryPlayerStatDeleteResponse,
+  EntryPlayerStatEditBody,
+  EntryPlayerStatEditResponse,
   EntryPlayerStatsBody,
   EntryPlayerStatsClearResponse,
   EntryPlayerStatsResponse,
@@ -7193,6 +7195,78 @@ export const useSaveEntryPlayerStats = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveEntryPlayerStatsMutationOptions(options));
+    }
+
+export const getUpdateEntryPlayerStatUrl = (rowId: number,) => {
+
+
+
+
+  return `/api/entry/player-stat/${rowId}`
+}
+
+/**
+ * @summary Edit one saved player row (name, minutes, status) — updates the Belconnen mirror copy too when applicable
+ */
+export const updateEntryPlayerStat = async (rowId: number,
+    entryPlayerStatEditBody: EntryPlayerStatEditBody, options?: RequestInit): Promise<EntryPlayerStatEditResponse> => {
+
+  return customFetch<EntryPlayerStatEditResponse>(getUpdateEntryPlayerStatUrl(rowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryPlayerStatEditBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateEntryPlayerStatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryPlayerStat>>, TError,{rowId: number;data: BodyType<EntryPlayerStatEditBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEntryPlayerStat>>, TError,{rowId: number;data: BodyType<EntryPlayerStatEditBody>}, TContext> => {
+
+const mutationKey = ['updateEntryPlayerStat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEntryPlayerStat>>, {rowId: number;data: BodyType<EntryPlayerStatEditBody>}> = (props) => {
+          const {rowId,data} = props ?? {};
+
+          return  updateEntryPlayerStat(rowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEntryPlayerStatMutationResult = NonNullable<Awaited<ReturnType<typeof updateEntryPlayerStat>>>
+    export type UpdateEntryPlayerStatMutationBody = BodyType<EntryPlayerStatEditBody>
+    export type UpdateEntryPlayerStatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Edit one saved player row (name, minutes, status) — updates the Belconnen mirror copy too when applicable
+ */
+export const useUpdateEntryPlayerStat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryPlayerStat>>, TError,{rowId: number;data: BodyType<EntryPlayerStatEditBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEntryPlayerStat>>,
+        TError,
+        {rowId: number;data: BodyType<EntryPlayerStatEditBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateEntryPlayerStatMutationOptions(options));
     }
 
 export const getDeleteEntryPlayerStatUrl = (rowId: number,) => {

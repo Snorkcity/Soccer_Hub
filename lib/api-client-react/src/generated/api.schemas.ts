@@ -2115,6 +2115,23 @@ export interface EntryPlayerStatDeleteResponse {
   belconnenDeleted: boolean;
 }
 
+export interface EntryPlayerStatEditBody {
+  /** @minLength 1 */
+  playerName?: string;
+  /**
+     * @minimum 0
+     * @maximum 130
+     */
+  minsPlayed?: number | null;
+  started?: boolean;
+  appearance?: boolean;
+}
+
+export interface EntryPlayerStatEditResponse {
+  updated: boolean;
+  belconnenUpdated: boolean;
+}
+
 export interface EntryPlayerStatsClearResponse {
   removed: number;
   belconnenRemoved: number;

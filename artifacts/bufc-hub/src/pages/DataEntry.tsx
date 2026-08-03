@@ -28,6 +28,7 @@ import {
   useListEntryPlayerStats,
   getListEntryPlayerStatsQueryKey,
   useDeleteEntryPlayerStat,
+  useUpdateEntryPlayerStat,
   useDeleteEntryPlayerStats,
   useExtractPlayersFromImage,
   useSaveEntryAthleticTests,
@@ -71,7 +72,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
+import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Pencil, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 
@@ -713,6 +714,36 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     onError: (e) => setErr(errMsg(e)),
   }});
 
+  // Inline edit of a saved row (fix a name the sync brought in wrong, etc.)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editMins, setEditMins] = useState("");
+  const [editStatus, setEditStatus] = useState<"started" | "bench" | "unused">("started");
+  const startEdit = (p: { id: number; playerName: string; minsPlayed: number | null; started: boolean; appearance: boolean }) => {
+    setEditingId(p.id);
+    setEditName(p.playerName);
+    setEditMins(p.minsPlayed == null ? "" : String(p.minsPlayed));
+    setEditStatus(p.started ? "started" : p.appearance ? "bench" : "unused");
+  };
+  const updateSaved = useUpdateEntryPlayerStat({ mutation: {
+    onSuccess: (res) => {
+      invalidatePlayerQueries();
+      setEditingId(null);
+      setOk(`Player updated${res.belconnenUpdated ? " (Belconnen copy updated too)" : ""}`);
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+  const saveEdit = () => {
+    if (editingId == null || !editName.trim()) return;
+    setOk(null); setErr(null);
+    updateSaved.mutate({ rowId: editingId, data: {
+      playerName: editName.trim(),
+      minsPlayed: editMins.trim() === "" ? null : Number(editMins),
+      started: editStatus === "started",
+      appearance: editStatus !== "unused",
+    }});
+  };
+
   const [confirmClear, setConfirmClear] = useState(false);
   const removeAll = useDeleteEntryPlayerStats({ mutation: {
     onSuccess: (res) => {
@@ -850,6 +881,33 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
               )}
             </div>
             {savedPlayers.rows.map(p => (
+              editingId === p.id ? (
+                <div key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm bg-muted/30">
+                  <Input
+                    value={editName} onChange={e => setEditName(e.target.value)}
+                    className="h-8 w-44 text-sm" placeholder="Player name" autoFocus
+                    onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingId(null); }}
+                  />
+                  <Input
+                    value={editMins} onChange={e => setEditMins(e.target.value.replace(/[^0-9]/g, ""))}
+                    className="h-8 w-20 text-sm" placeholder="Mins" inputMode="numeric"
+                  />
+                  <Select value={editStatus} onValueChange={v => setEditStatus(v as typeof editStatus)}>
+                    <SelectTrigger className="h-8 w-32 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="started">Started</SelectItem>
+                      <SelectItem value="bench">Off bench</SelectItem>
+                      <SelectItem value="unused">Didn't play</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center gap-1.5 ml-auto">
+                    <Button size="sm" className="h-8 text-xs" disabled={updateSaved.isPending || !editName.trim()} onClick={saveEdit}>
+                      {updateSaved.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </span>
+                </div>
+              ) : (
               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                 <span className="font-medium">{p.playerName}</span>
                 <span className="text-xs text-muted-foreground">
@@ -861,12 +919,21 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                 <Button
                   variant="ghost" size="icon"
                   className="h-7 w-7 ml-auto text-muted-foreground"
+                  disabled={updateSaved.isPending}
+                  onClick={() => { setOk(null); setErr(null); startEdit(p); }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 text-muted-foreground"
                   disabled={removeSaved.isPending}
                   onClick={() => { setOk(null); setErr(null); removeSaved.mutate({ rowId: p.id }); }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
+              )
             ))}
           </div>
         )}
