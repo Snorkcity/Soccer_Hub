@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { FileDown, Loader2, Copy, Trash2, Sparkles } from "lucide-react";
 import { KIND_DEFS, parseEntryDate, type JournalStandaloneKind } from "@/lib/journalFields";
+import { openAiQuotaMessage } from "@/lib/openaiQuota";
 
 /** Parse a match date that may be dd.mm.yyyy or ISO; NaN-safe. */
 function parseMatchDate(raw: string | null | undefined): number {
@@ -418,10 +419,10 @@ export default function WeekAheadCard() {
       });
       await refreshList();
       toast({ title: "Briefing created and saved", description: "Download it from the list below." });
-    } catch {
+    } catch (e) {
       toast({
         title: "Couldn't draft the briefing",
-        description: "Check your connection and try again.",
+        description: openAiQuotaMessage(e) ?? "Check your connection and try again.",
         variant: "destructive",
       });
     } finally {

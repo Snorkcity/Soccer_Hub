@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Mic, PenLine, SkipForward, Square, Volume2 } from "lucide-react";
 import type { JournalKindDef } from "@/lib/journalFields";
+import { openAiQuotaMessage } from "@/lib/openaiQuota";
 
 type Stage =
   | "intro"        // ready to start
@@ -413,12 +414,12 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
           await nextField();
           break;
       }
-    } catch {
+    } catch (e) {
       if (!stale(token)) {
         setStage("ready");
         toast({
           title: "That didn't go through",
-          description: "Check your connection and try recording again.",
+          description: openAiQuotaMessage(e) ?? "Check your connection and try recording again.",
           variant: "destructive",
         });
       }
@@ -478,10 +479,13 @@ export default function InterviewDialog({ open, onOpenChange, def, onComplete, o
       }
       onComplete(res.content, entryDateRef.current);
       onOpenChange(false);
-    } catch {
+    } catch (e) {
       if (!stale(token)) {
         setStage("error");
-        setPrompt("The write-up failed. Your answers are safe — try finishing again.");
+        setPrompt(
+          openAiQuotaMessage(e) ??
+            "The write-up failed. Your answers are safe — try finishing again.",
+        );
       }
     }
   }

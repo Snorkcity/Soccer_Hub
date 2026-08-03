@@ -31,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, parse, isValid } from "date-fns";
 import type { PitchPlayer, SetPieceGroup, UnitObjectives } from "@/lib/prematchPptx";
 import WeekAheadCard from "@/components/WeekAheadCard";
+import { openAiQuotaMessage } from "@/lib/openaiQuota";
 
 // ── Formations ────────────────────────────────────────────────────────────
 // px 0–1 across (0 = left touchline), py 0–1 down (0 = attacking goal).
@@ -420,7 +421,7 @@ export default function MatchPrep() {
       setD((p) => ({ ...p, bp: brief.bp, bpo: brief.bpo }));
       toast({ title: "Objectives drafted", description: "Edit any line before downloading the deck." });
     } catch (e) {
-      toast({ title: "Couldn't draft objectives", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+      toast({ title: "Couldn't draft objectives", description: openAiQuotaMessage(e) ?? (e instanceof Error ? e.message : "Try again."), variant: "destructive" });
     } finally {
       setDrafting(false);
     }

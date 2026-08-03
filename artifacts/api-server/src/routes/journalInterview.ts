@@ -53,6 +53,21 @@ function safeJsonParse(raw: unknown): Record<string, unknown> {
   }
 }
 
+/** The coach's OpenAI account has run out of credits (429 insufficient_quota). */
+export class OpenAiQuotaError extends Error {
+  constructor() {
+    super("Your OpenAI account has no credits left — top up at platform.openai.com.");
+    this.name = "OpenAiQuotaError";
+  }
+}
+
+/** Throw the specific quota error when OpenAI says the account is out of credits. */
+function throwIfQuota(status: number, bodyText: string): void {
+  if (status === 429 && bodyText.includes("insufficient_quota")) {
+    throw new OpenAiQuotaError();
+  }
+}
+
 async function openaiJson(path: string, body: unknown, key: string): Promise<any> {
   const r = await fetch(`${OPENAI_BASE}${path}`, {
     method: "POST",
@@ -61,6 +76,7 @@ async function openaiJson(path: string, body: unknown, key: string): Promise<any
   });
   if (!r.ok) {
     const text = await r.text();
+    throwIfQuota(r.status, text);
     throw new Error(`OpenAI ${path} failed (${r.status}): ${text.slice(0, 300)}`);
   }
   return r.json();
@@ -80,6 +96,7 @@ async function transcribe(audioBase64: string, mimeType: string, key: string): P
   });
   if (!r.ok) {
     const text = await r.text();
+    throwIfQuota(r.status, text);
     throw new Error(`OpenAI transcription failed (${r.status}): ${text.slice(0, 300)}`);
   }
   const json = (await r.json()) as { text?: string };
@@ -121,6 +138,7 @@ router.post("/journal/interview/speak", async (req, res, next) => {
     });
     if (!r.ok) {
       const text = await r.text();
+      throwIfQuota(r.status, text);
       throw new Error(`OpenAI TTS failed (${r.status}): ${text.slice(0, 300)}`);
     }
     const audio = Buffer.from(await r.arrayBuffer());
@@ -565,5 +583,21 @@ Return JSON: {"review": string[], "pointers": string[]}.
     return next(err);
   }
 });
+
+// Router-level error handler: turn an out-of-credits OpenAI account into a
+// specific, user-facing message instead of a generic 500.
+router.use(
+  (
+    err: unknown,
+    _req: import("express").Request,
+    res: import("express").Response,
+    next: import("express").NextFunction,
+  ) => {
+    if (err instanceof OpenAiQuotaError) {
+      return res.status(402).json({ error: err.message });
+    }
+    return next(err);
+  },
+);
 
 export default router;
