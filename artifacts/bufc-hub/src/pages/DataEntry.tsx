@@ -730,6 +730,15 @@ type EditableRow = EntryPlayerRow;
 
 const POSITIONS = ["GK", "LB", "RB", "CB", "LWB", "RWB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "ST", "F"] as const;
 
+// Group position codes into the same units the GPS Positions tab uses.
+const POSITION_UNITS: Record<string, string> = {
+  GK: "GK",
+  LB: "Defender", RB: "Defender", CB: "Defender", LWB: "Defender", RWB: "Defender",
+  DM: "Midfielder", CM: "Midfielder", AM: "Midfielder", LM: "Midfielder", RM: "Midfielder",
+  LW: "Forward", RW: "Forward", ST: "Forward", F: "Forward",
+};
+const unitFor = (pos: string): string | null => POSITION_UNITS[pos] ?? null;
+
 function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   teamId: number; seasonId: number; leagueId: number; fixtures: LeagueMatchInfo[];
 }) {
@@ -1009,7 +1018,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                   {p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
                   {p.minsPlayed != null ? ` · ${p.minsPlayed} mins` : ""}
                   {p.position
-                    ? ` · ${p.position}`
+                    ? (() => { const u = unitFor(p.position); return u && u !== p.position ? ` · ${p.position} (${u})` : ` · ${p.position}`; })()
                     : (() => { const d = assignedPositionFor(p.playerName); return d ? ` · ${d} (usual)` : ""; })()}
                 </span>
                 {p.discipline && <Badge variant="outline" className="text-xs">{p.discipline}</Badge>}
