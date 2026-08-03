@@ -120,7 +120,7 @@ router.post("/journal/interview/speak", async (req, res, next) => {
   try {
     const key = apiKey();
     if (!key) return noKey(res);
-    const parsed = JournalInterviewSpeakBody.safeParse(req.body);
+    const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
     const r = await fetch(`${OPENAI_BASE}/audio/speech`, {
@@ -153,7 +153,7 @@ router.post("/journal/interview/turn", async (req, res, next) => {
   try {
     const key = apiKey();
     if (!key) return noKey(res);
-    const parsed = JournalInterviewTurnBody.safeParse(req.body);
+    const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
     const { phase, question, hint, priorAnswer, probeUsed, audioBase64, audioMimeType, mode } =
       parsed.data;
@@ -187,15 +187,18 @@ router.post("/journal/interview/turn", async (req, res, next) => {
           messages: [
             {
               role: "system",
-              content: `Today is ${todayLong} (Canberra, Australia). A football coach was asked when a training session or game took place. Resolve his spoken reply to a calendar date IN THE PAST OR TODAY (day references like "Tuesday" mean the most recent such day, today included).
-Return JSON: {"date": "dd.mm.yyyy" | null}. Use null only if the reply gives no usable day/date.`,
+              content: `You are interviewing a football coach for his reflection journal. He just answered a question. Decide if ONE short, gentle follow-up probe would clearly draw out something valuable he hinted at but didn't expand on. Only probe if the answer is thin or clearly leaves an interesting thread hanging — a solid answer needs no probe.
+Return JSON: {"probe": string | null}. The probe must be a single conversational question, max 20 words, in plain spoken English.`,
             },
-            { role: "user", content: transcript },
+            {
+              role: "user",
+              content: `Question: ${question}${hint ? `\n(Context for the question: ${hint})` : ""}${priorAnswer ? `\nEarlier part of his answer: ${priorAnswer}` : ""}\n\nHis answer: ${transcript}`,
+            },
           ],
         },
         key,
       );
-      const out = safeJsonParse(judge?.choices?.[0]?.message?.content);
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
       const dateResolved =
         typeof out.date === "string" && /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(out.date.trim())
           ? out.date.trim()
@@ -214,18 +217,18 @@ Return JSON: {"date": "dd.mm.yyyy" | null}. Use null only if the reply gives no 
           messages: [
             {
               role: "system",
-              content: `A football coach was just asked a short check-in like "Anything to add?" or "Anything more on that one?" (meaning: add more, or move to the next question) after answering an interview question. Classify his spoken reply.
-Return JSON: {"decision": "next" | "continue", "hasSubstance": boolean}.
-"next" = he is happy to move on (e.g. "no that's it", "next", "move on", "all good").
-"continue" = he wants to add more or is already adding more content.
-"hasSubstance" = true if the reply itself contains real additional answer content (not just "yes I want to add something").`,
+              content: `You are interviewing a football coach for his reflection journal. He just answered a question. Decide if ONE short, gentle follow-up probe would clearly draw out something valuable he hinted at but didn't expand on. Only probe if the answer is thin or clearly leaves an interesting thread hanging — a solid answer needs no probe.
+Return JSON: {"probe": string | null}. The probe must be a single conversational question, max 20 words, in plain spoken English.`,
             },
-            { role: "user", content: `Question was: ${question}\n\nHis reply: ${transcript}` },
+            {
+              role: "user",
+              content: `Question: ${question}${hint ? `\n(Context for the question: ${hint})` : ""}${priorAnswer ? `\nEarlier part of his answer: ${priorAnswer}` : ""}\n\nHis answer: ${transcript}`,
+            },
           ],
         },
         key,
       );
-      const out = safeJsonParse(judge?.choices?.[0]?.message?.content);
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
       // Fallback on model drift: treat as "he has more to say" with substance,
       // so nothing he said is ever dropped.
       const decision = out.decision === "next" ? "next" : "continue";
@@ -262,7 +265,7 @@ Return JSON: {"probe": string | null}. The probe must be a single conversational
         },
         key,
       );
-      const out = safeJsonParse(judge?.choices?.[0]?.message?.content);
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
       // Fallback on model drift: no probe, straight to confirm.
       if (typeof out.probe === "string" && out.probe.trim()) {
         return res.json({ transcript, action: "probe", say: out.probe.trim() });
@@ -279,7 +282,7 @@ router.post("/journal/interview/writeup", async (req, res, next) => {
   try {
     const key = apiKey();
     if (!key) return noKey(res);
-    const parsed = JournalInterviewWriteupBody.safeParse(req.body);
+    const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
     const { qa, title } = parsed.data;
 
@@ -299,20 +302,15 @@ router.post("/journal/interview/writeup", async (req, res, next) => {
         messages: [
           {
             role: "system",
-            content: `${COACH_STYLE}
-
-The coach answered journal questions out loud in an interview. Turn each spoken answer into written journal content for that field.
-Rules:
-- Return JSON: an object whose keys are EXACTLY the fieldIds given, values are the written-up text.
-- Stay faithful to what he said — tidy the spoken language (remove filler, false starts, repetition) but keep his meaning, examples and personality.
-- Short fields (names, scores, codes, venues, times) should be just the value, not a sentence.
-- If he gave no usable answer for a field, return an empty string for it.
-- Length should match what he said: a short answer stays short. Do not pad.`,
+            content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
+Return JSON: {"review": string[], "pointers": string[]}.
+- "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+- If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice. When the input includes our match plan from our most recent game, carry forward anything still relevant rather than starting from scratch.
+- Use the club's principles-of-play vocabulary where it fits naturally — specifically the U16+/senior phase language, since this app serves U18s and above: patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, dominate transitions through anticipation, not reaction; losing the ball is a collective emergency ("lose it — close it"); stay compact vertically and horizontally, reduce the space between the lines, compact when we lose it; control the tempo — accelerate or secure; fast brain, calm feet. Never force a term where it doesn't fit the facts.
+- Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
           },
-          {
-            role: "user",
-            content: `Journal block: ${title ?? parsed.data.kind}\n\n${qaText}`,
-          },
+          { role: "user", content: sections || "(no input provided)" },
         ],
       },
       key,
@@ -341,14 +339,25 @@ router.post("/journal/prematch-brief", async (req, res, next) => {
   try {
     const key = apiKey();
     if (!key) return noKey(res);
-    const parsed = CreatePrematchBriefBody.safeParse(req.body);
+    const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
     const { opponent, formation, gamePlanNotes, scoutText } = parsed.data;
 
     const sections = [
-      formation ? `## Our formation\n${formation}` : "",
-      gamePlanNotes ? `## The coach's game plan notes for this match\n${gamePlanNotes}` : "",
-      scoutText ? `## Scout data on ${opponent}\n${scoutText}` : "",
+      reflectionsText ? `## The coach's recent reflections\n${reflectionsText}` : "",
+      lastMeeting.length
+        ? `## What actually happened last time we played ${opponent} this season\n${lastMeeting.join("\n")}`
+        : "",
+      lastVsOpponentText
+        ? `## His match reflection from the last time we played ${opponent}\n${lastVsOpponentText}`
+        : "",
+      lastMeetingText
+        ? `## What actually happened last time we played ${opponent} (recorded match facts)\n${lastMeetingText}`
+        : "",
+      lastReportText ? `## Our most recent match report (analyst's read of our last game)\n${lastReportText}` : "",
+      prevDeck ? `## Our match plan from our most recent game\n${prevDeck}` : "",
+      theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
+      ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -363,16 +372,15 @@ router.post("/journal/prematch-brief", async (req, res, next) => {
         messages: [
           {
             role: "system",
-            content: `You are the head coach of Belconnen United (NPLW football) writing key objectives for the players' pre-match briefing. This week's opponent: ${opponent}.
-Coaching identity: controlled positional play (Guardiola-style) — passionate but calm, very detail-specific. We control tempo, keep the ball, create through patience and positioning.
-Return JSON: {"bp": ${unitShape}, "bpo": ${unitShape}}.
-- "bp" = with the ball (in possession). "bpo" = without the ball (out of possession).
-- "theme": one short headline line for that phase (e.g. "Control the tempo. Keep them under pressure.").
-- Each unit (gk/defenders/midfielders/attackers): exactly 2 bullets, direct address to the players ("Stay composed — your calmness sets our tempo.").
-- Punchy and simple — players must not be overloaded. Each bullet under 18 words. Plain spoken Australian English (defence, organisation), no jargon beyond common football terms (6, 8, 10, press, block).
-- Ground bullets in the coach's notes and scout data where given; never invent facts about the opponent.`,
+            content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
+Return JSON: {"review": string[], "pointers": string[]}.
+- "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+- If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice. When the input includes our match plan from our most recent game, carry forward anything still relevant rather than starting from scratch.
+- Use the club's principles-of-play vocabulary where it fits naturally — specifically the U16+/senior phase language, since this app serves U18s and above: patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, dominate transitions through anticipation, not reaction; losing the ball is a collective emergency ("lose it — close it"); stay compact vertically and horizontally, reduce the space between the lines, compact when we lose it; control the tempo — accelerate or secure; fast brain, calm feet. Never force a term where it doesn't fit the facts.
+- Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
           },
-          { role: "user", content: sections || "(no extra input — write from the coaching identity)" },
+          { role: "user", content: sections || "(no input provided)" },
         ],
       },
       key,
@@ -511,9 +519,7 @@ export async function previousDeckText(leagueId: number): Promise<string | null>
   return parts.join("\n").slice(0, 2000);
 }
 
-// POST /journal/week-ahead-brief — review bullets + prep pointers for the Monday report
-router.post("/journal/week-ahead-brief", async (req, res, next) => {
-  try {
+    const seasonId = Number(req.query.seasonId);
     const key = apiKey();
     if (!key) return noKey(res);
     const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
@@ -601,3 +607,7 @@ router.use(
 );
 
 export default router;
+
+    const opponent = typeof req.query.opponent === "string" ? req.query.opponent.trim() : "";
+
+    const facts = await lastMeetingFacts(seasonId, opponent);

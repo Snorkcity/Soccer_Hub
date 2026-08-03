@@ -75,6 +75,7 @@ import type {
   GetGoalsByIntervalParams,
   GetGoalsByOpponentParams,
   GetGpsLoadSummaryParams,
+  GetLastMeetingFactsParams,
   GetLeagueLadderParams,
   GetMatchReportParams,
   GetOpponentClubsParams,
@@ -139,6 +140,7 @@ import type {
   JournalReflectionCreateRequest,
   JournalReflectionUpdateRequest,
   LadderEntry,
+  LastMeetingFactsResponse,
   LeagueInfo,
   LeagueInput,
   LeagueMatchInfo,
@@ -10824,6 +10826,90 @@ export const useJournalInterviewTurn = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getJournalInterviewTurnMutationOptions(options));
     }
+
+export const getGetLastMeetingFactsUrl = (params: GetLastMeetingFactsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/journal/last-meeting?${stringifiedParams}` : `/api/journal/last-meeting`
+}
+
+/**
+ * @summary Headline facts from the last league meeting vs an opponent this season
+ */
+export const getLastMeetingFacts = async (params: GetLastMeetingFactsParams, options?: RequestInit): Promise<LastMeetingFactsResponse> => {
+
+  return customFetch<LastMeetingFactsResponse>(getGetLastMeetingFactsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLastMeetingFactsQueryKey = (params?: GetLastMeetingFactsParams,) => {
+    return [
+    `/api/journal/last-meeting`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLastMeetingFactsQueryOptions = <TData = Awaited<ReturnType<typeof getLastMeetingFacts>>, TError = ErrorType<unknown>>(params: GetLastMeetingFactsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLastMeetingFacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLastMeetingFactsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLastMeetingFacts>>> = ({ signal }) => getLastMeetingFacts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLastMeetingFacts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLastMeetingFactsQueryResult = NonNullable<Awaited<ReturnType<typeof getLastMeetingFacts>>>
+export type GetLastMeetingFactsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Headline facts from the last league meeting vs an opponent this season
+ */
+
+export function useGetLastMeetingFacts<TData = Awaited<ReturnType<typeof getLastMeetingFacts>>, TError = ErrorType<unknown>>(
+ params: GetLastMeetingFactsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLastMeetingFacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLastMeetingFactsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCreateWeekAheadBriefUrl = () => {
 

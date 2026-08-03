@@ -12,6 +12,8 @@ import {
   getListJournalReflectionsQueryKey,
   useListMatchPrepReports,
   getListMatchPrepReportsQueryKey,
+  useGetLastMeetingFacts,
+  getGetLastMeetingFactsQueryKey,
   createMatchPrepReport,
   deleteMatchPrepReport,
   listMatches,
@@ -241,6 +243,18 @@ export default function WeekAheadCard() {
   const [weekRound, setWeekRound] = useState("");
   const [weekDate, setWeekDate] = useState(""); // yyyy-mm-dd from the date input
   const [drafting, setDrafting] = useState(false);
+  // "Last time we met" panel — the same facts the briefing prompt and PPTX
+  // use, shown as soon as an opponent is picked so he can sanity-check them.
+  const lastMeetingParams = { seasonId: seasonId ?? 0, opponent: weekOpp };
+  const { data: lastMeetingData, isLoading: lastMeetingLoading } = useGetLastMeetingFacts(
+    lastMeetingParams,
+    {
+      query: {
+        queryKey: getGetLastMeetingFactsQueryKey(lastMeetingParams),
+        enabled: seasonId != null && !!weekOpp,
+      },
+    },
+  );
   // Which saved row is currently building its PowerPoint (row spinner).
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -523,6 +537,29 @@ export default function WeekAheadCard() {
             )}
           </Button>
         </div>
+
+        {weekOpp && (
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Last time we met
+            </p>
+            {lastMeetingLoading ? (
+              <p className="text-muted-foreground flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…
+              </p>
+            ) : lastMeetingData && lastMeetingData.facts.length > 0 ? (
+              <ul className="space-y-0.5">
+                {lastMeetingData.facts.map((line, i) => (
+                  <li key={i} className={i === 0 ? "font-medium" : "text-muted-foreground"}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground">First meeting this season.</p>
+            )}
+          </div>
+        )}
 
         {mondayReports.length > 0 && (
           <div className="space-y-1.5 pt-1">

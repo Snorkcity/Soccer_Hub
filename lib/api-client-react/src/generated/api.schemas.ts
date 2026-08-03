@@ -3095,6 +3095,9 @@ export interface InterviewWriteupRequest {
   qa: InterviewWriteupRequestQaItem[];
 }
 
+export interface LastMeetingFactsResponse {
+  facts: string[];
+}
 export interface WeekAheadBriefRequest {
   /** @minLength 1 */
   opponent: string;
@@ -3470,3 +3473,10 @@ export type SaveGpsCoachEmails200 = {
   saved: number;
 };
 
+export type GetLastMeetingFactsParams = {
+seasonId: number;
+/**
+ * @minLength 1
+ */
+opponent: string;
+};

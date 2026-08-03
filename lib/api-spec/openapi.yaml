@@ -2922,6 +2922,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/InterviewTurnResponse"
 
+  /journal/last-meeting:
+    get:
+      operationId: getLastMeetingFacts
+      tags: [journal]
+      summary: Headline facts from the last league meeting vs an opponent this season
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: opponent
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Fact lines (empty when it's the first meeting of the season)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LastMeetingFactsResponse"
+
   /journal/week-ahead-brief:
     post:
       operationId: createWeekAheadBrief
@@ -5791,6 +5813,16 @@ components:
                 items: { type: string }
             required: [fieldId, label, answers]
       required: [kind, qa]
+
+    LastMeetingFactsResponse:
+      type: object
+      properties:
+        # Same lines lastMeetingFacts() feeds into the AI prompt and the PPTX,
+        # so the on-screen panel always agrees with the generated briefing.
+        facts:
+          type: array
+          items: { type: string }
+      required: [facts]
 
     WeekAheadBriefRequest:
       type: object

@@ -776,9 +776,6 @@ export const SaveGpsPlayerEmailsResponse = zod.object({
 export const sendGpsReportEmailBodyFromMin = 3;
 
 
-
-
-
 export const SendGpsReportEmailBody = zod.object({
   "to": zod.string(),
   "subject": zod.string().min(1),
@@ -2485,7 +2482,6 @@ export const updateEntryGoalBodyGoalXMax = 100;
 export const updateEntryGoalBodyGoalYMin = 0;
 
 
-
 export const UpdateEntryGoalBody = zod.object({
   "scorerTeam": zod.string().min(1),
   "minuteScored": zod.number().min(updateEntryGoalBodyMinuteScoredMin).max(updateEntryGoalBodyMinuteScoredMax).nullish(),
@@ -2526,8 +2522,6 @@ export const DeleteEntryGoalResponse = zod.object({
  */
 
 
-
-
 export const createEntryMatchBodyHomeGoalsMin = 0;
 
 export const createEntryMatchBodyAwayGoalsMin = 0;
@@ -2542,7 +2536,6 @@ export const createEntryMatchBodyPassesMin = 0;
 export const createEntryMatchBodyOppShotsMin = 0;
 
 export const createEntryMatchBodyOppPassesMin = 0;
-
 
 
 export const CreateEntryMatchBody = zod.object({
@@ -2585,7 +2578,6 @@ export const createEntryGoalBodyGoalXMin = 0;
 export const createEntryGoalBodyGoalXMax = 100;
 
 export const createEntryGoalBodyGoalYMin = 0;
-
 
 
 export const CreateEntryGoalBody = zod.object({
@@ -2635,7 +2627,6 @@ export const assembleDriblPreviewBodyFixturesMax = 2000;
 export const assembleDriblPreviewBodyMatchCentresMax = 500;
 
 export const assembleDriblPreviewBodyLineupsMax = 1000;
-
 
 
 export const AssembleDriblPreviewBody = zod.object({
@@ -2835,10 +2826,8 @@ export const DeleteEntryPlayerStatsResponse = zod.object({
  */
 
 
-
 export const saveEntryPlayerStatsBodyRowsItemMinsPlayedMin = 0;
 export const saveEntryPlayerStatsBodyRowsItemMinsPlayedMax = 130;
-
 
 
 export const SaveEntryPlayerStatsBody = zod.object({
@@ -2878,7 +2867,6 @@ export const updateEntryPlayerStatBodyMinsPlayedMin = 0;
 export const updateEntryPlayerStatBodyMinsPlayedMax = 130;
 
 
-
 export const UpdateEntryPlayerStatBody = zod.object({
   "playerName": zod.string().min(1).optional(),
   "minsPlayed": zod.number().min(updateEntryPlayerStatBodyMinsPlayedMin).max(updateEntryPlayerStatBodyMinsPlayedMax).nullish(),
@@ -2910,7 +2898,6 @@ export const DeleteEntryPlayerStatResponse = zod.object({
  */
 
 
-
 export const ExtractPlayersFromImageBody = zod.object({
   "imageBase64": zod.string().min(1),
   "club": zod.string().nullish(),
@@ -2920,7 +2907,6 @@ export const ExtractPlayersFromImageBody = zod.object({
 
 export const extractPlayersFromImageResponseRowsItemMinsPlayedMin = 0;
 export const extractPlayersFromImageResponseRowsItemMinsPlayedMax = 130;
-
 
 
 export const ExtractPlayersFromImageResponse = zod.object({
@@ -3009,8 +2995,6 @@ export const SaveEntryAthleticTestsResponse = zod.object({
  */
 
 
-
-
 export const SaveEntryGpsSessionsBody = zod.object({
   "leagueId": zod.number(),
   "year": zod.string(),
@@ -3070,7 +3054,6 @@ export const listLibraryPracticesResponseReviewCropsItemWMin = 20;
 export const listLibraryPracticesResponseReviewCropsItemHMin = 20;
 
 export const listLibraryPracticesResponseReviewCropsMax = 6;
-
 
 
 export const ListLibraryPracticesResponseItem = zod.object({
@@ -3166,7 +3149,6 @@ export const uploadLibraryPracticeBodyCropsItemHMin = 20;
 export const uploadLibraryPracticeBodyCropsMax = 6;
 
 
-
 export const UploadLibraryPracticeBody = zod.object({
   "title": zod.string().min(1).max(uploadLibraryPracticeBodyTitleMax),
   "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame']),
@@ -3208,7 +3190,6 @@ export const reviewLibraryPracticeBodyCropsItemHMin = 20;
 export const reviewLibraryPracticeBodyCropsMax = 6;
 
 
-
 export const ReviewLibraryPracticeBody = zod.object({
   "part": zod.enum(['warmup', 'activation', 'introduction', 'main', 'endgame', 'unusable']),
   "tags": zod.array(zod.string().max(reviewLibraryPracticeBodyTagsItemMax)).max(reviewLibraryPracticeBodyTagsMax),
@@ -3223,7 +3204,6 @@ export const ReviewLibraryPracticeBody = zod.object({
 export const reviewLibraryPracticeResponseReviewCropsItemWMin = 20;
 
 export const reviewLibraryPracticeResponseReviewCropsItemHMin = 20;
-
 
 
 export const ReviewLibraryPracticeResponse = zod.object({
@@ -3265,7 +3245,6 @@ export const CreateSessionBody = zod.object({
 export const createSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
 export const createSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
-
 
 
 export const CreateSessionResponse = zod.object({
@@ -3319,7 +3298,6 @@ export const generateSessionBodyMinutesMin = 30;
 export const generateSessionBodyMinutesMax = 180;
 
 
-
 export const GenerateSessionBody = zod.object({
   "theme": zod.string().min(generateSessionBodyThemeMin).describe('What the session trains, e.g. \'pressing from a mid block\''),
   "players": zod.number().min(generateSessionBodyPlayersMin).max(generateSessionBodyPlayersMax).optional(),
@@ -3332,7 +3310,6 @@ export const GenerateSessionBody = zod.object({
 export const generateSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
 export const generateSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
-
 
 
 export const GenerateSessionResponse = zod.object({
@@ -3384,7 +3361,6 @@ export const GetSessionParams = zod.object({
 export const getSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
 export const getSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
-
 
 
 export const GetSessionResponse = zod.object({
@@ -3449,7 +3425,6 @@ export const UpdateSessionBody = zod.object({
 export const updateSessionResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
 export const updateSessionResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
-
 
 
 export const UpdateSessionResponse = zod.object({
@@ -3529,7 +3504,6 @@ export const upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin = 
 export const upsertSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
 
 
-
 export const UpsertSessionPartResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
@@ -3580,7 +3554,6 @@ export const ClearSessionPartParams = zod.object({
 export const clearSessionPartResponsePartsItemPracticeOneReviewCropsItemWMin = 20;
 
 export const clearSessionPartResponsePartsItemPracticeOneReviewCropsItemHMin = 20;
-
 
 
 export const ClearSessionPartResponse = zod.object({
@@ -3646,7 +3619,6 @@ export const ListJournalCyclesResponse = zod.array(ListJournalCyclesResponseItem
  */
 
 export const createJournalCycleBodyWeeksCountMax = 12;
-
 
 
 export const CreateJournalCycleBody = zod.object({
@@ -3719,7 +3691,6 @@ export const UpdateJournalCycleParams = zod.object({
 
 
 export const updateJournalCycleBodyWeeksCountMax = 12;
-
 
 
 export const UpdateJournalCycleBody = zod.object({
@@ -3906,7 +3877,6 @@ export const ListMatchPrepReportsResponse = zod.array(ListMatchPrepReportsRespon
  */
 
 
-
 export const CreateMatchPrepReportBody = zod.object({
   "leagueId": zod.number(),
   "kind": zod.enum(['monday', 'friday']),
@@ -3935,8 +3905,6 @@ export const CreateMatchPrepReportResponse = zod.object({
 export const UpdateMatchPrepReportParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const UpdateMatchPrepReportBody = zod.object({
@@ -3997,7 +3965,6 @@ export const ListGpsMatchReportsResponse = zod.array(ListGpsMatchReportsResponse
  */
 
 
-
 export const CreateGpsMatchReportBody = zod.object({
   "leagueId": zod.number(),
   "title": zod.string().min(1),
@@ -4026,8 +3993,6 @@ export const CreateGpsMatchReportResponse = zod.object({
 export const UpdateGpsMatchReportParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const UpdateGpsMatchReportBody = zod.object({
@@ -4088,7 +4053,6 @@ export const ListMatchReportsResponse = zod.array(ListMatchReportsResponseItem)
  */
 
 
-
 export const CreateMatchReportBody = zod.object({
   "leagueId": zod.number(),
   "title": zod.string().min(1),
@@ -4146,7 +4110,6 @@ export const ListMatchReportCoachEmailsResponse = zod.array(ListMatchReportCoach
 export const saveMatchReportCoachEmailsBodyCoachesItemEmailMin = 3;
 
 
-
 export const SaveMatchReportCoachEmailsBody = zod.object({
   "leagueId": zod.number(),
   "coaches": zod.array(zod.object({
@@ -4165,9 +4128,6 @@ export const SaveMatchReportCoachEmailsResponse = zod.object({
  */
 
 export const sendMatchReportEmailBodyFromMin = 3;
-
-
-
 
 
 export const SendMatchReportEmailBody = zod.object({
@@ -4209,7 +4169,6 @@ export const ListGpsCoachEmailsResponse = zod.array(ListGpsCoachEmailsResponseIt
 export const saveGpsCoachEmailsBodyCoachesItemEmailMin = 3;
 
 
-
 export const SaveGpsCoachEmailsBody = zod.object({
   "leagueId": zod.number(),
   "squad": zod.string().min(1),
@@ -4230,7 +4189,6 @@ export const SaveGpsCoachEmailsResponse = zod.object({
 export const journalInterviewSpeakBodyTextMax = 2000;
 
 
-
 export const JournalInterviewSpeakBody = zod.object({
   "text": zod.string().min(1).max(journalInterviewSpeakBodyTextMax)
 })
@@ -4244,8 +4202,6 @@ export const JournalInterviewSpeakResponse = zod.object({
 /**
  * @summary Transcribe one spoken interview turn and decide the next step
  */
-
-
 
 
 export const JournalInterviewTurnBody = zod.object({
@@ -4268,9 +4224,23 @@ export const JournalInterviewTurnResponse = zod.object({
 
 
 /**
- * @summary AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+ * @summary Headline facts from the last league meeting vs an opponent this season
  */
 
+
+export const GetLastMeetingFactsQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "opponent": zod.coerce.string().min(1)
+})
+
+export const GetLastMeetingFactsResponse = zod.object({
+  "facts": zod.array(zod.string())
+})
+
+
+/**
+ * @summary AI summary + prep pointers for the Monday Week Ahead report (coach's OpenAI key)
+ */
 
 
 export const CreateWeekAheadBriefBody = zod.object({
@@ -4295,7 +4265,6 @@ export const CreateWeekAheadBriefResponse = zod.object({
 /**
  * @summary AI key objectives (BP/BPO by unit) for the Friday pre-match deck (coach's OpenAI key)
  */
-
 
 
 export const CreatePrematchBriefBody = zod.object({
@@ -4340,5 +4309,4 @@ export const JournalInterviewWriteupBody = zod.object({
 export const JournalInterviewWriteupResponse = zod.object({
   "content": zod.record(zod.string(), zod.string())
 })
-
 
