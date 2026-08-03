@@ -404,12 +404,29 @@ async function buildPreview(
   // follow the season chronologically, whatever order the fixtures feed uses.
   const orderedFixtures = [...fixtures].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   // Big federations (e.g. VIC NPLW) carry 150+ completed games in one season —
-  // far too many for one sync. Cap at the 50 most recent completed games —
-  // the current form window — rather than dragging in the whole season.
-  const completedFixtures = orderedFixtures
+  // far too many for one sync. Cap each sync at the 50 most recent NEW games;
+  // already-recorded games always flow through (they're deduped/topped up), so
+  // repeat syncs keep walking back through older rounds 50 at a time.
+  const completedAll = orderedFixtures
     .filter((f): f is typeof f & { homeScore: number; awayScore: number } =>
-      f.status === "complete" && f.homeScore != null && f.awayScore != null)
-    .slice(-50);
+      f.status === "complete" && f.homeScore != null && f.awayScore != null);
+  const recordedCache = new Map<(typeof completedAll)[number], boolean>();
+  const isRecorded = (f: (typeof completedAll)[number]): boolean => {
+    let v = recordedCache.get(f);
+    if (v == null) {
+      const home = matchClub(f.homeTeamName, clubs);
+      const away = matchClub(f.awayTeamName, clubs);
+      const round = parseInt(f.fullRound.replace(/\D/g, ""), 10) || 0;
+      const localDate = toLocalDbDate(f.date);
+      v = home != null && away != null &&
+        (existingByKey.get(`r${round}|${home}|${away}`) ??
+          (localDate ? existingByKey.get(`d${localDate}|${home}|${away}`) : undefined)) != null;
+      recordedCache.set(f, v);
+    }
+    return v;
+  };
+  const allowedNew = new Set(completedAll.filter(f => !isRecorded(f)).slice(-50));
+  const completedFixtures = completedAll.filter(f => isRecorded(f) || allowedNew.has(f));
   for (const f of completedFixtures) {
     const home = matchClub(f.homeTeamName, clubs);
     const away = matchClub(f.awayTeamName, clubs);
