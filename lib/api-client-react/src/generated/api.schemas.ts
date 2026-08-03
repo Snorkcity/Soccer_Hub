@@ -1008,6 +1008,13 @@ export interface MatchReportGoalDnaGoal {
   badgeText: string;
 }
 
+export interface MatchReportGoalDnaBadge {
+  label: string;
+  value: string;
+  /** @nullable */
+  sub: string | null;
+}
+
 /**
  * The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
  */
@@ -1022,6 +1029,8 @@ export interface MatchReportGoalDna {
   tacticalRead?: string[];
   /** Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports. */
   dayInsights?: string[];
+  /** Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports. */
+  insightBadges?: MatchReportGoalDnaBadge[];
 }
 
 export interface MatchReportBallUsePoint {

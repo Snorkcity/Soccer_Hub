@@ -244,6 +244,7 @@ export * from './matchReportCoachEmailsSaveRequestCoachesItem';
 export * from './matchReportFormEntry';
 export * from './matchReportGoal';
 export * from './matchReportGoalDna';
+export * from './matchReportGoalDnaBadge';
 export * from './matchReportGoalDnaCategory';
 export * from './matchReportGoalDnaCategoryId';
 export * from './matchReportGoalDnaCategoryVerdict';

@@ -372,13 +372,27 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-amber-500" />Goal DNA — how the goals really came
+                    <ShieldCheck className="h-4 w-4 text-amber-500" />Goal story — what today's goals tell us
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Every goal by type: set pieces, or regains by third (front/middle/back) and timing — during transition (before they reset) vs after transition (they were set and still got broken down). Season mix vs benchmark sits at the bottom of the report.
+                    The headlines from today's goals — type, timing, scorers, assists and the defence — each read against the season. The full goal-by-goal detail and season mix vs benchmark sit at the bottom of the report.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Headline badge squares — up to 4, weighted server-side so
+                      the mix varies game to game. Older saved reports won't
+                      have them. */}
+                  {(dna.insightBadges ?? []).length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {(dna.insightBadges ?? []).map((b, i) => (
+                        <div key={i} className="rounded-md border p-3">
+                          <div className="text-xs text-muted-foreground">{b.label}</div>
+                          <div className="text-sm font-semibold leading-snug mt-0.5">{b.value}</div>
+                          {b.sub && <div className="text-[11px] text-muted-foreground mt-0.5">{b.sub}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {/* Per-goal table dropped by coach request — the season DNA
                       table lower in the report covers it. Keep the tactical read. */}
                   {hasStory && (

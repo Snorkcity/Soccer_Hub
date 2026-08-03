@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchReportGoalDnaBadge } from './matchReportGoalDnaBadge';
 import type { MatchReportGoalDnaGoal } from './matchReportGoalDnaGoal';
 import type { MatchReportGoalDnaSide } from './matchReportGoalDnaSide';
 
@@ -22,4 +23,6 @@ export interface MatchReportGoalDna {
   tacticalRead?: string[];
   /** Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports. */
   dayInsights?: string[];
+  /** Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports. */
+  insightBadges?: MatchReportGoalDnaBadge[];
 }

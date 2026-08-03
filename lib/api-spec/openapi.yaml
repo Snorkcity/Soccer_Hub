@@ -3912,7 +3912,19 @@ components:
           type: array
           items: { type: string }
           description: Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports.
+        insightBadges:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportGoalDnaBadge" }
+          description: Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.
       required: [scored, conceded, comments]
+
+    MatchReportGoalDnaBadge:
+      type: object
+      properties:
+        label: { type: string }
+        value: { type: string }
+        sub:   { type: ["string", "null"] }
+      required: [label, value, sub]
 
     MatchReportBallUsePoint:
       type: object

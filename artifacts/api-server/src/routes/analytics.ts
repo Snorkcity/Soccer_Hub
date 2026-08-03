@@ -3190,10 +3190,130 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   const dayInsights = [sortedPairs[0], streakIns[0], h2hIns[0], ...sortedPairs.slice(1), ...streakIns.slice(1)]
     .filter((s): s is string => !!s)
     .slice(0, 3);
+
+  // ── Insight badges: up to 4 headline squares for the Goal DNA card ───────
+  // Candidate angles are weighted so the most striking one per kind shows,
+  // and the mix varies game to game (goal type, timing, scorer, assists,
+  // defence). Each badge: big value line + a season/vs-them context sub-line.
+  const insightBadges: Array<{ label: string; value: string; sub: string | null }> = [];
+  {
+    const cands: Array<{ kind: string; w: number; label: string; value: string; sub: string | null }> = [];
+    // Goal type — today's dominant scored category vs its season share.
+    {
+      const todayCats = new Map<string, number>();
+      for (const g of matchOurGoals) {
+        const c = dnaCatOfType(g.goalType);
+        if (c) todayCats.set(c, (todayCats.get(c) ?? 0) + 1);
+      }
+      const typedToday = [...todayCats.values()].reduce((a, b) => a + b, 0);
+      const top = [...todayCats.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top && typedToday > 0) {
+        const seasonCat = dnaScored.categories.find(c => c.id === top[0]);
+        const todayShare = (top[1] / typedToday) * 100;
+        const divergence = seasonCat?.pct != null ? Math.abs(todayShare - seasonCat.pct) : 0;
+        cands.push({
+          kind: "type", w: 25 + divergence * 0.6,
+          label: "Goal type",
+          value: (() => {
+            const l = top[1] > 1 ? `${dnaCatLabel(top[0] as never)}s ×${top[1]}` : dnaCatLabel(top[0] as never);
+            return l.charAt(0).toUpperCase() + l.slice(1);
+          })(),
+          sub: seasonCat?.pct != null ? `${seasonCat.pct.toFixed(0)}% of our season goals` : null,
+        });
+      }
+    }
+    // Timing — when today's goals came, vs the season's habit.
+    {
+      const mins = matchOurGoals.map(g => g.minuteScored).filter((m): m is number => m != null);
+      const seasonMins = ourGoalsUpTo.map(g => g.minuteScored).filter((m): m is number => m != null);
+      const secondHalfPct = seasonMins.length
+        ? (seasonMins.filter(m => m > 45).length / seasonMins.length) * 100 : null;
+      if (mins.length >= 2) {
+        const allSecond = mins.every(m => m > 45);
+        const allFirst = mins.every(m => m <= 45);
+        const allLate = mins.every(m => m >= 70);
+        const allEarly = mins.every(m => m <= 25);
+        const sub = secondHalfPct != null ? `season: ${secondHalfPct.toFixed(0)}% of our goals come after the break` : null;
+        if (allLate) cands.push({ kind: "timing", w: 45, label: "When they came", value: `All ${mins.length} after the 70th`, sub });
+        else if (allEarly) cands.push({ kind: "timing", w: 45, label: "When they came", value: `All ${mins.length} inside 25 minutes`, sub });
+        else if (allSecond) cands.push({ kind: "timing", w: 35, label: "When they came", value: "All after half-time", sub });
+        else if (allFirst) cands.push({ kind: "timing", w: 35, label: "When they came", value: "All before the break", sub });
+        else cands.push({ kind: "timing", w: 15, label: "When they came", value: "Spread across the game", sub });
+      }
+    }
+    // Scorer — brace/hat-trick today, or a season milestone for today's scorer.
+    {
+      const todayTally = new Map<string, number>();
+      for (const g of matchOurGoals) {
+        const s = g.scorer?.trim();
+        if (s && s !== "OG") todayTally.set(s, (todayTally.get(s) ?? 0) + 1);
+      }
+      const top = [...todayTally.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top) {
+        const [name, n] = top;
+        const season = goalTally.get(name) ?? n;
+        const isNew = season === n;
+        const isLeader = season === teamTopGoals && teamTopGoals >= 3;
+        cands.push({
+          kind: "scorer",
+          w: n >= 3 ? 70 : n === 2 ? 50 : isNew ? 40 : isLeader ? 35 : 20,
+          label: "Goals",
+          value: n >= 3 ? `${name} — hat-trick` : n === 2 ? `${name} ×2` : name,
+          sub: isNew ? `first goal${n > 1 ? "s" : ""} of the season`
+            : isLeader ? `${season} this season — top of our charts`
+            : `${season} this season`,
+        });
+      }
+    }
+    // Assists — a first-of-the-season assister, or the charts leader adding more.
+    {
+      const todayAssists = new Map<string, number>();
+      for (const g of matchOurGoals) {
+        const a = g.assist?.trim();
+        if (a && a !== "OG") todayAssists.set(a, (todayAssists.get(a) ?? 0) + 1);
+      }
+      const teamTopAssistsN = Math.max(0, ...assistTally.values());
+      let best: { w: number; value: string; sub: string | null } | null = null;
+      for (const [name, n] of todayAssists) {
+        const season = assistTally.get(name) ?? n;
+        const isNew = season === n;
+        const isLeader = season === teamTopAssistsN && teamTopAssistsN >= 3;
+        const cand = isNew
+          ? { w: 40, value: name, sub: `first assist${n > 1 ? "s" : ""} of the season` }
+          : isLeader
+            ? { w: 38, value: `${name} — assist #${season}`, sub: "top of our charts" }
+            : { w: 18 + n * 5, value: n > 1 ? `${name} ×${n}` : name, sub: `${season} this season` };
+        if (!best || cand.w > best.w) best = cand;
+      }
+      if (best) cands.push({ kind: "assist", w: best.w, label: "Assists", value: best.value, sub: best.sub });
+    }
+    // Defence — clean sheet with the shut-out count and who kept it.
+    if (match.cleanSheet) {
+      let csRun = 0;
+      for (let i = upTo.length - 1; i >= 0 && upTo[i].cleanSheet; i--) csRun++;
+      const backline = stats
+        .filter(s => s.matchId === match.id && s.started && s.position && /^(GK|CB|LB|RB|LWB|RWB|DM)$/i.test(s.position))
+        .map(s => s.playerName);
+      cands.push({
+        kind: "defence", w: csRun >= 2 ? 55 : 42,
+        label: "Defence",
+        value: csRun >= 2 ? `Clean sheet — ${csRun} straight` : `Clean sheet #${totalCs}`,
+        sub: backline.length ? backline.slice(0, 4).join(", ") : `${totalCs} shut-out${totalCs === 1 ? "" : "s"} this season`,
+      });
+    }
+    const byKind = new Map<string, typeof cands[number]>();
+    for (const c of cands) {
+      const cur = byKind.get(c.kind);
+      if (!cur || c.w > cur.w) byKind.set(c.kind, c);
+    }
+    insightBadges.push(...[...byKind.values()].sort((a, b) => b.w - a.w).slice(0, 4)
+      .map(({ label, value, sub }) => ({ label, value, sub })));
+  }
+
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
     ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
         matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead,
-        dayInsights }
+        dayInsights, insightBadges }
     : null;
 
   // ── Ball use: possession vs possession-effectiveness quadrant ────────────
