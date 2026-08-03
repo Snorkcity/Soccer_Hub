@@ -795,12 +795,14 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   const [editName, setEditName] = useState("");
   const [editMins, setEditMins] = useState("");
   const [editPos, setEditPos] = useState("__none__");
+  const [origPos, setOrigPos] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<"started" | "bench" | "unused">("started");
   const startEdit = (p: { id: number; playerName: string; minsPlayed: number | null; position: string | null; started: boolean; appearance: boolean }) => {
     setEditingId(p.id);
     setEditName(p.playerName);
     setEditMins(p.minsPlayed == null ? "" : String(p.minsPlayed));
     setEditPos(p.position ?? "__none__");
+    setOrigPos(p.position ?? null);
     setEditStatus(p.started ? "started" : p.appearance ? "bench" : "unused");
   };
   const updateSaved = useUpdateEntryPlayerStat({ mutation: {
@@ -817,7 +819,11 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     updateSaved.mutate({ rowId: editingId, data: {
       playerName: editName.trim(),
       minsPlayed: editMins.trim() === "" ? null : Number(editMins),
-      position: editPos === "__none__" ? null : editPos,
+      // Only send position when it actually changed — older saved rows can carry
+      // free-text positions the edit schema would reject if re-submitted as-is.
+      ...((editPos === "__none__" ? null : editPos) !== origPos
+        ? { position: editPos === "__none__" ? null : editPos }
+        : {}),
       started: editStatus === "started",
       appearance: editStatus !== "unused",
     }});
@@ -975,6 +981,9 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                     <SelectTrigger className="h-8 w-28 text-sm"><SelectValue placeholder="Pos" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">No pos</SelectItem>
+                      {origPos && !POSITIONS.includes(origPos as (typeof POSITIONS)[number]) && (
+                        <SelectItem value={origPos}>{origPos}</SelectItem>
+                      )}
                       {POSITIONS.map(pos => <SelectItem key={pos} value={pos}>{pos}</SelectItem>)}
                     </SelectContent>
                   </Select>
