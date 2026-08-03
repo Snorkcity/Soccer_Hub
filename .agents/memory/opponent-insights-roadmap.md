@@ -53,3 +53,11 @@ The opponent selector offers three kinds of target, all served by the same `/ana
 **Under ALL, what populates:** the 4 stack charts (scored/conceded × interval/type) + top scorers. **What is hidden (club-relative):** record summary, match history. Still to work through as more roadmap charts (5–19) get built — decide their ALL behaviour case by case.
 
 **Player Impact dumbbell** — /analytics/player-impact: team win%/ppg when player started vs not (bench/out split, role from league_player_stats rows; out = club match with no row). Dumbbell = ComposedChart range-Bar + two Scatters. On Player tab (focus club) AND Opponent tab (club or __ALL__, top-30 by started win%). Scouting tool per coach.
+
+## Scout report content wishlist (coach, Aug 2026)
+Scout reports must be genuinely insightful about the opponent's strengths/weaknesses, pulling from:
+- key assist→scorer partnerships (combo threat data)
+- a player in form (scoring streaks / recent runs)
+- a goal-type trend lately (Goal DNA of their recent games, not just season)
+- players whose "when she starts they win" impact is growing / high in the league (on-field impact chart rankings)
+Same insight-mixing pattern as the team match-report dayInsights; scout voice.
