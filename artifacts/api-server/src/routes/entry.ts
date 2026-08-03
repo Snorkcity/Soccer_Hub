@@ -1697,18 +1697,18 @@ router.get("/entry/gps-uploads", async (req, res): Promise<void> => {
     year: gpsSessionsTable.year,
     round: gpsSessionsTable.round,
     teamId: gpsSessionsTable.teamId,
-    opponent: gpsSessionsTable.opponent,
-    sessionDate: gpsSessionsTable.sessionDate,
-    sessionTitle: gpsSessionsTable.sessionTitle,
+    // ONE row per batch key — metadata aggregated (max) so rows that disagree
+    // (legacy data) can't split a batch into several list entries. Editing
+    // rewrites every row in the batch, so a mixed batch self-heals on save.
+    opponent: sql<string | null>`max(${gpsSessionsTable.opponent})`,
+    sessionDate: sql<string | null>`max(${gpsSessionsTable.sessionDate})`,
+    sessionTitle: sql<string | null>`max(${gpsSessionsTable.sessionTitle})`,
     players: sql<number>`count(distinct ${gpsSessionsTable.playerName})::int`,
     rows: sql<number>`count(*)::int`,
   })
     .from(gpsSessionsTable)
     .where(eq(gpsSessionsTable.leagueId, leagueId))
-    .groupBy(
-      gpsSessionsTable.year, gpsSessionsTable.round, gpsSessionsTable.teamId,
-      gpsSessionsTable.opponent, gpsSessionsTable.sessionDate, gpsSessionsTable.sessionTitle,
-    );
+    .groupBy(gpsSessionsTable.year, gpsSessionsTable.round, gpsSessionsTable.teamId);
 
   // Round number only from a leading R# — "CS-18s" must not pick up the squad's 18.
   const roundNum = (r: string | null) => Number(/^R(\d+)/i.exec(r ?? "")?.[1]) || 0;
