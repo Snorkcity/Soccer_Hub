@@ -35,6 +35,7 @@ import type {
   CopyClubsBody,
   CopyClubsResponse,
   CreateUserRequest,
+  DeleteEntryGpsUploadParams,
   DeleteEntryPlayerStatsParams,
   DriblAssembleBody,
   DriblConfigResponse,
@@ -49,6 +50,10 @@ import type {
   EntryGoalResponse,
   EntryGpsSessionsSaveRequest,
   EntryGpsSessionsSaveResponse,
+  EntryGpsUploadDeleteResult,
+  EntryGpsUploadInfo,
+  EntryGpsUploadUpdateRequest,
+  EntryGpsUploadUpdateResult,
   EntryMatchBody,
   EntryMatchResponse,
   EntryPlayerStatDeleteResponse,
@@ -153,6 +158,7 @@ import type {
   ListAthleticTestsParams,
   ListEntryGoalsParams,
   ListEntryGpsFixturesParams,
+  ListEntryGpsUploadsParams,
   ListEntryPlayerStatsParams,
   ListGoalsParams,
   ListGpsCoachEmailsParams,
@@ -8014,6 +8020,239 @@ export const useSaveEntryGpsSessions = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveEntryGpsSessionsMutationOptions(options));
+    }
+
+export const getListEntryGpsUploadsUrl = (params: ListEntryGpsUploadsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/gps-uploads?${stringifiedParams}` : `/api/entry/gps-uploads`
+}
+
+/**
+ * @summary List saved GPS uploads (one entry per year+round+team batch) so bad uploads can be fixed or removed
+ */
+export const listEntryGpsUploads = async (params: ListEntryGpsUploadsParams, options?: RequestInit): Promise<EntryGpsUploadInfo[]> => {
+
+  return customFetch<EntryGpsUploadInfo[]>(getListEntryGpsUploadsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEntryGpsUploadsQueryKey = (params?: ListEntryGpsUploadsParams,) => {
+    return [
+    `/api/entry/gps-uploads`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEntryGpsUploadsQueryOptions = <TData = Awaited<ReturnType<typeof listEntryGpsUploads>>, TError = ErrorType<unknown>>(params: ListEntryGpsUploadsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsUploads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEntryGpsUploadsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEntryGpsUploads>>> = ({ signal }) => listEntryGpsUploads(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsUploads>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEntryGpsUploadsQueryResult = NonNullable<Awaited<ReturnType<typeof listEntryGpsUploads>>>
+export type ListEntryGpsUploadsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved GPS uploads (one entry per year+round+team batch) so bad uploads can be fixed or removed
+ */
+
+export function useListEntryGpsUploads<TData = Awaited<ReturnType<typeof listEntryGpsUploads>>, TError = ErrorType<unknown>>(
+ params: ListEntryGpsUploadsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEntryGpsUploads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEntryGpsUploadsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateEntryGpsUploadUrl = () => {
+
+
+
+
+  return `/api/entry/gps-uploads`
+}
+
+/**
+ * @summary Fix an upload's match details (opponent, date, title) across all its rows
+ */
+export const updateEntryGpsUpload = async (entryGpsUploadUpdateRequest: EntryGpsUploadUpdateRequest, options?: RequestInit): Promise<EntryGpsUploadUpdateResult> => {
+
+  return customFetch<EntryGpsUploadUpdateResult>(getUpdateEntryGpsUploadUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryGpsUploadUpdateRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateEntryGpsUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryGpsUpload>>, TError,{data: BodyType<EntryGpsUploadUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEntryGpsUpload>>, TError,{data: BodyType<EntryGpsUploadUpdateRequest>}, TContext> => {
+
+const mutationKey = ['updateEntryGpsUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEntryGpsUpload>>, {data: BodyType<EntryGpsUploadUpdateRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateEntryGpsUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEntryGpsUploadMutationResult = NonNullable<Awaited<ReturnType<typeof updateEntryGpsUpload>>>
+    export type UpdateEntryGpsUploadMutationBody = BodyType<EntryGpsUploadUpdateRequest>
+    export type UpdateEntryGpsUploadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Fix an upload's match details (opponent, date, title) across all its rows
+ */
+export const useUpdateEntryGpsUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEntryGpsUpload>>, TError,{data: BodyType<EntryGpsUploadUpdateRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEntryGpsUpload>>,
+        TError,
+        {data: BodyType<EntryGpsUploadUpdateRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateEntryGpsUploadMutationOptions(options));
+    }
+
+export const getDeleteEntryGpsUploadUrl = (params: DeleteEntryGpsUploadParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/gps-uploads?${stringifiedParams}` : `/api/entry/gps-uploads`
+}
+
+/**
+ * @summary Delete one GPS upload (every row saved for that year+round+team)
+ */
+export const deleteEntryGpsUpload = async (params: DeleteEntryGpsUploadParams, options?: RequestInit): Promise<EntryGpsUploadDeleteResult> => {
+
+  return customFetch<EntryGpsUploadDeleteResult>(getDeleteEntryGpsUploadUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEntryGpsUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGpsUpload>>, TError,{params: DeleteEntryGpsUploadParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGpsUpload>>, TError,{params: DeleteEntryGpsUploadParams}, TContext> => {
+
+const mutationKey = ['deleteEntryGpsUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEntryGpsUpload>>, {params: DeleteEntryGpsUploadParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  deleteEntryGpsUpload(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEntryGpsUploadMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEntryGpsUpload>>>
+
+    export type DeleteEntryGpsUploadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete one GPS upload (every row saved for that year+round+team)
+ */
+export const useDeleteEntryGpsUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEntryGpsUpload>>, TError,{params: DeleteEntryGpsUploadParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEntryGpsUpload>>,
+        TError,
+        {params: DeleteEntryGpsUploadParams},
+        TContext
+      > => {
+      return useMutation(getDeleteEntryGpsUploadMutationOptions(options));
     }
 
 export const getListLibraryPracticesUrl = (params?: ListLibraryPracticesParams,) => {

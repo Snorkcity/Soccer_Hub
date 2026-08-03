@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTeams,
@@ -34,6 +34,10 @@ import {
   useExtractPlayersFromImage,
   useSaveEntryAthleticTests,
   useSaveEntryGpsSessions,
+  useListEntryGpsUploads,
+  getListEntryGpsUploadsQueryKey,
+  useUpdateEntryGpsUpload,
+  useDeleteEntryGpsUpload,
   useListEntryGpsFixtures,
   getListEntryGpsFixturesQueryKey,
   useListGpsSessions,
@@ -2317,6 +2321,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
         </CardContent>
       </Card>
 
+      {entries.length === 0 && <GpsUploadsManager leagueId={leagueId} />}
+
       {entries.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
@@ -2387,6 +2393,173 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
         </Card>
       )}
     </div>
+  );
+}
+
+// ── Saved GPS uploads — see, fix or delete a bad upload ─────────────────────
+// One row per (year, round, team) batch — the same unit the replace-on-upload
+// works on. Fixing details rewrites every row in the batch; deleting removes it.
+function GpsUploadsManager({ leagueId }: { leagueId: number }) {
+  const queryClient = useQueryClient();
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [eOpponent, setEOpponent] = useState("");
+  const [eDate, setEDate] = useState("");
+  const [eTitle, setETitle] = useState("");
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const { data: uploads, isLoading } = useListEntryGpsUploads(
+    { leagueId },
+    { query: { queryKey: getListEntryGpsUploadsQueryKey({ leagueId }), enabled: leagueId > 0 } },
+  );
+  const update = useUpdateEntryGpsUpload();
+  const del = useDeleteEntryGpsUpload();
+
+  const refresh = () => {
+    // GPS rows feed lots of screens — refetch everything rather than chase every key.
+    void queryClient.invalidateQueries();
+  };
+
+  type U = NonNullable<typeof uploads>[number];
+  const keyOf = (u: U) => `${u.year}|${u.round}|${u.teamId}`;
+
+  const startEdit = (u: U) => {
+    setEditKey(keyOf(u)); setConfirmKey(null); setOk(null); setErr(null);
+    setEOpponent(u.opponent ?? ""); setEDate(u.sessionDate ?? ""); setETitle(u.sessionTitle ?? "");
+  };
+
+  const saveEdit = async (u: U) => {
+    setOk(null); setErr(null);
+    try {
+      await update.mutateAsync({ data: {
+        leagueId, year: u.year, round: u.round, teamId: u.teamId,
+        opponent: eOpponent.trim() || null,
+        sessionDate: eDate.trim() || null,
+        sessionTitle: eTitle.trim() || null,
+      }});
+      setOk(`${u.round} updated`);
+      setEditKey(null);
+      refresh();
+    } catch (e) { setErr(errMsg(e)); }
+  };
+
+  const doDelete = async (u: U) => {
+    setOk(null); setErr(null);
+    try {
+      const res = await del.mutateAsync({ params: { leagueId, year: u.year, round: u.round, teamId: u.teamId } });
+      setOk(`${u.round} deleted (${res.deleted} rows removed)`);
+      setConfirmKey(null);
+      refresh();
+    } catch (e) { setErr(errMsg(e)); }
+  };
+
+  if (leagueId <= 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Saved uploads</CardTitle>
+        <CardDescription>
+          Every GPS upload saved for this league. If one went in wrong you can fix its match details here,
+          or delete it outright — deleting removes that round's GPS data for good (re-uploading the CSV
+          brings it back). Bad numbers in the file? Just re-upload the corrected CSV for the same round —
+          it replaces the old rows cleanly.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading uploads…</div>}
+        {!isLoading && (uploads?.length ?? 0) === 0 && (
+          <p className="text-sm text-muted-foreground">No GPS uploads saved yet.</p>
+        )}
+        {(uploads?.length ?? 0) > 0 && (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50 text-muted-foreground">
+                  <th className="px-2 py-1.5 text-left font-medium">Round</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Squad</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Opponent</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Date</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Year</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Players</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Rows</th>
+                  <th className="px-2 py-1.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {uploads!.map(u => {
+                  const k = keyOf(u);
+                  const editing = editKey === k;
+                  return (
+                    <Fragment key={k}>
+                      <tr className="border-b last:border-0">
+                        <td className="px-2 py-1.5 font-medium whitespace-nowrap">{u.round}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{u.squad}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{u.opponent ?? <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{u.sessionDate ?? <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-2 py-1.5">{u.year}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{u.players}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{u.rows}</td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {confirmKey === k ? (
+                              <>
+                                <span className="text-destructive whitespace-nowrap">Delete {u.round}?</span>
+                                <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" disabled={del.isPending} onClick={() => void doDelete(u)}>
+                                  {del.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Yes, delete"}
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setConfirmKey(null)}>Keep</Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Fix match details" onClick={() => (editing ? setEditKey(null) : startEdit(u))}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive" title="Delete this upload" onClick={() => { setConfirmKey(k); setEditKey(null); }}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {editing && (
+                        <tr className="border-b last:border-0 bg-muted/30">
+                          <td colSpan={8} className="px-2 py-2">
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Opponent</Label>
+                                <Input value={eOpponent} onChange={e => setEOpponent(e.target.value)} className="h-7 w-40 text-xs" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Date (dd/mm/yyyy)</Label>
+                                <Input value={eDate} onChange={e => setEDate(e.target.value)} placeholder="25/07/2026" className="h-7 w-32 text-xs" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Session title</Label>
+                                <Input value={eTitle} onChange={e => setETitle(e.target.value)} className="h-7 w-56 text-xs" />
+                              </div>
+                              <div className="flex gap-1.5">
+                                <Button size="sm" className="h-7 px-3 text-xs" disabled={update.isPending} onClick={() => void saveEdit(u)}>
+                                  {update.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditKey(null)}>Cancel</Button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <StatusLine ok={ok} err={err} />
+      </CardContent>
+    </Card>
   );
 }
 

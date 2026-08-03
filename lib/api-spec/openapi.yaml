@@ -2178,6 +2178,67 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EntryGpsSessionsSaveResponse" }
 
+  /entry/gps-uploads:
+    get:
+      operationId: listEntryGpsUploads
+      tags: [entry]
+      summary: List saved GPS uploads (one entry per year+round+team batch) so bad uploads can be fixed or removed
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Uploads, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EntryGpsUploadInfo" }
+    patch:
+      operationId: updateEntryGpsUpload
+      tags: [entry]
+      summary: Fix an upload's match details (opponent, date, title) across all its rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EntryGpsUploadUpdateRequest" }
+      responses:
+        "200":
+          description: Rows updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGpsUploadUpdateResult" }
+    delete:
+      operationId: deleteEntryGpsUpload
+      tags: [entry]
+      summary: Delete one GPS upload (every row saved for that year+round+team)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: year
+          in: query
+          required: true
+          schema: { type: string }
+        - name: round
+          in: query
+          required: true
+          schema: { type: string }
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Rows deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryGpsUploadDeleteResult" }
+
 
   # ─── PRACTICE LIBRARY ───────────────────────────────────────────────────────
 
@@ -5345,6 +5406,44 @@ components:
         saved:    { type: integer }
         replaced: { type: integer }
       required: [saved, replaced]
+
+    EntryGpsUploadInfo:
+      type: object
+      properties:
+        year:         { type: string }
+        round:        { type: string }
+        squad:        { type: string }
+        teamId:       { type: integer }
+        opponent:     { type: ["string", "null"] }
+        sessionDate:  { type: ["string", "null"] }
+        sessionTitle: { type: ["string", "null"] }
+        players:      { type: integer }
+        rows:         { type: integer }
+      required: [year, round, squad, teamId, opponent, sessionDate, sessionTitle, players, rows]
+
+    EntryGpsUploadUpdateRequest:
+      type: object
+      properties:
+        leagueId:     { type: integer }
+        year:         { type: string }
+        round:        { type: string, minLength: 1 }
+        teamId:       { type: integer }
+        opponent:     { type: ["string", "null"] }
+        sessionDate:  { type: ["string", "null"] }
+        sessionTitle: { type: ["string", "null"] }
+      required: [leagueId, year, round, teamId]
+
+    EntryGpsUploadUpdateResult:
+      type: object
+      properties:
+        updated: { type: integer }
+      required: [updated]
+
+    EntryGpsUploadDeleteResult:
+      type: object
+      properties:
+        deleted: { type: integer }
+      required: [deleted]
 
     ExtractPlayersBody:
       type: object

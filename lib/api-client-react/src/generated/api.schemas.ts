@@ -2445,6 +2445,43 @@ export interface EntryGpsSessionsSaveResponse {
   replaced: number;
 }
 
+export interface EntryGpsUploadInfo {
+  year: string;
+  round: string;
+  squad: string;
+  teamId: number;
+  /** @nullable */
+  opponent: string | null;
+  /** @nullable */
+  sessionDate: string | null;
+  /** @nullable */
+  sessionTitle: string | null;
+  players: number;
+  rows: number;
+}
+
+export interface EntryGpsUploadUpdateRequest {
+  leagueId: number;
+  year: string;
+  /** @minLength 1 */
+  round: string;
+  teamId: number;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  sessionDate?: string | null;
+  /** @nullable */
+  sessionTitle?: string | null;
+}
+
+export interface EntryGpsUploadUpdateResult {
+  updated: number;
+}
+
+export interface EntryGpsUploadDeleteResult {
+  deleted: number;
+}
+
 export interface ExtractPlayersBody {
   /** @minLength 1 */
   imageBase64: string;
@@ -3515,6 +3552,17 @@ club: string;
 
 export type ListEntryGpsFixturesParams = {
 leagueId: number;
+};
+
+export type ListEntryGpsUploadsParams = {
+leagueId: number;
+};
+
+export type DeleteEntryGpsUploadParams = {
+leagueId: number;
+year: string;
+round: string;
+teamId: number;
 };
 
 export type ListLibraryPracticesParams = {

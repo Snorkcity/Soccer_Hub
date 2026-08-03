@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request } from "express";
 import { getSessionUser, hasModule, leagueIdForSeason } from "../middlewares/entryAuth";
-import { eq, and, desc, isNull, inArray, type AnyColumn } from "drizzle-orm";
+import { eq, and, desc, isNull, inArray, sql, type AnyColumn } from "drizzle-orm";
 import {
   db,
   leagueMatchesTable,
@@ -38,6 +38,12 @@ import {
   ListEntryPlayerStatsQueryParams,
   ListEntryPlayerStatsResponse,
   DeleteEntryPlayerStatResponse,
+  ListEntryGpsUploadsQueryParams,
+  ListEntryGpsUploadsResponse,
+  UpdateEntryGpsUploadBody,
+  UpdateEntryGpsUploadResponse,
+  DeleteEntryGpsUploadQueryParams,
+  DeleteEntryGpsUploadResponse,
   UpdateEntryGoalBody,
   UpdateEntryGoalResponse,
   UpdateEntryPlayerStatBody,
@@ -1654,6 +1660,136 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
 
   logger.info({ year, round, saved, replaced }, "gps sessions saved");
   res.json(SaveEntryGpsSessionsResponse.parse({ saved, replaced }));
+});
+
+// ── GPS upload management ────────────────────────────────────────────────────
+// A "upload" (batch) = every gps_sessions row saved for one (league, year,
+// round, team) — the same predicate the replace-on-upload uses. There is no
+// batch id column, so the four keys ARE the batch identity.
+
+/** Squad label from the Catapult round suffix — mirrors gpsSessions.ts / frontend. */
+function squadOfRoundEntry(round: string | null | undefined): string {
+  if (!round) return "1sts";
+  if (/-(res|r)$/i.test(round)) return "Reserves";
+  if (/-1[78]s$/i.test(round)) return "17s / 18s";
+  return "1sts";
+}
+
+/** Feed leagues are read-only — all upload management happens in the source league. */
+async function rejectGpsFeedLeague(leagueId: number, res: Parameters<Parameters<IRouter["get"]>[1]>[1]): Promise<boolean> {
+  const [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.id, leagueId)).limit(1);
+  if (league?.gpsSourceLeagueId) {
+    res.status(400).json({ error: "This league's GPS data is fed from another league — manage uploads there instead" });
+    return true;
+  }
+  return false;
+}
+
+router.get("/entry/gps-uploads", async (req, res): Promise<void> => {
+  const query = ListEntryGpsUploadsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { leagueId } = query.data;
+
+  const rows = await db.select({
+    year: gpsSessionsTable.year,
+    round: gpsSessionsTable.round,
+    teamId: gpsSessionsTable.teamId,
+    opponent: gpsSessionsTable.opponent,
+    sessionDate: gpsSessionsTable.sessionDate,
+    sessionTitle: gpsSessionsTable.sessionTitle,
+    players: sql<number>`count(distinct ${gpsSessionsTable.playerName})::int`,
+    rows: sql<number>`count(*)::int`,
+  })
+    .from(gpsSessionsTable)
+    .where(eq(gpsSessionsTable.leagueId, leagueId))
+    .groupBy(
+      gpsSessionsTable.year, gpsSessionsTable.round, gpsSessionsTable.teamId,
+      gpsSessionsTable.opponent, gpsSessionsTable.sessionDate, gpsSessionsTable.sessionTitle,
+    );
+
+  // Round number only from a leading R# — "CS-18s" must not pick up the squad's 18.
+  const roundNum = (r: string | null) => Number(/^R(\d+)/i.exec(r ?? "")?.[1]) || 0;
+  const out = rows
+    .map(r => ({
+      year: r.year ?? "",
+      round: r.round ?? "",
+      squad: squadOfRoundEntry(r.round),
+      teamId: r.teamId ?? 0,
+      opponent: r.opponent,
+      sessionDate: r.sessionDate,
+      sessionTitle: r.sessionTitle,
+      players: r.players,
+      rows: r.rows,
+    }))
+    .sort((a, b) =>
+      b.year.localeCompare(a.year) ||
+      roundNum(b.round) - roundNum(a.round) ||
+      a.squad.localeCompare(b.squad));
+  res.json(ListEntryGpsUploadsResponse.parse(out));
+});
+
+router.patch("/entry/gps-uploads", async (req, res): Promise<void> => {
+  const parsed = UpdateEntryGpsUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { leagueId, year, round, teamId, opponent, sessionDate, sessionTitle } = parsed.data;
+  if (await rejectGpsFeedLeague(leagueId, res)) return;
+
+  // Only touch the fields the request actually carries — undefined = leave alone.
+  const patch: Partial<typeof gpsSessionsTable.$inferInsert> = {};
+  if (opponent !== undefined) patch.opponent = opponent;
+  if (sessionDate !== undefined) patch.sessionDate = sessionDate;
+  if (sessionTitle !== undefined) patch.sessionTitle = sessionTitle;
+  if (Object.keys(patch).length === 0) {
+    res.status(400).json({ error: "Nothing to update" });
+    return;
+  }
+
+  const updated = (await db.update(gpsSessionsTable)
+    .set(patch)
+    .where(and(
+      eq(gpsSessionsTable.leagueId, leagueId),
+      eq(gpsSessionsTable.year, year),
+      eq(gpsSessionsTable.round, round),
+      eq(gpsSessionsTable.teamId, teamId),
+    ))
+    .returning({ id: gpsSessionsTable.id })).length;
+  if (updated === 0) {
+    res.status(404).json({ error: "No GPS rows found for that upload" });
+    return;
+  }
+  logger.info({ leagueId, year, round, teamId, updated }, "gps upload details updated");
+  res.json(UpdateEntryGpsUploadResponse.parse({ updated }));
+});
+
+router.delete("/entry/gps-uploads", async (req, res): Promise<void> => {
+  const query = DeleteEntryGpsUploadQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { leagueId, year, round, teamId } = query.data;
+  if (await rejectGpsFeedLeague(leagueId, res)) return;
+
+  const deleted = (await db.delete(gpsSessionsTable)
+    .where(and(
+      eq(gpsSessionsTable.leagueId, leagueId),
+      eq(gpsSessionsTable.year, year),
+      eq(gpsSessionsTable.round, round),
+      eq(gpsSessionsTable.teamId, teamId),
+    ))
+    .returning({ id: gpsSessionsTable.id })).length;
+  if (deleted === 0) {
+    res.status(404).json({ error: "No GPS rows found for that upload" });
+    return;
+  }
+  logger.info({ leagueId, year, round, teamId, deleted }, "gps upload deleted");
+  res.json(DeleteEntryGpsUploadResponse.parse({ deleted }));
 });
 
 export default router;

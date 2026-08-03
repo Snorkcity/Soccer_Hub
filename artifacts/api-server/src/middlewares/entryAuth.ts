@@ -216,6 +216,7 @@ export function canWriteLeague(user: SessionUser, leagueId: number): boolean {
 const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/entry/athletic-tests", "testing"], // trainer xlsx upload lives under /entry
   ["/entry/gps-sessions", "gps"],       // GPS import lives under /entry too
+  ["/entry/gps-uploads", "gps"],        // GPS upload management (list/fix/delete)
   ["/entry", "data-entry"],
   ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
   ["/journal/week-ahead-brief", "match-prep"], // under /journal, not /match-prep

@@ -3141,6 +3141,63 @@ export const SaveEntryGpsSessionsResponse = zod.object({
 
 
 /**
+ * @summary List saved GPS uploads (one entry per year+round+team batch) so bad uploads can be fixed or removed
+ */
+export const ListEntryGpsUploadsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListEntryGpsUploadsResponseItem = zod.object({
+  "year": zod.string(),
+  "round": zod.string(),
+  "squad": zod.string(),
+  "teamId": zod.number(),
+  "opponent": zod.string().nullable(),
+  "sessionDate": zod.string().nullable(),
+  "sessionTitle": zod.string().nullable(),
+  "players": zod.number(),
+  "rows": zod.number()
+})
+export const ListEntryGpsUploadsResponse = zod.array(ListEntryGpsUploadsResponseItem)
+
+
+/**
+ * @summary Fix an upload's match details (opponent, date, title) across all its rows
+ */
+
+
+
+export const UpdateEntryGpsUploadBody = zod.object({
+  "leagueId": zod.number(),
+  "year": zod.string(),
+  "round": zod.string().min(1),
+  "teamId": zod.number(),
+  "opponent": zod.string().nullish(),
+  "sessionDate": zod.string().nullish(),
+  "sessionTitle": zod.string().nullish()
+})
+
+export const UpdateEntryGpsUploadResponse = zod.object({
+  "updated": zod.number()
+})
+
+
+/**
+ * @summary Delete one GPS upload (every row saved for that year+round+team)
+ */
+export const DeleteEntryGpsUploadQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "year": zod.coerce.string(),
+  "round": zod.coerce.string(),
+  "teamId": zod.coerce.number()
+})
+
+export const DeleteEntryGpsUploadResponse = zod.object({
+  "deleted": zod.number()
+})
+
+
+/**
  * @summary List practice-library slides (defaults to kind=practice)
  */
 export const ListLibraryPracticesQueryParams = zod.object({
