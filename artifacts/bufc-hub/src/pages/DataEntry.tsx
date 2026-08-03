@@ -44,6 +44,8 @@ import {
   useSaveGpsPlayerEmails,
   useListLeagues,
   useCreateLeague,
+  useUpdateLeague,
+  type LeagueInfo,
   useCreateSeason,
   useCreateClub,
   useExtractClubsFromLeague,
@@ -1343,6 +1345,7 @@ interface BrandingRow {
 }
 function LeagueSetupCard() {
   const queryClient = useQueryClient();
+  const { isSuperadmin } = useLeagueModules();
   const { data: leagues } = useListLeagues();
   const { data: seasons } = useListSeasons();
   const { data: clubs } = useGetClubs();
@@ -1534,6 +1537,8 @@ function LeagueSetupCard() {
         </CardContent>
       </Card>
 
+      {isSuperadmin && <GpsFeedCard leagues={leagues ?? []} onSaved={invalidate} setMsg={setMsg} />}
+
       <Card>
         <CardHeader>
           <CardTitle>Current leagues</CardTitle>
@@ -1571,6 +1576,105 @@ function LeagueSetupCard() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * GPS data feed (superadmin only): point a league's GPS reads at another
+ * league's uploads, filtered to one squad — e.g. the Reserves league reads the
+ * reserves rows already inside the NPLW Catapult uploads. Read-only share: no
+ * rows are copied, and fixes/re-uploads in the source league flow through.
+ */
+const FEED_SQUADS = ["Reserves", "1sts", "17s / 18s"];
+
+function GpsFeedCard({ leagues, onSaved, setMsg }: {
+  leagues: LeagueInfo[];
+  onSaved: () => void;
+  setMsg: (m: { ok: boolean; text: string } | null) => void;
+}) {
+  const [leagueId, setLeagueId] = useState("");
+  const selected = leagues.find(l => String(l.id) === leagueId);
+  const [sourceId, setSourceId] = useState("");
+  const [squad, setSquad] = useState("Reserves");
+  useEffect(() => {
+    setSourceId(selected?.gpsSourceLeagueId != null ? String(selected.gpsSourceLeagueId) : "");
+    setSquad(selected?.gpsSourceSquad ?? "Reserves");
+  }, [selected?.id, selected?.gpsSourceLeagueId, selected?.gpsSourceSquad]);
+
+  const update = useUpdateLeague({ mutation: {
+    onSuccess: (l) => {
+      setMsg({ ok: true, text: l.gpsSourceLeagueId != null
+        ? `"${l.name}" now reads GPS data from ${leagues.find(x => x.id === l.gpsSourceLeagueId)?.name ?? "the source league"} (${l.gpsSourceSquad} squad) — no re-uploading needed.`
+        : `GPS feed removed — "${l.name}" is back to its own GPS uploads.` });
+      onSaved();
+    },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>GPS data feed</CardTitle>
+        <CardDescription>
+          Let a league show GPS numbers that were already uploaded in another league — e.g. the Reserves
+          league reads the reserves rows inside the firsts' Catapult uploads. Nothing is copied: fixes and
+          re-uploads in the source league appear here automatically, and the fed league stays read-only.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-[1fr_1fr_140px_auto_auto] items-end">
+        <div className="space-y-1.5">
+          <Label>League</Label>
+          <Select value={leagueId} onValueChange={setLeagueId}>
+            <SelectTrigger><SelectValue placeholder="Select league" /></SelectTrigger>
+            <SelectContent>
+              {leagues.map(l => (
+                <SelectItem key={l.id} value={String(l.id)}>
+                  {l.name}{l.gpsSourceLeagueId != null ? " · fed" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Reads GPS data from</Label>
+          <Select value={sourceId} onValueChange={setSourceId} disabled={!leagueId}>
+            <SelectTrigger><SelectValue placeholder="Source league" /></SelectTrigger>
+            <SelectContent>
+              {leagues.filter(l => String(l.id) !== leagueId && l.gpsSourceLeagueId == null).map(l => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Squad</Label>
+          <Select value={squad} onValueChange={setSquad} disabled={!leagueId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{FEED_SQUADS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button
+          disabled={!leagueId || !sourceId || update.isPending}
+          onClick={() => {
+            setMsg(null);
+            update.mutate({ id: Number(leagueId), data: { gpsSourceLeagueId: Number(sourceId), gpsSourceSquad: squad } });
+          }}
+        >
+          {update.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
+          Save feed
+        </Button>
+        <Button
+          variant="outline"
+          disabled={!leagueId || selected?.gpsSourceLeagueId == null || update.isPending}
+          onClick={() => {
+            setMsg(null);
+            update.mutate({ id: Number(leagueId), data: { gpsSourceLeagueId: null, gpsSourceSquad: null } });
+          }}
+        >
+          Remove feed
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

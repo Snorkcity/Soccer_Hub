@@ -205,6 +205,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/LeagueInfo"
 
+  /leagues/{id}:
+    patch:
+      operationId: updateLeague
+      tags: [seasons]
+      summary: Update league settings (superadmin only, e.g. the GPS feed)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueUpdateInput"
+      responses:
+        "200":
+          description: Updated league
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueInfo"
+
   /seasons:
     get:
       operationId: listSeasons
@@ -3084,6 +3108,12 @@ components:
         focusClub:
           type: ["string", "null"]
           description: The league's default club for Team/Player insights (used when a user has no club of their own set).
+        gpsSourceLeagueId:
+          type: ["integer", "null"]
+          description: When set, this league has no GPS uploads of its own — GPS reads are fed (read-only) from this source league.
+        gpsSourceSquad:
+          type: ["string", "null"]
+          description: The squad within the source league's GPS uploads that belongs to this league (e.g. "Reserves").
       required: [id, name]
 
     LeagueInput:
@@ -3092,6 +3122,12 @@ components:
         name:   { type: string }
         region: { type: string }
       required: [name]
+
+    LeagueUpdateInput:
+      type: object
+      properties:
+        gpsSourceLeagueId: { type: ["integer", "null"] }
+        gpsSourceSquad:    { type: ["string", "null"] }
 
     # ── Matches ───────────────────────────────────────────────────────────────
 

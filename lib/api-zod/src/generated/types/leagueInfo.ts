@@ -15,4 +15,14 @@ export interface LeagueInfo {
      * @nullable
      */
   focusClub?: string | null;
+  /**
+     * When set, this league has no GPS uploads of its own — GPS reads are fed (read-only) from this source league.
+     * @nullable
+     */
+  gpsSourceLeagueId?: number | null;
+  /**
+     * The squad within the source league's GPS uploads that belongs to this league (e.g. "Reserves").
+     * @nullable
+     */
+  gpsSourceSquad?: string | null;
 }

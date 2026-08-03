@@ -25,6 +25,7 @@
 - [Recharts radar radius-domain](recharts-radius-domain.md) — v2 gotcha: PolarRadiusAxis `domain` is ignored when tick={false}; render ticks (angle+tickCount+visible tick) or a 0–100 series collapses to a tiny centre blob.
 - [Data Entry feature](data-entry.md) — HMAC-cookie auth gates all API writes; transactional dual-writes league+legacy tables; AI screenshot reader (surname-only naming, initials kept only to split duplicate surnames); Orval operationId/schema-name collision gotcha.
 - [Player timeline drill-down](player-timeline-drilldown.md) — click a player in Starts & Apps → game-by-game Start/Bench/Out line; chronological left-to-right; click payload must use raw playerName, not shortened label.
+- [GPS feed between leagues](gps-feed.md) — leagues.gps_source_league_id shares another league's GPS rows read-only, squad-filtered; writes blocked; opponent pairing uses the fed league's OWN fixtures by round number.
 - [GPS Insights feature](gps-insights.md) — HSM=sprint_distance_m, VHS=zone5×1000; squad parsed from round suffix (team_id useless); stack halves only when both exist; accel/decel counts missing from import.
 - [Athletic testing feature](athletic-testing.md) — trainer-xlsx upload (replace per year+team), percentile ties=100 convention, coach-voice game notes; charts exclude "Averages"/"Unknown" rows.
 - [GPS player identity merging](player-identities.md) — duplicate GPS names pool via gps_player_aliases at READ time (never rewrite raw rows); positions keyed by canonical; season-stats link table.

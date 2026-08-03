@@ -1,4 +1,4 @@
-import { pgTable, serial, text } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,12 @@ export const leaguesTable = pgTable("leagues", {
   // How the AI screenshot reader names players for this league:
   // null/"surname" = surname only ("Bloggs"); "initial-surname" = "S.Smith".
   nameFormat: text("name_format"),
+  // GPS feed (2026-08): this league has no GPS uploads of its own — it reads
+  // the source league's gps_sessions rows, filtered to one squad (parsed from
+  // the round suffix, e.g. "R7-res" → "Reserves"). Read-only share: fixes and
+  // re-uploads happen in the source league and flow through automatically.
+  gpsSourceLeagueId: integer("gps_source_league_id").references((): AnyPgColumn => leaguesTable.id),
+  gpsSourceSquad:    text("gps_source_squad"),
 });
 
 export const insertLeagueSchema = createInsertSchema(leaguesTable).omit({ id: true });

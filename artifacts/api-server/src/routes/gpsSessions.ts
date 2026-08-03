@@ -59,6 +59,52 @@ function squadOfRound(round: string | null | undefined): string {
 }
 
 /**
+ * GPS feed (read-only share): a league with gps_source_league_id set has no
+ * GPS uploads of its own — reads pull the SOURCE league's rows, filtered to
+ * one squad (parsed from the round suffix). The requesting user only needs
+ * access to the requesting league: the central middleware checks the leagueId
+ * on the request as usual, and this deliberate, squad-scoped read is the only
+ * way source-league data crosses over. Writes stay blocked (see POST below and
+ * /entry/gps-sessions), so fixes/re-uploads happen in the source league only.
+ */
+async function gpsFeedFor(leagueId: number): Promise<{ sourceLeagueId: number; squad: string } | null> {
+  const [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.id, leagueId)).limit(1);
+  if (!league?.gpsSourceLeagueId || !league.gpsSourceSquad) return null;
+  return { sourceLeagueId: league.gpsSourceLeagueId, squad: league.gpsSourceSquad };
+}
+
+/**
+ * Fixture opponents for a FEED league, keyed by `${year}|R#`: the feed
+ * league's own fixtures (imported separately), matched by round number only —
+ * opponent names may differ word-for-word between the GPS upload and the
+ * fixture import, so the round code is the reliable join.
+ */
+async function ownFixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const seasons = await db.select().from(seasonsTable).where(eq(seasonsTable.leagueId, leagueId));
+  if (!seasons.length) return map;
+  const yearOfSeason = new Map(seasons.map(s => [s.id, s.year]));
+  const fixtures = await db.select().from(matchesTable)
+    .where(inArray(matchesTable.seasonId, [...yearOfSeason.keys()]));
+  for (const m of fixtures) {
+    const year = m.seasonId != null ? yearOfSeason.get(m.seasonId) : undefined;
+    if (!year || !m.opponent) continue;
+    const rd = /^(R\d+)-/i.exec(m.matchId ?? "");
+    if (!rd) continue;
+    const key = `${year}|${rd[1].toUpperCase()}`;
+    if (!map.has(key)) map.set(key, m.opponent);
+  }
+  return map;
+}
+
+const norm = (s: string) => s.trim().toLowerCase();
+/** Loose opponent agreement: "Croatia" vs "Canberra Croatia FC" counts as the same club. */
+const agrees = (a: string, b: string) => {
+  const na = norm(a), nb = norm(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
+};
+
+/**
  * Fixture opponents keyed by `${year}|${squad}|R#`.
  *
  * Most Catapult sessions only carry a raw round tag ("R7-1sts"), so the GPS
@@ -113,7 +159,11 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
   // the canonical name from gps_player_aliases.
   const canonicalName = sql<string>`coalesce(${gpsPlayerAliasesTable.canonical}, ${gpsSessionsTable.playerName})`;
 
-  const conditions = [eq(gpsSessionsTable.leagueId, leagueId)];
+  // Feed league: read the source league's rows (squad-filtered below).
+  const feed = await gpsFeedFor(leagueId);
+  const readLeagueId = feed ? feed.sourceLeagueId : leagueId;
+
+  const conditions = [eq(gpsSessionsTable.leagueId, readLeagueId)];
   if (playerId) conditions.push(eq(gpsSessionsTable.playerId, playerId));
   if (year) conditions.push(eq(gpsSessionsTable.year, year));
   if (teamId) conditions.push(eq(gpsSessionsTable.teamId, teamId));
@@ -121,23 +171,47 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
   if (playerName) conditions.push(eq(canonicalName, playerName));
   if (split) conditions.push(eq(gpsSessionsTable.splitName, split));
 
-  const rows = await db
+  const allRows = await db
     .select({ ...getTableColumns(gpsSessionsTable), playerName: canonicalName })
     .from(gpsSessionsTable)
     .leftJoin(gpsPlayerAliasesTable, eq(gpsPlayerAliasesTable.alias, gpsSessionsTable.playerName))
     .where(and(...conditions))
     .orderBy(gpsSessionsTable.sessionDate);
 
-  // Fill missing opponents from the football fixtures (round-number match).
-  const needsOpponent = rows.some(r => !r.opponent && r.round);
-  const fixtureOpps = needsOpponent ? await fixtureOpponentMap(leagueId) : new Map<string, string>();
-  const withOpponent = rows.map(r => {
-    if (r.opponent || !r.round || !r.year) return r;
-    const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
-    if (!rd) return r;
-    const opp = fixtureOpps.get(`${r.year}|${squadOfRound(r.round)}|${rd[1].toUpperCase()}`);
-    return opp ? { ...r, opponent: opp } : r;
-  });
+  // Feed: only the configured squad's rows cross the league boundary.
+  const rows = feed ? allRows.filter(r => squadOfRound(r.round) === feed.squad) : allRows;
+
+  let withOpponent;
+  if (feed) {
+    // Pair shared rounds with the FEED league's own fixtures by round number.
+    // A carried GPS opponent that loosely agrees is replaced by the fixture's
+    // spelling; a disagreement keeps the carried name (the mismatch endpoint
+    // flags it). No fixture at all ALWAYS clears the opponent — even a carried
+    // one, since it came from another competition's upload and can't be
+    // trusted here — so the app shows a visible "couldn't match" state rather
+    // than silently misattributing the game.
+    const fixtureOpps = await ownFixtureOpponentMap(leagueId);
+    withOpponent = rows.map(r => {
+      if (!r.round || !r.year) return { ...r, opponent: null };
+      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
+      if (!rd) return { ...r, opponent: null };
+      const fixtureOpp = fixtureOpps.get(`${r.year}|${rd[1].toUpperCase()}`);
+      if (!fixtureOpp) return { ...r, opponent: null };
+      if (!r.opponent || agrees(r.opponent, fixtureOpp)) return { ...r, opponent: fixtureOpp };
+      return r;
+    });
+  } else {
+    // Fill missing opponents from the football fixtures (round-number match).
+    const needsOpponent = rows.some(r => !r.opponent && r.round);
+    const fixtureOpps = needsOpponent ? await fixtureOpponentMap(leagueId) : new Map<string, string>();
+    withOpponent = rows.map(r => {
+      if (r.opponent || !r.round || !r.year) return r;
+      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
+      if (!rd) return r;
+      const opp = fixtureOpps.get(`${r.year}|${squadOfRound(r.round)}|${rd[1].toUpperCase()}`);
+      return opp ? { ...r, opponent: opp } : r;
+    });
+  }
 
   res.json(ListGpsSessionsResponse.parse(withOpponent.map(mapRow)));
 });
@@ -160,12 +234,14 @@ router.get("/gps-opponent-mismatches", async (req, res): Promise<void> => {
     return;
   }
 
-  const conditions = [eq(gpsSessionsTable.leagueId, leagueId)];
+  const feed = await gpsFeedFor(leagueId);
+  const conditions = [eq(gpsSessionsTable.leagueId, feed ? feed.sourceLeagueId : leagueId)];
   if (year) conditions.push(eq(gpsSessionsTable.year, year));
-  const rows = await db
+  const allRows = await db
     .selectDistinct({ year: gpsSessionsTable.year, round: gpsSessionsTable.round, opponent: gpsSessionsTable.opponent })
     .from(gpsSessionsTable)
     .where(and(...conditions));
+  const rows = feed ? allRows.filter(r => squadOfRound(r.round) === feed.squad) : allRows;
 
   const carried = rows.filter(r => r.opponent?.trim() && r.round?.trim());
   if (!carried.length) {
@@ -173,12 +249,10 @@ router.get("/gps-opponent-mismatches", async (req, res): Promise<void> => {
     return;
   }
 
-  const fixtureOpps = await fixtureOpponentMap(leagueId);
-  const norm = (s: string) => s.trim().toLowerCase();
-  const agrees = (a: string, b: string) => {
-    const na = norm(a), nb = norm(b);
-    return na === nb || na.includes(nb) || nb.includes(na);
-  };
+  // Feed league: compare against the feed league's OWN fixtures (round-number
+  // keyed) — the source league's fixture list is a different competition.
+  const ownOpps = feed ? await ownFixtureOpponentMap(leagueId) : null;
+  const fixtureOpps = feed ? new Map<string, string>() : await fixtureOpponentMap(leagueId);
 
   const seen = new Set<string>();
   const out: { year: string; round: string; squad: string; gpsOpponent: string; fixtureOpponent: string }[] = [];
@@ -188,7 +262,9 @@ router.get("/gps-opponent-mismatches", async (req, res): Promise<void> => {
     const rd = /^(R\d+)(?:$|-)/i.exec(round);
     if (!rd) continue;
     const squad = squadOfRound(round);
-    const fixtureOpponent = fixtureOpps.get(`${r.year}|${squad}|${rd[1].toUpperCase()}`);
+    const fixtureOpponent = ownOpps
+      ? ownOpps.get(`${r.year}|${rd[1].toUpperCase()}`)
+      : fixtureOpps.get(`${r.year}|${squad}|${rd[1].toUpperCase()}`);
     if (!fixtureOpponent || agrees(gpsOpponent, fixtureOpponent)) continue;
     const key = `${r.year}|${round}|${norm(gpsOpponent)}`;
     if (seen.has(key)) continue;
@@ -206,6 +282,11 @@ router.post("/gps-sessions", async (req, res): Promise<void> => {
     return;
   }
   const d = parsed.data;
+  // Feed leagues have no GPS rows of their own — the share must stay read-only.
+  if (await gpsFeedFor(d.leagueId)) {
+    res.status(400).json({ error: "This league's GPS data is fed from another league — upload GPS data there instead" });
+    return;
+  }
   const [session] = await db.insert(gpsSessionsTable).values({
     ...d,
     minsPlayed: n2s(d.minsPlayed), distanceKm: n2s(d.distanceKm), sprintDistanceM: n2s(d.sprintDistanceM),

@@ -134,7 +134,9 @@ export const ListLeaguesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "region": zod.string().nullish(),
-  "focusClub": zod.string().nullish().describe('The league\'s default club for Team\/Player insights (used when a user has no club of their own set).')
+  "focusClub": zod.string().nullish().describe('The league\'s default club for Team\/Player insights (used when a user has no club of their own set).'),
+  "gpsSourceLeagueId": zod.number().nullish().describe('When set, this league has no GPS uploads of its own — GPS reads are fed (read-only) from this source league.'),
+  "gpsSourceSquad": zod.string().nullish().describe('The squad within the source league\'s GPS uploads that belongs to this league (e.g. \"Reserves\").')
 })
 export const ListLeaguesResponse = zod.array(ListLeaguesResponseItem)
 
@@ -151,7 +153,31 @@ export const CreateLeagueResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "region": zod.string().nullish(),
-  "focusClub": zod.string().nullish().describe('The league\'s default club for Team\/Player insights (used when a user has no club of their own set).')
+  "focusClub": zod.string().nullish().describe('The league\'s default club for Team\/Player insights (used when a user has no club of their own set).'),
+  "gpsSourceLeagueId": zod.number().nullish().describe('When set, this league has no GPS uploads of its own — GPS reads are fed (read-only) from this source league.'),
+  "gpsSourceSquad": zod.string().nullish().describe('The squad within the source league\'s GPS uploads that belongs to this league (e.g. \"Reserves\").')
+})
+
+
+/**
+ * @summary Update league settings (superadmin only, e.g. the GPS feed)
+ */
+export const UpdateLeagueParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateLeagueBody = zod.object({
+  "gpsSourceLeagueId": zod.number().nullish(),
+  "gpsSourceSquad": zod.string().nullish()
+})
+
+export const UpdateLeagueResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "region": zod.string().nullish(),
+  "focusClub": zod.string().nullish().describe('The league\'s default club for Team\/Player insights (used when a user has no club of their own set).'),
+  "gpsSourceLeagueId": zod.number().nullish().describe('When set, this league has no GPS uploads of its own — GPS reads are fed (read-only) from this source league.'),
+  "gpsSourceSquad": zod.string().nullish().describe('The squad within the source league\'s GPS uploads that belongs to this league (e.g. \"Reserves\").')
 })
 
 

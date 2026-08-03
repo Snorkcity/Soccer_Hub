@@ -191,6 +191,7 @@ export * from './leagueAccessRole';
 export * from './leagueInfo';
 export * from './leagueInput';
 export * from './leagueMatchInfo';
+export * from './leagueUpdateInput';
 export * from './libraryFlagRequest';
 export * from './libraryFlagResult';
 export * from './libraryPara';

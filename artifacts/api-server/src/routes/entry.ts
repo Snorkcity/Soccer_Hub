@@ -1508,6 +1508,15 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
   }
   const { leagueId, year, teamId, round, opponent, sessionDate, sessionTitle, rows } = parsed.data;
 
+  // Feed leagues (leagues.gps_source_league_id) share another league's GPS
+  // rows read-only — uploading into them would create the very duplication
+  // the feed exists to avoid.
+  const [feedLeague] = await db.select().from(leaguesTable).where(eq(leaguesTable.id, leagueId)).limit(1);
+  if (feedLeague?.gpsSourceLeagueId) {
+    res.status(400).json({ error: "This league's GPS data is fed from another league — upload GPS data there instead" });
+    return;
+  }
+
   const cleanRows = rows
     .map(r => ({ ...r, playerName: r.playerName.trim() }))
     .filter(r => r.playerName.length > 0);

@@ -5,6 +5,7 @@
  */
 import React, { useState, useMemo, useEffect } from "react";
 import {
+  useListLeagues,
   useListGpsSessions, getListGpsSessionsQueryKey,
   useListGpsPlayerPositions, getListGpsPlayerPositionsQueryKey,
   useListGpsMatchReports, getListGpsMatchReportsQueryKey,
@@ -63,6 +64,13 @@ export function GpsMatchReportTab({ year, metaRows }: { year: string; metaRows: 
   const { activeLeagueId } = useActiveLeague();
   const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
   const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+
+  // GPS-feed leagues (e.g. Reserves reading the firsts' uploads) pair each GPS
+  // round with THIS league's own fixtures — a round with no fixture match must
+  // say so out loud rather than silently misattribute the game.
+  const { data: allLeagues } = useListLeagues();
+  const activeLeague = (allLeagues ?? []).find(l => l.id === activeLeagueId);
+  const isFedLeague = activeLeague?.gpsSourceLeagueId != null;
 
   // Squad + round pickers (same convention as Team Overview)
   const roundsBySquad = useMemo(() => {
@@ -213,6 +221,19 @@ export function GpsMatchReportTab({ year, metaRows }: { year: string; metaRows: 
           {isAdmin && model && <EmailCoachesDialog model={model} squad={model.squad} />}
         </div>
       </div>
+
+      {isFedLeague && !viewingSaved && round && rounds.find(r => r.round === round)?.opponent == null && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+          <div className="text-sm space-y-1">
+            <p className="font-semibold">Couldn't match {round} to a fixture in this league</p>
+            <p className="text-muted-foreground text-xs">
+              The GPS numbers come from the {(allLeagues ?? []).find(l => l.id === activeLeague?.gpsSourceLeagueId)?.name ?? "source league"} uploads,
+              but no {round.replace(/-.*$/, "")} fixture is entered here yet — so the opponent can't be shown. Add the fixture (or check its round code) and it will pair up automatically.
+            </p>
+          </div>
+        </div>
+      )}
 
       {!model ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for this round.</CardContent></Card>

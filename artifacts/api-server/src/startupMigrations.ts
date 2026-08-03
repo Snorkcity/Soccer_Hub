@@ -450,6 +450,23 @@ export async function runStartupMigrations(): Promise<void> {
       AND NOT EXISTS (SELECT 1 FROM seasons s WHERE s.league_id = l.id AND s.year = '2026')
   `);
 
+  // ── Reserves GPS feed (2026-08, per coach): the NPLW GPS uploads already
+  // contain the reserves squad's rows ("R7-res"). Instead of double entry, a
+  // league can point at a source league + squad and read those rows at request
+  // time — no rows are copied. One-shot seed so a later manual unset sticks.
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS gps_source_league_id integer REFERENCES leagues(id)`);
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS gps_source_squad text`);
+  const gpsFeedMarker = await db.execute(sql`SELECT 1 FROM seed_markers WHERE key = 'gps-feed-reserves-v1'`);
+  if (gpsFeedMarker.rows.length === 0) {
+    await db.execute(sql`
+      UPDATE leagues SET
+        gps_source_league_id = (SELECT id FROM leagues WHERE name = 'ACT NPLW'),
+        gps_source_squad = 'Reserves'
+      WHERE name = 'ACT NPLW Reserves' AND gps_source_league_id IS NULL
+    `);
+    await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('gps-feed-reserves-v1') ON CONFLICT DO NOTHING`);
+  }
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

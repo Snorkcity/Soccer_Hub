@@ -144,6 +144,7 @@ import type {
   LeagueInfo,
   LeagueInput,
   LeagueMatchInfo,
+  LeagueUpdateInput,
   LibraryFlagRequest,
   LibraryFlagResult,
   LibraryPracticeList,
@@ -932,6 +933,78 @@ export const useCreateLeague = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateLeagueMutationOptions(options));
+    }
+
+export const getUpdateLeagueUrl = (id: number,) => {
+
+
+
+
+  return `/api/leagues/${id}`
+}
+
+/**
+ * @summary Update league settings (superadmin only, e.g. the GPS feed)
+ */
+export const updateLeague = async (id: number,
+    leagueUpdateInput: LeagueUpdateInput, options?: RequestInit): Promise<LeagueInfo> => {
+
+  return customFetch<LeagueInfo>(getUpdateLeagueUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(leagueUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLeagueMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeague>>, TError,{id: number;data: BodyType<LeagueUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLeague>>, TError,{id: number;data: BodyType<LeagueUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateLeague'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLeague>>, {id: number;data: BodyType<LeagueUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLeague(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLeagueMutationResult = NonNullable<Awaited<ReturnType<typeof updateLeague>>>
+    export type UpdateLeagueMutationBody = BodyType<LeagueUpdateInput>
+    export type UpdateLeagueMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update league settings (superadmin only, e.g. the GPS feed)
+ */
+export const useUpdateLeague = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeague>>, TError,{id: number;data: BodyType<LeagueUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLeague>>,
+        TError,
+        {id: number;data: BodyType<LeagueUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLeagueMutationOptions(options));
     }
 
 export const getListSeasonsUrl = () => {
