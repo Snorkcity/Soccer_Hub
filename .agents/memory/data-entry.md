@@ -29,3 +29,4 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 - Testing subagent [DB] steps query Replit's DATABASE_URL, NOT the Railway DEV_DATABASE_URL this app uses — its DB assertions are false negatives; verify via psql "$DEV_DATABASE_URL" yourself.
 
 **Per-league name format (2026-07):** `leagues.name_format` — coach standard is "S.Smith" ('initial-surname'), the DEFAULT for every league incl. new ones; only ACT NPLW + Reserves are explicitly 'surname' to match their already-entered surname-only history. Extract endpoint takes optional leagueId and swaps the prompt naming rule; frontend passes season.leagueId.
+- Saved player rows can be edited in place (name/mins/status): the PATCH route mirrors the delete route pattern — locate the legacy Belconnen copy by exact-match on the row's OLD field values inside the same transaction, never by id. Any new per-row mutation of dual-written data must follow this pattern.
