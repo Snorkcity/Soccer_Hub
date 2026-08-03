@@ -1975,12 +1975,12 @@ export default function SeasonStats() {
                           </div>
                         </TableCell>
                         <TableCell className="py-1.5 text-right">{entry.played}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.won}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.drawn}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.lost}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.goalsFor}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.goalsAgainst}</TableCell>
-                        <TableCell className="py-1.5 text-right">{entry.goalDiff > 0 ? `+${entry.goalDiff}` : entry.goalDiff}</TableCell>
+                        <TableCell className="py-1.5 text-right text-muted-foreground">{entry.won}</TableCell>
+                        <TableCell className="py-1.5 text-right text-muted-foreground">{entry.drawn}</TableCell>
+                        <TableCell className="py-1.5 text-right text-muted-foreground">{entry.lost}</TableCell>
+                        <TableCell className="py-1.5 text-right text-[hsl(var(--chart-3))]">{entry.goalsFor}</TableCell>
+                        <TableCell className="py-1.5 text-right text-[hsl(var(--chart-4))]">{entry.goalsAgainst}</TableCell>
+                        <TableCell className={cn("py-1.5 text-right font-medium", entry.goalDiff > 0 ? "text-[hsl(var(--chart-3))]" : entry.goalDiff < 0 ? "text-[hsl(var(--chart-4))]" : "text-muted-foreground")}>{entry.goalDiff > 0 ? `+${entry.goalDiff}` : entry.goalDiff}</TableCell>
                         <TableCell className="py-1.5 text-right font-bold">{entry.points}</TableCell>
                         <TableCell className="py-1.5 pl-4">
                           <div className="flex items-center gap-1">
