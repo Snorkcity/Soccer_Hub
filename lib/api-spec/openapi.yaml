@@ -3687,6 +3687,9 @@ components:
         assist: { type: ["string", "null"] }
         ours:   { type: boolean }
         note:   { type: ["string", "null"] }
+        typeLabel:
+          type: ["string", "null"]
+          description: Human Goal DNA label for this goal, e.g. "middle-third regain · before they reset". Optional — absent on older saved reports.
       required: [minute, scorer, assist, ours, note]
 
     MatchReportInsight:
@@ -3799,6 +3802,10 @@ components:
           type: array
           items: { type: string }
           description: 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.
+        dayInsights:
+          type: array
+          items: { type: string }
+          description: Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports.
       required: [scored, conceded, comments]
 
     MatchReportBallUsePoint:

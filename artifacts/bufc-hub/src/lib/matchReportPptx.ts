@@ -245,7 +245,8 @@ export async function generateFootballMatchReport(
         s.addText(runs as never, { x, y: y + 0.1, w: 5.7, h: 1.3, fontSize: 11, lineSpacing: 17, paraSpaceAfter: 5 });
       }
     }
-    const bar = dna.tacticalRead?.length ? dna.tacticalRead.join("  ") : dna.comments.slice(0, 2).join("  •  ");
+    const bar = dna.dayInsights?.length ? dna.dayInsights.slice(0, 2).join("  •  ")
+      : dna.tacticalRead?.length ? dna.tacticalRead.join("  ") : dna.comments.slice(0, 2).join("  •  ");
     if (bar) addInsightBar(s, bar);
     addFooter(s);
   }

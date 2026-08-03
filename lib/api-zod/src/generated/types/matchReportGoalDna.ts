@@ -20,4 +20,6 @@ export interface MatchReportGoalDna {
   matchGoals?: MatchReportGoalDnaGoal[];
   /** 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports. */
   tacticalRead?: string[];
+  /** Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports. */
+  dayInsights?: string[];
 }

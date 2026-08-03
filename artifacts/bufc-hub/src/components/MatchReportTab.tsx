@@ -125,12 +125,18 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
     }
   };
 
+  const [deckMsg, setDeckMsg] = useState<string | null>(null);
   const downloadDeck = async () => {
     if (!model) return;
     setDownloading(true);
+    setDeckMsg(null);
     try {
       const { generateFootballMatchReport } = await import("@/lib/matchReportPptx");
       await generateFootballMatchReport(model, undefined);
+    } catch {
+      // Most common cause: a stale page holding pre-deploy chunk URLs.
+      setDeckMsg("Download failed — refresh the page and try again");
+      setTimeout(() => setDeckMsg(null), 6000);
     } finally {
       setDownloading(false);
     }
@@ -170,7 +176,7 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
           )}
           <Button variant="outline" size="sm" onClick={downloadDeck} disabled={downloading || !model}>
             {downloading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileDown className="h-4 w-4 mr-1.5" />}
-            Download deck
+            {deckMsg ?? "Download deck"}
           </Button>
           {isAdmin && model && <EmailCoachesDialog model={model} />}
         </div>
@@ -360,27 +366,6 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                 ) : !hasStory ? (
                   <div className="text-xs text-muted-foreground">Nothing out of the ordinary in {isScored ? "how the goals came" : "what we gave up"} today.</div>
                 ) : null)}
-                {side.totalTyped > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Season mix ({side.totalTyped} goals)</div>
-                    {side.categories.map(c => {
-                      const flagged = c.verdict != null;
-                      const goodFlag = c.verdict === "high" ? isScored : !isScored;
-                      return (
-                        <div key={c.id} className="flex items-center gap-2 text-xs">
-                          <span className="w-40 shrink-0">{c.label}</span>
-                          <div className="flex-1 h-2 rounded bg-muted overflow-hidden">
-                            <div
-                              className={`h-full ${flagged ? (goodFlag ? "bg-green-500" : "bg-red-500") : "bg-primary/60"}`}
-                              style={{ width: `${Math.min(100, c.pct ?? 0)}%` }}
-                            />
-                          </div>
-                          <span className="w-24 text-right font-mono">{c.pct != null ? `${c.pct.toFixed(0)}%` : "—"} <span className="text-muted-foreground">/ {c.benchmarkLabel}</span></span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             );
             return (
@@ -390,25 +375,27 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                     <ShieldCheck className="h-4 w-4 text-amber-500" />Goal DNA — how the goals really came
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Every goal by type: set pieces, or regains by third (front/middle/back) and timing — during transition (before they reset) vs after transition (they were set and still got broken down). Season mix vs benchmark: set pieces 27%, middle-third 48–50%, front & back thirds ~12% each.
+                    Every goal by type: set pieces, or regains by third (front/middle/back) and timing — during transition (before they reset) vs after transition (they were set and still got broken down). Season mix vs benchmark sits at the bottom of the report.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {hasStory && (
                     <GoalDnaStoryBlock matchGoals={dna.matchGoals ?? []} tacticalRead={dna.tacticalRead ?? []} />
                   )}
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {sideBlock(dna.scored, "Scored", true)}
-                    {sideBlock(dna.conceded, "Conceded", false)}
-                  </div>
-                  {dna.comments.length > 0 && (
-                    <div className="space-y-1.5 border-t pt-3">
-                      {dna.comments.map((c, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
+                  {(dna.dayInsights ?? []).length > 0 && (
+                    <div className="space-y-1.5">
+                      {(dna.dayInsights ?? []).map((c, i) => (
+                        <div key={i} className="flex items-start gap-2 rounded-md border p-2.5 text-sm">
+                          <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-violet-500" />
                           <span>{c}</span>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {!hasStory && (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      {sideBlock(dna.scored, "Scored", true)}
+                      {sideBlock(dna.conceded, "Conceded", false)}
                     </div>
                   )}
                 </CardContent>
@@ -497,7 +484,7 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
               <CardContent>
                 {report.goals.length === 0 && <div className="text-sm text-muted-foreground">No goal detail recorded for this match.</div>}
                 <div className="space-y-1.5">
-                  {report.goals.map((g, i) => (
+                  {report.goals.map((g: typeof report.goals[number], i) => (
                     <div key={i} className={`flex items-start gap-3 rounded-md p-2 text-sm ${g.ours ? "" : "bg-red-500/5"}`}>
                       <span className="w-9 shrink-0 text-right font-mono text-xs text-muted-foreground pt-0.5">{g.minute != null ? `${g.minute}'` : "—"}</span>
                       <div className="min-w-0">
@@ -505,7 +492,9 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                           {g.ours ? g.scorer ?? "Goal" : `Conceded${g.scorer ? ` — ${g.scorer}` : ""}`}
                           {g.ours && g.assist && g.assist !== "OG" && <span className="text-muted-foreground font-normal"> (assist {g.assist})</span>}
                         </div>
-                        {g.note && <div className="text-[11px] text-muted-foreground">{g.note}</div>}
+                        {(g.typeLabel || g.note) && (
+                          <div className="text-[11px] text-muted-foreground">{[g.typeLabel, g.note].filter(Boolean).join(" · ")}</div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -513,6 +502,67 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
               </CardContent>
             </Card>
           </div>
+
+          {/* ── Season DNA vs benchmark — the reference box, right at the bottom ── */}
+          {report.goalDna && (report.goalDna.scored.totalTyped > 0 || report.goalDna.conceded.totalTyped > 0) && (() => {
+            const dna = report.goalDna;
+            const mixBlock = (side: typeof dna.scored, title: string, isScored: boolean) => (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">{title}</div>
+                {side.totalTyped > 0 ? (
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Season mix ({side.totalTyped} goals)</div>
+                    {side.categories.map(c => {
+                      const flagged = c.verdict != null;
+                      const goodFlag = c.verdict === "high" ? isScored : !isScored;
+                      return (
+                        <div key={c.id} className="flex items-center gap-2 text-xs">
+                          <span className="w-40 shrink-0">{c.label}</span>
+                          <div className="flex-1 h-2 rounded bg-muted overflow-hidden">
+                            <div
+                              className={`h-full ${flagged ? (goodFlag ? "bg-green-500" : "bg-red-500") : "bg-primary/60"}`}
+                              style={{ width: `${Math.min(100, c.pct ?? 0)}%` }}
+                            />
+                          </div>
+                          <span className="w-24 text-right font-mono">{c.pct != null ? `${c.pct.toFixed(0)}%` : "—"} <span className="text-muted-foreground">/ {c.benchmarkLabel}</span></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">No typed goals yet.</div>
+                )}
+              </div>
+            );
+            return (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Info className="h-4 w-4 text-sky-500" />Season DNA vs benchmark
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Where the season's goals have come from, against the benchmark mix: set pieces 27%, middle-third regains 48–50%, front & back thirds ~12% each.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {mixBlock(dna.scored, "Scored", true)}
+                    {mixBlock(dna.conceded, "Conceded", false)}
+                  </div>
+                  {dna.comments.length > 0 && (
+                    <div className="space-y-1.5 border-t pt-3">
+                      {dna.comments.map((c, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />
+                          <span>{c}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </>
       )}
 

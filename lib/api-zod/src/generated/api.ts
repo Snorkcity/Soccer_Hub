@@ -1044,7 +1044,8 @@ export const GetMatchReportResponse = zod.object({
   "scorer": zod.string().nullable(),
   "assist": zod.string().nullable(),
   "ours": zod.boolean(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "typeLabel": zod.string().nullish().describe('Human Goal DNA label for this goal, e.g. \"middle-third regain · before they reset\". Optional — absent on older saved reports.')
 })),
   "insights": zod.array(zod.object({
   "tone": zod.enum(['good', 'watch', 'info']),
@@ -1141,7 +1142,8 @@ export const GetMatchReportResponse = zod.object({
   "badgeTone": zod.enum(['signature', 'rare', 'typical', 'untyped']),
   "badgeText": zod.string()
 }).describe('One goal from THIS match, with a badge placing it against the season DNA.')).optional().describe('This match\'s goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed.'),
-  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.')
+  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.'),
+  "dayInsights": zod.array(zod.string()).optional().describe('Up to 3 insights from today\'s goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 
@@ -1190,7 +1192,8 @@ export const GetOpponentMatchReportResponse = zod.object({
   "scorer": zod.string().nullable(),
   "assist": zod.string().nullable(),
   "ours": zod.boolean(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "typeLabel": zod.string().nullish().describe('Human Goal DNA label for this goal, e.g. \"middle-third regain · before they reset\". Optional — absent on older saved reports.')
 })),
   "insights": zod.array(zod.object({
   "tone": zod.enum(['good', 'watch', 'info']),
@@ -1287,7 +1290,8 @@ export const GetOpponentMatchReportResponse = zod.object({
   "badgeTone": zod.enum(['signature', 'rare', 'typical', 'untyped']),
   "badgeText": zod.string()
 }).describe('One goal from THIS match, with a badge placing it against the season DNA.')).optional().describe('This match\'s goals in minute order, each badged vs the season DNA. Optional — absent on reports saved before this existed.'),
-  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.')
+  "tacticalRead": zod.array(zod.string()).optional().describe('2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports.'),
+  "dayInsights": zod.array(zod.string()).optional().describe('Up to 3 insights from today\'s goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 

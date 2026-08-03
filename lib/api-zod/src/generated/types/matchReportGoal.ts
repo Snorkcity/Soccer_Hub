@@ -16,4 +16,9 @@ export interface MatchReportGoal {
   ours: boolean;
   /** @nullable */
   note: string | null;
+  /**
+     * Human Goal DNA label for this goal, e.g. "middle-third regain · before they reset". Optional — absent on older saved reports.
+     * @nullable
+     */
+  typeLabel?: string | null;
 }

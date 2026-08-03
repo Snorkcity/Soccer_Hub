@@ -56,7 +56,7 @@ import {
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
-import { buildDnaStory } from "../lib/goalDnaStory";
+import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -2733,7 +2733,17 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     }
     // Conceded rows show the opponent scorer when recorded, otherwise the club name.
     const concededBy = g.scorer && g.scorer !== "OG" ? g.scorer : g.scorerTeam ?? null;
-    return { minute: g.minuteScored, scorer: ours ? g.scorer : concededBy, assist: ours ? g.assist : null, ours, note };
+    // Human Goal DNA label for the timeline, e.g. "middle-third regain · before they reset".
+    const rawType = g.goalType?.trim().toUpperCase() ?? "";
+    const cat = dnaCatOfType(g.goalType);
+    let typeLabel: string | null = null;
+    if (cat) {
+      typeLabel = dnaCatLabel(cat);
+      if (cat === "setPiece" && rawType === "SP-P") typeLabel = "set piece (penalty)";
+      else if (cat !== "setPiece" && rawType.endsWith("-DT")) typeLabel += " · before they reset";
+      else if (cat !== "setPiece" && rawType.endsWith("-AT")) typeLabel += " · vs a set defence";
+    }
+    return { minute: g.minuteScored, scorer: ours ? g.scorer : concededBy, assist: ours ? g.assist : null, ours, note, typeLabel };
   });
 
   // ── Form strip (last 5 up to & incl. this match) + ladder position ────────
@@ -2988,9 +2998,76 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     totalTypedScored: dnaScored.totalTyped, totalTypedConceded: dnaConceded.totalTyped,
     voice: "team",
   });
+  // ── Insights from today's goals: partnerships, form runs, head-to-head DNA ─
+  const pairIns: { n: number; text: string }[] = [];
+  const streakIns: string[] = [];
+  const h2hIns: string[] = [];
+  // Assist→scorer duos that keep combining (count both directions).
+  const seenPairs = new Set<string>();
+  for (const g of matchOurGoals) {
+    const scorer = g.scorer?.trim();
+    const assist = g.assist?.trim();
+    if (!scorer || !assist || scorer === "OG" || assist === "OG" || assist === scorer) continue;
+    const key = [assist, scorer].sort().join("|");
+    if (seenPairs.has(key)) continue;
+    seenPairs.add(key);
+    const together = ourGoalsUpTo.filter(x =>
+      (x.scorer?.trim() === scorer && x.assist?.trim() === assist) ||
+      (x.scorer?.trim() === assist && x.assist?.trim() === scorer)).length;
+    if (together >= 3) {
+      pairIns.push({ n: together, text: `${assist} → ${scorer} again — that partnership has now combined for ${together} of our goals this season.` });
+    }
+  }
+  // Scoring streaks — scored today AND in each of the previous games.
+  const matchesBefore = upTo.slice(0, -1);
+  const scorersToday = [...new Set(matchOurGoals.map(g => g.scorer?.trim()).filter((s): s is string => !!s && s !== "OG"))];
+  for (const name of scorersToday) {
+    let streak = 1;
+    for (let i = matchesBefore.length - 1; i >= 0; i--) {
+      const mid = matchesBefore[i].id;
+      const scoredIn = seasonGoals.some(g =>
+        g.matchId === mid && g.scorer?.trim() === name && isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+      if (scoredIn) streak++;
+      else break;
+    }
+    if (streak >= 3) streakIns.push(`${name} has now scored in ${streak} straight games — a proper run of form.`);
+  }
+  // Head-to-head: how goals (both ways) have usually come against THIS opponent.
+  const earlierMeetingIds = new Set(ordered.slice(0, idx).filter(m => m.opponent === match.opponent).map(m => m.id));
+  if (earlierMeetingIds.size > 0) {
+    const prevCats = new Map<ReturnType<typeof dnaCatOfType> & string, number>();
+    let prevTyped = 0;
+    for (const g of seasonGoals.filter(g => earlierMeetingIds.has(g.matchId))) {
+      const c = dnaCatOfType(g.goalType);
+      if (c) { prevTyped++; prevCats.set(c, (prevCats.get(c) ?? 0) + 1); }
+    }
+    if (prevTyped >= 3) {
+      const [topCat, topN] = [...prevCats.entries()].sort((a, b) => b[1] - a[1])[0];
+      const todayCats = new Map<ReturnType<typeof dnaCatOfType> & string, number>();
+      for (const g of matchGoals) {
+        const c = dnaCatOfType(g.goalType);
+        if (c) todayCats.set(c, (todayCats.get(c) ?? 0) + 1);
+      }
+      const todayTop = [...todayCats.entries()].sort((a, b) => b[1] - a[1])[0];
+      let line = `Meetings with ${match.opponent} this season have mostly been decided by ${dnaCatLabel(topCat)}s (${topN} of ${prevTyped} goals either way).`;
+      if (todayTop) {
+        line += todayTop[0] === topCat
+          ? ` Today followed the script — ${dnaCatLabel(todayTop[0])}s again.`
+          : ` Today broke the pattern: ${dnaCatLabel(todayTop[0])}s did the damage.`;
+      }
+      h2hIns.push(line);
+    }
+  }
+  // Mix the insight kinds — best partnership + best streak + head-to-head first,
+  // then backfill with remaining partnerships/streaks up to 3.
+  const sortedPairs = pairIns.sort((a, b) => b.n - a.n).map(p => p.text);
+  const dayInsights = [sortedPairs[0], streakIns[0], h2hIns[0], ...sortedPairs.slice(1), ...streakIns.slice(1)]
+    .filter((s): s is string => !!s)
+    .slice(0, 3);
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
     ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
-        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead }
+        matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead,
+        dayInsights }
     : null;
 
   // ── Ball use: possession vs possession-effectiveness quadrant ────────────

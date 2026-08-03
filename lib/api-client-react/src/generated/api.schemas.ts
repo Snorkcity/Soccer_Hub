@@ -833,6 +833,11 @@ export interface MatchReportGoal {
   ours: boolean;
   /** @nullable */
   note: string | null;
+  /**
+     * Human Goal DNA label for this goal, e.g. "middle-third regain · before they reset". Optional — absent on older saved reports.
+     * @nullable
+     */
+  typeLabel?: string | null;
 }
 
 export type MatchReportInsightTone = typeof MatchReportInsightTone[keyof typeof MatchReportInsightTone];
@@ -1015,6 +1020,8 @@ export interface MatchReportGoalDna {
   matchGoals?: MatchReportGoalDnaGoal[];
   /** 2–3 sentence tactical read from goal minutes + types. Optional — absent on older saved reports. */
   tacticalRead?: string[];
+  /** Up to 3 insights from today's goals — partnerships, scoring streaks, head-to-head goal-type patterns. Optional — absent on older saved reports. */
+  dayInsights?: string[];
 }
 
 export interface MatchReportBallUsePoint {
