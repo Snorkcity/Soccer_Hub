@@ -29,3 +29,9 @@ Scott calls this "the gold" of the whole app — the reason the project started.
 Coach's direction: don't comment on every goal — the analyst reads the charts; insights should find "something to remember". Per-match Goal DNA lines fire only for signature patterns (side's dominant/over-benchmark category) or rarities (≤2 all season). Future direction: a full pass to align all app insight wording with the coaching language in the Coach Assistant curriculum docs ("coach packs") — do when Scott says the time is right.
 
 **How to apply:** implemented in the match-report `goalDna` block; reuse the same benchmarks, category mapping, and voice anywhere goals-by-type analysis appears (decks, season summaries, opponent profiles).
+
+## Match report presentation (coach-agreed redesign, Aug 2026)
+The Goal DNA card leads with THIS match: per-goal rows (minute, scorer, category, DT/AT read) each badged vs season DNA (signature ≥25% & biggest cat / rare ≤2 season / typical / untyped), plus a 2–3 sentence tactical read from minutes+types (response-within-10-min, all-DT/all-AT regains, half clusters, early lead, late concessions, set-piece counts). Season bars stay as compact context. Shared server helper builds both team and scout voices; fields are OPTIONAL in the schema so pre-existing saved reports (jsonb) still parse and render the legacy lines. Scouting semantics flip everywhere incl. per-goal row icons/deck arrows.
+
+## Parked next: "week ahead" (Monday) report inputs
+Once match/scout report content is settled, Scott wants the Monday match-prep report generation to also consider (a) the previous meeting vs that opponent and (b) our own previous match report, on top of what it already uses.
