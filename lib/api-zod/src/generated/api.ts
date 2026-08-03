@@ -1729,6 +1729,38 @@ export const GetSubImpactResponse = zod.object({
 
 
 /**
+ * @summary Team stats grouped by unit (GK/Defence/Midfield/Attack) using game-day positions, falling back to assigned GPS positions
+ */
+export const GetUnitBreakdownQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetUnitBreakdownResponse = zod.object({
+  "units": zod.array(zod.object({
+  "unit": zod.enum(['GK', 'Defender', 'Midfielder', 'Forward', 'Unassigned']),
+  "minutes": zod.number(),
+  "appearances": zod.number(),
+  "starts": zod.number(),
+  "goals": zod.number(),
+  "assists": zod.number(),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "minutes": zod.number(),
+  "appearances": zod.number(),
+  "starts": zod.number(),
+  "goals": zod.number(),
+  "assists": zod.number()
+}))
+})),
+  "gameDayRows": zod.number().describe('Stat rows whose unit came from the per-game position code'),
+  "assignedRows": zod.number().describe('Stat rows that fell back to the assigned GPS position'),
+  "unknownRows": zod.number().describe('Stat rows with no usable position at all')
+})
+
+
+/**
  * @summary Per-player on-field impact (team GD while player appeared), broken down by opponent faced
  */
 export const GetOpponentOnfieldImpactQueryParams = zod.object({

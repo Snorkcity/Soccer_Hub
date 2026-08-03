@@ -732,16 +732,10 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
 
 type EditableRow = EntryPlayerRow;
 
-const POSITIONS = ["GK", "LB", "RB", "CB", "LWB", "RWB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "ST", "F"] as const;
-
-// Group position codes into the same units the GPS Positions tab uses.
-const POSITION_UNITS: Record<string, string> = {
-  GK: "GK",
-  LB: "Defender", RB: "Defender", CB: "Defender", LWB: "Defender", RWB: "Defender",
-  DM: "Midfielder", CM: "Midfielder", AM: "Midfielder", LM: "Midfielder", RM: "Midfielder",
-  LW: "Forward", RW: "Forward", ST: "Forward", F: "Forward",
-};
-const unitFor = (pos: string): string | null => POSITION_UNITS[pos] ?? null;
+// Position codes + the shared position→unit mapping (same units as the GPS
+// Positions tab) — shared with the API server via @workspace/api-zod.
+import { POSITION_CODES as POSITIONS, unitForPosition } from "@workspace/api-zod";
+const unitFor = (pos: string): string | null => unitForPosition(pos);
 
 function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   teamId: number; seasonId: number; leagueId: number; fixtures: LeagueMatchInfo[];

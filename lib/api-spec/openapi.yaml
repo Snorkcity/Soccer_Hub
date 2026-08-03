@@ -1179,6 +1179,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/SubImpactResponse"
 
+  /analytics/unit-breakdown:
+    get:
+      operationId: getUnitBreakdown
+      tags: [analytics]
+      summary: Team stats grouped by unit (GK/Defence/Midfield/Attack) using game-day positions, falling back to assigned GPS positions
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-unit aggregates plus per-player detail within each unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitBreakdownResponse"
+
   /analytics/opponent-onfield-impact:
     get:
       operationId: getOpponentOnfieldImpact
@@ -4273,6 +4299,46 @@ components:
           items:
             $ref: "#/components/schemas/SubImpactPlayer"
       required: [players]
+
+    # ── Unit breakdown (stats by GK/Defence/Midfield/Attack) ──────────────────
+
+    UnitPlayerLine:
+      type: object
+      properties:
+        playerName:  { type: string }
+        minutes:     { type: integer }
+        appearances: { type: integer }
+        starts:      { type: integer }
+        goals:       { type: integer }
+        assists:     { type: integer }
+      required: [playerName, minutes, appearances, starts, goals, assists]
+
+    UnitBreakdownUnit:
+      type: object
+      properties:
+        unit:        { type: string, enum: [GK, Defender, Midfielder, Forward, Unassigned] }
+        minutes:     { type: integer }
+        appearances: { type: integer }
+        starts:      { type: integer }
+        goals:       { type: integer }
+        assists:     { type: integer }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnitPlayerLine"
+      required: [unit, minutes, appearances, starts, goals, assists, players]
+
+    UnitBreakdownResponse:
+      type: object
+      properties:
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnitBreakdownUnit"
+        gameDayRows:  { type: integer, description: "Stat rows whose unit came from the per-game position code" }
+        assignedRows: { type: integer, description: "Stat rows that fell back to the assigned GPS position" }
+        unknownRows:  { type: integer, description: "Stat rows with no usable position at all" }
+      required: [units, gameDayRows, assignedRows, unknownRows]
 
     # ── Clutch goals (big goals in close matches) ──────────────────────────────
 

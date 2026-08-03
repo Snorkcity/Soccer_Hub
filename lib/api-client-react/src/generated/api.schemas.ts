@@ -1392,6 +1392,46 @@ export interface SubImpactResponse {
   players: SubImpactPlayer[];
 }
 
+export interface UnitPlayerLine {
+  playerName: string;
+  minutes: number;
+  appearances: number;
+  starts: number;
+  goals: number;
+  assists: number;
+}
+
+export type UnitBreakdownUnitUnit = typeof UnitBreakdownUnitUnit[keyof typeof UnitBreakdownUnitUnit];
+
+
+export const UnitBreakdownUnitUnit = {
+  GK: 'GK',
+  Defender: 'Defender',
+  Midfielder: 'Midfielder',
+  Forward: 'Forward',
+  Unassigned: 'Unassigned',
+} as const;
+
+export interface UnitBreakdownUnit {
+  unit: UnitBreakdownUnitUnit;
+  minutes: number;
+  appearances: number;
+  starts: number;
+  goals: number;
+  assists: number;
+  players: UnitPlayerLine[];
+}
+
+export interface UnitBreakdownResponse {
+  units: UnitBreakdownUnit[];
+  /** Stat rows whose unit came from the per-game position code */
+  gameDayRows: number;
+  /** Stat rows that fell back to the assigned GPS position */
+  assignedRows: number;
+  /** Stat rows with no usable position at all */
+  unknownRows: number;
+}
+
 export type ClutchGoalDetailCategory = typeof ClutchGoalDetailCategory[keyof typeof ClutchGoalDetailCategory];
 
 
@@ -3358,6 +3398,12 @@ export const GetPlayerImpactSort = {
 export type GetSubImpactParams = {
 seasonId: number;
 club: string;
+lastN?: number;
+};
+
+export type GetUnitBreakdownParams = {
+teamId: number;
+seasonId: number;
 lastN?: number;
 };
 

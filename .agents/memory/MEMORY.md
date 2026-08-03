@@ -54,4 +54,5 @@
 - [Headless mobile overflow sweep](mobile-sweep.md) — puppeteer-core + nix chromium with login cookie; DOM-measure overflow per tab; skip overflow-hidden ancestors to avoid truncate false positives.
 - [Week Ahead brief server context](week-ahead-brief.md) — Monday brief pulls last-meeting facts + latest Friday deck server-side; coach's own OpenAI key can be out of credits (429) — not a code bug.
 - [OpenAI quota error pattern](openai-quota-pattern.md) — shared OpenAiQuotaError/throwIfQuota in api-server lib; every direct api.openai.com call must use it → 402 JSON or SSE error frame.
+- [Shared position→unit mapping](position-units.md) — canonical code→unit map lives in @workspace/api-zod (only package both server & web use); unit analytics prefer game-day position, fall back to assigned GPS unit.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.

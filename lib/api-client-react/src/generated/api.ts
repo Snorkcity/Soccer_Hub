@@ -97,6 +97,7 @@ import type {
   GetSeasonSummaryParams,
   GetSubImpactParams,
   GetTeamFormParams,
+  GetUnitBreakdownParams,
   Goal,
   GoalBreakdownResponse,
   GoalCombosResponse,
@@ -218,6 +219,7 @@ import type {
   SubImpactResponse,
   Team,
   TeamForm,
+  UnitBreakdownResponse,
   UpdateProfileRequest,
   UpdateUserRequest,
   UploadLibraryPracticeRequest,
@@ -4175,6 +4177,90 @@ export function useGetSubImpact<TData = Awaited<ReturnType<typeof getSubImpact>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSubImpactQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUnitBreakdownUrl = (params: GetUnitBreakdownParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/unit-breakdown?${stringifiedParams}` : `/api/analytics/unit-breakdown`
+}
+
+/**
+ * @summary Team stats grouped by unit (GK/Defence/Midfield/Attack) using game-day positions, falling back to assigned GPS positions
+ */
+export const getUnitBreakdown = async (params: GetUnitBreakdownParams, options?: RequestInit): Promise<UnitBreakdownResponse> => {
+
+  return customFetch<UnitBreakdownResponse>(getGetUnitBreakdownUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnitBreakdownQueryKey = (params?: GetUnitBreakdownParams,) => {
+    return [
+    `/api/analytics/unit-breakdown`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetUnitBreakdownQueryOptions = <TData = Awaited<ReturnType<typeof getUnitBreakdown>>, TError = ErrorType<unknown>>(params: GetUnitBreakdownParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnitBreakdown>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnitBreakdownQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnitBreakdown>>> = ({ signal }) => getUnitBreakdown(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnitBreakdown>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUnitBreakdownQueryResult = NonNullable<Awaited<ReturnType<typeof getUnitBreakdown>>>
+export type GetUnitBreakdownQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Team stats grouped by unit (GK/Defence/Midfield/Attack) using game-day positions, falling back to assigned GPS positions
+ */
+
+export function useGetUnitBreakdown<TData = Awaited<ReturnType<typeof getUnitBreakdown>>, TError = ErrorType<unknown>>(
+ params: GetUnitBreakdownParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnitBreakdown>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUnitBreakdownQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -33,6 +33,9 @@ import {
   getGetPlayerImpactQueryKey,
   useGetSubImpact,
   getGetSubImpactQueryKey,
+  useGetUnitBreakdown,
+  getGetUnitBreakdownQueryKey,
+  type UnitBreakdownResponse,
   type PlayerImpactPlayer,
   type PlayerImpactSide,
   useGetClubs,
@@ -1219,6 +1222,7 @@ export default function SeasonStats() {
   const [l3CcInt, setL3CcInt]   = useState(false); // conceded: by interval
   const [l3CcType, setL3CcType] = useState(false); // conceded: by type
   const [l3CcDet, setL3CcDet]   = useState(false); // conceded: goal detail
+  const [l3Units, setL3Units]   = useState(false); // stats by unit
   // Goal Contributions stacked-by-club state
   const [hiddenContribOpponents, setHiddenContribOpponents] = useState<Set<string>>(new Set());
   const [contribSort, setContribSort] = useState<"total" | "mpg">("total");
@@ -1320,6 +1324,12 @@ export default function SeasonStats() {
   const gbL3Params = { ...analyticsParams, lastN: 3 };
   const { data: goalBreakdownL3 } = useGetGoalBreakdown(gbL3Params,          { query: { enabled: isReady, queryKey: getGetGoalBreakdownQueryKey(gbL3Params) } });
   const { data: leaderboard } = useGetPlayerLeaderboard(analyticsParams,   { query: { enabled: isReady, queryKey: getGetPlayerLeaderboardQueryKey(analyticsParams) } });
+
+  // ── Stats by unit (game-day positions, GPS-assigned fallback): full + last-3 ─
+  const unitL3Params = { ...analyticsParams, lastN: 3 };
+  const { data: unitBreakdownFull } = useGetUnitBreakdown(analyticsParams, { query: { enabled: isReady, queryKey: getGetUnitBreakdownQueryKey(analyticsParams) } });
+  const { data: unitBreakdownL3 } = useGetUnitBreakdown(unitL3Params, { query: { enabled: isReady, queryKey: getGetUnitBreakdownQueryKey(unitL3Params) } });
+  const unitBreakdown = l3Units ? unitBreakdownL3 : unitBreakdownFull;
 
   // ── Combo threat (our assist→scorer partnerships): full season + last-3-rounds ─
   const { data: goalCombosFull } = useGetGoalCombos(analyticsParams, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(analyticsParams) } });
@@ -2254,6 +2264,13 @@ export default function SeasonStats() {
               <PhilosophyQuadrant points={quadPoints} colorMap={clubColorMap} />
             </div>
           </ChartCard>
+
+          {/* ═══ Stats by Unit (game-day positions) ═══ */}
+          <UnitBreakdownCard
+            data={unitBreakdown}
+            lastThree={l3Units}
+            onToggleLastThree={() => setL3Units(v => !v)}
+          />
         </TabsContent>
 
         {/* ════════════════ PLAYER INSIGHTS ════════════════ */}
@@ -3596,6 +3613,99 @@ function ChartCard({ title, description, tooltip, controls, footer, tall, auto, 
       </CardContent>
       {footer && <div className="px-6 pb-4 -mt-2">{footer}</div>}
     </Card>
+  );
+}
+
+// ── Stats by Unit (defence / midfield / attack via game-day positions) ───────
+const UNIT_COLORS: Record<string, string> = {
+  GK: "hsl(var(--chart-5))",
+  Defender: "hsl(var(--chart-1))",
+  Midfielder: "hsl(var(--chart-2))",
+  Forward: "hsl(var(--chart-3))",
+  Unassigned: "hsl(var(--muted-foreground))",
+};
+
+function UnitBreakdownCard({ data, lastThree, onToggleLastThree }: {
+  data: UnitBreakdownResponse | undefined;
+  lastThree: boolean;
+  onToggleLastThree: () => void;
+}) {
+  const units = data?.units ?? [];
+  const keys = units.map(u => u.unit);
+  const rows: StackRow[] = useMemo(() => {
+    const metrics: Array<{ label: string; pick: (u: (typeof units)[number]) => number }> = [
+      { label: "Goals", pick: u => u.goals },
+      { label: "Assists", pick: u => u.assists },
+      { label: "Starts", pick: u => u.starts },
+      { label: "Appearances", pick: u => u.appearances },
+    ];
+    return metrics.map(m => {
+      const row: StackRow = { label: m.label };
+      for (const u of units) row[u.unit] = m.pick(u);
+      return row;
+    });
+  }, [units]);
+
+  const coverage = data
+    ? `${data.gameDayRows} game-day position${data.gameDayRows === 1 ? "" : "s"} · ${data.assignedRows} from the Positions tab${data.unknownRows ? ` · ${data.unknownRows} without a position` : ""}`
+    : null;
+
+  return (
+    <ChartCard
+      title={`Stats by Unit${lastThree ? " — Last 3 Rounds" : ""}`}
+      description="Goals, assists and minutes grouped by unit — uses the position each player actually played that day"
+      tooltip="Each saved player-game row is bucketed into GK / Defender / Midfielder / Forward using its per-game position code (LB, CM, ST, …). Rows without a game-day code fall back to the player's assigned position from the GPS Positions tab. Goals and assists are credited to the unit the player occupied in that match."
+      auto
+      controls={<Last3Toggle active={lastThree} onToggle={onToggleLastThree} />}
+      footer={
+        <div className="space-y-2">
+          <KeyLegend keys={keys} colorFn={k => UNIT_COLORS[k] ?? "#888888"} />
+          {coverage && <p className="text-center text-[11px] text-muted-foreground">{coverage}</p>}
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="h-[260px]">
+          <StackBars rows={rows} keys={keys} colorFn={k => UNIT_COLORS[k] ?? "#888888"} showPct />
+        </div>
+        {units.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="h-8 py-1">Unit</TableHead>
+                <TableHead className="h-8 py-1 text-right">Minutes</TableHead>
+                <TableHead className="h-8 py-1 text-right">Apps</TableHead>
+                <TableHead className="h-8 py-1 text-right">Starts</TableHead>
+                <TableHead className="h-8 py-1 text-right">Goals</TableHead>
+                <TableHead className="h-8 py-1 text-right">Assists</TableHead>
+                <TableHead className="h-8 py-1 pl-4 hidden md:table-cell">Most minutes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {units.map(u => (
+                <TableRow key={u.unit} className="text-sm">
+                  <TableCell className="py-1.5 font-medium">
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: UNIT_COLORS[u.unit] ?? "#888888" }} />
+                      {u.unit}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-1.5 text-right">{u.minutes.toLocaleString()}</TableCell>
+                  <TableCell className="py-1.5 text-right">{u.appearances}</TableCell>
+                  <TableCell className="py-1.5 text-right">{u.starts}</TableCell>
+                  <TableCell className="py-1.5 text-right font-semibold">{u.goals}</TableCell>
+                  <TableCell className="py-1.5 text-right">{u.assists}</TableCell>
+                  <TableCell className="py-1.5 pl-4 text-xs text-muted-foreground hidden md:table-cell">
+                    {u.players.slice(0, 3).map(p => `${p.playerName} (${p.minutes}')`).join(", ")}
+                    {u.players.length > 3 ? ` +${u.players.length - 3} more` : ""}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    </ChartCard>
   );
 }
 

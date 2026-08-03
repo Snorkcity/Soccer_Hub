@@ -52,6 +52,10 @@ import {
   GetMatchReportResponse,
   GetClutchGoalsQueryParams,
   GetClutchGoalsResponse,
+  GetUnitBreakdownQueryParams,
+  GetUnitBreakdownResponse,
+  unitForPosition,
+  asUnit,
   GetOpponentClutchGoalsQueryParams,
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
@@ -1605,6 +1609,128 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
+});
+
+// ─── Unit breakdown (stats by GK / Defence / Midfield / Attack) ────────────────
+//
+// Groups our players' minutes/apps/starts/goals/assists by unit. The unit for a
+// stat row prefers the per-game position code recorded on that row (a player may
+// play a different role in any one game) and falls back to the season-long
+// assigned GPS position when no game-day code was recorded.
+
+router.get("/analytics/unit-breakdown", async (req, res): Promise<void> => {
+  const query = GetUnitBreakdownQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForRequest(req, seasonId);
+
+  let matches = await db
+    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  if (lastN != null && lastN > 0) {
+    matches = matches
+      .slice()
+      .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""))
+      .slice(0, lastN);
+  }
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) {
+    res.json(GetUnitBreakdownResponse.parse({ units: [], gameDayRows: 0, assignedRows: 0, unknownRows: 0 }));
+    return;
+  }
+
+  const stats = await db
+    .select()
+    .from(playerStatsTable)
+    .where(and(
+      inArray(playerStatsTable.matchId, matchIds),
+      eq(playerStatsTable.club, focusClub),
+    ));
+
+  // Assigned GPS positions (already stored as unit names). Stats rows can use
+  // short names ("Ailish") while GPS names are fuller — match on a whole word,
+  // same rule the Data Entry screen uses.
+  const assigned = await db.select().from(gpsPlayerPositionsTable);
+  const norm = (s: string) => s.toLowerCase().trim();
+  const assignedUnitFor = (statName: string) => {
+    const target = norm(statName);
+    if (!target) return null;
+    const hit = assigned.find(a => {
+      const full = norm(a.playerName);
+      return full === target || full.split(/[^a-z']+/).includes(target);
+    });
+    return asUnit(hit?.position ?? null);
+  };
+
+  type UnitKey = "GK" | "Defender" | "Midfielder" | "Forward" | "Unassigned";
+  let gameDayRows = 0, assignedRows = 0, unknownRows = 0;
+  const unitOfRow = (row: { playerName: string; position: string | null }): UnitKey => {
+    const gameDay = unitForPosition(row.position);
+    if (gameDay) { gameDayRows++; return gameDay; }
+    const fallback = assignedUnitFor(row.playerName);
+    if (fallback) { assignedRows++; return fallback; }
+    unknownRows++;
+    return "Unassigned";
+  };
+
+  type Line = { playerName: string; minutes: number; appearances: number; starts: number; goals: number; assists: number };
+  const units = new Map<UnitKey, Map<string, Line>>();
+  const line = (unit: UnitKey, playerName: string): Line => {
+    const bucket = units.get(unit) ?? units.set(unit, new Map()).get(unit)!;
+    return bucket.get(playerName)
+      ?? bucket.set(playerName, { playerName, minutes: 0, appearances: 0, starts: 0, goals: 0, assists: 0 }).get(playerName)!;
+  };
+
+  // Per (match, playerName) remember the unit played that day — goals/assists in
+  // that match are then credited to the unit the player actually occupied.
+  const unitInMatch = new Map<string, UnitKey>();
+  for (const s of stats) {
+    const unit = unitOfRow(s);
+    unitInMatch.set(`${s.matchId}\u0000${s.playerName}`, unit);
+    const l = line(unit, s.playerName);
+    l.minutes += s.minsPlayed ?? 0;
+    if (s.appearance) l.appearances++;
+    if (s.started) l.starts++;
+  }
+
+  const roster = new Set(stats.map(s => s.playerName));
+  const goals = await db
+    .select()
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)));
+  const creditUnit = (matchId: number, name: string): UnitKey | null =>
+    unitInMatch.get(`${matchId}\u0000${name}`) ?? assignedUnitFor(name);
+  for (const g of goals) {
+    if (!isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub)) continue;
+    if (g.scorer && g.scorer !== "OG" && roster.has(g.scorer)) {
+      const u = creditUnit(g.matchId, g.scorer);
+      if (u) line(u, g.scorer).goals++;
+    }
+    if (g.assist && g.assist !== "OG" && roster.has(g.assist)) {
+      const u = creditUnit(g.matchId, g.assist);
+      if (u) line(u, g.assist).assists++;
+    }
+  }
+
+  const ORDER: UnitKey[] = ["GK", "Defender", "Midfielder", "Forward", "Unassigned"];
+  const out = ORDER
+    .filter(u => units.has(u))
+    .map(u => {
+      const players = Array.from(units.get(u)!.values())
+        .sort((a, b) => b.minutes - a.minutes || a.playerName.localeCompare(b.playerName));
+      return {
+        unit: u,
+        minutes: players.reduce((acc, p) => acc + p.minutes, 0),
+        appearances: players.reduce((acc, p) => acc + p.appearances, 0),
+        starts: players.reduce((acc, p) => acc + p.starts, 0),
+        goals: players.reduce((acc, p) => acc + p.goals, 0),
+        assists: players.reduce((acc, p) => acc + p.assists, 0),
+        players,
+      };
+    });
+
+  res.json(GetUnitBreakdownResponse.parse({ units: out, gameDayRows, assignedRows, unknownRows }));
 });
 
 // ─── Substitute impact (team goals for/against while a sub was on) ─────────────
