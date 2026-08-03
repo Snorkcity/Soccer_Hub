@@ -790,7 +790,7 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
   const edit = body.data;
-  if (edit.playerName === undefined && edit.minsPlayed === undefined && edit.started === undefined && edit.appearance === undefined) {
+  if (edit.playerName === undefined && edit.minsPlayed === undefined && edit.position === undefined && edit.started === undefined && edit.appearance === undefined) {
     res.status(400).json({ error: "Nothing to change" });
     return;
   }
@@ -843,9 +843,10 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
 
-  const patch: { playerName?: string; minsPlayed?: number | null; started?: boolean; appearance?: boolean } = {};
+  const patch: { playerName?: string; minsPlayed?: number | null; position?: string | null; started?: boolean; appearance?: boolean } = {};
   if (newName !== undefined) patch.playerName = newName;
   if (edit.minsPlayed !== undefined) patch.minsPlayed = edit.minsPlayed;
+  if (edit.position !== undefined) patch.position = edit.position === null ? null : edit.position.trim() || null;
   if (edit.started !== undefined) patch.started = edit.started;
   if (edit.appearance !== undefined) patch.appearance = edit.appearance;
 

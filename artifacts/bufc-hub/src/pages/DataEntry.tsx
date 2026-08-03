@@ -770,15 +770,37 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     onError: (e) => setErr(errMsg(e)),
   }});
 
+  // Assigned positions from the Positions tab — used as the default shown when a
+  // row has no per-game position recorded (a player may play a different role in
+  // any one game; editing the row overrides the default for that game only).
+  const { data: assignedPositions } = useListGpsPlayerPositions(
+    { query: { queryKey: getListGpsPlayerPositionsQueryKey() } },
+  );
+  const assignedPositionFor = (statName: string): string | null => {
+    if (!assignedPositions?.length) return null;
+    const norm = (s: string) => s.toLowerCase().trim();
+    const target = norm(statName);
+    if (!target) return null;
+    const hit = assignedPositions.find(a => {
+      const full = norm(a.playerName);
+      if (full === target) return true;
+      // Stats rows use short names (e.g. "Ailish"); GPS names can be fuller — match on a whole word.
+      return full.split(/[^a-z']+/).includes(target);
+    });
+    return hit?.position ?? null;
+  };
+
   // Inline edit of a saved row (fix a name the sync brought in wrong, etc.)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editMins, setEditMins] = useState("");
+  const [editPos, setEditPos] = useState("__none__");
   const [editStatus, setEditStatus] = useState<"started" | "bench" | "unused">("started");
-  const startEdit = (p: { id: number; playerName: string; minsPlayed: number | null; started: boolean; appearance: boolean }) => {
+  const startEdit = (p: { id: number; playerName: string; minsPlayed: number | null; position: string | null; started: boolean; appearance: boolean }) => {
     setEditingId(p.id);
     setEditName(p.playerName);
     setEditMins(p.minsPlayed == null ? "" : String(p.minsPlayed));
+    setEditPos(p.position ?? "__none__");
     setEditStatus(p.started ? "started" : p.appearance ? "bench" : "unused");
   };
   const updateSaved = useUpdateEntryPlayerStat({ mutation: {
@@ -795,6 +817,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     updateSaved.mutate({ rowId: editingId, data: {
       playerName: editName.trim(),
       minsPlayed: editMins.trim() === "" ? null : Number(editMins),
+      position: editPos === "__none__" ? null : editPos,
       started: editStatus === "started",
       appearance: editStatus !== "unused",
     }});
@@ -948,6 +971,13 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                     value={editMins} onChange={e => setEditMins(e.target.value.replace(/[^0-9]/g, ""))}
                     className="h-8 w-20 text-sm" placeholder="Mins" inputMode="numeric"
                   />
+                  <Select value={editPos} onValueChange={setEditPos}>
+                    <SelectTrigger className="h-8 w-28 text-sm"><SelectValue placeholder="Pos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No pos</SelectItem>
+                      {POSITIONS.map(pos => <SelectItem key={pos} value={pos}>{pos}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <Select value={editStatus} onValueChange={v => setEditStatus(v as typeof editStatus)}>
                     <SelectTrigger className="h-8 w-32 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -969,7 +999,9 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                 <span className="text-xs text-muted-foreground">
                   {p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
                   {p.minsPlayed != null ? ` · ${p.minsPlayed} mins` : ""}
-                  {p.position ? ` · ${p.position}` : ""}
+                  {p.position
+                    ? ` · ${p.position}`
+                    : (() => { const d = assignedPositionFor(p.playerName); return d ? ` · ${d} (usual)` : ""; })()}
                 </span>
                 {p.discipline && <Badge variant="outline" className="text-xs">{p.discipline}</Badge>}
                 <Button

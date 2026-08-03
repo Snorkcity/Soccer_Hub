@@ -5098,6 +5098,7 @@ components:
       properties:
         playerName: { type: string, minLength: 1 }
         minsPlayed: { type: integer, minimum: 0, maximum: 130, nullable: true }
+        position:   { type: string, maxLength: 20, nullable: true }
         started:    { type: boolean }
         appearance: { type: boolean }
 

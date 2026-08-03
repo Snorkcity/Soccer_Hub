@@ -14,6 +14,8 @@ export interface EntryPlayerStatEditBody {
      * @maximum 130
      */
   minsPlayed?: number | null;
+  /** @maxLength 20 */
+  position?: string | null;
   started?: boolean;
   appearance?: boolean;
 }

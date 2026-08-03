@@ -2877,11 +2877,14 @@ export const UpdateEntryPlayerStatParams = zod.object({
 export const updateEntryPlayerStatBodyMinsPlayedMin = 0;
 export const updateEntryPlayerStatBodyMinsPlayedMax = 130;
 
+export const updateEntryPlayerStatBodyPositionMax = 20;
+
 
 
 export const UpdateEntryPlayerStatBody = zod.object({
   "playerName": zod.string().min(1).optional(),
   "minsPlayed": zod.number().min(updateEntryPlayerStatBodyMinsPlayedMin).max(updateEntryPlayerStatBodyMinsPlayedMax).nullish(),
+  "position": zod.string().max(updateEntryPlayerStatBodyPositionMax).nullish(),
   "started": zod.boolean().optional(),
   "appearance": zod.boolean().optional()
 })
