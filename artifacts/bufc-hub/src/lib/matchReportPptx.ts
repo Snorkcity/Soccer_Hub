@@ -202,15 +202,37 @@ export async function generateFootballMatchReport(
     const dna = report.goalDna;
     const s = pptx.addSlide();
     s.background = { color: BG };
-    addHeader(s, "Goal DNA — how the goals really came",
-      "Season mix by goal type vs benchmark: set pieces 27%, middle-third 48–50%, front & back thirds ~12% each.");
+    // Headline badge squares (newer reports) — mirrors the on-screen
+    // "Goal story" card. Older saved reports won't have them.
+    const badges = (dna.insightBadges ?? []).slice(0, 4);
+    if (badges.length) {
+      addHeader(s, "Goal story — what today's goals tell us",
+        "The headlines from today's goals — type, timing, scorers, assists and the defence — each read against the season.");
+    } else {
+      addHeader(s, "Goal DNA — how the goals really came",
+        "Season mix by goal type vs benchmark: set pieces 27%, middle-third 48–50%, front & back thirds ~12% each.");
+    }
+    const AMBER = "F0B45C";
+    if (badges.length) {
+      const bw = 2.95, bh = 1.15, bgx = 0.3, bx0 = 0.7, by0 = 1.5;
+      badges.forEach((b, i) => {
+        const x = bx0 + i * (bw + bgx);
+        const watch = b.tone === "watch";
+        s.addShape("roundRect", { x, y: by0, w: bw, h: bh, rectRadius: 0.06,
+          fill: { color: watch ? "33301C" : TINT }, line: { color: watch ? "8A6A2E" : LINE, width: 1 } });
+        s.addText(b.label.toUpperCase(), { x: x + 0.2, y: by0 + 0.1, w: bw - 0.4, h: 0.28, fontSize: 9.5, charSpacing: 2, color: watch ? AMBER : GREY });
+        s.addText(b.value, { x: x + 0.2, y: by0 + 0.36, w: bw - 0.4, h: 0.45, fontSize: 13, bold: true, color: INK, valign: "top" });
+        if (b.sub) s.addText(b.sub, { x: x + 0.2, y: by0 + 0.8, w: bw - 0.4, h: 0.3, fontSize: 9, italic: true, color: GREY });
+      });
+    }
+    const sidesTop = badges.length ? 2.9 : 1.55;
     const sides = [
       { d: dna.scored, title: subject ? "They scored" : "Scored", isScored: true, x: 0.7 },
       { d: dna.conceded, title: subject ? "They conceded" : "Conceded", isScored: false, x: 6.95 },
     ];
     for (const { d, title, isScored, x } of sides) {
-      s.addText(`${title} — ${d.totalTyped} typed this season`, { x, y: 1.55, w: 5.6, h: 0.35, fontSize: 14, bold: true, color: isScored ? GOOD : BAD });
-      let y = 2.0;
+      s.addText(`${title} — ${d.totalTyped} typed this season`, { x, y: sidesTop, w: 5.6, h: 0.35, fontSize: 14, bold: true, color: isScored ? GOOD : BAD });
+      let y = sidesTop + 0.45;
       for (const c of d.categories) {
         const flagged = c.verdict != null;
         // Team report: our high scoring = good. Scouting report: THEIR high
@@ -225,9 +247,12 @@ export async function generateFootballMatchReport(
         y += 0.38;
       }
       // Per-goal story rows (newer reports); older saved reports fall back to
-      // the legacy interpretation lines.
+      // the legacy interpretation lines. Team deck with badges drops the rows
+      // entirely — matches the on-screen card, where the badges replaced them.
       const story = (dna.matchGoals ?? []).filter(g => (g.side === "scored") === isScored);
-      if (dna.matchGoals != null) {
+      if (!subject && badges.length) {
+        // badges cover the story — nothing per-goal on the team deck
+      } else if (dna.matchGoals != null) {
         if (story.length) {
           // Scouting deck flips meaning: their scoring = threat, their conceding = our opening.
           const goodRow = subject ? !isScored : isScored;
