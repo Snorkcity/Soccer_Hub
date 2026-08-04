@@ -1117,6 +1117,62 @@ export interface MatchReportResponse {
   goalDna: MatchReportGoalDna | null;
 }
 
+export interface SeasonReportRound {
+  matchRowId: number;
+  round: string;
+  /** @nullable */
+  date: string | null;
+  opponent: string;
+  /**
+     * W / D / L, null when unplayed
+     * @nullable
+     */
+  result: string | null;
+  /**
+     * Half-time W / D / L oriented to us
+     * @nullable
+     */
+  htResult: string | null;
+  /** @nullable */
+  goalsFor: number | null;
+  /** @nullable */
+  goalsAgainst: number | null;
+  /** @nullable */
+  possession: number | null;
+  /** @nullable */
+  passes: number | null;
+  /** @nullable */
+  shots: number | null;
+  /** @nullable */
+  oppShots: number | null;
+}
+
+export interface SeasonReportTimingBand {
+  /** e.g. 1–15, 76+ */
+  band: string;
+  scored: number;
+  conceded: number;
+}
+
+export interface SeasonReportDnaCat {
+  id: string;
+  label: string;
+  count: number;
+  /** @nullable */
+  pct: number | null;
+  /** @nullable */
+  benchmarkPct: number | null;
+}
+
+export interface SeasonReportResponse {
+  rounds: SeasonReportRound[];
+  timing: SeasonReportTimingBand[];
+  dnaMix: SeasonReportDnaCat[];
+  /** Our goals with a recorded DNA type */
+  dnaTyped: number;
+  insights: MatchReportInsight[];
+}
+
 export interface GoalIntervalBucket {
   interval: string;
   goalsScored: number;
@@ -3368,6 +3424,11 @@ seasonId: number;
  * The matches table row id (not the text match_id)
  */
 matchRowId: number;
+};
+
+export type GetSeasonReportParams = {
+teamId: number;
+seasonId: number;
 };
 
 export type GetOpponentMatchReportParams = {

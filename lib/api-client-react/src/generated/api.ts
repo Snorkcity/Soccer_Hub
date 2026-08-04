@@ -99,6 +99,7 @@ import type {
   GetPlayerLeaderboardParams,
   GetPlayerTallyParams,
   GetPlayerTimelineParams,
+  GetSeasonReportParams,
   GetSeasonSummaryParams,
   GetSubImpactParams,
   GetTeamFormParams,
@@ -211,6 +212,7 @@ import type {
   SavedMatchReportCreateRequest,
   Season,
   SeasonInput,
+  SeasonReportResponse,
   SeasonSummary,
   SendGpsReportEmail200,
   SendMatchReportEmail200,
@@ -3091,6 +3093,90 @@ export function useGetMatchReport<TData = Awaited<ReturnType<typeof getMatchRepo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMatchReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSeasonReportUrl = (params: GetSeasonReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/season-report?${stringifiedParams}` : `/api/analytics/season-report`
+}
+
+/**
+ * @summary Season trends and senior-readiness reads (per-round series, goal timing, DNA mix, weighted insights)
+ */
+export const getSeasonReport = async (params: GetSeasonReportParams, options?: RequestInit): Promise<SeasonReportResponse> => {
+
+  return customFetch<SeasonReportResponse>(getGetSeasonReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeasonReportQueryKey = (params?: GetSeasonReportParams,) => {
+    return [
+    `/api/analytics/season-report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSeasonReportQueryOptions = <TData = Awaited<ReturnType<typeof getSeasonReport>>, TError = ErrorType<unknown>>(params: GetSeasonReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeasonReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeasonReport>>> = ({ signal }) => getSeasonReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeasonReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeasonReportQueryResult = NonNullable<Awaited<ReturnType<typeof getSeasonReport>>>
+export type GetSeasonReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Season trends and senior-readiness reads (per-round series, goal timing, DNA mix, weighted insights)
+ */
+
+export function useGetSeasonReport<TData = Awaited<ReturnType<typeof getSeasonReport>>, TError = ErrorType<unknown>>(
+ params: GetSeasonReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeasonReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -1157,6 +1157,49 @@ export const GetMatchReportResponse = zod.object({
 
 
 /**
+ * @summary Season trends and senior-readiness reads (per-round series, goal timing, DNA mix, weighted insights)
+ */
+export const GetSeasonReportQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number()
+})
+
+export const GetSeasonReportResponse = zod.object({
+  "rounds": zod.array(zod.object({
+  "matchRowId": zod.number(),
+  "round": zod.string(),
+  "date": zod.string().nullable(),
+  "opponent": zod.string(),
+  "result": zod.string().nullable().describe('W \/ D \/ L, null when unplayed'),
+  "htResult": zod.string().nullable().describe('Half-time W \/ D \/ L oriented to us'),
+  "goalsFor": zod.number().nullable(),
+  "goalsAgainst": zod.number().nullable(),
+  "possession": zod.number().nullable(),
+  "passes": zod.number().nullable(),
+  "shots": zod.number().nullable(),
+  "oppShots": zod.number().nullable()
+})),
+  "timing": zod.array(zod.object({
+  "band": zod.string().describe('e.g. 1–15, 76+'),
+  "scored": zod.number(),
+  "conceded": zod.number()
+})),
+  "dnaMix": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "count": zod.number(),
+  "pct": zod.number().nullable(),
+  "benchmarkPct": zod.number().nullable()
+})),
+  "dnaTyped": zod.number().describe('Our goals with a recorded DNA type'),
+  "insights": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+}))
+})
+
+
+/**
  * @summary Slimmed scouting match report for any league club's game, from the league tables (no GPS/possession)
  */
 export const GetOpponentMatchReportQueryParams = zod.object({

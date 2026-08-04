@@ -50,6 +50,8 @@ import {
   GetOpponentFirstSubResponse,
   GetMatchReportQueryParams,
   GetMatchReportResponse,
+  GetSeasonReportQueryParams,
+  GetSeasonReportResponse,
   GetClutchGoalsQueryParams,
   GetClutchGoalsResponse,
   GetUnitBreakdownQueryParams,
@@ -3720,6 +3722,212 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague,
     gps, previousMeetings, ballUse, goalDna,
   }));
+});
+
+// ── Season report — trends through the year + senior-readiness reads ────────
+// Per-round series (results, goals, possession, passes, shots), goal-timing
+// bands, Goal DNA mix vs benchmark, and a weighted insight pool built around
+// the 16+ coach-pack success measures: decisions under fatigue (late goals),
+// game management (HT/FT stories), professional consistency (week-to-week
+// variance), and "pressing must produce attacking advantage" (regain share).
+router.get("/analytics/season-report", async (req, res): Promise<void> => {
+  const query = GetSeasonReportQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { teamId, seasonId } = query.data;
+  const focusClub = await focusClubForRequest(req, seasonId);
+
+  const allMatches = await db
+    .select()
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  const ordered = allMatches
+    .slice()
+    .sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? "") || a.id - b.id);
+  type MatchRow = typeof allMatches[number];
+  const resultOf = (m: MatchRow): "W" | "D" | "L" | null =>
+    m.goalsScored == null || m.goalsConceded == null ? null
+      : m.goalsScored > m.goalsConceded ? "W" : m.goalsScored < m.goalsConceded ? "L" : "D";
+  const num = (v: string | number | null | undefined): number | null =>
+    v == null ? null : typeof v === "number" ? v : Number.isFinite(Number(v)) ? Number(v) : null;
+  const parseScore = (s: string | null): [number, number] | null => {
+    const m2 = s?.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    return m2 ? [Number(m2[1]), Number(m2[2])] : null;
+  };
+  // half_score/full_score are stored home–away; orient via goalsScored/Conceded.
+  const htResultOf = (m: MatchRow): "W" | "D" | "L" | null => {
+    const fs = parseScore(m.fullScore);
+    const flip =
+      fs && m.goalsScored != null && m.goalsConceded != null
+        ? fs[0] === m.goalsScored && fs[1] === m.goalsConceded ? false
+          : fs[0] === m.goalsConceded && fs[1] === m.goalsScored ? true
+          : null
+        : null;
+    const htRaw = parseScore(m.halfScore);
+    if (!htRaw || flip == null) return null;
+    const [h1, h2] = flip ? [htRaw[1], htRaw[0]] : htRaw;
+    return h1 > h2 ? "W" : h1 < h2 ? "L" : "D";
+  };
+
+  const played = ordered.filter(m => resultOf(m) != null);
+  const rounds = played.map(m => ({
+    matchRowId: m.id,
+    round: m.matchId.split("-")[0],
+    date: m.matchDate ?? null,
+    opponent: m.opponent,
+    result: resultOf(m),
+    htResult: htResultOf(m),
+    goalsFor: m.goalsScored,
+    goalsAgainst: m.goalsConceded,
+    possession: num(m.possession),
+    passes: m.passes,
+    shots: m.shots,
+    oppShots: m.oppShots,
+  }));
+
+  // ── Goals: ours vs conceded, minutes + DNA types ──────────────────────────
+  const seasonGoals = await db
+    .select()
+    .from(goalsTable)
+    .where(and(eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId)));
+  const stats = await db
+    .select()
+    .from(playerStatsTable)
+    .where(and(inArray(playerStatsTable.matchId, allMatches.map(m => m.id)), eq(playerStatsTable.club, focusClub)));
+  const roster = new Set(stats.map(s => s.playerName));
+  const ours = seasonGoals.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+  const theirs = seasonGoals.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
+
+  const BANDS: Array<[string, number, number]> = [
+    ["1–15", 0, 15], ["16–30", 16, 30], ["31–45", 31, 45],
+    ["46–60", 46, 60], ["61–75", 61, 75], ["76+", 76, 200],
+  ];
+  const bandOf = (min: number) => BANDS.find(([, lo, hi]) => min >= lo && min <= hi)?.[0] ?? "76+";
+  const timing = BANDS.map(([band]) => ({
+    band,
+    scored: ours.filter(g => g.minuteScored != null && bandOf(g.minuteScored) === band).length,
+    conceded: theirs.filter(g => g.minuteScored != null && bandOf(g.minuteScored) === band).length,
+  }));
+
+  // Goal DNA mix vs the coach's benchmark blend (SP 27, MT 49, FT 12, BT 12).
+  const BENCH: Record<string, number> = { setPiece: 27, middleThird: 49, frontThird: 12, backThird: 12 };
+  const typed = ours.map(g => dnaCatOfType(g.goalType)).filter((c): c is NonNullable<ReturnType<typeof dnaCatOfType>> => c != null);
+  const dnaTyped = typed.length;
+  const dnaMix = (["setPiece", "middleThird", "frontThird", "backThird"] as const).map(id => {
+    const count = typed.filter(c => c === id).length;
+    return {
+      id, label: dnaCatLabel(id), count,
+      pct: dnaTyped >= 5 ? (count / dnaTyped) * 100 : null,
+      benchmarkPct: BENCH[id] ?? null,
+    };
+  });
+
+  // ── Weighted insight pool (senior-readiness reads) ────────────────────────
+  const candidates: Array<{ w: number; tone: "good" | "watch" | "info"; text: string }> = [];
+  const minuted = (gs: typeof ours) => gs.filter(g => g.minuteScored != null);
+
+  // 1. Decisions under fatigue — the game after the 75th.
+  {
+    const lateFor = minuted(ours).filter(g => g.minuteScored! >= 75).length;
+    const lateAg = minuted(theirs).filter(g => g.minuteScored! >= 75).length;
+    if (lateFor + lateAg >= 4) {
+      const diff = lateFor - lateAg;
+      if (diff >= 3) candidates.push({ w: 70, tone: "good", text: `After the 75th we're ${lateFor}–${lateAg} up across the season — the coach pack calls this phase "intelligent decisions under fatigue", and the late-game numbers say we're passing that test.` });
+      else if (diff <= -2) candidates.push({ w: 75, tone: "watch", text: `We've been outscored ${lateAg}–${lateFor} after the 75th this season. Senior readiness is about decisions under fatigue — the late-game window is where we're leaking.` });
+      else candidates.push({ w: 30, tone: "info", text: `Late-game ledger: ${lateFor} scored, ${lateAg} conceded after the 75th — roughly even under fatigue.` });
+    }
+  }
+  // 2. Game management — half-time leads held or dropped.
+  {
+    const withHt = played.filter(m => htResultOf(m) != null && resultOf(m) != null);
+    const led = withHt.filter(m => htResultOf(m) === "W");
+    const dropped = led.filter(m => resultOf(m) !== "W");
+    const comebacks = withHt.filter(m => htResultOf(m) === "L" && resultOf(m) !== "L").length;
+    if (led.length >= 3) {
+      if (dropped.length === 0) candidates.push({ w: 55, tone: "good", text: `Game management: led at the break ${led.length} times, won every one. Seeing games out is a senior habit — that box is ticked.` });
+      else candidates.push({ w: 65, tone: "watch", text: `Led at half-time ${led.length} times but only converted ${led.length - dropped.length} into wins — ${dropped.length} game${dropped.length === 1 ? "" : "s"} got away after the break. Managing the second half is the 16+ standard to chase.` });
+    }
+    if (comebacks >= 2) candidates.push({ w: 45, tone: "good", text: `${comebacks} times we've been behind at half-time and taken something — good character, but better starts would make life easier.` });
+  }
+  // 3. Conceded-first record — how often we chase games.
+  {
+    const firstGoalOurs = (mid: number): boolean | null => {
+      const withMins = seasonGoals.filter(g => g.matchId === mid && g.minuteScored != null);
+      if (!withMins.length) return null;
+      const first = withMins.reduce((p, g) => (g.minuteScored! < p.minuteScored! ? g : p));
+      return isFocusGoal(first.scorer, first.scorerTeam, roster, focusClub);
+    };
+    const known = played.map(m => ({ m, ours: firstGoalOurs(m.id) })).filter(x => x.ours != null);
+    if (known.length >= 5) {
+      const chased = known.filter(x => !x.ours);
+      const share = (chased.length / known.length) * 100;
+      if (share >= 40) candidates.push({ w: 60, tone: "watch", text: `We've conceded first in ${chased.length} of ${known.length} games with a known first goal (${share.toFixed(0)}%). Starts are the pattern to fix — chasing games is expensive.` });
+      else if (share <= 20) candidates.push({ w: 40, tone: "good", text: `We score first in ${known.length - chased.length} of ${known.length} games — front-running is a strong habit; it lets us manage tempo instead of chasing.` });
+    }
+  }
+  // 4. Professional consistency — "repeat performance quality every week".
+  {
+    const cv = (vals: number[]) => {
+      if (vals.length < 5) return null;
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      if (mean <= 0) return null;
+      const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+      return sd / mean;
+    };
+    const passCv = cv(rounds.map(r => r.passes).filter((v): v is number => v != null));
+    const shotCv = cv(rounds.map(r => r.shots).filter((v): v is number => v != null));
+    if (passCv != null && shotCv != null) {
+      if (passCv <= 0.15 && shotCv <= 0.3) candidates.push({ w: 50, tone: "good", text: `Week-to-week output barely moves — passing and shot volumes are steady game after game. That's the "repeat performance quality every week" consistency the curriculum asks for at 16+.` });
+      else if (passCv >= 0.3 || shotCv >= 0.5) candidates.push({ w: 55, tone: "watch", text: `Performance swings a lot week to week (passing${passCv >= 0.3 ? " especially" : ""} — some games nearly double others). The 16+ benchmark is repeating your level every week, not peaks and troughs.` });
+    }
+  }
+  // 5. Pressing must produce attacking advantage — regain share of our goals.
+  if (dnaTyped >= 8) {
+    const regain = typed.filter(c => c === "middleThird" || c === "frontThird").length;
+    const share = (regain / dnaTyped) * 100;
+    const bench = BENCH.middleThird + BENCH.frontThird; // 61
+    if (share >= bench) candidates.push({ w: 50, tone: "good", text: `${share.toFixed(0)}% of our typed goals come from middle/front-third regains (benchmark ~${bench}%). The coach pack says "pressing must produce attacking advantage" — ours is producing.` });
+    else if (share <= bench - 20) candidates.push({ w: 55, tone: "watch", text: `Only ${share.toFixed(0)}% of our typed goals come from middle/front-third regains (benchmark ~${bench}%). We're pressing, but it isn't turning into goals often enough — worth a look at what happens after the regain.` });
+  }
+  // 6. Set-piece share vs benchmark.
+  if (dnaTyped >= 8) {
+    const sp = typed.filter(c => c === "setPiece").length;
+    const share = (sp / dnaTyped) * 100;
+    if (share >= BENCH.setPiece + 12) candidates.push({ w: 35, tone: "info", text: `Set pieces are carrying ${share.toFixed(0)}% of our typed goals (benchmark ~${BENCH.setPiece}%) — a real weapon, but open play should still be the engine.` });
+    else if (share <= BENCH.setPiece - 15) candidates.push({ w: 40, tone: "watch", text: `Only ${share.toFixed(0)}% of our typed goals come from set pieces (benchmark ~${BENCH.setPiece}%) — dead balls are goals left on the table at this level.` });
+  }
+  // 7. Season trajectory — recent form vs early season.
+  {
+    const pts = (r: "W" | "D" | "L" | null) => (r === "W" ? 3 : r === "D" ? 1 : 0);
+    const results = rounds.map(r => r.result as "W" | "D" | "L" | null);
+    if (results.length >= 10) {
+      const first5 = results.slice(0, 5).reduce((a, r) => a + pts(r), 0);
+      const last5 = results.slice(-5).reduce((a, r) => a + pts(r), 0);
+      if (last5 - first5 >= 4) candidates.push({ w: 45, tone: "good", text: `Trending up: ${last5} points from the last 5 games vs ${first5} from the first 5 — the season is building, not fading.` });
+      else if (first5 - last5 >= 4) candidates.push({ w: 60, tone: "watch", text: `Trending down: ${last5} points from the last 5 games vs ${first5} from the first 5. Worth asking whether it's fatigue, opposition quality, or standards slipping.` });
+    }
+  }
+  // 8. Defensive record — clean-sheet rate.
+  {
+    const cs = played.filter(m => m.goalsConceded === 0).length;
+    if (played.length >= 8) {
+      const share = (cs / played.length) * 100;
+      if (share >= 50) candidates.push({ w: 35, tone: "good", text: `Clean sheets in ${cs} of ${played.length} games — the defensive foundation is genuinely strong.` });
+      else if (share <= 15) candidates.push({ w: 45, tone: "watch", text: `Only ${cs} clean sheet${cs === 1 ? "" : "s"} in ${played.length} games — we're conceding in nearly every match, which puts pressure on the attack every week.` });
+    }
+  }
+  // 9. Early concessions.
+  {
+    const earlyAg = minuted(theirs).filter(g => g.minuteScored! <= 15).length;
+    const totAg = minuted(theirs).length;
+    if (totAg >= 5 && earlyAg / totAg >= 0.35) {
+      candidates.push({ w: 50, tone: "watch", text: `${((earlyAg / totAg) * 100).toFixed(0)}% of our concessions come in the first 15 minutes — we're starting games switched off, then playing catch-up.` });
+    }
+  }
+
+  candidates.sort((a, b) => b.w - a.w);
+  const insights = candidates.slice(0, 7).map(({ tone, text }) => ({ tone, text }));
+
+  res.json(GetSeasonReportResponse.parse({ rounds, timing, dnaMix, dnaTyped, insights }));
 });
 
 // ── Opponent match report — scouting view of ANY league club's game ─────────

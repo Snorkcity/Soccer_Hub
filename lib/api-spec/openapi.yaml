@@ -824,6 +824,28 @@ paths:
         "404":
           description: Match not found
 
+  /analytics/season-report:
+    get:
+      operationId: getSeasonReport
+      tags: [analytics]
+      summary: Season trends and senior-readiness reads (per-round series, goal timing, DNA mix, weighted insights)
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Season report model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeasonReportResponse"
+
   /analytics/opponent-match-report:
     get:
       operationId: getOpponentMatchReport
@@ -4008,6 +4030,59 @@ components:
             - { $ref: "#/components/schemas/MatchReportGoalDna" }
             - { type: "null" }
       required: [header, tiles, goals, insights, form, ladderPos, ladderPoints, teamsInLeague, gps, previousMeetings, ballUse, goalDna]
+
+    SeasonReportRound:
+      type: object
+      properties:
+        matchRowId: { type: integer }
+        round: { type: string }
+        date: { type: ["string", "null"] }
+        opponent: { type: string }
+        result: { type: ["string", "null"], description: "W / D / L, null when unplayed" }
+        htResult: { type: ["string", "null"], description: "Half-time W / D / L oriented to us" }
+        goalsFor: { type: ["integer", "null"] }
+        goalsAgainst: { type: ["integer", "null"] }
+        possession: { type: ["number", "null"] }
+        passes: { type: ["integer", "null"] }
+        shots: { type: ["integer", "null"] }
+        oppShots: { type: ["integer", "null"] }
+      required: [matchRowId, round, date, opponent, result, htResult, goalsFor, goalsAgainst, possession, passes, shots, oppShots]
+
+    SeasonReportTimingBand:
+      type: object
+      properties:
+        band: { type: string, description: "e.g. 1–15, 76+" }
+        scored: { type: integer }
+        conceded: { type: integer }
+      required: [band, scored, conceded]
+
+    SeasonReportDnaCat:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        count: { type: integer }
+        pct: { type: ["number", "null"] }
+        benchmarkPct: { type: ["number", "null"] }
+      required: [id, label, count, pct, benchmarkPct]
+
+    SeasonReportResponse:
+      type: object
+      properties:
+        rounds:
+          type: array
+          items: { $ref: "#/components/schemas/SeasonReportRound" }
+        timing:
+          type: array
+          items: { $ref: "#/components/schemas/SeasonReportTimingBand" }
+        dnaMix:
+          type: array
+          items: { $ref: "#/components/schemas/SeasonReportDnaCat" }
+        dnaTyped: { type: integer, description: "Our goals with a recorded DNA type" }
+        insights:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportInsight" }
+      required: [rounds, timing, dnaMix, dnaTyped, insights]
 
     GoalIntervalBucket:
       type: object

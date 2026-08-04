@@ -10,6 +10,7 @@ import { DevBadge } from '@/components/DevBadge';
 
 import Home from '@/pages/Home';
 import SeasonStats from '@/pages/SeasonStats';
+import SeasonReport from '@/pages/SeasonReport';
 import GpsInsights from '@/pages/GpsInsights';
 import Testing from '@/pages/Testing';
 import DataEntry from '@/pages/DataEntry';
@@ -37,6 +38,7 @@ function Router() {
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/season-stats" component={SeasonStats} />
+            <Route path="/season-report" component={SeasonReport} />
             <Route path="/gps" component={GpsInsights} />
             <Route path="/testing" component={Testing} />
             <Route path="/library" component={SessionLibrary} />
