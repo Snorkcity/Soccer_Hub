@@ -19,7 +19,7 @@ Source doc: `attached_assets/Pasted--Goal-Analysis-Intelligence-Framework-*.txt`
 The source doc has rich "may demonstrate…" lists per category (corners, FKs, pens, each regain third, DT/AT, pass count, channel L/C/R, final-pass cross/cut-back/through-ball, first-touch vs after-touch, footedness, scoring location, partnerships, team/opponent identities). Read the doc when writing new insight copy — don't invent alternative wording.
 
 ## Data coverage caveat (as of Aug 2026)
-Transition state, pass count, progression channel, final-pass type are NOT recorded for most goals — sections using them apply only where fields exist.
+DT/AT (transition state) IS recorded for every open-play goal — every typed goal is SP or carries DT/AT (coach confirmed). Lean on DT/AT freely: same regain location + DT = transition threat; + AT = can break an organised block. Pass count, progression channel, and final-pass type are NOT yet recorded — sections using those apply only where fields exist.
 
 ## Naming rule
 **Never say "16+" in user-facing copy** (ambiguous — sounds like adults). Say "senior-readiness markers", "the coach pack standards", or "the club's success measures". Applies to Season Report cards and anywhere the coach-pack language surfaces.
