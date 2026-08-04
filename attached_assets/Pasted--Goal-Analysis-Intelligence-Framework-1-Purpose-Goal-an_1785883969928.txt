@@ -1,0 +1,606 @@
+# Goal Analysis Intelligence Framework
+
+## 1. Purpose
+
+Goal analysis is used to reconstruct the story of each goal:
+
+* where the scoring possession began
+* whether the opposition was organised
+* how the ball progressed towards goal
+* how the final opportunity was created
+* how and where the goal was finished
+
+A single goal may not accurately represent how a team normally plays. However, repeated patterns across multiple matches can provide useful evidence about:
+
+* a team’s attacking identity
+* a team’s defensive vulnerabilities
+* the qualities of individual scorers and creators
+* tactical considerations for an upcoming opponent
+
+The application must distinguish between an isolated event and a repeatable pattern.
+
+---
+
+## 2. Goal Origin
+
+Each goal is initially classified as either:
+
+### Set Piece
+
+* Corner
+* Free kick
+* Penalty
+
+### Open Play Regain
+
+* Front-third regain
+* Middle-third regain
+* Back-third regain
+
+The regain location records where the scoring team most recently won possession before progressing to score.
+
+This allows the analysis to work backwards from the goal and identify where the successful attacking sequence began.
+
+---
+
+## 3. Set-Piece Intelligence
+
+Set-piece goals should be compared with relevant competition and historical benchmarks.
+
+### Corner Goals
+
+A team scoring above the expected benchmark from corners may demonstrate:
+
+* strong delivery quality
+* effective blocking or movement routines
+* dominant aerial players
+* good second-ball reactions
+* deliberate set-piece preparation
+
+An opponent conceding above the benchmark may demonstrate:
+
+* weak marking
+* poor first-contact success
+* difficulty defending movement or screens
+* poor goalkeeper control of the area
+* weak organisation on second phases
+
+### Free-Kick Goals
+
+A strong free-kick scoring record may indicate:
+
+* quality direct free-kick takers
+* effective wide free-kick delivery
+* rehearsed routines
+* strong aerial or second-ball threats
+
+Frequent free-kick concessions may indicate:
+
+* poor defensive organisation
+* difficulty defending deliveries
+* unnecessary fouls in dangerous areas
+
+### Penalty Goals
+
+Penalty totals require careful interpretation.
+
+A high number may indicate that the team:
+
+* regularly enters the penalty area
+* creates situations that force defenders into challenges
+* has direct or skilful attackers
+* maintains attacking pressure
+
+However, penalties should not automatically be interpreted as evidence of superior finishing or open-play chance creation.
+
+---
+
+## 4. Regain Location
+
+### Front-Third Regain Goals
+
+A high proportion of goals beginning with front-third regains may be consistent with:
+
+* aggressive pressing
+* effective counter-pressing
+* strong anticipation of opposition build-up
+* forcing errors close to goal
+* rapid exploitation of turnovers
+
+However, the scoring pattern may also be influenced by opponents who:
+
+* frequently attempt to play out from the back
+* take excessive risks in build-up
+* lack technical quality under pressure
+
+The application should therefore avoid automatically stating that front-third regain goals prove the scoring team is an excellent pressing team.
+
+A better interpretation is:
+
+> The team shows strong evidence of creating goals through high regains. This may reflect effective pressing, although opposition build-up behaviour should also be considered.
+
+For the opponent, repeated concessions from front-third turnovers may suggest:
+
+* vulnerability when playing out
+* poor support around the ball
+* weak decision-making under pressure
+* insufficient protection behind the first build-up line
+
+---
+
+### Middle-Third Regain Goals
+
+Middle-third regains are likely to account for a large proportion of goals across a competition and may offer limited meaning when viewed alone.
+
+Their value increases when combined with:
+
+* transition state
+* number of passes
+* speed of attack
+* progression channel
+* final action
+
+Middle-third regain goals scored quickly during transition may suggest:
+
+* strong counter-attacking behaviour
+* effective forward running
+* early recognition of space
+* an ability to exploit an unsettled defence
+
+Middle-third regain goals scored after the opposition has reorganised may suggest:
+
+* patience in possession
+* an ability to circulate and progress the ball
+* effective movement against a defensive block
+* the capacity to create openings against organised opponents
+
+---
+
+### Back-Third Regain Goals
+
+Goals beginning with a back-third regain require the team to progress the ball over a significant distance.
+
+Repeated back-third regain goals may demonstrate:
+
+* effective build-up from deep
+* composure in possession
+* good connections between defensive, midfield and attacking lines
+* the ability to progress through or around pressure
+* effective long-range transition attacks
+
+The meaning depends heavily on transition state and the number of passes involved.
+
+A fast back-third goal during transition may indicate:
+
+* direct counter-attacking ability
+* pace in forward areas
+* effective early forward passing
+* strong running beyond the ball
+
+A back-third goal scored after transition may provide stronger evidence of:
+
+* controlled possession
+* sustained progression
+* positional organisation
+* the ability to break an organised defensive structure
+
+For the conceding opponent, allowing a team to score after beginning in its own back third may suggest:
+
+* poor collective defensive organisation
+* ineffective pressing
+* excessive space between lines
+* weak recovery running
+* an inability to delay or disrupt progression
+
+This conclusion should be stronger when the goal is scored after transition, because the defending team had an opportunity to become organised.
+
+---
+
+## 5. Transition State
+
+Every open-play goal is classified as:
+
+### During Transition — DT
+
+The goal is scored before the defending team has become organised following the loss of possession.
+
+Common characteristics may include:
+
+* rapid forward progression
+* a low number of passes
+* forward or diagonal running
+* defenders retreating towards their own goal
+* numerical or positional instability
+* space available between or behind defenders
+
+DT goals may identify a team that is especially dangerous in transition.
+
+For the opponent, repeated DT concessions may suggest:
+
+* poor rest defence
+* insufficient protection behind attacks
+* slow reactions after losing possession
+* ineffective counter-pressing
+* poor recovery runs
+* players becoming disconnected after turnovers
+
+---
+
+### After Transition — AT
+
+The defending team has had time to recover and become reasonably organised before the goal is scored.
+
+AT goals may provide evidence that the scoring team can:
+
+* retain possession
+* move an organised defence
+* create overloads
+* find or manufacture space
+* progress through established defensive lines
+* produce effective final-third combinations
+
+For the conceding team, repeated AT goals may suggest:
+
+* difficulty defending for sustained periods
+* poor compactness
+* weak coordination between units
+* an inability to protect key spaces
+* ineffective pressure on the ball
+* difficulty responding to switches, rotations or combinations
+
+The distinction between DT and AT is central to the intelligence framework because the same regain location can represent very different football behaviour.
+
+---
+
+## 6. Passing Sequence
+
+The number of passes between the regain and the goal helps describe the nature of the attack.
+
+### Low-Pass Goals
+
+Goals completed within approximately two or three passes may suggest:
+
+* direct attacking intent
+* rapid transition play
+* effective early forward passing
+* strong running beyond the ball
+* efficient exploitation of an unsettled opponent
+
+The interpretation becomes stronger when combined with a DT classification.
+
+### Longer Passing Sequences
+
+Goals involving longer passing sequences may suggest:
+
+* controlled possession
+* patient build-up
+* strong support around the ball
+* the ability to move the opposition
+* effective positional structure
+
+The interpretation becomes stronger when combined with an AT classification.
+
+Pass count should not be judged as inherently good or bad. Its value is in identifying how the team most commonly creates successful attacks.
+
+---
+
+## 7. Progression Channel
+
+Each goal records whether the attacking sequence primarily progressed through the:
+
+* left channel
+* central channel
+* right channel
+
+Repeated channel patterns may reveal:
+
+* a preferred attacking side
+* influential players or combinations
+* overloads created in particular areas
+* a reliance on wide or central progression
+* positional weaknesses in the opposition
+
+The application should investigate relationships between progression channel and:
+
+* assist type
+* scorer location
+* player combinations
+* transition state
+* regain location
+
+For example, a high number of right-channel attacks ending in cut-backs may identify a repeatable attacking pattern rather than merely a general preference for the right side.
+
+---
+
+## 8. Final-Pass Type
+
+The final action before the goal may be classified as:
+
+* Cross
+* Cut-back
+* Through ball
+* Other pass or action
+
+### Crosses
+
+A high proportion of goals from crosses may suggest:
+
+* strong wide progression
+* effective delivery
+* good penalty-area occupation
+* aerial strength
+* well-timed far-post or central runs
+
+For the opponent, repeated concessions from crosses may suggest:
+
+* difficulty preventing delivery
+* poor box marking
+* weak aerial defending
+* poor tracking at the far post
+* insufficient pressure on wide players
+
+### Cut-Backs
+
+Repeated cut-back goals may suggest:
+
+* the ability to reach the byline
+* effective movement behind the defensive line
+* strong penalty-area timing
+* players arriving into high-value central spaces
+* an attacking style focused on creating close-range chances
+
+For the opponent, repeated cut-back concessions may indicate:
+
+* fullbacks or wide defenders being beaten
+* defenders collapsing too close to goal
+* poor tracking of late runners
+* weak protection of central finishing areas
+
+### Through Balls
+
+Repeated through-ball goals may suggest:
+
+* strong movement behind the defence
+* players capable of recognising and executing penetrative passes
+* an opposition defensive line that can be exploited
+* direct central or half-space penetration
+
+For the opponent, repeated concessions may suggest:
+
+* poor pressure on the passer
+* an excessively high or poorly coordinated defensive line
+* centre-backs failing to cover depth
+* midfielders failing to screen passing lanes
+
+---
+
+## 9. Finishing Method
+
+Each goal records whether the scorer finished with:
+
+* right foot
+* left foot
+* head
+* another body part where relevant
+
+It also records whether the finish was:
+
+* first touch
+* after taking one or more touches
+
+### First-Touch Finishing
+
+A high first-touch finishing rate may suggest:
+
+* strong anticipation
+* intelligent movement before receiving
+* efficient penalty-area positioning
+* composure under time pressure
+* an ability to finish crosses, cut-backs or quick combinations
+
+### Finishing After a Touch
+
+Goals scored after controlling the ball may indicate:
+
+* composure in one-on-one situations
+* the ability to create a shooting angle
+* strong ball manipulation
+* time and space being available inside the scoring area
+
+### Footedness and Heading
+
+The finishing method helps build a scorer profile.
+
+It may identify:
+
+* dominant-foot reliance
+* genuine two-footed ability
+* aerial threat
+* preferred service type
+* possible defensive strategies against the player
+
+The application should avoid labelling a player from a very small number of goals.
+
+---
+
+## 10. Scoring Location
+
+Each goal includes an X and Y location so that goals can be plotted spatially.
+
+This enables the application to identify:
+
+* scoring hotspots
+* preferred finishing zones
+* central versus wide finishing patterns
+* close-range versus longer-range tendencies
+* player-specific scoring areas
+* team-specific chance-creation locations
+
+For a scorer, repeated locations may help build a finishing DNA profile.
+
+Examples include:
+
+* central penalty-area poacher
+* far-post finisher
+* edge-of-box shooter
+* left-channel finisher
+* six-yard-box specialist
+
+For a defending team, concession hotspots may identify areas that are not being protected effectively.
+
+---
+
+## 11. Scorer and Assist Relationships
+
+Recording the scorer and assisting player allows the system to identify repeated partnerships.
+
+A recurring scorer–assist combination may indicate:
+
+* strong player chemistry
+* repeatable movement and passing relationships
+* a dominant attacking partnership
+* a particular tactical pattern
+* dependence on specific players
+
+This information may support opposition planning by identifying:
+
+* the primary creator
+* the preferred runner
+* the most frequent service type
+* whether disrupting one relationship may reduce the opponent’s threat
+
+The system should also determine whether production is broadly distributed or concentrated among a small number of players.
+
+---
+
+## 12. Team Attacking Identity
+
+Across a sufficient sample, combinations of goal metrics may provide evidence of team identity.
+
+Possible identities include:
+
+* high-regain pressing team
+* fast-transition team
+* possession and build-up team
+* direct counter-attacking team
+* crossing-focused team
+* cut-back-focused team
+* central combination team
+* set-piece-dependent team
+* team capable of breaking organised defensive blocks
+
+Identity should be inferred from multiple related metrics rather than one isolated number.
+
+Example:
+
+**Front-third regains + DT goals + low pass count**
+
+May indicate a high-pressing team that attacks quickly after winning possession.
+
+**Back-third regains + AT goals + longer pass sequences**
+
+May indicate a team capable of controlled build-up and progressing through organised opposition.
+
+**Wide-channel progression + crosses + headed finishes**
+
+May indicate a crossing-oriented attack with a strong aerial target.
+
+---
+
+## 13. Opponent Defensive Identity
+
+The same goal data should be analysed from the conceding team’s perspective.
+
+Possible vulnerabilities include:
+
+* weak build-up under pressure
+* poor rest defence
+* slow defensive transition
+* inability to defend organised attacks
+* vulnerability to wide progression
+* difficulty defending crosses
+* poor protection against cut-backs
+* weakness behind a high defensive line
+* set-piece vulnerability
+* dependence on individual defending rather than collective organisation
+
+The app should explain whether a pattern is primarily:
+
+* an attacking strength of the scoring team
+* a defensive weakness of the opponent
+* or potentially a combination of both
+
+---
+
+## 14. Evidence and Confidence
+
+All interpretations should account for:
+
+* number of goals
+* number of matches
+* percentage of the team’s total goals
+* league benchmark
+* historical benchmark
+* consistency across opponents
+* consistency across different periods of the season
+
+Suggested confidence language:
+
+* **Observation:** The pattern has occurred, but evidence is limited.
+* **Emerging pattern:** The behaviour has repeated enough to warrant attention.
+* **Strong evidence:** The pattern is clearly above the benchmark and consistent.
+* **Established identity:** The pattern has persisted across a substantial sample.
+
+The application should prefer wording such as:
+
+> This pattern is consistent with…
+
+> The available evidence suggests…
+
+> This may indicate…
+
+It should avoid definitive claims unless the evidence is sufficiently strong.
+
+---
+
+## 15. Insight Construction Template
+
+Every automated goal-analysis insight should contain:
+
+### Evidence
+
+What occurred and how frequently?
+
+### Comparison
+
+How does it compare with the league, historical or team benchmark?
+
+### Football Meaning
+
+What football behaviours could explain the pattern?
+
+### Alternative Explanation
+
+Could opponent behaviour, match context or sample size also explain it?
+
+### Confidence
+
+How strong is the evidence?
+
+### Coaching Implication
+
+What might a coach investigate, prepare for or change?
+
+### Video Review Question
+
+What should the analyst check on footage before accepting the conclusion?
+
+---
+
+## 16. Core Product Principle
+
+The goal-analysis engine must not simply report where goals came from.
+
+It must explain:
+
+> how the goal began, how the attack developed, why the opportunity may have emerged, what it suggests about both teams, and what a coach should investigate next.

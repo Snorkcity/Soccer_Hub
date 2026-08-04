@@ -50,6 +50,7 @@
 - [gitPush can silently no-op](gitpush-verify.md) — after every deploy push, verify with `git fetch && git log origin/main`; then confirm prod serves the change (report code lives in the lazy playerGpsReport chunk, not index.js).
 - [GPS report PPTX styling](gps-report-pptx.md) — report deck is FULL DARK theme by coach choice; dual-unit speed runs; pptxgenjs secondary-axis + soffice render-check gotchas.
 - [Football Match Report](football-match-report.md) — Season Stats tab; half/full scores are HOME–AWAY not us–them (derive flip from goalsScored/Conceded); league context = date-<= "after this round".
+- [Goal Analysis Intelligence Framework](goal-analysis-framework.md) — house style for ALL insight sentences: confidence ladder, hedged voice, alternative explanations; never say "16+" in copy.
 - [Goal DNA framework](goal-dna.md) — the coach's core goals-by-type analysis: SP / regain-third × DT-AT codes, benchmark mix (SP 27%, MT 48–50%, FT/BT ~12%), interpretation voice. Reuse everywhere goals are analysed.
 - [Headless mobile overflow sweep](mobile-sweep.md) — puppeteer-core + nix chromium with login cookie; DOM-measure overflow per tab; skip overflow-hidden ancestors to avoid truncate false positives.
 - [Week Ahead brief server context](week-ahead-brief.md) — Monday brief pulls last-meeting facts + latest Friday deck server-side; coach's own OpenAI key can be out of credits (429) — not a code bug.
