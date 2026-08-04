@@ -410,6 +410,8 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     // Under normal
     if (m >= MIN_FLAG_MINS && base.games >= 2 && p.dpmDelta != null && p.dpmDelta <= -DOWN_PCT)
       push(watch, "down", p.name, `Intensity ${fmt(Math.abs(p.dpmDelta), 0)}% under their normal (${fmt(p.dpm, 0)} vs a usual ${fmt(base.dpm, 0)} m/min) — could be tactical role, could be fatigue; worth a conversation.`);
+    if (m >= MIN_FLAG_MINS && base.games >= 2 && p.hsmDelta != null && p.hsmDelta <= -DOWN_PCT && p.hsm != null)
+      push(watch, "down", p.name, `High-speed running ${fmt(Math.abs(p.hsmDelta), 0)}% under their own average rate (${fmt(p.hsm, 0)} m in ${fmt(p.mins, 0)} mins) — fewer sprints than usual${group === "Forward" ? ", which matters most for a forward" : ""}; tactical or tired?`);
     if (m < MIN_FLAG_MINS && m > 0) {
       // A short stint with the rate UP is a positive, not a worry — it belongs
       // in the standouts. Only downs/unknowns go on the watch list.

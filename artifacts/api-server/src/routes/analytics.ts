@@ -2940,6 +2940,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     if (htResult === "L" && result === "W") insights.push({ tone: "good", text: `Came from ${h1}–${h2} down at the break to win — a proper second-half response.` });
     else if (htResult === "L" && result === "D") insights.push({ tone: "good", text: `Behind at half-time, level at full-time — good character shown after the break.` });
     else if (htResult === "W" && result === "L") insights.push({ tone: "watch", text: `Led ${h1}–${h2} at half-time and lost — the second half got away from us.` });
+    else if (htResult === "W" && result === "D") insights.push({ tone: "watch", text: `Led ${h1}–${h2} at half-time and only drew — two points that got away after the break.` });
     else if (htResult === "W" && result === "W" && (match.goalsScored ?? 0) - h1 >= 2) insights.push({ tone: "good", text: `Kicked on after the break — ${(match.goalsScored ?? 0) - h1} second-half goals.` });
   }
 
@@ -2961,9 +2962,15 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     insights.push({ tone: "watch", text: `${match.goalsConceded} conceded — only ${totalCs} clean sheet${totalCs === 1 ? "" : "s"} so far this season.` });
   }
 
-  // Shots against — best defensive shift of the season?
+  // Shots against — best or worst defensive shift of the season?
   const oa = tiles.find(t => t.id === "oppShots");
   if (oa && oa.rank === 1 && (oa.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Fewest shots faced all season (${oa.value}).` });
+  else if (oa && oa.rank === oa.outOf && (oa.outOf ?? 0) >= 4) insights.push({ tone: "watch", text: `Most shots faced all season (${oa.value}) — a busy day at the back, worth a look at why.` });
+  // Our shot count — a quiet day in front of goal is worth flagging too.
+  const shotsTile = tiles.find(t => t.id === "shots");
+  if (shotsTile && shotsTile.rank === shotsTile.outOf && (shotsTile.outOf ?? 0) >= 4) {
+    insights.push({ tone: "watch", text: `Season-low ${shotsTile.value} shots — we didn't create enough, whatever the result says.` });
+  }
   const poss = tiles.find(t => t.id === "possession");
   if (poss && poss.rank === 1 && (poss.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Best possession share of the season (${poss.value}%).` });
   else if (poss && poss.rank === poss.outOf && (poss.outOf ?? 0) >= 3) insights.push({ tone: "info", text: `Lowest possession of the season (${poss.value}%) — worth pairing with the result before judging it.` });
@@ -2982,6 +2989,36 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   const winner = [...matchGoals].reverse().find(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub));
   if (result === "W" && winner?.minuteScored != null && winner.minuteScored >= 85 && (match.goalsScored ?? 0) - (match.goalsConceded ?? 0) === 1) {
     insights.push({ tone: "good", text: `Winner in the ${ord(winner.minuteScored)} minute — late, late show from ${winner.scorer}.` });
+  }
+
+  // Conceded-first habit — chasing games repeatedly is a pattern to fix.
+  const firstGoalOurs = (mid: number): boolean | null => {
+    const withMins = seasonGoals.filter(g => g.matchId === mid && g.minuteScored != null);
+    if (!withMins.length) return null;
+    const first = withMins.reduce((p, g) => (g.minuteScored! < p.minuteScored! ? g : p));
+    return isFocusGoal(first.scorer, first.scorerTeam, roster, focusClub);
+  };
+  if (firstGoalOurs(match.id) === false) {
+    const recent = upTo.slice(-5).map(m => firstGoalOurs(m.id)).filter((v): v is boolean => v != null);
+    const concededFirstN = recent.filter(v => !v).length;
+    if (recent.length >= 4 && concededFirstN >= 3) {
+      insights.push({ tone: "watch", text: `Conceded first again — that's ${concededFirstN} of the last ${recent.length} games spent chasing from behind. Starts are worth a look.` });
+    }
+  }
+
+  // Top-scorer drought — our leading scorer going quiet is worth knowing.
+  {
+    const leader = [...goalTally.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (leader && leader[1] >= 5) {
+      const [name] = leader;
+      let drought = 0;
+      for (let i = upTo.length - 1; i >= 0; i--) {
+        const mid = upTo[i].id;
+        if (seasonGoals.some(g => g.matchId === mid && g.scorer?.trim() === name && isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub))) break;
+        drought++;
+      }
+      if (drought >= 3) insights.push({ tone: "watch", text: `${name} hasn't scored in ${drought} games now — our top scorer's longest quiet spell needs service, or teams have worked ${name} out.` });
+    }
   }
 
   // League scorer headline (independent of who scored today)
@@ -3817,6 +3854,20 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   const topScorer = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
   if (topScorer && topScorer[1] >= 3) {
     insights.push({ tone: "info", text: `${topScorer[0]} leads their scoring on ${topScorer[1]} — the main threat to shut down.` });
+  }
+  // Late-game character — do they fade late, or find late goals?
+  {
+    const concededMins = clubConcededUpTo.map(g => g.minuteScored).filter((m): m is number => m != null);
+    const scoredMins = clubGoalsUpTo.map(g => g.minuteScored).filter((m): m is number => m != null);
+    const latePct = (mins: number[]) => (mins.length >= 5 ? (mins.filter(m => m >= 75).length / mins.length) * 100 : null);
+    const lateConc = latePct(concededMins);
+    const lateScore = latePct(scoredMins);
+    if (lateConc != null && lateConc >= 35) {
+      insights.push({ tone: "good", text: `They fade late — ${lateConc.toFixed(0)}% of what they concede comes after the 75th. Keep the tempo up to the end.` });
+    }
+    if (lateScore != null && lateScore >= 35) {
+      insights.push({ tone: "watch", text: `${lateScore.toFixed(0)}% of their goals come after the 75th — they stay dangerous to the final whistle. No switching off.` });
+    }
   }
   if (ladderPos != null) {
     insights.push({ tone: "info", text: `${ord2(ladderPos)} of ${teamsInLeague} after this round on ${ladderPoints} points.` });
