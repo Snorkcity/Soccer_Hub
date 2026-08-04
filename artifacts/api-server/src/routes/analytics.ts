@@ -63,6 +63,7 @@ import {
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
 import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
+import { goalIntelReads } from "../lib/goalIntel";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -3844,7 +3845,7 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
     const comebacks = withHt.filter(m => htResultOf(m) === "L" && resultOf(m) !== "L").length;
     if (led.length >= 3) {
       if (dropped.length === 0) candidates.push({ w: 55, tone: "good", text: `Game management: led at the break ${led.length} times, won every one. Seeing games out is a senior habit — that box is ticked.` });
-      else candidates.push({ w: 65, tone: "watch", text: `Led at half-time ${led.length} times but only converted ${led.length - dropped.length} into wins — ${dropped.length} game${dropped.length === 1 ? "" : "s"} got away after the break. Managing the second half is the 16+ standard to chase.` });
+      else candidates.push({ w: 65, tone: "watch", text: `Led at half-time ${led.length} times but only converted ${led.length - dropped.length} into wins — ${dropped.length} game${dropped.length === 1 ? "" : "s"} got away after the break. Managing the second half is the senior standard to chase.` });
     }
     if (comebacks >= 2) candidates.push({ w: 45, tone: "good", text: `${comebacks} times we've been behind at half-time and taken something — good character, but better starts would make life easier.` });
   }
@@ -3876,8 +3877,8 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
     const passCv = cv(rounds.map(r => r.passes).filter((v): v is number => v != null));
     const shotCv = cv(rounds.map(r => r.shots).filter((v): v is number => v != null));
     if (passCv != null && shotCv != null) {
-      if (passCv <= 0.15 && shotCv <= 0.3) candidates.push({ w: 50, tone: "good", text: `Week-to-week output barely moves — passing and shot volumes are steady game after game. That's the "repeat performance quality every week" consistency the curriculum asks for at 16+.` });
-      else if (passCv >= 0.3 || shotCv >= 0.5) candidates.push({ w: 55, tone: "watch", text: `Performance swings a lot week to week (passing${passCv >= 0.3 ? " especially" : ""} — some games nearly double others). The 16+ benchmark is repeating your level every week, not peaks and troughs.` });
+      if (passCv <= 0.15 && shotCv <= 0.3) candidates.push({ w: 50, tone: "good", text: `Week-to-week output barely moves — passing and shot volumes are steady game after game. That's the "repeat performance quality every week" consistency the curriculum asks for at senior level.` });
+      else if (passCv >= 0.3 || shotCv >= 0.5) candidates.push({ w: 55, tone: "watch", text: `Performance swings a lot week to week (passing${passCv >= 0.3 ? " especially" : ""} — some games nearly double others). The senior benchmark is repeating your level every week, not peaks and troughs.` });
     }
   }
   // 5. Pressing must produce attacking advantage — regain share of our goals.
@@ -3924,8 +3925,12 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
     }
   }
 
+  // Transition intelligence — DT/AT × regain third × pass string × lane, our
+  // own voice: strengths and gaps in how our goals (and concessions) happen.
+  for (const r of goalIntelReads(ours, theirs, "self")) candidates.push(r);
+
   candidates.sort((a, b) => b.w - a.w);
-  const insights = candidates.slice(0, 7).map(({ tone, text }) => ({ tone, text }));
+  const insights = candidates.slice(0, 9).map(({ tone, text }) => ({ tone, text }));
 
   res.json(GetSeasonReportResponse.parse({ rounds, timing, dnaMix, dnaTyped, insights }));
 });
@@ -4085,6 +4090,14 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
     if (lateScore != null && lateScore >= 35) {
       insights.push({ tone: "watch", text: `${lateScore.toFixed(0)}% of their goals come after the 75th — they stay dangerous to the final whistle. No switching off.` });
     }
+  }
+  // Transition intelligence — how their goals happen (DT/AT × regain third ×
+  // pass string × lane) plus set-piece people, in scouting voice.
+  {
+    const intel = goalIntelReads(clubGoalsUpTo, clubConcededUpTo, "scout")
+      .sort((a, b) => b.w - a.w)
+      .slice(0, 3);
+    for (const r of intel) insights.push({ tone: r.tone, text: r.text });
   }
   if (ladderPos != null) {
     insights.push({ tone: "info", text: `${ord2(ladderPos)} of ${teamsInLeague} after this round on ${ladderPoints} points.` });
