@@ -3769,7 +3769,7 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
   };
 
   const played = ordered.filter(m => resultOf(m) != null);
-  const rounds = played.map(m => ({
+  const rounds = ordered.map(m => ({
     matchRowId: m.id,
     round: m.matchId.split("-")[0],
     date: m.matchDate ?? null,

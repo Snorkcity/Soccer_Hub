@@ -76,7 +76,8 @@ export default function SeasonReport() {
   // ── football series ────────────────────────────────────────────────────────
   const rows = useMemo(() => {
     let pts = 0;
-    return (report?.rounds ?? []).map(r => {
+    // Charts show played games only; unplayed fixtures come back with null results.
+    return (report?.rounds ?? []).filter(r => r.result != null).map(r => {
       pts += r.result === 'W' ? 3 : r.result === 'D' ? 1 : 0;
       return {
         ...r,
