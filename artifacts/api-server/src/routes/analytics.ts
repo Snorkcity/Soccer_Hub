@@ -4168,15 +4168,54 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   const matchOppGoals = matchGoals.filter(g => g.scorerTeam !== club);
   const dnaScored = dnaSideOf(clubGoalsUpTo, matchClubGoals, true);
   const dnaConceded = dnaSideOf(clubConcededUpTo, matchOppGoals, false);
+  // Alternative-explanation clauses per the coach's Goal Analysis Intelligence
+  // Framework: every pattern read should say whether it could be the scoring
+  // team's strength, the conceding team's weakness, or both. Vocabulary taken
+  // from the framework doc's per-category sections — not invented.
+  const ALT_SCORED: Record<DnaCatId, string> = {
+    setPiece: "This may reflect delivery quality and rehearsed routines, although weak opposition marking can inflate it.",
+    frontThird: "This may reflect effective pressing, although opposition build-up behaviour should also be considered — teams that play out from the back and take risks in build-up feed this number.",
+    middleThird: "Middle-third regains are common league-wide, so this offers limited meaning on its own — whether the goals come during or after transition matters more.",
+    backThird: "This may reflect controlled build-up from deep, although ineffective opposition pressing would produce the same pattern.",
+  };
+  const ALT_CONCEDED: Record<DnaCatId, string> = {
+    setPiece: "This may be weak marking or poor first contact, although a strong set-piece opponent in the sample can inflate it.",
+    frontThird: "This suggests vulnerability when playing out, although it may partly reflect the pressing quality of the teams they've faced.",
+    middleThird: "Middle-third concessions are common league-wide, so this offers limited meaning on its own.",
+    backThird: "Allowing goals that start that far away suggests poor collective organisation, although fast opposition transition attacks can produce the same pattern.",
+  };
+  // "Check on footage" question for the strongest reads (framework §15).
+  const FOOTAGE_SCORED: Record<DnaCatId, string> = {
+    setPiece: "Check on footage: are these rehearsed routines and good delivery, or defensive errors gifting them?",
+    frontThird: "Check on footage: are they forcing the turnovers with pressure, or are opponents giving the ball away cheaply?",
+    middleThird: "Check on footage: are these goals coming during transition or after the defence has reorganised?",
+    backThird: "Check on footage: are they playing through pressure, or being allowed to progress unopposed?",
+  };
+  const FOOTAGE_CONCEDED: Record<DnaCatId, string> = {
+    setPiece: "Check on footage: is it marking, first contact, or second phases that's costing them?",
+    frontThird: "Check on footage: do they keep playing out under pressure, or was it opposition pressing that forced the errors?",
+    middleThird: "Check on footage: are they being caught in transition, or broken down when set?",
+    backThird: "Check on footage: is it the press that fails, or the recovery running behind it?",
+  };
   const dnaComments: string[] = [];
+  const strongReads: Array<{ id: DnaCatId; over: number; scoredSide: boolean }> = [];
   for (const c of dnaScored.categories) {
-    if (c.verdict === "high") dnaComments.push(`${c.label} are ${c.pct!.toFixed(0)}% of their goals (benchmark ${c.benchmarkLabel}) — their go-to weapon; plan against it.`);
+    if (c.verdict === "high") {
+      dnaComments.push(`${c.label} are ${c.pct!.toFixed(0)}% of their goals (benchmark ${c.benchmarkLabel}) — their go-to weapon; plan against it. ${ALT_SCORED[c.id]}`);
+      strongReads.push({ id: c.id, over: c.pct! - BENCH[c.id].hi, scoredSide: true });
+    }
     else if (c.verdict === "low") dnaComments.push(`Only ${c.pct!.toFixed(0)}% of their goals come from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — not a threat they use much.`);
   }
   for (const c of dnaConceded.categories) {
-    if (c.verdict === "high") dnaComments.push(`${c.pct!.toFixed(0)}% of what they concede comes from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to exploit.`);
+    if (c.verdict === "high") {
+      dnaComments.push(`${c.pct!.toFixed(0)}% of what they concede comes from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — a weakness to exploit. ${ALT_CONCEDED[c.id]}`);
+      strongReads.push({ id: c.id, over: c.pct! - BENCH[c.id].hi, scoredSide: false });
+    }
     else if (c.verdict === "low") dnaComments.push(`They concede just ${c.pct!.toFixed(0)}% from ${c.label.toLowerCase()} (benchmark ${c.benchmarkLabel}) — hard to hurt them that way.`);
   }
+  // One footage question for the single strongest read (furthest over benchmark).
+  const strongest = strongReads.sort((a, b) => b.over - a.over)[0];
+  if (strongest) dnaComments.push(strongest.scoredSide ? FOOTAGE_SCORED[strongest.id] : FOOTAGE_CONCEDED[strongest.id]);
   const dnaStory = buildDnaStory({
     scored: matchClubGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
     conceded: matchOppGoals.map(g => ({ minute: g.minuteScored, scorer: g.scorer, goalType: g.goalType })),
@@ -4247,9 +4286,23 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
         const rn = count(recentTyped, id), sn = count(seasonTyped, id);
         const rPct = (rn / recentTyped.length) * 100, sPct = (sn / seasonTyped.length) * 100;
         if (rn >= 2 && rPct >= 40 && rPct - sPct >= 15) {
+          // Short alternative-explanation tails per the framework: recent
+          // spikes can be who they've played, not a real change in identity.
+          const TREND_ALT_SCORED: Record<typeof id, string> = {
+            setPiece: "Recent opponents' set-piece defending may be part of it.",
+            frontThird: "Recent opponents' risky build-up may be feeding it as much as their press.",
+            middleThird: "Middle-third goals are common, so a short run means less on its own.",
+            backThird: "Recent opponents pressing poorly would produce the same run.",
+          };
+          const TREND_ALT_CONCEDED: Record<typeof id, string> = {
+            setPiece: "It may partly be the set-piece quality of who they've faced.",
+            frontThird: "It may partly be the pressing quality of who they've faced.",
+            middleThird: "Middle-third concessions are common, so a short run means less on its own.",
+            backThird: "Fast-transition opponents in that run could explain it too.",
+          };
           trendIns.push(isScoredSide
-            ? `Lately it's ${dnaCatLabel(id)} goals — ${rn} of their last ${recentTyped.length} typed goals (season mix is ${sPct.toFixed(0)}%). That's the in-form weapon to plan for.`
-            : `They've been leaking from ${dnaCatLabel(id)}s lately — ${rn} of the last ${recentTyped.length} they've conceded (season mix ${sPct.toFixed(0)}%). That's the door that's open right now.`);
+            ? `Lately it's ${dnaCatLabel(id)} goals — ${rn} of their last ${recentTyped.length} typed goals (season mix is ${sPct.toFixed(0)}%). That's the in-form weapon to plan for, though it's a small sample — ${TREND_ALT_SCORED[id].charAt(0).toLowerCase()}${TREND_ALT_SCORED[id].slice(1)}`
+            : `They've been leaking from ${dnaCatLabel(id)}s lately — ${rn} of the last ${recentTyped.length} they've conceded (season mix ${sPct.toFixed(0)}%). That's the door that's open right now, though it's a small sample — ${TREND_ALT_CONCEDED[id].charAt(0).toLowerCase()}${TREND_ALT_CONCEDED[id].slice(1)}`);
           break; // one trend line per side is enough
         }
       }
