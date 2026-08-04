@@ -2965,11 +2965,20 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   // Shots against — best or worst defensive shift of the season?
   const oa = tiles.find(t => t.id === "oppShots");
   if (oa && oa.rank === 1 && (oa.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Fewest shots faced all season (${oa.value}).` });
-  else if (oa && oa.rank === oa.outOf && (oa.outOf ?? 0) >= 4) insights.push({ tone: "watch", text: `Most shots faced all season (${oa.value}) — a busy day at the back, worth a look at why.` });
+  else if (oa && oa.value != null && (oa.outOf ?? 0) >= 4) {
+    // Joint-worst counts too — compare against the raw season values, not rank.
+    const allOpp = ordered.map(m => m.oppShots).filter((v): v is number => v != null);
+    if (allOpp.length >= 4 && oa.value >= Math.max(...allOpp)) {
+      insights.push({ tone: "watch", text: `Most shots faced all season (${oa.value}) — a busy day at the back, worth a look at why.` });
+    }
+  }
   // Our shot count — a quiet day in front of goal is worth flagging too.
   const shotsTile = tiles.find(t => t.id === "shots");
-  if (shotsTile && shotsTile.rank === shotsTile.outOf && (shotsTile.outOf ?? 0) >= 4) {
-    insights.push({ tone: "watch", text: `Season-low ${shotsTile.value} shots — we didn't create enough, whatever the result says.` });
+  if (shotsTile && shotsTile.value != null && (shotsTile.outOf ?? 0) >= 4) {
+    const allShots = ordered.map(m => m.shots).filter((v): v is number => v != null);
+    if (allShots.length >= 4 && shotsTile.value <= Math.min(...allShots)) {
+      insights.push({ tone: "watch", text: `Season-low ${shotsTile.value} shots — we didn't create enough, whatever the result says.` });
+    }
   }
   const poss = tiles.find(t => t.id === "possession");
   if (poss && poss.rank === 1 && (poss.outOf ?? 0) >= 3) insights.push({ tone: "good", text: `Best possession share of the season (${poss.value}%).` });
