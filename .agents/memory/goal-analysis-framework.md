@@ -32,3 +32,8 @@ DT/AT is recorded for every typed open-play goal (SP goals have no DT/AT). The g
 
 ## Naming rule
 **Never say "16+" in user-facing copy** (ambiguous — sounds like adults). Say "senior-readiness markers", "the coach pack standards", or "the club's success measures". Applies to Season Report cards and anywhere the coach-pack language surfaces.
+
+## Quantifier honesty (architect-enforced)
+- Never say "most" / "converts most of them" unless the share is genuinely >50% — a 40% threshold gets count-based wording ("X has finished 3 of them").
+- Even-spread fallbacks must stay category-agnostic ("a genuine mix"), never hardcode example categories that may not be the actual ones.
+- buildup_lane is recorded from the ATTACKER's perspective; when talking about the conceding team's side, flip left<->right (centre = central channel).
