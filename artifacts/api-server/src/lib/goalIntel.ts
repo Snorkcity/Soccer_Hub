@@ -233,9 +233,21 @@ export function goalIntelReads(
   {
     const btat = open.filter(g => g.origin === "BT" && g.trans === "AT");
     if (btat.length >= 3) {
+      // Fingerprint of the full-pitch moves: how long they take, which channel
+      // they travel, and who tends to finish them.
+      const med = median(btat.map(g => g.passes).filter((n): n is number => n != null));
+      const passBit = med != null && btat.filter(g => g.passes != null).length >= 3
+        ? ` — typically ${Math.round(med)}-pass moves`
+        : "";
+      const lane = dominantLane(btat);
+      const laneBit = lane ? `, travelling mostly ${laneWord(lane.lane)}` : (evenSpread(btat.map(g => g.lane)) ? ", using the full width of the pitch rather than one channel" : "");
+      const fin = topFinisher(btat);
+      const finBit = fin ? (scout
+        ? ` ${fin.name} has finished ${fin.count} of these long moves — the one arriving at the end of them.`
+        : ` ${fin.name} has finished ${fin.count} of them — arriving at the end of the move, not starting it.`) : "";
       reads.push(scout
-        ? { w: 48, tone: "watch", text: `${btat.length} of their goals were built from their own back third against a set defence — evidence they can progress the full length of the pitch through an organised press. Pressing them high carries risk if the press isn't connected.` }
-        : { w: 46, tone: "good", text: `${btat.length} goals built from our own back third against organised opponents — controlled progression through the thirds, not just clearances and hope.` });
+        ? { w: 48, tone: "watch", text: `${btat.length} of their goals were built from their own back third against a set defence${passBit}${laneBit} — evidence they can progress the full length of the pitch through an organised press.${finBit} Pressing them high carries risk if the press isn't connected.` }
+        : { w: 46, tone: "good", text: `${btat.length} goals built from our own back third against organised opponents${passBit}${laneBit} — controlled progression through the thirds, not just clearances and hope.${finBit}` });
     }
   }
 
@@ -287,7 +299,18 @@ export function goalIntelReads(
       };
       const topAssist = count(sp.map(g => g.assist));
       const topScorer = count(sp.map(g => g.scorer));
+      // Delivery signature — inswinger vs outswinger etc. from assist type.
+      const delivery = topShare(sp.map(g => g.assistType?.toLowerCase() ?? null));
+      const deliveryWord = (d: string) =>
+        d === "inswinger" ? "inswinging deliveries" : d === "outswinger" ? "outswinging deliveries"
+        : d === "cross" ? "crossed deliveries" : d === "shot" ? "direct strikes" : `${d}s`;
       const bits: string[] = [];
+      if (delivery && delivery.count >= 3) bits.push(scout
+        ? `${delivery.count} of the ${delivery.total} recorded came from ${deliveryWord(delivery.label)} — set the zone and the front post for that ball`
+        : `${delivery.count} of the ${delivery.total} recorded are ${deliveryWord(delivery.label)} — that's the delivery to keep rehearsing`);
+      else if (evenSpread(sp.map(g => g.assistType?.toLowerCase() ?? null))) bits.push(scout
+        ? "no single delivery type — they vary the ball in, so the routine can't be set against one flight"
+        : "no single delivery type — the variety keeps opponents from setting up against one flight");
       if (topAssist && topAssist[1] >= 2) bits.push(scout
         ? `${topAssist[0]} delivers most of them (${topAssist[1]} assists) — pressure on the delivery starts the defending`
         : `${topAssist[0]}'s delivery is behind ${topAssist[1]} of them`);
