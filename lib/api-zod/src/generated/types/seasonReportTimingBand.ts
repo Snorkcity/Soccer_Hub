@@ -11,4 +11,9 @@ export interface SeasonReportTimingBand {
   band: string;
   scored: number;
   conceded: number;
+  /**
+     * Share of ALL league goals this season that fall in this band
+     * @nullable
+     */
+  leaguePct?: number | null;
 }

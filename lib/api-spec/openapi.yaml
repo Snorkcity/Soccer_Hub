@@ -4054,6 +4054,7 @@ components:
         band: { type: string, description: "e.g. 1–15, 76+" }
         scored: { type: integer }
         conceded: { type: integer }
+        leaguePct: { type: ["number", "null"], description: "Share of ALL league goals this season that fall in this band" }
       required: [band, scored, conceded]
 
     SeasonReportDnaCat:
@@ -4064,6 +4065,7 @@ components:
         count: { type: integer }
         pct: { type: ["number", "null"] }
         benchmarkPct: { type: ["number", "null"] }
+        leaguePct: { type: ["number", "null"], description: "This season's league-wide share for this category (typed goals only)" }
       required: [id, label, count, pct, benchmarkPct]
 
     SeasonReportResponse:
@@ -4079,6 +4081,7 @@ components:
           type: array
           items: { $ref: "#/components/schemas/SeasonReportDnaCat" }
         dnaTyped: { type: integer, description: "Our goals with a recorded DNA type" }
+        leagueAvgGoals: { type: ["number", "null"], description: "League average goals per team per game this season" }
         insights:
           type: array
           items: { $ref: "#/components/schemas/MatchReportInsight" }

@@ -16,5 +16,10 @@ export interface SeasonReportResponse {
   dnaMix: SeasonReportDnaCat[];
   /** Our goals with a recorded DNA type */
   dnaTyped: number;
+  /**
+     * League average goals per team per game this season
+     * @nullable
+     */
+  leagueAvgGoals?: number | null;
   insights: MatchReportInsight[];
 }

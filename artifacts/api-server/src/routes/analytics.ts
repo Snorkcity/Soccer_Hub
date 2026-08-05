@@ -3822,6 +3822,37 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
     };
   });
 
+  // ── League-wide context (league tables cover every club) ─────────────────
+  // Average goals per team per game, plus league-wide timing and DNA shares —
+  // only from proper rounds. Degrades to nulls when league data is thin.
+  const lgMatches = (await db
+    .select()
+    .from(leagueMatchesTable)
+    .where(eq(leagueMatchesTable.seasonId, seasonId)))
+    .filter(m => /^R\d/.test(m.matchId) && m.homeGoals != null && m.awayGoals != null);
+  const lgGoals = (await db
+    .select()
+    .from(leagueGoalsTable)
+    .where(eq(leagueGoalsTable.seasonId, seasonId)))
+    .filter(g => /^R\d/.test(g.matchId));
+  const leagueAvgGoals = lgMatches.length >= 5
+    ? lgMatches.reduce((s, m) => s + (m.homeGoals ?? 0) + (m.awayGoals ?? 0), 0) / (lgMatches.length * 2)
+    : null;
+  const lgMinuted = lgGoals.filter(g => g.minuteScored != null);
+  const timingWithLeague = timing.map(t => ({
+    ...t,
+    leaguePct: lgMinuted.length >= 20
+      ? (lgMinuted.filter(g => bandOf(g.minuteScored!) === t.band).length / lgMinuted.length) * 100
+      : null,
+  }));
+  const lgTyped = lgGoals
+    .map(g => dnaCatOfType(g.goalType))
+    .filter((c): c is NonNullable<ReturnType<typeof dnaCatOfType>> => c != null);
+  const dnaMixWithLeague = dnaMix.map(c => ({
+    ...c,
+    leaguePct: lgTyped.length >= 20 ? (lgTyped.filter(x => x === c.id).length / lgTyped.length) * 100 : null,
+  }));
+
   // ── Weighted insight pool (senior-readiness reads) ────────────────────────
   const candidates: Array<{ w: number; tone: "good" | "watch" | "info"; text: string }> = [];
   const minuted = (gs: typeof ours) => gs.filter(g => g.minuteScored != null);
@@ -3932,7 +3963,9 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
   candidates.sort((a, b) => b.w - a.w);
   const insights = candidates.slice(0, 9).map(({ tone, text }) => ({ tone, text }));
 
-  res.json(GetSeasonReportResponse.parse({ rounds, timing, dnaMix, dnaTyped, insights }));
+  res.json(GetSeasonReportResponse.parse({
+    rounds, timing: timingWithLeague, dnaMix: dnaMixWithLeague, dnaTyped, leagueAvgGoals, insights,
+  }));
 });
 
 // ── Opponent match report — scouting view of ANY league club's game ─────────

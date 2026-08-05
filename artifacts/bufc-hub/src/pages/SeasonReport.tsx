@@ -28,10 +28,37 @@ const toneIcon = (tone: string) =>
 
 const CHART_H = 260;
 const axisTick = { fontSize: 11 } as const;
-const tooltipStyle = {
-  contentStyle: { fontSize: 12, borderRadius: 8 },
-  labelStyle: { fontWeight: 600 },
-} as const;
+const cursorFill = { fill: 'hsl(var(--muted)/0.3)' } as const;
+
+// ── Card-style tooltip matching the rest of the app ─────────────────────────
+function TipCard({ title, sub, children, footer }: {
+  title: string; sub?: string | null; children: React.ReactNode; footer?: string | null;
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[180px] space-y-2">
+      <div>
+        <div className="font-semibold text-sm">{title}</div>
+        {sub && <div className="text-muted-foreground">{sub}</div>}
+      </div>
+      <div className="border-t pt-2 space-y-1">{children}</div>
+      {footer && <div className="border-t pt-2 text-muted-foreground">{footer}</div>}
+    </div>
+  );
+}
+
+function TipRow({ color, name, value }: { color?: string; name: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-6">
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        {color && <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />}
+        {name}
+      </span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+type TipPayload = Array<{ name?: unknown; value?: unknown; color?: string; payload?: any }>;
 
 // Same convention as the GPS match report: squad comes from the round suffix.
 function squadOf(round: string | null | undefined): string {
@@ -173,7 +200,7 @@ export default function SeasonReport() {
     if (kms.length >= 5) {
       const mean = kms.reduce((a, b) => a + b, 0) / kms.length;
       const cvv = mean > 0 ? Math.sqrt(kms.reduce((a, b) => a + (b - mean) ** 2, 0) / kms.length) / mean : null;
-      if (cvv != null && cvv >= 0.15) out.push({ tone: 'watch', text: `Team distance swings ${(cvv * 100).toFixed(0)}% game to game — some weeks the physical output simply isn't there. Consistency of effort is a 16+ standard.` });
+      if (cvv != null && cvv >= 0.15) out.push({ tone: 'watch', text: `Team distance swings ${(cvv * 100).toFixed(0)}% game to game — some weeks the physical output simply isn't there. Consistency of effort is a senior standard.` });
       else if (cvv != null && cvv <= 0.08) out.push({ tone: 'good', text: `Team running output is remarkably steady week to week — the same physical shift turns up every game.` });
     }
     return out;
@@ -188,7 +215,7 @@ export default function SeasonReport() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2"><TrendingUp className="h-5 w-5 text-sky-500" />Season Report</h1>
-          <p className="text-sm text-muted-foreground">How the season is trending — measured against the club's 16+ success markers.</p>
+          <p className="text-sm text-muted-foreground">How the season is trending — measured against the club's senior-readiness markers.</p>
         </div>
         {seasons.length > 1 && (
           <Select value={String(seasonId)} onValueChange={v => setSeasonId(Number(v))}>
@@ -233,7 +260,20 @@ export default function SeasonReport() {
               <XAxis dataKey="label" tick={axisTick} interval={0} angle={-35} textAnchor="end" height={45} />
               <YAxis yAxisId="g" tick={axisTick} allowDecimals={false} />
               <YAxis yAxisId="p" orientation="right" tick={axisTick} allowDecimals={false} />
-              <Tooltip {...tooltipStyle} formatter={(v: number, name: string) => [v, name]} labelFormatter={(l, p) => { const r = (p as any)?.[0]?.payload; return r ? `${l} v ${r.opponent} (${r.result ?? '?'})` : String(l); }} />
+              <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                const r = payload?.[0]?.payload;
+                if (!active || !r) return null;
+                const res = r.result === 'W' ? 'Win' : r.result === 'L' ? 'Loss' : 'Draw';
+                const ht = r.htResult === 'W' ? 'led at half-time' : r.htResult === 'L' ? 'trailed at half-time' : r.htResult === 'D' ? 'level at half-time' : null;
+                return (
+                  <TipCard title={`${r.label} v ${r.opponent}`} sub={[res, ht].filter(Boolean).join(' · ')}
+                    footer={report?.leagueAvgGoals != null ? `League average: ${report.leagueAvgGoals.toFixed(1)} goals per team per game` : null}>
+                    <TipRow color="#22c55e" name="Goals for" value={r.goalsFor ?? '—'} />
+                    <TipRow color="#ef4444" name="Goals against" value={r.goalsAgainst ?? '—'} />
+                    <TipRow color="#0ea5e9" name="Points so far" value={r.points} />
+                  </TipCard>
+                );
+              }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar yAxisId="g" dataKey="goalsFor" name="Goals for" fill="#22c55e" radius={[3, 3, 0, 0]} />
               <Bar yAxisId="g" dataKey="goalsAgainst" name="Goals against" fill="#ef4444" radius={[3, 3, 0, 0]} />
@@ -257,7 +297,18 @@ export default function SeasonReport() {
                 <XAxis dataKey="label" tick={axisTick} interval={0} angle={-35} textAnchor="end" height={45} />
                 <YAxis yAxisId="pa" tick={axisTick} allowDecimals={false} />
                 <YAxis yAxisId="po" orientation="right" tick={axisTick} domain={[0, 100]} unit="%" />
-                <Tooltip {...tooltipStyle} labelFormatter={(l, p) => { const r = (p as any)?.[0]?.payload; return r ? `${l} v ${r.opponent}` : String(l); }} />
+                <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r) return null;
+                  const avgPasses = rows.length ? rows.reduce((s, x) => s + (x.passes ?? 0), 0) / Math.max(1, rows.filter(x => x.passes != null).length) : null;
+                  return (
+                    <TipCard title={`${r.label} v ${r.opponent}`} sub={r.result === 'W' ? 'Win' : r.result === 'L' ? 'Loss' : 'Draw'}
+                      footer={avgPasses ? `Our season average: ${avgPasses.toFixed(0)} passes` : null}>
+                      <TipRow color="#818cf8" name="Passes" value={r.passes ?? '—'} />
+                      <TipRow color="#f59e0b" name="Possession" value={r.possession != null ? `${fmt(r.possession, 0)}%` : '—'} />
+                    </TipCard>
+                  );
+                }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar yAxisId="pa" dataKey="passes" name="Passes" fill="#818cf8" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="po" dataKey="possession" name="Possession %" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} connectNulls />
@@ -278,7 +329,18 @@ export default function SeasonReport() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="label" tick={axisTick} interval={0} angle={-35} textAnchor="end" height={45} />
                 <YAxis tick={axisTick} allowDecimals={false} />
-                <Tooltip {...tooltipStyle} labelFormatter={(l, p) => { const r = (p as any)?.[0]?.payload; return r ? `${l} v ${r.opponent}` : String(l); }} />
+                <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r) return null;
+                  const diff = r.shots != null && r.oppShots != null ? r.shots - r.oppShots : null;
+                  return (
+                    <TipCard title={`${r.label} v ${r.opponent}`} sub={r.result === 'W' ? 'Win' : r.result === 'L' ? 'Loss' : 'Draw'}
+                      footer={diff != null ? `Shot difference: ${diff > 0 ? '+' : ''}${diff} — ${diff >= 5 ? 'territory was ours' : diff <= -5 ? 'they had the territory' : 'an even contest'}` : null}>
+                      <TipRow color="#22c55e" name="Our shots" value={r.shots ?? '—'} />
+                      <TipRow color="#ef4444" name="Shots against" value={r.oppShots ?? '—'} />
+                    </TipCard>
+                  );
+                }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line dataKey="shots" name="Our shots" stroke="#22c55e" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 <Line dataKey="oppShots" name="Shots against" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} connectNulls />
@@ -299,7 +361,21 @@ export default function SeasonReport() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="band" tick={axisTick} />
                 <YAxis tick={axisTick} allowDecimals={false} />
-                <Tooltip {...tooltipStyle} />
+                <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r) return null;
+                  const totScored = timing.reduce((s, t) => s + t.scored, 0);
+                  const ourPct = totScored > 0 ? (r.scored / totScored) * 100 : null;
+                  return (
+                    <TipCard title={`Minutes ${r.band}`}
+                      footer={r.leaguePct != null
+                        ? `League-wide, ${r.leaguePct.toFixed(0)}% of all goals fall in this window${ourPct != null ? ` — ${ourPct.toFixed(0)}% of ours do` : ''}`
+                        : null}>
+                      <TipRow color="#22c55e" name="Scored" value={r.scored} />
+                      <TipRow color="#ef4444" name="Conceded" value={r.conceded} />
+                    </TipCard>
+                  );
+                }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="scored" name="Scored" fill="#22c55e" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="conceded" name="Conceded" fill="#ef4444" radius={[3, 3, 0, 0]} />
@@ -324,7 +400,17 @@ export default function SeasonReport() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="label" tick={axisTick} interval={0} />
                 <YAxis tick={axisTick} unit="%" />
-                <Tooltip {...tooltipStyle} formatter={(v: number, name: string) => [`${v}%`, name]} />
+                <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r) return null;
+                  return (
+                    <TipCard title={r.label} sub={`${r.count} goal${r.count === 1 ? '' : 's'} this season`}
+                      footer={r.leaguePct != null ? `This league's actual mix this season: ${r.leaguePct.toFixed(0)}%` : null}>
+                      <TipRow color="#0ea5e9" name="Our share" value={r.pctR != null ? `${r.pctR}%` : '—'} />
+                      <TipRow color="#94a3b8" name="Benchmark" value={r.benchmarkPct != null ? `${r.benchmarkPct}%` : '—'} />
+                    </TipCard>
+                  );
+                }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="pctR" name="Our share" fill="#0ea5e9" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="benchmarkPct" name="Benchmark" fill="#94a3b8" radius={[3, 3, 0, 0]} />
@@ -363,10 +449,19 @@ export default function SeasonReport() {
                 <XAxis dataKey="round" tick={axisTick} interval={0} angle={-35} textAnchor="end" height={45} />
                 <YAxis yAxisId="km" tick={axisTick} />
                 <YAxis yAxisId="dpm" orientation="right" tick={axisTick} />
-                <Tooltip {...tooltipStyle}
-                  formatter={(v: number, name: string) => [name.includes('km') ? `${fmt(v, 1)} km` : fmt(v, 0), name]}
-                  labelFormatter={(l, p) => { const r = (p as any)?.[0]?.payload; return r?.opponent ? `${l} v ${r.opponent} (${r.players} players)` : String(l); }}
-                />
+                <Tooltip cursor={cursorFill} content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r) return null;
+                  const kms = gpsTrend.map(t => t.km).filter((v): v is number => v != null);
+                  const avgKm = kms.length ? kms.reduce((a, b) => a + b, 0) / kms.length : null;
+                  return (
+                    <TipCard title={r.opponent ? `${r.round} v ${r.opponent}` : r.round} sub={`${r.players} players tracked`}
+                      footer={avgKm != null && r.km != null ? `Season average: ${avgKm.toFixed(1)} km (${r.km >= avgKm ? '+' : ''}${(((r.km - avgKm) / avgKm) * 100).toFixed(0)}% this game)` : null}>
+                      <TipRow color="#38bdf8" name="Total km" value={r.km != null ? `${fmt(r.km, 1)} km` : '—'} />
+                      <TipRow color="#f59e0b" name="Intensity" value={r.dpm != null ? `${fmt(r.dpm, 0)} m/min` : '—'} />
+                    </TipCard>
+                  );
+                }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar yAxisId="km" dataKey="km" name="Total km" fill="#38bdf8" radius={[3, 3, 0, 0]} />
                 <Line yAxisId="dpm" dataKey="dpm" name="Intensity (m/min)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} connectNulls />
@@ -378,7 +473,17 @@ export default function SeasonReport() {
                 <XAxis dataKey="round" tick={axisTick} interval={0} angle={-35} textAnchor="end" height={45} />
                 <YAxis tick={axisTick} unit="%" />
                 <ReferenceLine y={0} stroke="#64748b" />
-                <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v > 0 ? '+' : ''}${fmt(v, 1)}%`, '2nd-half intensity change']} />
+                <Tooltip content={({ active, payload }: { active?: boolean; payload?: TipPayload }) => {
+                  const r = payload?.[0]?.payload;
+                  if (!active || !r || r.h2DpmChangePct == null) return null;
+                  const v = r.h2DpmChangePct;
+                  return (
+                    <TipCard title={r.opponent ? `${r.round} v ${r.opponent}` : r.round}
+                      footer={v <= -8 ? 'A drop this size usually means the legs went — worth checking rotations' : v >= 0 ? 'Second half matched or beat the first — strong finish' : 'A small drop is normal'}>
+                      <TipRow color="#a78bfa" name="2nd-half intensity change" value={`${v > 0 ? '+' : ''}${fmt(v, 1)}%`} />
+                    </TipCard>
+                  );
+                }} />
                 <Line dataKey="h2DpmChangePct" name="2nd-half intensity change" stroke="#a78bfa" strokeWidth={2} dot={{ r: 3 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>

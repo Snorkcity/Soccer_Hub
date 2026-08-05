@@ -14,4 +14,9 @@ export interface SeasonReportDnaCat {
   pct: number | null;
   /** @nullable */
   benchmarkPct: number | null;
+  /**
+     * This season's league-wide share for this category (typed goals only)
+     * @nullable
+     */
+  leaguePct?: number | null;
 }

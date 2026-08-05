@@ -1152,6 +1152,11 @@ export interface SeasonReportTimingBand {
   band: string;
   scored: number;
   conceded: number;
+  /**
+     * Share of ALL league goals this season that fall in this band
+     * @nullable
+     */
+  leaguePct?: number | null;
 }
 
 export interface SeasonReportDnaCat {
@@ -1162,6 +1167,11 @@ export interface SeasonReportDnaCat {
   pct: number | null;
   /** @nullable */
   benchmarkPct: number | null;
+  /**
+     * This season's league-wide share for this category (typed goals only)
+     * @nullable
+     */
+  leaguePct?: number | null;
 }
 
 export interface SeasonReportResponse {
@@ -1170,6 +1180,11 @@ export interface SeasonReportResponse {
   dnaMix: SeasonReportDnaCat[];
   /** Our goals with a recorded DNA type */
   dnaTyped: number;
+  /**
+     * League average goals per team per game this season
+     * @nullable
+     */
+  leagueAvgGoals?: number | null;
   insights: MatchReportInsight[];
 }
 

@@ -1182,16 +1182,19 @@ export const GetSeasonReportResponse = zod.object({
   "timing": zod.array(zod.object({
   "band": zod.string().describe('e.g. 1–15, 76+'),
   "scored": zod.number(),
-  "conceded": zod.number()
+  "conceded": zod.number(),
+  "leaguePct": zod.number().nullish().describe('Share of ALL league goals this season that fall in this band')
 })),
   "dnaMix": zod.array(zod.object({
   "id": zod.string(),
   "label": zod.string(),
   "count": zod.number(),
   "pct": zod.number().nullable(),
-  "benchmarkPct": zod.number().nullable()
+  "benchmarkPct": zod.number().nullable(),
+  "leaguePct": zod.number().nullish().describe('This season\'s league-wide share for this category (typed goals only)')
 })),
   "dnaTyped": zod.number().describe('Our goals with a recorded DNA type'),
+  "leagueAvgGoals": zod.number().nullish().describe('League average goals per team per game this season'),
   "insights": zod.array(zod.object({
   "tone": zod.enum(['good', 'watch', 'info']),
   "text": zod.string()
