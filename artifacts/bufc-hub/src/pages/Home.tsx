@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useListTeams, useListSeasons, useGetSeasonSummary, getGetSeasonSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookHeart, BookOpen, ClipboardList, PenLine, Bot, Presentation, Trophy } from "lucide-react";
+import { ArrowRight, BarChart3, Navigation2, Activity, Calendar, BookHeart, BookOpen, ClipboardList, PenLine, Bot, Presentation, Trophy, TrendingUp } from "lucide-react";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 
@@ -33,6 +33,15 @@ export default function Home() {
       href: "/season-stats",
       stat: summary ? `${summary.goalsScored} Goals Scored` : "Loading...",
       color: "text-chart-1",
+      module: "season-stats"
+    },
+    {
+      title: "Season Report",
+      description: "How the season is trending — results, goal DNA, and senior-readiness reads.",
+      icon: TrendingUp,
+      href: "/season-report",
+      stat: "Senior-Readiness Reads",
+      color: "text-chart-2",
       module: "season-stats"
     },
     {
