@@ -85,6 +85,27 @@ function topShare<T extends string>(
   return top[1] / known.length >= shareMin ? { label: top[0], count: top[1], total: known.length } : null;
 }
 
+/** True when enough values are recorded but none dominates — variety is the story. */
+function evenSpread(vals: (string | null)[], min = 5, shareMax = 0.45): boolean {
+  const known = vals.filter((v): v is string => v != null);
+  if (known.length < min) return false;
+  const counts = new Map<string, number>();
+  for (const v of known) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const distinct = counts.size;
+  const top = Math.max(...counts.values());
+  return distinct >= 3 && top / known.length < shareMax;
+}
+
+/** Top scorer among a set of goals when one player owns ≥2 and ≥40% of them. */
+function topFinisher(gs: ParsedGoal[]): { name: string; count: number } | null {
+  const named = gs.filter(g => g.scorer != null);
+  if (named.length < 3) return null;
+  const counts = new Map<string, number>();
+  for (const g of named) counts.set(g.scorer!, (counts.get(g.scorer!) ?? 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top[1] >= 2 && top[1] / named.length >= 0.4 ? { name: top[0], count: top[1] } : null;
+}
+
 function median(ns: number[]): number | null {
   if (!ns.length) return null;
   const s = ns.slice().sort((a, b) => a - b);
@@ -138,9 +159,13 @@ export function goalIntelReads(
         : "";
       const lane = dominantLane(mtdt);
       const laneBit = lane ? `, mostly ${laneWord(lane.lane)}` : "";
+      const fin = topFinisher(mtdt);
+      const finBit = fin ? (scout
+        ? ` ${fin.name} has finished ${fin.count} of them — track the runner, not just the ball.`
+        : ` ${fin.name} has finished ${fin.count} of them — the outlet and the runner are connecting.`) : "";
       reads.push(scout
-        ? { w: 72, tone: "watch", text: `Beware their middle-third regains: ${mtdt.length} of their ${open.length} open-play goals come during transition, before the defence can reset${passBit}${laneBit}. ${conf(mtdt.length) === "a clear pattern" ? "That's a clear pattern" : "The evidence so far is consistent with a real counter threat"} — rest defence and quick reactions after we lose it are non-negotiable.` }
-        : { w: 62, tone: "good", text: `Middle-third regains in transition are producing for us — ${mtdt.length} of ${open.length} open-play goals struck before the opponent reorganised${passBit}${laneBit}. That's ${conf(mtdt.length)} of punishing the moment of regain.` });
+        ? { w: 72, tone: "watch", text: `Beware their middle-third regains: ${mtdt.length} of their ${open.length} open-play goals come during transition, before the defence can reset${passBit}${laneBit}. ${conf(mtdt.length) === "a clear pattern" ? "That's a clear pattern" : "The evidence so far is consistent with a real counter threat"} — rest defence and quick reactions after we lose it are non-negotiable.${finBit}` }
+        : { w: 62, tone: "good", text: `Middle-third regains in transition are producing for us — ${mtdt.length} of ${open.length} open-play goals struck before the opponent reorganised${passBit}${laneBit}. That's ${conf(mtdt.length)} of punishing the moment of regain.${finBit}` });
     }
   }
 
@@ -166,9 +191,13 @@ export function goalIntelReads(
     const ftdt = open.filter(g => g.origin === "FT" && g.trans === "DT");
     const ftat = open.filter(g => g.origin === "FT" && g.trans === "AT");
     if (ftdt.length >= 3) {
+      const fin = topFinisher(ftdt);
+      const finBit = fin ? (scout
+        ? ` ${fin.name} has converted ${fin.count} of them — likely leading the press and first to the loose ball.`
+        : ` ${fin.name} has converted ${fin.count} of them — first to the loose ball when the press bites.`) : "";
       reads.push(scout
-        ? { w: 60, tone: "watch", text: `${ftdt.length} of their goals start with a front-third regain during transition — consistent with a press that forces mistakes near goal (though opponents playing risky build-up can inflate this). Clean, brave first-phase play or go longer — don't feed the press.` }
-        : { w: 58, tone: "good", text: `${ftdt.length} goals have started with a front-third regain in transition — the press is forcing errors close to goal and we're punishing them. That's pressing producing attacking advantage, not just effort.` });
+        ? { w: 60, tone: "watch", text: `${ftdt.length} of their goals start with a front-third regain during transition — consistent with a press that forces mistakes near goal (though opponents playing risky build-up can inflate this).${finBit} Clean, brave first-phase play or go longer — don't feed the press.` }
+        : { w: 58, tone: "good", text: `${ftdt.length} goals have started with a front-third regain in transition — the press is forcing errors close to goal and we're punishing them.${finBit} That's pressing producing attacking advantage, not just effort.` });
     }
     if (ftat.length >= 3) {
       // Fingerprint of HOW the set defence gets broken — penetration, lane,
@@ -186,9 +215,14 @@ export function goalIntelReads(
       };
       const bits: string[] = [];
       if (pen) bits.push(`mostly ${penWord(pen.label)} (${pen.count} of ${pen.total} recorded)`);
+      else if (evenSpread(ftat.map(g => g.penetrated))) bits.push("no favourite route in — through, around and over the block in roughly equal measure");
       if (lane) bits.push(`${lane.lane === "centre" ? "straight through the middle" : `down the ${lane.lane}`}`);
+      else if (evenSpread(ftat.map(g => g.lane))) bits.push("spread across both flanks and the middle");
       if (at) bits.push(atWord(at.label, at.count));
-      const how = bits.length ? ` When it opens, it opens a particular way: ${bits.join(", ")}.` : "";
+      else if (evenSpread(ftat.map(g => g.assistType?.toLowerCase() ?? null))) bits.push(scout
+        ? "no single signature final ball — the openings are finished from a genuine mix, so there's no one delivery to set the block against"
+        : "no single signature final ball — the openings come from a genuine mix, which makes us hard to plan against");
+      const how = bits.length ? ` When it opens, it opens a particular way: ${bits.join("; ")}.` : "";
       reads.push(scout
         ? { w: 55, tone: "watch", text: `${ftat.length} of their goals came from front-third regains after the defence was set — teams sitting deep against them still get opened up.${how} Sitting off won't be enough; the block has to be active, not just deep.` }
         : { w: 56, tone: "good", text: `${ftat.length} goals from front-third regains after the opponent was organised — consistent with teams sitting in a low block against us, and we're coping well with it: moved around until an opening appeared.${how} That's ${conf(ftat.length)} — in this moment we're scoring, and we know how we're scoring.` });
@@ -213,14 +247,24 @@ export function goalIntelReads(
       const sample = `${openConc.filter(g => g.trans === "DT").length} of the ${openConc.length} open-play goals they've conceded with the story recorded`;
       const sampleSelf = `${openConc.filter(g => g.trans === "DT").length} of our ${openConc.length} open-play concessions with the story recorded`;
       const hedge = openConc.length >= 10 ? "" : " — small sample, but worth testing early";
+      // Which channel the damage is built down (recorded from the ATTACKER's
+      // perspective — flip for the defending team's side of the pitch).
+      const concLane = dominantLane(openConc);
+      const flip = (l: string) => (l === "left" ? "right side" : l === "right" ? "left side" : "central channel");
+      const concLaneBitSelf = concLane
+        ? ` Most of the damage is built down ${concLane.lane === "centre" ? "the middle" : `the attacker's ${concLane.lane}`} — our ${flip(concLane.lane)} — worth a look at the balance there.`
+        : "";
+      const concLaneBitScout = concLane
+        ? ` The goals they concede are mostly built down ${concLane.lane === "centre" ? "the central channel" : `their defensive ${flip(concLane.lane)}`} — that's the channel to attack.`
+        : "";
       if (share >= 55) {
         reads.push(scout
-          ? { w: openConc.length >= 10 ? 68 : 55, tone: "good", text: `${sample} came during transition, before they could reorganise${hedge}. Rest defence looks like the soft spot: win it and go immediately, the first pass forward hurts them most.` }
-          : { w: openConc.length >= 10 ? 70 : 58, tone: "watch", text: `${sampleSelf} came during transition — we're getting hurt in the moments straight after losing the ball${hedge}. Rest defence and the first reaction to a turnover are the areas to look at.` });
+          ? { w: openConc.length >= 10 ? 68 : 55, tone: "good", text: `${sample} came during transition, before they could reorganise${hedge}. Rest defence looks like the soft spot: win it and go immediately, the first pass forward hurts them most.${concLaneBitScout}` }
+          : { w: openConc.length >= 10 ? 70 : 58, tone: "watch", text: `${sampleSelf} came during transition — we're getting hurt in the moments straight after losing the ball${hedge}. Rest defence and the first reaction to a turnover are the areas to look at.${concLaneBitSelf}` });
       } else if (share <= 30) {
         reads.push(scout
-          ? { w: 52, tone: "info", text: `Most of what they concede comes after they're set (${openConc.length - openConc.filter(g => g.trans === "DT").length} of ${openConc.length} recorded) — they don't get countered easily, but sustained pressure and patient movement of their block pays.` }
-          : { w: 50, tone: "watch", text: `Most of our recorded open-play concessions come with the defence set — teams are breaking us down even when we're organised. That points at compactness and pressure on the ball, not transition reactions.` });
+          ? { w: 52, tone: "info", text: `Most of what they concede comes after they're set (${openConc.length - openConc.filter(g => g.trans === "DT").length} of ${openConc.length} recorded) — they don't get countered easily, but sustained pressure and patient movement of their block pays.${concLaneBitScout}` }
+          : { w: 50, tone: "watch", text: `Most of our recorded open-play concessions come with the defence set — teams are breaking us down even when we're organised. That points at compactness and pressure on the ball, not transition reactions.${concLaneBitSelf}` });
       }
     }
     // Conceding to front-third regains = build-up vulnerability.
