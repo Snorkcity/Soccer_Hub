@@ -19,6 +19,8 @@ export interface IntelGoal {
   buildupLane: string | null;
   scorer: string | null;
   assist: string | null;
+  howPenetrated?: string | null;
+  assistType?: string | null;
 }
 
 export interface IntelRead {
@@ -34,6 +36,8 @@ interface ParsedGoal {
   lane: "left" | "centre" | "right" | null;
   scorer: string | null;
   assist: string | null;
+  penetrated: "through" | "around" | "over" | null;
+  assistType: string | null;
 }
 
 function parseGoal(g: IntelGoal): ParsedGoal {
@@ -58,7 +62,27 @@ function parseGoal(g: IntelGoal): ParsedGoal {
     lane,
     scorer: g.scorer && g.scorer !== "OG" ? g.scorer.trim() : null,
     assist: g.assist?.trim() || null,
+    penetrated: (() => {
+      const p = g.howPenetrated?.trim().toLowerCase() ?? "";
+      return p === "through" || p === "around" || p === "over" ? p : null;
+    })(),
+    assistType: (() => {
+      const a = g.assistType?.trim() ?? "";
+      return a && a.toLowerCase() !== "error" ? a : null;
+    })(),
   };
+}
+
+/** Most common non-null value when ≥min are recorded AND it holds ≥ shareMin. */
+function topShare<T extends string>(
+  vals: (T | null)[], min = 3, shareMin = 0.45,
+): { label: T; count: number; total: number } | null {
+  const known = vals.filter((v): v is T => v != null);
+  if (known.length < min) return null;
+  const counts = new Map<T, number>();
+  for (const v of known) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top[1] / known.length >= shareMin ? { label: top[0], count: top[1], total: known.length } : null;
 }
 
 function median(ns: number[]): number | null {
@@ -147,9 +171,27 @@ export function goalIntelReads(
         : { w: 58, tone: "good", text: `${ftdt.length} goals have started with a front-third regain in transition — the press is forcing errors close to goal and we're punishing them. That's pressing producing attacking advantage, not just effort.` });
     }
     if (ftat.length >= 3) {
+      // Fingerprint of HOW the set defence gets broken — penetration, lane,
+      // assist type. Each bit only speaks when its own sample justifies it.
+      const pen = topShare(ftat.map(g => g.penetrated));
+      const lane = dominantLane(ftat);
+      const at = topShare(ftat.map(g => g.assistType?.toLowerCase() ?? null));
+      const penWord = (p: string) =>
+        p === "through" ? "playing through the block" : p === "around" ? "working it around the block" : "going over the top of the block";
+      const atWord = (a: string, n: number) => {
+        const nice = a === "cutback" ? "the cutback" : a === "cross" ? "the cross" : a === "through ball" ? "the through ball"
+          : a === "inswinger" ? "the inswinging delivery" : a === "outswinger" ? "the outswinging delivery"
+          : a === "buildup" ? "patient build-up" : a === "counter" ? "the quick break" : a === "shot" ? "following up shots" : `the ${a}`;
+        return `${nice} is the signature final ball (${n} of them)`;
+      };
+      const bits: string[] = [];
+      if (pen) bits.push(`mostly ${penWord(pen.label)} (${pen.count} of ${pen.total} recorded)`);
+      if (lane) bits.push(`${lane.lane === "centre" ? "straight through the middle" : `down the ${lane.lane}`}`);
+      if (at) bits.push(atWord(at.label, at.count));
+      const how = bits.length ? ` When it opens, it opens a particular way: ${bits.join(", ")}.` : "";
       reads.push(scout
-        ? { w: 55, tone: "watch", text: `${ftat.length} of their goals came from front-third regains after the defence was set — teams sitting deep against them still get opened up. Sitting off won't be enough; the block has to be active, not just deep.` }
-        : { w: 56, tone: "good", text: `${ftat.length} goals from front-third regains after the opponent was organised — likely teams sitting in a low block against us, moved around until an opening appeared. Breaking a set defence is the harder skill, and there's ${conf(ftat.length)} we have it.` });
+        ? { w: 55, tone: "watch", text: `${ftat.length} of their goals came from front-third regains after the defence was set — teams sitting deep against them still get opened up.${how} Sitting off won't be enough; the block has to be active, not just deep.` }
+        : { w: 56, tone: "good", text: `${ftat.length} goals from front-third regains after the opponent was organised — consistent with teams sitting in a low block against us, and we're coping well with it: moved around until an opening appeared.${how} That's ${conf(ftat.length)} — in this moment we're scoring, and we know how we're scoring.` });
     }
   }
 
