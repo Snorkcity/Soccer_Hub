@@ -8,6 +8,7 @@ import {
   getGetOpponentProfileQueryKey,
   getOpponentProfile,
   createPrematchBrief,
+  createPrematchTalk,
   useListMatchPrepReports,
   getListMatchPrepReportsQueryKey,
   createMatchPrepReport,
@@ -268,6 +269,7 @@ export default function MatchPrep() {
   const { toast } = useToast();
   const [d, setD] = useState<Draft>(loadDraft);
   const [drafting, setDrafting] = useState(false);
+  const [draftingTalk, setDraftingTalk] = useState(false);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   // Which saved Friday deck we're editing (null = unsaved draft).
@@ -424,6 +426,41 @@ export default function MatchPrep() {
       toast({ title: "Couldn't draft objectives", description: openAiQuotaMessage(e) ?? (e instanceof Error ? e.message : "Try again."), variant: "destructive" });
     } finally {
       setDrafting(false);
+    }
+  }
+
+  // ── AI talking points ──
+  async function draftTalk() {
+    if (!d.opponent) return;
+    if (d.commentsTrends.trim() && !window.confirm("Replace what's already in the team-talk box with fresh drafted lines?")) return;
+    setDraftingTalk(true);
+    try {
+      let scoutText = "";
+      if (teamId != null && seasonId != null) {
+        try {
+          const prof = await getOpponentProfile({ teamId, seasonId, club: d.opponent });
+          const rec = prof.record;
+          const scorers = prof.topScorers.slice(0, 3).map((s) => `${s.scorer} (${s.goals})`).join(", ");
+          scoutText = [
+            `Season record: ${rec.won}W ${rec.drawn}D ${rec.lost}L, ${rec.goalsFor} scored / ${rec.goalsAgainst} conceded.`,
+            scorers ? `Top scorers: ${scorers}.` : "",
+            d.theirFormation ? `They likely play a ${d.theirFormation}.` : "",
+          ].filter(Boolean).join("\n");
+        } catch { /* scout data optional */ }
+      }
+      const talk = await createPrematchTalk({
+        opponent: d.opponent,
+        seasonId: seasonId ?? undefined,
+        leagueId: activeLeagueId ?? undefined,
+        gamePlanNotes: d.gamePlan || undefined,
+        scoutText: scoutText || undefined,
+      });
+      setD((p) => ({ ...p, commentsTrends: talk.lines.join("\n") }));
+      toast({ title: "Talking points drafted", description: "Drawn from your previous talks vs this opponent, the last meeting, and the Monday brief. Edit any line." });
+    } catch (e) {
+      toast({ title: "Couldn't draft talking points", description: openAiQuotaMessage(e) ?? (e instanceof Error ? e.message : "Try again."), variant: "destructive" });
+    } finally {
+      setDraftingTalk(false);
     }
   }
 
@@ -910,7 +947,13 @@ export default function MatchPrep() {
             <p className="text-[11px] text-muted-foreground">Fills in the pre-game countdown on the printable game-day sheet.</p>
           </div>
           <div className="space-y-1.5 md:col-span-3">
-            <Label>Comments / trends — one per line</Label>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <Label>Comments / trends — one per line</Label>
+              <Button variant="outline" size="sm" onClick={draftTalk} disabled={draftingTalk || !d.opponent}>
+                {draftingTalk ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                Draft talking points
+              </Button>
+            </div>
             <Textarea value={d.commentsTrends} onChange={(e) => set("commentsTrends", e.target.value)} rows={3}
               placeholder={"Front third regains off the charts\nGoals come from the right — show them to the left back"} />
             <p className="text-[11px] text-muted-foreground">Prints on the black &amp; white game-day sheet for the team talk.</p>

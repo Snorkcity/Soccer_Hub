@@ -4543,6 +4543,25 @@ export const CreatePrematchBriefResponse = zod.object({
 
 
 /**
+ * @summary AI talking points for the Friday deck team-talk box, drawing on previous talks vs the same opponent (coach's OpenAI key)
+ */
+
+
+
+export const CreatePrematchTalkBody = zod.object({
+  "opponent": zod.string().min(1),
+  "seasonId": zod.number().optional(),
+  "leagueId": zod.number().optional(),
+  "gamePlanNotes": zod.string().optional(),
+  "scoutText": zod.string().optional()
+})
+
+export const CreatePrematchTalkResponse = zod.object({
+  "lines": zod.array(zod.string())
+})
+
+
+/**
  * @summary Write up interview answers into journal fields in the coach's voice
  */
 export const JournalInterviewWriteupBody = zod.object({

@@ -3350,6 +3350,19 @@ export interface PrematchBriefResponse {
   bpo: PrematchUnitObjectives;
 }
 
+export interface PrematchTalkRequest {
+  /** @minLength 1 */
+  opponent: string;
+  seasonId?: number;
+  leagueId?: number;
+  gamePlanNotes?: string;
+  scoutText?: string;
+}
+
+export interface PrematchTalkResponse {
+  lines: string[];
+}
+
 export type InterviewWriteupResponseContent = {[key: string]: string};
 
 export interface InterviewWriteupResponse {

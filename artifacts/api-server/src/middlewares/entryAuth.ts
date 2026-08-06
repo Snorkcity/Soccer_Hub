@@ -219,6 +219,7 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/entry/gps-uploads", "gps"],        // GPS upload management (list/fix/delete)
   ["/entry", "data-entry"],
   ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
+  ["/journal/prematch-talk", "match-prep"],    // Friday team-talk drafting too
   ["/journal/week-ahead-brief", "match-prep"], // under /journal, not /match-prep
 
   ["/sessions", "session-planner"],

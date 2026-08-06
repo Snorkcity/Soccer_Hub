@@ -3134,6 +3134,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrematchBriefResponse"
 
+  /journal/prematch-talk:
+    post:
+      operationId: createPrematchTalk
+      tags: [journal]
+      summary: AI talking points for the Friday deck team-talk box, drawing on previous talks vs the same opponent (coach's OpenAI key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrematchTalkRequest"
+      responses:
+        "200":
+          description: Suggested talking-point lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrematchTalkResponse"
+
   /journal/interview/writeup:
     post:
       operationId: journalInterviewWriteup
@@ -6234,6 +6253,25 @@ components:
         bpo:
           $ref: "#/components/schemas/PrematchUnitObjectives"
       required: [bp, bpo]
+
+    PrematchTalkRequest:
+      type: object
+      properties:
+        opponent:      { type: string, minLength: 1 }
+        seasonId:      { type: integer }
+        leagueId:      { type: integer }
+        gamePlanNotes: { type: string }
+        # Condensed plain-text opponent scout block assembled client-side
+        scoutText:     { type: string }
+      required: [opponent]
+
+    PrematchTalkResponse:
+      type: object
+      properties:
+        lines:
+          type: array
+          items: { type: string }
+      required: [lines]
 
     InterviewWriteupResponse:
       type: object

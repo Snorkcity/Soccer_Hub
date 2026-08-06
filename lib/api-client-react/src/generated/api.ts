@@ -203,6 +203,8 @@ import type {
   PracticeVariationList,
   PrematchBriefRequest,
   PrematchBriefResponse,
+  PrematchTalkRequest,
+  PrematchTalkResponse,
   ResetPasswordRequest,
   ReviewLibraryPracticeRequest,
   ReviewLibraryPracticeResult,
@@ -11621,6 +11623,77 @@ export const useCreatePrematchBrief = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreatePrematchBriefMutationOptions(options));
+    }
+
+export const getCreatePrematchTalkUrl = () => {
+
+
+
+
+  return `/api/journal/prematch-talk`
+}
+
+/**
+ * @summary AI talking points for the Friday deck team-talk box, drawing on previous talks vs the same opponent (coach's OpenAI key)
+ */
+export const createPrematchTalk = async (prematchTalkRequest: PrematchTalkRequest, options?: RequestInit): Promise<PrematchTalkResponse> => {
+
+  return customFetch<PrematchTalkResponse>(getCreatePrematchTalkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(prematchTalkRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePrematchTalkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrematchTalk>>, TError,{data: BodyType<PrematchTalkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPrematchTalk>>, TError,{data: BodyType<PrematchTalkRequest>}, TContext> => {
+
+const mutationKey = ['createPrematchTalk'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPrematchTalk>>, {data: BodyType<PrematchTalkRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPrematchTalk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePrematchTalkMutationResult = NonNullable<Awaited<ReturnType<typeof createPrematchTalk>>>
+    export type CreatePrematchTalkMutationBody = BodyType<PrematchTalkRequest>
+    export type CreatePrematchTalkMutationError = ErrorType<unknown>
+
+    /**
+ * @summary AI talking points for the Friday deck team-talk box, drawing on previous talks vs the same opponent (coach's OpenAI key)
+ */
+export const useCreatePrematchTalk = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrematchTalk>>, TError,{data: BodyType<PrematchTalkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPrematchTalk>>,
+        TError,
+        {data: BodyType<PrematchTalkRequest>},
+        TContext
+      > => {
+      return useMutation(getCreatePrematchTalkMutationOptions(options));
     }
 
 export const getJournalInterviewWriteupUrl = () => {

@@ -309,6 +309,8 @@ export * from './practiceVariation';
 export * from './practiceVariationList';
 export * from './prematchBriefRequest';
 export * from './prematchBriefResponse';
+export * from './prematchTalkRequest';
+export * from './prematchTalkResponse';
 export * from './prematchUnitObjectives';
 export * from './resetPasswordRequest';
 export * from './reviewLibraryPracticeRequest';

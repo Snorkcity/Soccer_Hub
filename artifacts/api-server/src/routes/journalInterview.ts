@@ -14,7 +14,7 @@
  */
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable } from "@workspace/db";
+import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable, seasonsTable } from "@workspace/db";
 import { focusClubForSeason } from "../lib/focusClub";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import {
@@ -23,6 +23,7 @@ import {
   JournalInterviewWriteupBody,
   CreateWeekAheadBriefBody,
   CreatePrematchBriefBody,
+  CreatePrematchTalkBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -390,6 +391,176 @@ Return JSON: {"bp": ${unitShape}, "bpo": ${unitShape}}.
     return next(err);
   }
 });
+
+// POST /journal/prematch-talk — talking points for the Friday deck team-talk
+// box, drawing on previous talks/decks vs the same opponent plus recorded
+// last-meeting facts and the saved Monday brief.
+router.post("/journal/prematch-talk", async (req, res, next) => {
+  try {
+    const key = apiKey();
+    if (!key) return noKey(res);
+    const parsed = CreatePrematchTalkBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+    const { opponent, seasonId, gamePlanNotes, scoutText } = parsed.data;
+    let { leagueId } = parsed.data;
+
+    // Keep league and season consistent: derive the league from the season
+    // where possible, and reject a leagueId that doesn't belong to it.
+    if (seasonId != null) {
+      const [season] = await db
+        .select({ leagueId: seasonsTable.leagueId })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.id, seasonId));
+      if (!season) return res.status(400).json({ error: "Unknown seasonId" });
+      if (leagueId != null && leagueId !== season.leagueId) {
+        return res.status(400).json({ error: "seasonId and leagueId belong to different leagues" });
+      }
+      leagueId = season.leagueId;
+    }
+
+    const [lastMeeting, prevVsOpponent, mondayBrief] = await Promise.all([
+      seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
+      leagueId != null
+        ? previousDecksVsOpponentText(leagueId, opponent).catch(() => null)
+        : Promise.resolve(null),
+      leagueId != null
+        ? mondayBriefTextForOpponent(leagueId, opponent).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const sections = [
+      prevVsOpponent
+        ? `## What the coach told the team the last time(s) we prepared for ${opponent}\n${prevVsOpponent}`
+        : "",
+      lastMeeting.length
+        ? `## What actually happened last time we played ${opponent} this season (recorded facts)\n${lastMeeting.join("\n")}`
+        : "",
+      mondayBrief ? `## This week's Monday prep brief for the ${opponent} game\n${mondayBrief}` : "",
+      scoutText ? `## Scout data on ${opponent}\n${scoutText}` : "",
+      gamePlanNotes ? `## The coach's game plan notes for this match\n${gamePlanNotes}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const result = await openaiJson(
+      "/chat/completions",
+      {
+        model: "gpt-4o",
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `You are the head coach of Belconnen United (NPLW football) drafting the short talking points for the pre-match team talk. This week's opponent: ${opponent}.
+Coaching identity: controlled positional play (Guardiola-style) — passionate but calm, very detail-specific. We control tempo, keep the ball, create through patience and positioning.
+Return JSON: {"lines": string[]} — 5 to 8 talking points, one line each.
+- Direct address to the players, spoken not written ("Their goals come from the right — show them onto the left back.").
+- Each line under 20 words. Plain spoken Australian English (defence, organisation), no jargon beyond common football terms (6, 8, 10, press, block).
+- Ground every line in the input: previous talks vs this opponent, recorded last-meeting facts, the Monday brief, the scout data. Never invent facts about the opponent.
+- If a previous talk vs this opponent is provided, carry forward what is still relevant rather than starting from scratch — continuity in the message matters.
+- If the last-meeting facts are provided, at least one line must build on what actually happened.
+- No headings, no numbering, no motivational filler ("give 110%") — every line must be specific and actionable.`,
+          },
+          { role: "user", content: sections || "(no extra input — write from the coaching identity)" },
+        ],
+      },
+      key,
+    );
+    const out = safeJsonParse(result?.choices?.[0]?.message?.content);
+    const lines = Array.isArray(out.lines)
+      ? out.lines.filter((x): x is string => typeof x === "string" && !!x.trim())
+      : [];
+    if (!lines.length) {
+      return res.status(502).json({ error: "The talking points came back empty. Please try again." });
+    }
+    return res.json({ lines });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Condensed text from our saved Friday decks vs the SAME opponent (most recent first, up to 2). */
+async function previousDecksVsOpponentText(
+  leagueId: number,
+  opponent: string,
+): Promise<string | null> {
+  const rows = await db
+    .select()
+    .from(matchPrepReportsTable)
+    .where(
+      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "friday")),
+    );
+  const opp = opponent.trim().toLowerCase();
+  const now = Date.now();
+  const time = (md: string | null) => {
+    if (!md) return NaN;
+    const t = new Date(md).getTime();
+    return Number.isNaN(t) ? NaN : t;
+  };
+  const matches = rows
+    .filter((r) => {
+      const dataOpp =
+        typeof (r.data as Record<string, unknown> | null)?.opponent === "string"
+          ? ((r.data as Record<string, unknown>).opponent as string)
+          : "";
+      const name = (r.opponent ?? dataOpp).trim().toLowerCase();
+      return !!name && name === opp;
+    })
+    .map((r) => ({ r, t: time(r.matchDate) }))
+    .filter((x) => !Number.isNaN(x.t) && x.t <= now)
+    .sort((a, b) => b.t - a.t)
+    .slice(0, 2);
+  if (!matches.length) return null;
+
+  const blocks = matches
+    .map(({ r }) => {
+      const d = (r.data ?? {}) as Record<string, unknown>;
+      const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string).trim() : "");
+      const parts = [
+        `Deck saved for ${r.opponent ?? opponent}${r.matchDate ? ` (${r.matchDate})` : ""}`,
+        str("commentsTrends") && `Team-talk lines: ${str("commentsTrends")}`,
+        str("gamePlan") && `Game plan: ${str("gamePlan")}`,
+        str("theirBpNotes") && `Their BP notes: ${str("theirBpNotes")}`,
+        str("theirBpoNotes") && `Their BPO notes: ${str("theirBpoNotes")}`,
+      ].filter(Boolean) as string[];
+      return parts.length > 1 ? parts.join("\n") : "";
+    })
+    .filter(Boolean);
+  if (!blocks.length) return null;
+  return blocks.join("\n\n").slice(0, 2500);
+}
+
+/** Pointer/review lines from the latest saved Monday brief for this opponent. */
+async function mondayBriefTextForOpponent(
+  leagueId: number,
+  opponent: string,
+): Promise<string | null> {
+  const rows = await db
+    .select()
+    .from(matchPrepReportsTable)
+    .where(
+      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "monday")),
+    );
+  const opp = opponent.trim().toLowerCase();
+  const candidates = rows
+    .filter((r) => {
+      const d = (r.data ?? {}) as Record<string, unknown>;
+      const name = (r.opponent ?? (typeof d.opponent === "string" ? d.opponent : "")).trim().toLowerCase();
+      return !!name && name === opp;
+    })
+    .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
+  const pick = candidates[0];
+  if (!pick) return null;
+  const d = (pick.data ?? {}) as Record<string, unknown>;
+  const arr = (k: string) =>
+    Array.isArray(d[k]) ? (d[k] as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const parts = [
+    arr("pointers").length ? `Prep pointers:\n${arr("pointers").join("\n")}` : "",
+    arr("review").length ? `Week review:\n${arr("review").join("\n")}` : "",
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return parts.join("\n\n").slice(0, 1500);
+}
 
 // ── Week-ahead server-side context lookups ─────────────────────────────────
 
