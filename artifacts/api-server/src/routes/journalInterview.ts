@@ -17,6 +17,7 @@ import { and, eq } from "drizzle-orm";
 import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable, seasonsTable } from "@workspace/db";
 import { focusClubForSeason } from "../lib/focusClub";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
+import { goalIntelReads, type IntelGoal } from "../lib/goalIntel";
 import {
   JournalInterviewSpeakBody,
   JournalInterviewTurnBody,
@@ -401,7 +402,7 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
     if (!key) return noKey(res);
     const parsed = CreatePrematchTalkBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-    const { opponent, seasonId, gamePlanNotes, scoutText } = parsed.data;
+    const { opponent, seasonId, gamePlanNotes } = parsed.data;
     let { leagueId } = parsed.data;
 
     // Keep league and season consistent: derive the league from the season
@@ -418,13 +419,16 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       leagueId = season.leagueId;
     }
 
-    const [lastMeeting, prevVsOpponent, mondayBrief] = await Promise.all([
+    const [lastMeeting, prevVsOpponent, mondayBrief, scoutText] = await Promise.all([
       seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
       leagueId != null
         ? previousDecksVsOpponentText(leagueId, opponent).catch(() => null)
         : Promise.resolve(null),
       leagueId != null
         ? mondayBriefTextForOpponent(leagueId, opponent).catch(() => null)
+        : Promise.resolve(null),
+      seasonId != null
+        ? opponentScoutFingerprint(seasonId, opponent).catch(() => null)
         : Promise.resolve(null),
     ]);
 
@@ -436,7 +440,9 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
         ? `## What actually happened last time we played ${opponent} this season (recorded facts)\n${lastMeeting.join("\n")}`
         : "",
       mondayBrief ? `## This week's Monday prep brief for the ${opponent} game\n${mondayBrief}` : "",
-      scoutText ? `## Scout data on ${opponent}\n${scoutText}` : "",
+      scoutText
+        ? `## Scouting fingerprint on ${opponent} (computed from recorded league data)\n${scoutText}`
+        : "",
       gamePlanNotes ? `## The coach's game plan notes for this match\n${gamePlanNotes}` : "",
     ]
       .filter(Boolean)
@@ -456,7 +462,8 @@ Coaching identity: controlled positional play (Guardiola-style) — passionate b
 Return JSON: {"lines": string[]} — 5 to 8 talking points, one line each.
 - Direct address to the players, spoken not written ("Their goals come from the right — show them onto the left back.").
 - Each line under 20 words. Plain spoken Australian English (defence, organisation), no jargon beyond common football terms (6, 8, 10, press, block).
-- Ground every line in the input: previous talks vs this opponent, recorded last-meeting facts, the Monday brief, the scout data. Never invent facts about the opponent.
+- Ground every line in the input: previous talks vs this opponent, recorded last-meeting facts, the Monday brief, the scouting fingerprint. Never invent facts about the opponent.
+- When the scouting fingerprint is provided, at least two lines must turn its specific patterns (e.g. set-piece share, favourite lane, transition threat, named scorers) into instructions for the players. Cite only patterns actually stated — do not extrapolate beyond them.
 - If a previous talk vs this opponent is provided, carry forward what is still relevant rather than starting from scratch — continuity in the message matters.
 - If the last-meeting facts are provided, at least one line must build on what actually happened.
 - No headings, no numbering, no motivational filler ("give 110%") — every line must be specific and actionable.`,
@@ -560,6 +567,118 @@ async function mondayBriefTextForOpponent(
   ].filter(Boolean);
   if (!parts.length) return null;
   return parts.join("\n\n").slice(0, 1500);
+}
+
+/**
+ * Server-side scouting fingerprint for an upcoming opponent, computed from the
+ * recorded league data for the season: record, top scorers, goal DNA mix
+ * (set piece / regain-third shares), timing bands, and the transition-intel
+ * scouting reads (threat lanes, press profile, set-piece people).
+ *
+ * Honesty rules match the rest of the app: every line is grounded in recorded
+ * counts, shares only speak when the sample justifies them, and the intel
+ * reads carry their own hedged, sample-aware voice.
+ */
+export async function opponentScoutFingerprint(
+  seasonId: number,
+  opponent: string,
+): Promise<string | null> {
+  const opp = opponent.trim().toLowerCase();
+  const same = (name: string | null | undefined) => (name ?? "").trim().toLowerCase() === opp;
+
+  const [matches, goals] = await Promise.all([
+    db.select().from(leagueMatchesTable).where(eq(leagueMatchesTable.seasonId, seasonId)),
+    db.select().from(leagueGoalsTable).where(eq(leagueGoalsTable.seasonId, seasonId)),
+  ]);
+
+  // ── Season record ──────────────────────────────────────────────────────────
+  const played = matches.filter(
+    (m) => (same(m.homeTeam) || same(m.awayTeam)) && m.homeGoals != null && m.awayGoals != null,
+  );
+  let won = 0, drawn = 0, lost = 0, gf = 0, ga = 0;
+  for (const m of played) {
+    const usHome = same(m.homeTeam);
+    const f = usHome ? m.homeGoals! : m.awayGoals!;
+    const a = usHome ? m.awayGoals! : m.homeGoals!;
+    gf += f; ga += a;
+    if (f > a) won++; else if (f < a) lost++; else drawn++;
+  }
+  if (!played.length) return null; // no recorded league games — nothing real to say
+
+  const scoredRows = goals.filter((g) => same(g.scorerTeam));
+  const concededRows = goals.filter(
+    (g) => !same(g.scorerTeam) && (same(g.homeTeam) || same(g.awayTeam)),
+  );
+
+  const lines: string[] = [
+    `Season record: ${won}W ${drawn}D ${lost}L over ${played.length} games, ${gf} scored / ${ga} conceded.`,
+  ];
+
+  // ── Top scorers ────────────────────────────────────────────────────────────
+  const tally = new Map<string, number>();
+  for (const g of scoredRows) {
+    const n = g.scorer?.trim();
+    if (n && n !== "OG") tally.set(n, (tally.get(n) ?? 0) + 1);
+  }
+  const scorers = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (scorers.length) {
+    lines.push(`Top scorers: ${scorers.map(([n, c]) => `${n} (${c})`).join(", ")}.`);
+  }
+
+  // ── Goal DNA mix — origin shares of their typed goals ─────────────────────
+  const typed = scoredRows
+    .map((g) => dnaCatOfType(g.goalType))
+    .filter((c): c is NonNullable<ReturnType<typeof dnaCatOfType>> => c != null);
+  if (typed.length >= 6) {
+    const counts = new Map<string, number>();
+    for (const c of typed) counts.set(c, (counts.get(c) ?? 0) + 1);
+    const order = ["setPiece", "frontThird", "middleThird", "backThird"] as const;
+    const bits = order
+      .filter((c) => (counts.get(c) ?? 0) > 0)
+      .map((c) => {
+        const n = counts.get(c)!;
+        return `${dnaCatLabel(c)} ${n} (${Math.round((n / typed.length) * 100)}%)`;
+      });
+    lines.push(
+      `Goal DNA — where their goals come from (${typed.length} of ${scoredRows.length} goals have the story recorded): ${bits.join(", ")}.`,
+    );
+  }
+
+  // ── Timing bands — late-game character ────────────────────────────────────
+  const latePct = (mins: number[]) =>
+    mins.length >= 5 ? (mins.filter((m) => m >= 75).length / mins.length) * 100 : null;
+  const scoredMins = scoredRows.map((g) => g.minuteScored).filter((m): m is number => m != null);
+  const concededMins = concededRows.map((g) => g.minuteScored).filter((m): m is number => m != null);
+  const lateScore = latePct(scoredMins);
+  const lateConc = latePct(concededMins);
+  if (lateScore != null && lateScore >= 35) {
+    lines.push(
+      `${lateScore.toFixed(0)}% of their goals come after the 75th minute (${scoredMins.filter((m) => m >= 75).length} of ${scoredMins.length} with a minute recorded) — they stay dangerous to the final whistle.`,
+    );
+  }
+  if (lateConc != null && lateConc >= 35) {
+    lines.push(
+      `They fade late — ${lateConc.toFixed(0)}% of what they concede comes after the 75th minute (${concededMins.filter((m) => m >= 75).length} of ${concededMins.length} with a minute recorded).`,
+    );
+  }
+
+  // ── Transition-intel scouting reads — threat lanes, press, set pieces ─────
+  const toIntel = (rows: typeof scoredRows): IntelGoal[] =>
+    rows.map((g) => ({
+      goalType: g.goalType ?? null,
+      passString: g.passString ?? null,
+      buildupLane: g.buildupLane ?? null,
+      scorer: g.scorer ?? null,
+      assist: g.assist ?? null,
+      howPenetrated: g.howPenetrated ?? null,
+      assistType: g.assistType ?? null,
+    }));
+  const intel = goalIntelReads(toIntel(scoredRows), toIntel(concededRows), "scout")
+    .sort((a, b) => b.w - a.w)
+    .slice(0, 4);
+  for (const r of intel) lines.push(r.text);
+
+  return lines.join("\n");
 }
 
 // ── Week-ahead server-side context lookups ─────────────────────────────────

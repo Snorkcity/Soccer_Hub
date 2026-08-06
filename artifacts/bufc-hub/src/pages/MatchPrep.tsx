@@ -435,25 +435,13 @@ export default function MatchPrep() {
     if (d.commentsTrends.trim() && !window.confirm("Replace what's already in the team-talk box with fresh drafted lines?")) return;
     setDraftingTalk(true);
     try {
-      let scoutText = "";
-      if (teamId != null && seasonId != null) {
-        try {
-          const prof = await getOpponentProfile({ teamId, seasonId, club: d.opponent });
-          const rec = prof.record;
-          const scorers = prof.topScorers.slice(0, 3).map((s) => `${s.scorer} (${s.goals})`).join(", ");
-          scoutText = [
-            `Season record: ${rec.won}W ${rec.drawn}D ${rec.lost}L, ${rec.goalsFor} scored / ${rec.goalsAgainst} conceded.`,
-            scorers ? `Top scorers: ${scorers}.` : "",
-            d.theirFormation ? `They likely play a ${d.theirFormation}.` : "",
-          ].filter(Boolean).join("\n");
-        } catch { /* scout data optional */ }
-      }
+      // The scouting fingerprint (record, scorers, goal DNA, threat areas) is
+      // gathered server-side by the endpoint — nothing to assemble here.
       const talk = await createPrematchTalk({
         opponent: d.opponent,
         seasonId: seasonId ?? undefined,
         leagueId: activeLeagueId ?? undefined,
         gamePlanNotes: d.gamePlan || undefined,
-        scoutText: scoutText || undefined,
       });
       setD((p) => ({ ...p, commentsTrends: talk.lines.join("\n") }));
       toast({ title: "Talking points drafted", description: "Drawn from your previous talks vs this opponent, the last meeting, and the Monday brief. Edit any line." });

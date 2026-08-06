@@ -3358,7 +3358,6 @@ export interface PrematchTalkRequest {
   seasonId?: number;
   leagueId?: number;
   gamePlanNotes?: string;
-  scoutText?: string;
 }
 
 export interface PrematchTalkResponse {

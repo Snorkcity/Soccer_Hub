@@ -6265,8 +6265,6 @@ components:
         seasonId:      { type: integer }
         leagueId:      { type: integer }
         gamePlanNotes: { type: string }
-        # Condensed plain-text opponent scout block assembled client-side
-        scoutText:     { type: string }
       required: [opponent]
 
     PrematchTalkResponse:

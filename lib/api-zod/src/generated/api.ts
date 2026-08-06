@@ -4560,8 +4560,7 @@ export const CreatePrematchTalkBody = zod.object({
   "opponent": zod.string().min(1),
   "seasonId": zod.number().optional(),
   "leagueId": zod.number().optional(),
-  "gamePlanNotes": zod.string().optional(),
-  "scoutText": zod.string().optional()
+  "gamePlanNotes": zod.string().optional()
 })
 
 export const CreatePrematchTalkResponse = zod.object({
