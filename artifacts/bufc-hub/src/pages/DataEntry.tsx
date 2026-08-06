@@ -717,9 +717,9 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Field label="Minute">
-            <Input type="number" min={0} max={130} value={minute} onChange={e => setMinute(e.target.value)} />
+            <Input type="number" min={0} max={130} className="w-20" value={minute} onChange={e => setMinute(e.target.value)} />
           </Field>
-          <Field label="Scorer">
+          <Field label="Scorer" className="col-span-2 md:col-span-1">
             <div className="flex gap-1.5">
               {sheetHasNumbers && (
                 <Input
@@ -729,10 +729,10 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
                   onChange={e => onNumChange(e.target.value, setScorerNum, setScorer, scorer, scorerAutoRef)}
                 />
               )}
-              <Input value={scorer} onChange={e => { setScorer(e.target.value); setScorerNum(""); scorerAutoRef.current = null; }} placeholder="J.Bloggs (or Own Goal)" />
+              <Input className="min-w-0" value={scorer} onChange={e => { setScorer(e.target.value); setScorerNum(""); scorerAutoRef.current = null; }} placeholder="J.Bloggs (or Own Goal)" />
             </div>
           </Field>
-          <Field label="Assist">
+          <Field label="Assist" className="col-span-2 md:col-span-1">
             <div className="flex gap-1.5">
               {sheetHasNumbers && (
                 <Input
@@ -742,7 +742,7 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
                   onChange={e => onNumChange(e.target.value, setAssistNum, setAssist, assist, assistAutoRef)}
                 />
               )}
-              <Input value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
+              <Input className="min-w-0" value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
             </div>
           </Field>
           <VocabInput label="Goal type" value={goalType} onChange={setGoalType} options={options?.goalTypes ?? []} listId="dl-goaltypes" placeholder="R-MT-AT / SP-C…" />
