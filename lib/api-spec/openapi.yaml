@@ -5126,11 +5126,12 @@ components:
     DriblPreviewPlayerRow:
       type: object
       properties:
-        playerName: { type: string }
-        minsPlayed: { type: integer }
-        started:    { type: boolean }
-        appearance: { type: boolean }
-        position:   { type: ["string", "null"] }
+        playerName:  { type: string }
+        shirtNumber: { type: ["string", "null"] }
+        minsPlayed:  { type: integer }
+        started:     { type: boolean }
+        appearance:  { type: boolean }
+        position:    { type: ["string", "null"] }
       required: [playerName, minsPlayed, started, appearance, position]
 
     DriblPreviewClubStats:
@@ -5358,7 +5359,8 @@ components:
     EntryPlayerRow:
       type: object
       properties:
-        playerName: { type: string, minLength: 1 }
+        playerName:  { type: string, minLength: 1 }
+        shirtNumber: { type: ["string", "null"] }
         minsPlayed: { type: ["integer", "null"], minimum: 0, maximum: 130 }
         position:   { type: ["string", "null"] }
         discipline: { type: ["string", "null"] }
@@ -5392,14 +5394,15 @@ components:
     EntrySavedPlayerRow:
       type: object
       properties:
-        id:         { type: integer }
-        playerName: { type: string }
-        minsPlayed: { type: ["integer", "null"] }
-        position:   { type: ["string", "null"] }
-        discipline: { type: ["string", "null"] }
-        started:    { type: boolean }
-        appearance: { type: boolean }
-      required: [id, playerName, minsPlayed, position, discipline, started, appearance]
+        id:          { type: integer }
+        playerName:  { type: string }
+        shirtNumber: { type: ["string", "null"] }
+        minsPlayed:  { type: ["integer", "null"] }
+        position:    { type: ["string", "null"] }
+        discipline:  { type: ["string", "null"] }
+        started:     { type: boolean }
+        appearance:  { type: boolean }
+      required: [id, playerName, shirtNumber, minsPlayed, position, discipline, started, appearance]
 
     EntrySavedPlayersResponse:
       type: object
@@ -5419,7 +5422,8 @@ components:
     EntryPlayerStatEditBody:
       type: object
       properties:
-        playerName: { type: string, minLength: 1 }
+        playerName:  { type: string, minLength: 1 }
+        shirtNumber: { type: string, maxLength: 4, nullable: true }
         minsPlayed: { type: integer, minimum: 0, maximum: 130, nullable: true }
         position:   { type: string, maxLength: 20, nullable: true }
         started:    { type: boolean }

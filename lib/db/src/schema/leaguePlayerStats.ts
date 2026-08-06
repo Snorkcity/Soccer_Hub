@@ -16,6 +16,7 @@ export const leaguePlayerStatsTable = pgTable("league_player_stats", {
   started: boolean("started"),
   appearance: boolean("appearance"),
   club: text("country"),   // DB column stays "country"; TS property renamed to "club"
+  shirtNumber: text("shirt_number"),
   year: text("year"),
   seasonId: integer("season_id").notNull(),
 });

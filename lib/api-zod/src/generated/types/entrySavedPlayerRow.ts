@@ -10,6 +10,8 @@ export interface EntrySavedPlayerRow {
   id: number;
   playerName: string;
   /** @nullable */
+  shirtNumber: string | null;
+  /** @nullable */
   minsPlayed: number | null;
   /** @nullable */
   position: string | null;

@@ -9,6 +9,8 @@
 export interface EntryPlayerRow {
   /** @minLength 1 */
   playerName: string;
+  /** @nullable */
+  shirtNumber?: string | null;
   /**
      * @minimum 0
      * @maximum 130

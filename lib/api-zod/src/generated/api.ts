@@ -2856,6 +2856,7 @@ export const AssembleDriblPreviewResponse = zod.object({
   "exists": zod.boolean(),
   "rows": zod.array(zod.object({
   "playerName": zod.string(),
+  "shirtNumber": zod.string().nullish(),
   "minsPlayed": zod.number(),
   "started": zod.boolean(),
   "appearance": zod.boolean(),
@@ -2910,6 +2911,7 @@ export const GetDriblPreviewResponse = zod.object({
   "exists": zod.boolean(),
   "rows": zod.array(zod.object({
   "playerName": zod.string(),
+  "shirtNumber": zod.string().nullish(),
   "minsPlayed": zod.number(),
   "started": zod.boolean(),
   "appearance": zod.boolean(),
@@ -2939,6 +2941,7 @@ export const ListEntryPlayerStatsResponse = zod.object({
   "rows": zod.array(zod.object({
   "id": zod.number(),
   "playerName": zod.string(),
+  "shirtNumber": zod.string().nullable(),
   "minsPlayed": zod.number().nullable(),
   "position": zod.string().nullable(),
   "discipline": zod.string().nullable(),
@@ -2982,6 +2985,7 @@ export const SaveEntryPlayerStatsBody = zod.object({
   "year": zod.string().nullish(),
   "rows": zod.array(zod.object({
   "playerName": zod.string().min(1),
+  "shirtNumber": zod.string().nullish(),
   "minsPlayed": zod.number().min(saveEntryPlayerStatsBodyRowsItemMinsPlayedMin).max(saveEntryPlayerStatsBodyRowsItemMinsPlayedMax).nullish(),
   "position": zod.string().nullish(),
   "discipline": zod.string().nullish(),
@@ -3007,6 +3011,8 @@ export const UpdateEntryPlayerStatParams = zod.object({
 })
 
 
+export const updateEntryPlayerStatBodyShirtNumberMax = 4;
+
 export const updateEntryPlayerStatBodyMinsPlayedMin = 0;
 export const updateEntryPlayerStatBodyMinsPlayedMax = 130;
 
@@ -3016,6 +3022,7 @@ export const updateEntryPlayerStatBodyPositionMax = 20;
 
 export const UpdateEntryPlayerStatBody = zod.object({
   "playerName": zod.string().min(1).optional(),
+  "shirtNumber": zod.string().max(updateEntryPlayerStatBodyShirtNumberMax).nullish(),
   "minsPlayed": zod.number().min(updateEntryPlayerStatBodyMinsPlayedMin).max(updateEntryPlayerStatBodyMinsPlayedMax).nullish(),
   "position": zod.string().max(updateEntryPlayerStatBodyPositionMax).nullish(),
   "started": zod.boolean().optional(),
@@ -3062,6 +3069,7 @@ export const extractPlayersFromImageResponseRowsItemMinsPlayedMax = 130;
 export const ExtractPlayersFromImageResponse = zod.object({
   "rows": zod.array(zod.object({
   "playerName": zod.string().min(1),
+  "shirtNumber": zod.string().nullish(),
   "minsPlayed": zod.number().min(extractPlayersFromImageResponseRowsItemMinsPlayedMin).max(extractPlayersFromImageResponseRowsItemMinsPlayedMax).nullish(),
   "position": zod.string().nullish(),
   "discipline": zod.string().nullish(),

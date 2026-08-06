@@ -8,6 +8,8 @@
 
 export interface DriblPreviewPlayerRow {
   playerName: string;
+  /** @nullable */
+  shirtNumber?: string | null;
   minsPlayed: number;
   started: boolean;
   appearance: boolean;

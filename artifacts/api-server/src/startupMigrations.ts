@@ -1083,6 +1083,11 @@ async function runUserAccountsMigration(): Promise<void> {
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS password_reset_tokens_hash_unique ON password_reset_tokens (token_hash)`);
 
+  // Shirt numbers on match sheets (2026-08): captured from Dribl line-ups and
+  // screenshot extraction so the Goals tab can look a player up by number in
+  // leagues where the analyst doesn't know the names.
+  await db.execute(sql`ALTER TABLE league_player_stats ADD COLUMN IF NOT EXISTS shirt_number text`);
+
   // Last-login tracking (2026-07): stamped on every successful login.
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp`);
 

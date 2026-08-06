@@ -635,6 +635,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
     await tx.insert(leaguePlayerStatsTable).values(b.rows.map(r => ({
       matchId: b.matchId,
       playerName: r.playerName.trim(),
+      shirtNumber: r.shirtNumber?.trim() || null,
       minsPlayed: r.minsPlayed ?? null,
       position: r.position ?? null,
       discipline: r.discipline ?? null,
@@ -715,6 +716,7 @@ router.get("/entry/player-stats", async (req, res): Promise<void> => {
     .select({
       id: leaguePlayerStatsTable.id,
       playerName: leaguePlayerStatsTable.playerName,
+      shirtNumber: leaguePlayerStatsTable.shirtNumber,
       minsPlayed: leaguePlayerStatsTable.minsPlayed,
       position: leaguePlayerStatsTable.position,
       discipline: leaguePlayerStatsTable.discipline,
@@ -798,7 +800,7 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
   const edit = body.data;
-  if (edit.playerName === undefined && edit.minsPlayed === undefined && edit.position === undefined && edit.started === undefined && edit.appearance === undefined) {
+  if (edit.playerName === undefined && edit.shirtNumber === undefined && edit.minsPlayed === undefined && edit.position === undefined && edit.started === undefined && edit.appearance === undefined) {
     res.status(400).json({ error: "Nothing to change" });
     return;
   }
@@ -851,8 +853,9 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
     return;
   }
 
-  const patch: { playerName?: string; minsPlayed?: number | null; position?: string | null; started?: boolean; appearance?: boolean } = {};
+  const patch: { playerName?: string; shirtNumber?: string | null; minsPlayed?: number | null; position?: string | null; started?: boolean; appearance?: boolean } = {};
   if (newName !== undefined) patch.playerName = newName;
+  if (edit.shirtNumber !== undefined) patch.shirtNumber = edit.shirtNumber === null ? null : edit.shirtNumber.trim() || null;
   if (edit.minsPlayed !== undefined) patch.minsPlayed = edit.minsPlayed;
   if (edit.position !== undefined) patch.position = edit.position === null ? null : edit.position.trim() || null;
   if (edit.started !== undefined) patch.started = edit.started;
@@ -894,7 +897,10 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
       logger.warn({ leagueRowId: rowId, matchId: row.matchId }, "No matching Belconnen player-stats copy found to edit");
       return false;
     }
-    await tx.update(playerStatsTable).set(patch).where(eq(playerStatsTable.id, candidates[0].id));
+    // Legacy table has no shirt_number column — mirror everything else.
+    const { shirtNumber: _sn, ...legacyPatch } = patch;
+    if (Object.keys(legacyPatch).length === 0) return false;
+    await tx.update(playerStatsTable).set(legacyPatch).where(eq(playerStatsTable.id, candidates[0].id));
     return true;
   });
 
@@ -1009,9 +1015,10 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
     "You are reading a screenshot of a football (soccer) team sheet from the Dribl app or a similar match-day listing.",
     parsed.data.club ? `The screenshot is the team sheet for the club "${parsed.data.club}".` : "",
     "Extract EVERY player row you can see and return STRICT JSON only (no markdown, no commentary) in this exact shape:",
-    `{"rows":[{"playerName":"...","minsPlayed":90,"position":"GK","discipline":null,"started":true,"appearance":true}],"warnings":["..."]}`,
+    `{"rows":[{"playerName":"...","shirtNumber":"7","minsPlayed":90,"position":"GK","discipline":null,"started":true,"appearance":true}],"warnings":["..."]}`,
     "Rules:",
     nameRule,
+    "- shirtNumber: the shirt/jersey number shown next to the player (usually to the left of the name), as a string (e.g. \"7\", \"23\"). If no number is visible for a player, use null.",
     "- minsPlayed: compute from the substitution icons next to each player. Dribl shows a RED circular arrow with a minute (e.g. 46') when a player CAME OFF, and a GREEN circular arrow with a minute when a player CAME ON. Apply these rules:",
     "  * Starting lineup, no icons: played the full match — minsPlayed 90.",
     "  * Starting lineup, red icon only: started and was subbed off — minsPlayed = the red minute (e.g. red 32' = 32).",
@@ -1060,8 +1067,10 @@ router.post("/entry/extract-players", async (req, res): Promise<void> => {
     const result = ExtractPlayersFromImageResponse.safeParse({
       rows: (extracted.rows ?? []).map((r) => {
         const row = r as Record<string, unknown>;
+        const shirtRaw = row.shirtNumber == null ? "" : String(row.shirtNumber).replace(/[^0-9]/g, "");
         return {
           playerName: String(row.playerName ?? "").trim(),
+          shirtNumber: shirtRaw && shirtRaw.length <= 4 ? shirtRaw : null,
           minsPlayed: typeof row.minsPlayed === "number" && Number.isFinite(row.minsPlayed)
             ? Math.max(0, Math.min(130, Math.round(row.minsPlayed))) : null,
           position: typeof row.position === "string" && row.position.trim() ? row.position.trim() : null,

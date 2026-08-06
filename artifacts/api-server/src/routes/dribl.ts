@@ -260,7 +260,7 @@ function computeStatsRows(
   detail: NormDetail | null,
   nameFormat: string,
   book: NameBook,
-): Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
+): Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
   const first = detail?.ftFirstHalf || 45;
   const second = detail?.ftSecondHalf || 45;
   const duration = Math.min(first + second, 130);
@@ -268,7 +268,7 @@ function computeStatsRows(
     .filter(s => s.teamId === teamHashId && s.minute != null)
     .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
 
-  const rows: Array<{ playerName: string; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> = [];
+  const rows: Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> = [];
   for (const p of players) {
     if (p.roleSlug && p.roleSlug !== "player") continue; // coaching staff etc.
     const full = `${p.firstName} ${p.lastName}`.trim();
@@ -285,6 +285,7 @@ function computeStatsRows(
     const mins = appeared ? Math.max(0, Math.min((off ?? duration) - (on ?? 0), duration)) : 0;
     rows.push({
       playerName: claimName(book, full, nameFormat),
+      shirtNumber: p.jersey.trim() || null,
       minsPlayed: mins,
       started: p.starting,
       appearance: appeared,

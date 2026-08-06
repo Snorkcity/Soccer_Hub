@@ -493,6 +493,8 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
   const [minute, setMinute] = useState("");
   const [scorer, setScorer] = useState("");
   const [assist, setAssist] = useState("");
+  const [scorerNum, setScorerNum] = useState("");
+  const [assistNum, setAssistNum] = useState("");
   const [goalType, setGoalType] = useState("");
   const [assistType, setAssistType] = useState("");
   const [howPenetrated, setHowPenetrated] = useState("");
@@ -507,6 +509,52 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
 
   const fixture = fixtures.find(f => f.matchId === matchId);
   useEffect(() => { setScorerTeam(""); }, [matchId]);
+  useEffect(() => { setScorerNum(""); setAssistNum(""); }, [matchId, scorerTeam]);
+
+  // Match sheet for the scoring team — lets the analyst enter a shirt number
+  // and have the name populate, for leagues where the names aren't familiar.
+  const { data: sheetPlayers } = useListEntryPlayerStats(
+    { seasonId, matchId, club: scorerTeam },
+    { query: { enabled: !!matchId && !!scorerTeam, queryKey: getListEntryPlayerStatsQueryKey({ seasonId, matchId, club: scorerTeam }) } },
+  );
+  const sheetHasNumbers = (sheetPlayers?.rows ?? []).some(r => r.shirtNumber);
+  const nameByNumber = (num: string): string | null => {
+    const n = num.trim();
+    if (!n) return null;
+    const hit = (sheetPlayers?.rows ?? []).find(r => (r.shirtNumber ?? "").trim() === n);
+    return hit?.playerName ?? null;
+  };
+  // Track names WE auto-filled so an unmatched number never leaves a stale
+  // player behind (hand-typed names are left alone).
+  const scorerAutoRef = useRef<string | null>(null);
+  const assistAutoRef = useRef<string | null>(null);
+  const onNumChange = (
+    raw: string,
+    setNum: (v: string) => void,
+    setName: (v: string) => void,
+    currentName: string,
+    autoRef: React.MutableRefObject<string | null>,
+  ) => {
+    const num = raw.replace(/[^0-9]/g, "");
+    setNum(num);
+    const name = nameByNumber(num);
+    if (name) {
+      setName(name);
+      autoRef.current = name;
+    } else if (autoRef.current && currentName === autoRef.current) {
+      setName("");
+      autoRef.current = null;
+    }
+  };
+  // If a number was typed before the match sheet finished loading, resolve it
+  // once the sheet arrives.
+  useEffect(() => {
+    const s = nameByNumber(scorerNum);
+    if (s) { setScorer(s); scorerAutoRef.current = s; }
+    const a = nameByNumber(assistNum);
+    if (a) { setAssist(a); assistAutoRef.current = a; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetPlayers]);
 
   const queryClient = useQueryClient();
   const { data: tally } = useGetGoalTally(
@@ -672,10 +720,30 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
             <Input type="number" min={0} max={130} value={minute} onChange={e => setMinute(e.target.value)} />
           </Field>
           <Field label="Scorer">
-            <Input value={scorer} onChange={e => setScorer(e.target.value)} placeholder="J.Bloggs (or Own Goal)" />
+            <div className="flex gap-1.5">
+              {sheetHasNumbers && (
+                <Input
+                  className={`w-14 shrink-0 ${scorerNum && !nameByNumber(scorerNum) ? "border-chart-4" : ""}`}
+                  value={scorerNum} inputMode="numeric" placeholder="#"
+                  title="Shirt number — fills the name from the match sheet"
+                  onChange={e => onNumChange(e.target.value, setScorerNum, setScorer, scorer, scorerAutoRef)}
+                />
+              )}
+              <Input value={scorer} onChange={e => { setScorer(e.target.value); setScorerNum(""); scorerAutoRef.current = null; }} placeholder="J.Bloggs (or Own Goal)" />
+            </div>
           </Field>
           <Field label="Assist">
-            <Input value={assist} onChange={e => setAssist(e.target.value)} placeholder="Blank if none" />
+            <div className="flex gap-1.5">
+              {sheetHasNumbers && (
+                <Input
+                  className={`w-14 shrink-0 ${assistNum && !nameByNumber(assistNum) ? "border-chart-4" : ""}`}
+                  value={assistNum} inputMode="numeric" placeholder="#"
+                  title="Shirt number — fills the name from the match sheet"
+                  onChange={e => onNumChange(e.target.value, setAssistNum, setAssist, assist, assistAutoRef)}
+                />
+              )}
+              <Input value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
+            </div>
           </Field>
           <VocabInput label="Goal type" value={goalType} onChange={setGoalType} options={options?.goalTypes ?? []} listId="dl-goaltypes" placeholder="R-MT-AT / SP-C…" />
           <VocabInput label="Assist type" value={assistType} onChange={setAssistType} options={options?.assistTypes ?? []} listId="dl-assisttypes" />
@@ -804,13 +872,15 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   // Inline edit of a saved row (fix a name the sync brought in wrong, etc.)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [editShirt, setEditShirt] = useState("");
   const [editMins, setEditMins] = useState("");
   const [editPos, setEditPos] = useState("__none__");
   const [origPos, setOrigPos] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<"started" | "bench" | "unused">("started");
-  const startEdit = (p: { id: number; playerName: string; minsPlayed: number | null; position: string | null; started: boolean; appearance: boolean }) => {
+  const startEdit = (p: { id: number; playerName: string; shirtNumber: string | null; minsPlayed: number | null; position: string | null; started: boolean; appearance: boolean }) => {
     setEditingId(p.id);
     setEditName(p.playerName);
+    setEditShirt(p.shirtNumber ?? "");
     setEditMins(p.minsPlayed == null ? "" : String(p.minsPlayed));
     setEditPos(p.position ?? "__none__");
     setOrigPos(p.position ?? null);
@@ -829,6 +899,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     setOk(null); setErr(null);
     updateSaved.mutate({ rowId: editingId, data: {
       playerName: editName.trim(),
+      shirtNumber: editShirt.trim() || null,
       minsPlayed: editMins.trim() === "" ? null : Number(editMins),
       // Only send position when it actually changed — older saved rows can carry
       // free-text positions the edit schema would reject if re-submitted as-is.
@@ -980,6 +1051,10 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
               editingId === p.id ? (
                 <div key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm bg-muted/30">
                   <Input
+                    value={editShirt} onChange={e => setEditShirt(e.target.value.replace(/[^0-9]/g, ""))}
+                    className="h-8 w-14 text-sm" placeholder="#" inputMode="numeric"
+                  />
+                  <Input
                     value={editName} onChange={e => setEditName(e.target.value)}
                     className="h-8 w-44 text-sm" placeholder="Player name" autoFocus
                     onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingId(null); }}
@@ -1015,7 +1090,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
                 </div>
               ) : (
               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-                <span className="font-medium">{p.playerName}</span>
+                <span className="font-medium">{p.shirtNumber ? <span className="text-muted-foreground mr-1">#{p.shirtNumber}</span> : null}{p.playerName}</span>
                 <span className="text-xs text-muted-foreground">
                   {p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
                   {p.minsPlayed != null ? ` · ${p.minsPlayed} mins` : ""}
@@ -1059,7 +1134,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
             <span className="text-xs text-muted-foreground">or paste a copied screenshot (Ctrl/Cmd+V)</span>
             <Button
               variant="outline"
-              onClick={() => setRows(rs => [...rs, { playerName: "", minsPlayed: 90, position: null, discipline: null, started: true, appearance: true }])}
+              onClick={() => setRows(rs => [...rs, { playerName: "", shirtNumber: null, minsPlayed: 90, position: null, discipline: null, started: true, appearance: true }])}
             >
               <Plus className="h-4 w-4 mr-2" />Add row
             </Button>
@@ -1087,6 +1162,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b">
+                  <th className="text-left py-2 pr-2 font-medium">#</th>
                   <th className="text-left py-2 pr-2 font-medium">Player</th>
                   <th className="text-left py-2 pr-2 font-medium">Mins</th>
                   <th className="text-left py-2 pr-2 font-medium">Pos</th>
@@ -1099,6 +1175,9 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-b border-border/40">
+                    <td className="py-1.5 pr-2 w-14">
+                      <Input className="h-8" value={r.shirtNumber ?? ""} inputMode="numeric" onChange={e => update(i, { shirtNumber: e.target.value.replace(/[^0-9]/g, "") || null })} placeholder="#" />
+                    </td>
                     <td className="py-1.5 pr-2 min-w-[140px]">
                       <Input className="h-8" value={r.playerName} onChange={e => update(i, { playerName: e.target.value })} placeholder="J.Bloggs" />
                     </td>
@@ -2794,6 +2873,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               ifMissing: true,
               rows: ps.rows.map(r => ({
                 playerName: r.playerName,
+                shirtNumber: r.shirtNumber ?? null,
                 minsPlayed: r.minsPlayed,
                 position: r.position,
                 started: r.started,

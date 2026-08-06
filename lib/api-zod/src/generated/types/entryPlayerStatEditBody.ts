@@ -9,6 +9,8 @@
 export interface EntryPlayerStatEditBody {
   /** @minLength 1 */
   playerName?: string;
+  /** @maxLength 4 */
+  shirtNumber?: string | null;
   /**
      * @minimum 0
      * @maximum 130

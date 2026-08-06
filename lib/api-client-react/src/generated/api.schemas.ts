@@ -2107,6 +2107,8 @@ export interface DriblPreviewGoal {
 
 export interface DriblPreviewPlayerRow {
   playerName: string;
+  /** @nullable */
+  shirtNumber?: string | null;
   minsPlayed: number;
   started: boolean;
   appearance: boolean;
@@ -2349,6 +2351,8 @@ export interface EntryGoalDeleteResponse {
 export interface EntryPlayerRow {
   /** @minLength 1 */
   playerName: string;
+  /** @nullable */
+  shirtNumber?: string | null;
   /**
      * @minimum 0
      * @maximum 130
@@ -2387,6 +2391,8 @@ export interface EntrySavedPlayerRow {
   id: number;
   playerName: string;
   /** @nullable */
+  shirtNumber: string | null;
+  /** @nullable */
   minsPlayed: number | null;
   /** @nullable */
   position: string | null;
@@ -2408,6 +2414,8 @@ export interface EntryPlayerStatDeleteResponse {
 export interface EntryPlayerStatEditBody {
   /** @minLength 1 */
   playerName?: string;
+  /** @maxLength 4 */
+  shirtNumber?: string | null;
   /**
      * @minimum 0
      * @maximum 130
