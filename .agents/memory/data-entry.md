@@ -30,3 +30,8 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 
 **Per-league name format (2026-07):** `leagues.name_format` — coach standard is "S.Smith" ('initial-surname'), the DEFAULT for every league incl. new ones; only ACT NPLW + Reserves are explicitly 'surname' to match their already-entered surname-only history. Extract endpoint takes optional leagueId and swaps the prompt naming rule; frontend passes season.leagueId.
 - Saved player rows can be edited in place (name/mins/status): the PATCH route mirrors the delete route pattern — locate the legacy Belconnen copy by exact-match on the row's OLD field values inside the same transaction, never by id. Any new per-row mutation of dual-written data must follow this pattern.
+
+## Shirt numbers (2026-08)
+- `league_player_stats.shirt_number` (text) — captured from Dribl jerseys, screenshot extraction, and manual entry. Legacy `player_stats` mirror deliberately has NO column; PATCH strips it from the legacy patch.
+- Goals tab # boxes are a **lookup aid only** — goals always store the resolved name, never the number. Auto-filled names are tracked so an unmatched number clears them (no stale attribution). Boxes appear only when the team's saved sheet has numbers.
+- Coach-confirmed workflow: Dribl pre-fills scorers; analyst uses the # box mainly for assists.
