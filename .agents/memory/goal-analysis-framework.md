@@ -37,3 +37,6 @@ DT/AT is recorded for every typed open-play goal (SP goals have no DT/AT). The g
 - Never say "most" / "converts most of them" unless the share is genuinely >50% — a 40% threshold gets count-based wording ("X has finished 3 of them").
 - Even-spread fallbacks must stay category-agnostic ("a genuine mix"), never hardcode example categories that may not be the actual ones.
 - buildup_lane is recorded from the ATTACKER's perspective; when talking about the conceding team's side, flip left<->right (centre = central channel).
+
+## Game-vs-season fingerprint reads
+Match reports compare a single game's typed goals against the season distribution (in-line / rarity / transition-state-vs-profile). Gate every claim on the PRIOR sample (season minus this game's goals) — otherwise "first of the season" is trivially true in round 1. Reads stay silent when the game's goals are untyped or the prior sample is under ~6–8.

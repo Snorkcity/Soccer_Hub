@@ -1151,7 +1151,11 @@ export const GetMatchReportResponse = zod.object({
   "value": zod.string(),
   "sub": zod.string().nullable(),
   "tone": zod.enum(['watch']).optional().describe('Optional — \"watch\" marks a concern badge (something to resolve), rendered amber.')
-})).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.')
+})).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.'),
+  "vsSeason": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+})).optional().describe('Up to 2 \"vs the season\" lines reading today\'s typed goals against the season fingerprint (origin third, transition state, pass count). Empty when the game\'s goals aren\'t typed. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 
@@ -1353,7 +1357,11 @@ export const GetOpponentMatchReportResponse = zod.object({
   "value": zod.string(),
   "sub": zod.string().nullable(),
   "tone": zod.enum(['watch']).optional().describe('Optional — \"watch\" marks a concern badge (something to resolve), rendered amber.')
-})).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.')
+})).optional().describe('Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.'),
+  "vsSeason": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+})).optional().describe('Up to 2 \"vs the season\" lines reading today\'s typed goals against the season fingerprint (origin third, transition state, pass count). Empty when the game\'s goals aren\'t typed. Optional — absent on older saved reports.')
 }).describe('The goals-by-type story — this match\'s goals interpreted, and the season mix vs benchmark shares.'),zod.null()])
 })
 

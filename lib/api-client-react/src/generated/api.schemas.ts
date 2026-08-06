@@ -1043,6 +1043,8 @@ export interface MatchReportGoalDna {
   dayInsights?: string[];
   /** Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports. */
   insightBadges?: MatchReportGoalDnaBadge[];
+  /** Up to 2 "vs the season" lines reading today's typed goals against the season fingerprint (origin third, transition state, pass count). Empty when the game's goals aren't typed. Optional — absent on older saved reports. */
+  vsSeason?: MatchReportInsight[];
 }
 
 export interface MatchReportBallUsePoint {

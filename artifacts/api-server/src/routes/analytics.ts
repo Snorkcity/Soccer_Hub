@@ -63,7 +63,7 @@ import {
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
 import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
-import { goalIntelReads } from "../lib/goalIntel";
+import { goalIntelReads, gameVsSeasonReads } from "../lib/goalIntel";
 
 /**
  * Decides whether a goal counts as ours (scored) vs conceded.
@@ -3173,6 +3173,20 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     totalTypedScored: dnaScored.totalTyped, totalTypedConceded: dnaConceded.totalTyped,
     voice: "team",
   });
+  // ── Game vs season fingerprint — did today follow the pattern or break it? ─
+  // Compares origin third, transition state and pass count of today's typed
+  // goals against the season distribution (both sides of the ball). Silent
+  // when the game's goals carry no story. Top 2 by weight.
+  const toIntel = (g: typeof seasonGoals[number]) => ({
+    goalType: g.goalType, passString: g.passString, buildupLane: g.buildupLane,
+    scorer: g.scorer, assist: g.assist, howPenetrated: g.howPenetrated, assistType: g.assistType,
+  });
+  const vsSeason = gameVsSeasonReads(
+    matchOurGoals.map(toIntel),
+    matchConcededGoals.map(toIntel),
+    ourGoalsUpTo.map(toIntel),
+    concededUpTo.map(toIntel),
+  ).sort((a, b) => b.w - a.w).slice(0, 2).map(({ tone, text }) => ({ tone, text }));
   // ── Insights from today's goals: partnerships, form runs, head-to-head DNA ─
   const pairIns: { n: number; text: string }[] = [];
   const streakIns: string[] = [];
@@ -3453,7 +3467,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   const goalDna = dnaScored.totalTyped + dnaConceded.totalTyped > 0
     ? { scored: dnaScored, conceded: dnaConceded, comments: dnaComments,
         matchGoals: dnaStory.matchGoals, tacticalRead: dnaStory.tacticalRead,
-        dayInsights, insightBadges }
+        dayInsights, insightBadges, vsSeason }
     : null;
 
   // ── Ball use: possession vs possession-effectiveness quadrant ────────────

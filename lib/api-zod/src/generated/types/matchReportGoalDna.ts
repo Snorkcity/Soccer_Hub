@@ -8,6 +8,7 @@
 import type { MatchReportGoalDnaBadge } from './matchReportGoalDnaBadge';
 import type { MatchReportGoalDnaGoal } from './matchReportGoalDnaGoal';
 import type { MatchReportGoalDnaSide } from './matchReportGoalDnaSide';
+import type { MatchReportInsight } from './matchReportInsight';
 
 /**
  * The goals-by-type story — this match's goals interpreted, and the season mix vs benchmark shares.
@@ -25,4 +26,6 @@ export interface MatchReportGoalDna {
   dayInsights?: string[];
   /** Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports. */
   insightBadges?: MatchReportGoalDnaBadge[];
+  /** Up to 2 "vs the season" lines reading today's typed goals against the season fingerprint (origin third, transition state, pass count). Empty when the game's goals aren't typed. Optional — absent on older saved reports. */
+  vsSeason?: MatchReportInsight[];
 }

@@ -130,6 +130,130 @@ const laneWord = (lane: string) => (lane === "centre" ? "through the middle" : `
 const conf = (n: number) => (n >= 10 ? "a clear pattern" : n >= 6 ? "an emerging pattern" : "early evidence");
 
 /**
+ * Match-vs-season fingerprint reads — did this game's goals follow the
+ * season pattern or break it?
+ *
+ * Season-level reads need big samples; a single game can't carry them. But a
+ * match CAN be read AGAINST the season fingerprint: origin third, transition
+ * state and pass count of today's typed goals compared with the season
+ * distribution. Silent when the game's goals carry no story (no goalType).
+ * Voice is always "self" (our match report), hedged and sample-aware per the
+ * Goal Analysis Intelligence framework.
+ */
+export function gameVsSeasonReads(
+  matchScoredRaw: IntelGoal[],
+  matchConcededRaw: IntelGoal[],
+  seasonScoredRaw: IntelGoal[],
+  seasonConcededRaw: IntelGoal[],
+): IntelRead[] {
+  // Human phrase for an origin×transition combination.
+  const combo = (g: ParsedGoal): string | null =>
+    g.origin === "SP" ? "SP"
+      : g.origin && g.trans ? `${g.origin}-${g.trans}`
+      : g.origin ? g.origin
+      : null;
+  const describe = (k: string, plural: boolean): string => {
+    const map: Record<string, [string, string]> = {
+      "SP": ["a set piece", "set pieces"],
+      "FT-DT": ["a front-third regain in transition", "front-third regains in transition"],
+      "FT-AT": ["a front-third regain against a set defence", "front-third regains against a set defence"],
+      "MT-DT": ["a middle-third regain before the defence could reset", "middle-third regains before the defence could reset"],
+      "MT-AT": ["a middle-third regain against a set defence", "middle-third regains against a set defence"],
+      "BT-DT": ["a back-third regain in transition", "back-third regains in transition"],
+      "BT-AT": ["a move built from the back third against a set defence", "moves built from the back third against a set defence"],
+      "FT": ["a front-third regain", "front-third regains"],
+      "MT": ["a middle-third regain", "middle-third regains"],
+      "BT": ["a back-third regain", "back-third regains"],
+    };
+    return (map[k] ?? [k, k])[plural ? 1 : 0];
+  };
+  const countWord = (n: number, noun: string) =>
+    n === 1 ? `the ${noun}` : n === 2 ? `both ${noun}s` : `all ${n} ${noun}s`;
+
+  const reads: IntelRead[] = [];
+
+  const side = (
+    matchRaw: IntelGoal[], seasonRaw: IntelGoal[], scoredSide: boolean,
+  ) => {
+    const match = matchRaw.map(parseGoal).filter(g => g.origin != null);
+    if (!match.length) return; // untyped game — stay silent
+    const season = seasonRaw.map(parseGoal).filter(g => g.origin != null);
+    const seasonN = season.length;
+    // The fingerprint must exist BEFORE this game — otherwise "first of the
+    // season" is trivially true in round 1. Gate on the prior sample.
+    const priorN = seasonN - match.length;
+    if (priorN < 6) return; // too little season context to compare against
+    const noun = scoredSide ? "goal" : "concession";
+
+    const seasonCombos = new Map<string, number>();
+    for (const g of season) {
+      const k = combo(g);
+      if (k) seasonCombos.set(k, (seasonCombos.get(k) ?? 0) + 1);
+    }
+
+    // ── "Right in line" — every typed goal today fits the season's signature ─
+    const matchKeys = [...new Set(match.map(combo).filter((k): k is string => k != null))];
+    if (matchKeys.length === 1) {
+      const k = matchKeys[0];
+      const sn = seasonCombos.get(k) ?? 0;
+      const share = sn / seasonN;
+      if (share >= 0.35 && sn >= 3) {
+        // Pass-count texture when both the game and the season carry it.
+        const seasonPasses = season
+          .filter(g => combo(g) === k && g.passes != null).map(g => g.passes!);
+        const matchPasses = match.filter(g => g.passes != null).map(g => g.passes!);
+        const med = median(seasonPasses);
+        const passBit = med != null && seasonPasses.length >= 3 && matchPasses.length === match.length
+          && matchPasses.every(p => p <= Math.max(3, Math.round(med)))
+          ? ` — and inside ${Math.max(...matchPasses)} pass${Math.max(...matchPasses) === 1 ? "" : "es"}, right in the season's window`
+          : "";
+        reads.push(scoredSide
+          ? { w: 60 + share * 20, tone: "good", text: `Vs the season: ${countWord(match.length, noun)} came from ${describe(k, match.length > 1)}${passBit} — right in line with the season pattern (${sn} of our ${seasonN} typed goals have come that way). ${conf(sn) === "a clear pattern" ? "The team being itself." : "Consistent with the identity that's forming."}` }
+          : { w: 58 + share * 20, tone: "watch", text: `Vs the season: ${countWord(match.length, noun)} came from ${describe(k, match.length > 1)} — the same way we've been hurt all year (${sn} of the ${seasonN} typed goals we've conceded). ${conf(sn) === "a clear pattern" ? "That's a clear pattern now, not bad luck." : "The evidence keeps pointing the same way."}` });
+      }
+    }
+
+    // ── Rarity — a goal type we've barely seen all season ────────────────────
+    if (priorN >= 8) {
+      for (const k of matchKeys) {
+        const nToday = match.filter(g => combo(g) === k).length;
+        const prior = (seasonCombos.get(k) ?? 0) - nToday;
+        if (prior <= 1 && prior >= 0) {
+          reads.push(scoredSide
+            ? { w: 66, tone: "good", text: `Vs the season: ${prior === 0 ? "first" : "only the second"} ${noun} all season from ${describe(k, false)} — something new in how we scored, worth clipping.` }
+            : { w: 64, tone: "watch", text: `Vs the season: ${prior === 0 ? "first" : "only the second"} ${noun} all season from ${describe(k, false)} — unusual for us, may be a one-off, but worth a look on the tape.` });
+          break; // one rarity line per side is enough
+        }
+      }
+    }
+
+    // ── Transition-state read — set-defence vs transition, against profile ───
+    const seasonOpen = season.filter(g => g.origin !== "SP" && g.trans != null);
+    const matchOpen = match.filter(g => g.origin !== "SP" && g.trans != null);
+    if (seasonOpen.length >= 5 && matchOpen.length >= 1) {
+      const seasonDtShare = seasonOpen.filter(g => g.trans === "DT").length / seasonOpen.length;
+      const allAt = matchOpen.every(g => g.trans === "AT");
+      const allDt = matchOpen.every(g => g.trans === "DT");
+      const hedge = seasonOpen.length >= 10 ? "" : " — smaller sample, so hold it loosely";
+      if (allAt && seasonDtShare >= 0.6) {
+        reads.push(scoredSide
+          ? { w: 54, tone: "info", text: `Vs the season: ${countWord(matchOpen.length, noun)} in open play came against a set defence — unusual for us, most of our open-play goals this season (${seasonOpen.filter(g => g.trans === "DT").length} of ${seasonOpen.length} typed) strike in transition${hedge}. May say something about how deep they sat.` }
+          : { w: 62, tone: "watch", text: `Vs the season: unusually, ${countWord(matchOpen.length, noun)} in open play came with our defence set — the season profile is transition concessions (${seasonOpen.filter(g => g.trans === "DT").length} of ${seasonOpen.length} typed)${hedge}. Being broken down while organised is a different problem to fix.` });
+      } else if (allDt && seasonDtShare <= 0.35) {
+        reads.push(scoredSide
+          ? { w: 52, tone: "info", text: `Vs the season: ${countWord(matchOpen.length, noun)} in open play struck in transition — a departure from our usual patient route (only ${seasonOpen.filter(g => g.trans === "DT").length} of ${seasonOpen.length} typed open-play goals have come that way)${hedge}.` }
+          : { w: 58, tone: "watch", text: `Vs the season: ${countWord(matchOpen.length, noun)} in open play came in transition, before we could reset — not our usual concession (most of what we give up comes with the defence set, ${seasonOpen.length - seasonOpen.filter(g => g.trans === "DT").length} of ${seasonOpen.length} typed)${hedge}. Rest defence worth a look for this one.` });
+      }
+    }
+  };
+
+  side(matchScoredRaw, seasonScoredRaw, true);
+  side(matchConcededRaw, seasonConcededRaw, false);
+
+  return reads;
+}
+
+/**
  * Transition-intelligence reads for one team's goals.
  *
  * voice "scout": about an upcoming opponent ("they/their") — their strengths

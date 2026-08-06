@@ -398,6 +398,21 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                   {hasStory && (
                     <GoalDnaStoryBlock matchGoals={[]} tacticalRead={dna.tacticalRead ?? []} />
                   )}
+                  {/* Game vs season fingerprint — did today follow the season
+                      pattern or break it? Silent when the goals aren't typed.
+                      Older saved reports won't carry these. */}
+                  {(dna.vsSeason ?? []).length > 0 && (
+                    <div className="space-y-1.5">
+                      {(dna.vsSeason ?? []).map((l, i) => (
+                        <div key={i} className={`flex items-start gap-2 rounded-md border p-2.5 text-sm ${l.tone === "watch" ? "border-amber-500/40 bg-amber-500/5" : ""}`}>
+                          {l.tone === "good" ? <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
+                            : l.tone === "watch" ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+                            : <Info className="h-4 w-4 mt-0.5 shrink-0 text-sky-500" />}
+                          <span>{l.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {(dna.dayInsights ?? []).length > 0 && (
                     <div className="space-y-1.5">
                       {(dna.dayInsights ?? []).map((c, i) => (

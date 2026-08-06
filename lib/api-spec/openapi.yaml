@@ -3957,6 +3957,10 @@ components:
           type: array
           items: { $ref: "#/components/schemas/MatchReportGoalDnaBadge" }
           description: Up to 4 weighted headline squares (goal type, timing, scorer, assists, defence). Optional — absent on older saved reports.
+        vsSeason:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReportInsight" }
+          description: Up to 2 "vs the season" lines reading today's typed goals against the season fingerprint (origin third, transition state, pass count). Empty when the game's goals aren't typed. Optional — absent on older saved reports.
       required: [scored, conceded, comments]
 
     MatchReportGoalDnaBadge:
