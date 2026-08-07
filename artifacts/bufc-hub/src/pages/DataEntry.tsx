@@ -742,7 +742,7 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-[minmax(0,3fr)_minmax(0,5fr)_minmax(0,5fr)_minmax(0,4fr)] gap-3">
           <Field label="Minute">
             <Input type="number" min={0} max={130} className="w-20" value={minute} onChange={e => setMinute(e.target.value)} />
           </Field>

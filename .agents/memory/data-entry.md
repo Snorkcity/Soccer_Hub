@@ -35,3 +35,7 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 - `league_player_stats.shirt_number` (text) — captured from Dribl jerseys, screenshot extraction, and manual entry. Legacy `player_stats` mirror deliberately has NO column; PATCH strips it from the legacy patch.
 - Goals tab # boxes are a **lookup aid only** — goals always store the resolved name, never the number. Auto-filled names are tracked so an unmatched number clears them (no stale attribution). Boxes appear only when the team's saved sheet has numbers.
 - Coach-confirmed workflow: Dribl pre-fills scorers; analyst uses the # box mainly for assists.
+
+## Locked goal-coding vocab (2026-08)
+- Goal type / Assist type / How penetrated / Buildup lane / Finish are LOCKED shadcn Selects in the Goals tab (constants in DataEntry.tsx, from the coach's spreadsheet) — not free text with datalist any more. Legacy values on old goals are prepended so editing never wipes them.
+- Prod typos normalised at the same time ("Through Ball"→"Through ball", "Right Foot9"→"Right Foot"). Hip/Knee finishes left as genuine legacy values.
