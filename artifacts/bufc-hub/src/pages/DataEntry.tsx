@@ -742,11 +742,11 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-[minmax(0,3fr)_minmax(0,5fr)_minmax(0,5fr)_minmax(0,4fr)] gap-3">
-          <Field label="Minute">
-            <Input type="number" min={0} max={130} className="w-20" value={minute} onChange={e => setMinute(e.target.value)} />
+        <div className="flex flex-wrap gap-3">
+          <Field label="Minute" className="w-20 shrink-0">
+            <Input type="number" min={0} max={130} value={minute} onChange={e => setMinute(e.target.value)} />
           </Field>
-          <Field label="Scorer" className="col-span-2 md:col-span-1">
+          <Field label="Scorer" className="flex-1 min-w-[220px] basis-full sm:basis-auto">
             <div className="flex gap-1.5">
               {sheetHasNumbers && (
                 <Input
@@ -759,7 +759,7 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
               <Input className="min-w-0" value={scorer} onChange={e => { setScorer(e.target.value); setScorerNum(""); scorerAutoRef.current = null; }} placeholder="J.Bloggs (or Own Goal)" />
             </div>
           </Field>
-          <Field label="Assist" className="col-span-2 md:col-span-1">
+          <Field label="Assist" className="flex-1 min-w-[220px] basis-full sm:basis-auto">
             <div className="flex gap-1.5">
               {sheetHasNumbers && (
                 <Input
@@ -772,13 +772,13 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
               <Input className="min-w-0" value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
             </div>
           </Field>
-          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={GOAL_TYPES} />
-          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={ASSIST_TYPES} />
-          <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={HOW_PENETRATED} />
-          <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={BUILDUP_LANES} />
-          <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={FINISH_TYPES} />
-          <Field label="Pass string (passes in buildup)">
-            <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} />
+          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={GOAL_TYPES} className="w-[7.5rem] shrink-0" />
+          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={ASSIST_TYPES} className="w-36 shrink-0" />
+          <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={HOW_PENETRATED} className="w-[7.75rem] shrink-0" />
+          <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={BUILDUP_LANES} className="w-28 shrink-0" />
+          <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={FINISH_TYPES} className="w-32 shrink-0" />
+          <Field label="Pass string" className="w-24 shrink-0">
+            <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} title="Passes in buildup" />
           </Field>
           <div className="flex items-end pb-2">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
