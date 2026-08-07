@@ -777,6 +777,9 @@ function GoalForm({ teamId, seasonId, fixtures }: {
               <Input className="min-w-0" value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
             </div>
           </Field>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
           <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={vocab.goalTypes} className="w-[7.5rem] shrink-0" />
           <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={vocab.assistTypes} className="w-36 shrink-0" />
           <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={vocab.howPenetrated} className="w-[7.75rem] shrink-0" />
