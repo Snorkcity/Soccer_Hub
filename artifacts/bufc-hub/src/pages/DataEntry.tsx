@@ -124,6 +124,33 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
+// Locked goal-coding vocab (from the coach's spreadsheet, Aug 2026) — fixed
+// dropdowns so multiple analysts code with identical wordings.
+const GOAL_TYPES = ["R-FT-DT", "R-FT-AT", "R-MT-DT", "R-MT-AT", "R-BT-DT", "R-BT-AT", "SP-P", "SP-C", "SP-T", "SP-F"] as const;
+const ASSIST_TYPES = ["Inswinger", "Outswinger", "Buildup", "Cross", "Cutback", "Through ball", "Pass", "Error", "Shot", "Counter"] as const;
+const HOW_PENETRATED = ["Through", "Around", "Over"] as const;
+const BUILDUP_LANES = ["Left", "Centre", "Right"] as const;
+const FINISH_TYPES = ["Right Foot", "Left Foot", "Head"] as const;
+
+/** Locked dropdown: fixed option list; a legacy value on an old goal stays selectable so editing never wipes it. */
+function LockedSelect({ label, value, onChange, options, className }: {
+  label: string; value: string; onChange: (v: string) => void;
+  options: readonly string[]; className?: string;
+}) {
+  const opts = value && !options.includes(value) ? [value, ...options] : [...options];
+  return (
+    <Field label={label} className={className}>
+      <Select value={value || "__none__"} onValueChange={v => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">—</SelectItem>
+          {opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
 /** Free-text input with suggestions from existing data (keeps spellings consistent, allows new values). */
 function VocabInput({ label, value, onChange, options, listId, placeholder, className }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -745,11 +772,11 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
               <Input className="min-w-0" value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
             </div>
           </Field>
-          <VocabInput label="Goal type" value={goalType} onChange={setGoalType} options={options?.goalTypes ?? []} listId="dl-goaltypes" placeholder="R-MT-AT / SP-C…" />
-          <VocabInput label="Assist type" value={assistType} onChange={setAssistType} options={options?.assistTypes ?? []} listId="dl-assisttypes" />
-          <VocabInput label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={options?.howPenetrated ?? []} listId="dl-howpen" placeholder="Through / Around / Over" />
-          <VocabInput label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={options?.buildupLanes ?? []} listId="dl-lanes" placeholder="Left / Centre / Right" />
-          <VocabInput label="Finish" value={finishType} onChange={setFinishType} options={options?.finishTypes ?? []} listId="dl-finish" placeholder="Right Foot / Head…" />
+          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={GOAL_TYPES} />
+          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={ASSIST_TYPES} />
+          <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={HOW_PENETRATED} />
+          <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={BUILDUP_LANES} />
+          <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={FINISH_TYPES} />
           <Field label="Pass string (passes in buildup)">
             <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} />
           </Field>
