@@ -112,6 +112,8 @@ import type {
   GoalOptionsResponse,
   GoalTallyResponse,
   GoalUpdate,
+  GoalVocabBody,
+  GoalVocabResponse,
   GoalsByOpponentResponse,
   GpsCoachEmail,
   GpsCoachEmailsSaveRequest,
@@ -6518,6 +6520,154 @@ export function useGetGoalOptions<TData = Awaited<ReturnType<typeof getGoalOptio
 
 
 
+
+export const getGetGoalVocabUrl = () => {
+
+
+
+
+  return `/api/entry/goal-vocab`
+}
+
+/**
+ * @summary The editable goal-coding dropdown lists (global house standard)
+ */
+export const getGoalVocab = async ( options?: RequestInit): Promise<GoalVocabResponse> => {
+
+  return customFetch<GoalVocabResponse>(getGetGoalVocabUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoalVocabQueryKey = () => {
+    return [
+    `/api/entry/goal-vocab`
+    ] as const;
+    }
+
+
+export const getGetGoalVocabQueryOptions = <TData = Awaited<ReturnType<typeof getGoalVocab>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalVocab>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoalVocabQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoalVocab>>> = ({ signal }) => getGoalVocab({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoalVocab>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoalVocabQueryResult = NonNullable<Awaited<ReturnType<typeof getGoalVocab>>>
+export type GetGoalVocabQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The editable goal-coding dropdown lists (global house standard)
+ */
+
+export function useGetGoalVocab<TData = Awaited<ReturnType<typeof getGoalVocab>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalVocab>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoalVocabQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveGoalVocabUrl = () => {
+
+
+
+
+  return `/api/entry/goal-vocab`
+}
+
+/**
+ * @summary Replace the goal-coding dropdown lists (League Setup editor)
+ */
+export const saveGoalVocab = async (goalVocabBody: GoalVocabBody, options?: RequestInit): Promise<GoalVocabResponse> => {
+
+  return customFetch<GoalVocabResponse>(getSaveGoalVocabUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(goalVocabBody)
+  }
+);}
+
+
+
+
+
+export const getSaveGoalVocabMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGoalVocab>>, TError,{data: BodyType<GoalVocabBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGoalVocab>>, TError,{data: BodyType<GoalVocabBody>}, TContext> => {
+
+const mutationKey = ['saveGoalVocab'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGoalVocab>>, {data: BodyType<GoalVocabBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGoalVocab(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGoalVocabMutationResult = NonNullable<Awaited<ReturnType<typeof saveGoalVocab>>>
+    export type SaveGoalVocabMutationBody = BodyType<GoalVocabBody>
+    export type SaveGoalVocabMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Replace the goal-coding dropdown lists (League Setup editor)
+ */
+export const useSaveGoalVocab = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGoalVocab>>, TError,{data: BodyType<GoalVocabBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGoalVocab>>,
+        TError,
+        {data: BodyType<GoalVocabBody>},
+        TContext
+      > => {
+      return useMutation(getSaveGoalVocabMutationOptions(options));
+    }
 
 export const getGetGoalTallyUrl = (params: GetGoalTallyParams,) => {
   const normalizedParams = new URLSearchParams();

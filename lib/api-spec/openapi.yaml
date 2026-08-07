@@ -1808,6 +1808,33 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/GoalOptionsResponse" }
 
+  /entry/goal-vocab:
+    get:
+      operationId: getGoalVocab
+      tags: [entry]
+      summary: The editable goal-coding dropdown lists (global house standard)
+      responses:
+        "200":
+          description: Ordered option lists per goal-detail field
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoalVocabResponse" }
+    put:
+      operationId: saveGoalVocab
+      tags: [entry]
+      summary: Replace the goal-coding dropdown lists (League Setup editor)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GoalVocabBody" }
+      responses:
+        "200":
+          description: Saved lists (as stored)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoalVocabResponse" }
+
   /entry/goal-tally:
     get:
       operationId: getGoalTally
@@ -5026,6 +5053,26 @@ components:
         venues:        { type: array, items: { type: string } }
         formations:    { type: array, items: { type: string } }
       required: [goalTypes, assistTypes, howPenetrated, buildupLanes, finishTypes, conditions, venues, formations]
+
+    GoalVocabResponse:
+      type: object
+      properties:
+        goalTypes:     { type: array, items: { type: string } }
+        assistTypes:   { type: array, items: { type: string } }
+        howPenetrated: { type: array, items: { type: string } }
+        buildupLanes:  { type: array, items: { type: string } }
+        finishTypes:   { type: array, items: { type: string } }
+      required: [goalTypes, assistTypes, howPenetrated, buildupLanes, finishTypes]
+
+    GoalVocabBody:
+      type: object
+      properties:
+        goalTypes:     { type: array, items: { type: string, minLength: 1 }, minItems: 1 }
+        assistTypes:   { type: array, items: { type: string, minLength: 1 }, minItems: 1 }
+        howPenetrated: { type: array, items: { type: string, minLength: 1 }, minItems: 1 }
+        buildupLanes:  { type: array, items: { type: string, minLength: 1 }, minItems: 1 }
+        finishTypes:   { type: array, items: { type: string, minLength: 1 }, minItems: 1 }
+      required: [goalTypes, assistTypes, howPenetrated, buildupLanes, finishTypes]
 
     EntryMatchBody:
       type: object

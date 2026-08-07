@@ -1986,6 +1986,42 @@ export interface GoalOptionsResponse {
   formations: string[];
 }
 
+export interface GoalVocabResponse {
+  goalTypes: string[];
+  assistTypes: string[];
+  howPenetrated: string[];
+  buildupLanes: string[];
+  finishTypes: string[];
+}
+
+export interface GoalVocabBody {
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  goalTypes: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  assistTypes: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  howPenetrated: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  buildupLanes: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  finishTypes: string[];
+}
+
 export interface EntryMatchBody {
   teamId: number;
   seasonId: number;

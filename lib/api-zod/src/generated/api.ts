@@ -2539,6 +2539,50 @@ export const GetGoalOptionsResponse = zod.object({
 
 
 /**
+ * @summary The editable goal-coding dropdown lists (global house standard)
+ */
+export const GetGoalVocabResponse = zod.object({
+  "goalTypes": zod.array(zod.string()),
+  "assistTypes": zod.array(zod.string()),
+  "howPenetrated": zod.array(zod.string()),
+  "buildupLanes": zod.array(zod.string()),
+  "finishTypes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Replace the goal-coding dropdown lists (League Setup editor)
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+export const SaveGoalVocabBody = zod.object({
+  "goalTypes": zod.array(zod.string().min(1)).min(1),
+  "assistTypes": zod.array(zod.string().min(1)).min(1),
+  "howPenetrated": zod.array(zod.string().min(1)).min(1),
+  "buildupLanes": zod.array(zod.string().min(1)).min(1),
+  "finishTypes": zod.array(zod.string().min(1)).min(1)
+})
+
+export const SaveGoalVocabResponse = zod.object({
+  "goalTypes": zod.array(zod.string()),
+  "assistTypes": zod.array(zod.string()),
+  "howPenetrated": zod.array(zod.string()),
+  "buildupLanes": zod.array(zod.string()),
+  "finishTypes": zod.array(zod.string())
+})
+
+
+/**
  * @summary How many goals have been logged so far for a fixture, per team, vs the final score
  */
 export const GetGoalTallyQueryParams = zod.object({

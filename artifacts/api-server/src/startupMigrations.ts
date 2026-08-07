@@ -467,6 +467,27 @@ export async function runStartupMigrations(): Promise<void> {
     await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('gps-feed-reserves-v1') ON CONFLICT DO NOTHING`);
   }
 
+  // ── Goal-coding vocabulary (2026-08): the Goals-tab dropdown lists become
+  // editable in League Setup. Global (one house standard across leagues); one
+  // row per field, ordered string[] in jsonb. Seed from the coach's Aug 2026
+  // spreadsheet vocab; ON CONFLICT keeps any later edits.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS goal_vocab (
+      field text PRIMARY KEY,
+      options jsonb NOT NULL DEFAULT '[]'::jsonb,
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    INSERT INTO goal_vocab (field, options) VALUES
+      ('goalTypes', '["R-FT-DT","R-FT-AT","R-MT-DT","R-MT-AT","R-BT-DT","R-BT-AT","SP-P","SP-C","SP-T","SP-F"]'::jsonb),
+      ('assistTypes', '["Inswinger","Outswinger","Buildup","Cross","Cutback","Through ball","Pass","Error","Shot","Counter"]'::jsonb),
+      ('howPenetrated', '["Through","Around","Over"]'::jsonb),
+      ('buildupLanes', '["Left","Centre","Right"]'::jsonb),
+      ('finishTypes', '["Right Foot","Left Foot","Head"]'::jsonb)
+    ON CONFLICT (field) DO NOTHING
+  `);
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

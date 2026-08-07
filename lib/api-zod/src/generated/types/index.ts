@@ -136,6 +136,8 @@ export * from './goalsByOpponentPlayerByOpponent';
 export * from './goalsByOpponentResponse';
 export * from './goalTallyResponse';
 export * from './goalUpdate';
+export * from './goalVocabBody';
+export * from './goalVocabResponse';
 export * from './gpsCoachEmail';
 export * from './gpsCoachEmailsSaveRequest';
 export * from './gpsCoachEmailsSaveRequestCoachesItem';

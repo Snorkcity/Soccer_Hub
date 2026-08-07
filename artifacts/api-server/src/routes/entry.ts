@@ -15,6 +15,7 @@ import {
   leaguesTable,
   clubsTable,
   seasonsTable,
+  goalVocabTable,
 } from "@workspace/db";
 import { driblClubNamesFor } from "./dribl";
 import {
@@ -22,6 +23,9 @@ import {
   ListLeagueMatchesResponse,
   GetGoalOptionsQueryParams,
   GetGoalOptionsResponse,
+  GetGoalVocabResponse,
+  SaveGoalVocabBody,
+  SaveGoalVocabResponse,
   GetGoalTallyQueryParams,
   GetGoalTallyResponse,
   GetPlayerTallyQueryParams,
@@ -351,6 +355,60 @@ router.patch("/entry/goal/:goalId", async (req, res): Promise<void> => {
   });
 
   res.json(UpdateEntryGoalResponse.parse({ updated: true, belconnenUpdated }));
+});
+
+// ── Goal-coding vocabulary (editable in League Setup) ────────────────────────
+// One global house standard: the Goals-tab dropdown lists, stored one row per
+// field in goal_vocab (seeded by startup migrations). Writes are gated by the
+// central middleware (/entry ⇒ data-entry module).
+
+const VOCAB_FIELDS = ["goalTypes", "assistTypes", "howPenetrated", "buildupLanes", "finishTypes"] as const;
+
+async function readGoalVocab(): Promise<Record<(typeof VOCAB_FIELDS)[number], string[]>> {
+  const rows = await db.select().from(goalVocabTable);
+  const byField = new Map(rows.map(r => [r.field, r.options]));
+  return {
+    goalTypes: byField.get("goalTypes") ?? [],
+    assistTypes: byField.get("assistTypes") ?? [],
+    howPenetrated: byField.get("howPenetrated") ?? [],
+    buildupLanes: byField.get("buildupLanes") ?? [],
+    finishTypes: byField.get("finishTypes") ?? [],
+  };
+}
+
+router.get("/entry/goal-vocab", async (_req, res): Promise<void> => {
+  res.json(GetGoalVocabResponse.parse(await readGoalVocab()));
+});
+
+router.put("/entry/goal-vocab", async (req, res): Promise<void> => {
+  const parsed = SaveGoalVocabBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  // Trim and drop empties/duplicates while keeping the coach's order.
+  const clean = (values: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of values) {
+      const v = raw.trim();
+      if (!v || seen.has(v)) continue;
+      seen.add(v);
+      out.push(v);
+    }
+    return out;
+  };
+  for (const field of VOCAB_FIELDS) {
+    const options = clean(parsed.data[field]);
+    if (options.length === 0) {
+      res.status(400).json({ error: `"${field}" needs at least one option` });
+      return;
+    }
+    await db.insert(goalVocabTable)
+      .values({ field, options, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: goalVocabTable.field, set: { options, updatedAt: new Date() } });
+  }
+  res.json(SaveGoalVocabResponse.parse(await readGoalVocab()));
 });
 
 router.get("/entry/goal-options", async (req, res): Promise<void> => {

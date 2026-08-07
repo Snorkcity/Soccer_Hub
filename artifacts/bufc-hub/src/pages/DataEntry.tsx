@@ -11,6 +11,10 @@ import {
   getListLeagueMatchesQueryKey,
   useGetGoalOptions,
   getGetGoalOptionsQueryKey,
+  useGetGoalVocab,
+  getGetGoalVocabQueryKey,
+  useSaveGoalVocab,
+  type GoalVocabResponse,
   useCreateEntryMatch,
   useListMatches,
   getListMatchesQueryKey,
@@ -82,7 +86,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Pencil, Plus, Upload, Loader2, ScanText, X } from "lucide-react";
+import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Pencil, Plus, Upload, Loader2, ScanText, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 
@@ -124,14 +128,13 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
-// Locked goal-coding vocab (from the coach's spreadsheet, Aug 2026) — fixed
-// dropdowns so multiple analysts code with identical wordings.
-const GOAL_TYPES = ["R-FT-DT", "R-FT-AT", "R-MT-DT", "R-MT-AT", "R-BT-DT", "R-BT-AT", "SP-P", "SP-C", "SP-T", "SP-F"] as const;
-const ASSIST_TYPES = ["Inswinger", "Outswinger", "Buildup", "Cross", "Cutback", "Through ball", "Pass", "Error", "Shot", "Counter"] as const;
-const HOW_PENETRATED = ["Through", "Around", "Over"] as const;
-const BUILDUP_LANES = ["Left", "Centre", "Right"] as const;
-const FINISH_TYPES = ["Right Foot", "Left Foot", "Head"] as const;
-
+const DEFAULT_GOAL_VOCAB: GoalVocabResponse = {
+  goalTypes: ["R-FT-DT", "R-FT-AT", "R-MT-DT", "R-MT-AT", "R-BT-DT", "R-BT-AT", "SP-P", "SP-C", "SP-T", "SP-F"],
+  assistTypes: ["Inswinger", "Outswinger", "Buildup", "Cross", "Cutback", "Through ball", "Pass", "Error", "Shot", "Counter"],
+  howPenetrated: ["Through", "Around", "Over"],
+  buildupLanes: ["Left", "Centre", "Right"],
+  finishTypes: ["Right Foot", "Left Foot", "Head"],
+};
 /** Locked dropdown: fixed option list; a legacy value on an old goal stays selectable so editing never wipes it. */
 function LockedSelect({ label, value, onChange, options, className }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -512,9 +515,11 @@ function GoalSpotPicker({ goalX, goalY, onPick }: {
 // Goal form
 // ─────────────────────────────────────────────────────────────────────────────
 
-function GoalForm({ teamId, seasonId, fixtures, options }: {
-  teamId: number; seasonId: number; fixtures: LeagueMatchInfo[]; options: GoalOptionsResponse | undefined;
+function GoalForm({ teamId, seasonId, fixtures }: {
+  teamId: number; seasonId: number; fixtures: LeagueMatchInfo[];
 }) {
+  const { data: vocabData } = useGetGoalVocab({ query: { queryKey: getGetGoalVocabQueryKey() } });
+  const vocab = vocabData ?? DEFAULT_GOAL_VOCAB;
   const [matchId, setMatchId] = useState("");
   const [scorerTeam, setScorerTeam] = useState("");
   const [minute, setMinute] = useState("");
@@ -772,11 +777,11 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
               <Input className="min-w-0" value={assist} onChange={e => { setAssist(e.target.value); setAssistNum(""); assistAutoRef.current = null; }} placeholder="Blank if none" />
             </div>
           </Field>
-          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={GOAL_TYPES} className="w-[7.5rem] shrink-0" />
-          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={ASSIST_TYPES} className="w-36 shrink-0" />
-          <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={HOW_PENETRATED} className="w-[7.75rem] shrink-0" />
-          <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={BUILDUP_LANES} className="w-28 shrink-0" />
-          <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={FINISH_TYPES} className="w-32 shrink-0" />
+          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={vocab.goalTypes} className="w-[7.5rem] shrink-0" />
+          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={vocab.assistTypes} className="w-36 shrink-0" />
+          <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={vocab.howPenetrated} className="w-[7.75rem] shrink-0" />
+          <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={vocab.buildupLanes} className="w-28 shrink-0" />
+          <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={vocab.finishTypes} className="w-32 shrink-0" />
           <Field label="Pass string" className="w-24 shrink-0">
             <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} title="Passes in buildup" />
           </Field>
@@ -1642,6 +1647,8 @@ function LeagueSetupCard() {
         </CardContent>
       </Card>
 
+      <GoalVocabCard />
+
       {isSuperadmin && <GpsFeedCard leagues={leagues ?? []} onSaved={invalidate} setMsg={setMsg} />}
 
       <Card>
@@ -1684,6 +1691,19 @@ function LeagueSetupCard() {
   );
 }
 
+/**
+ * Goal-coding vocabulary editor: the Goals-tab dropdown lists (goal type,
+ * assist type, how penetrated, buildup lane, finish). One global house
+ * standard — add / remove / reorder options per field, then save. Old goals
+ * keep any retired value selectable (LockedSelect handles legacy values).
+ */
+const VOCAB_FIELD_META: Array<{ key: keyof GoalVocabResponse; label: string }> = [
+  { key: "goalTypes", label: "Goal type" },
+  { key: "assistTypes", label: "Assist type" },
+  { key: "howPenetrated", label: "How penetrated" },
+  { key: "buildupLanes", label: "Buildup lane" },
+  { key: "finishTypes", label: "Finish" },
+];
 /**
  * GPS data feed (superadmin only): point a league's GPS reads at another
  * league's uploads, filtered to one squad — e.g. the Reserves league reads the
@@ -3153,7 +3173,7 @@ function EntryWorkspace() {
           </div>
         </TabsContent>
         <TabsContent value="goals" className="mt-6">
-          <GoalForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} options={options} />
+          <GoalForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />
         </TabsContent>
         <TabsContent value="league" className="mt-6">
           <LeagueSetupCard />
@@ -3561,5 +3581,111 @@ function ClubBrandingFixer({ leagueId, clubCount, onSaved }: {
       )}
       <StatusLine ok={ok} err={err} />
     </div>
+  );
+}
+
+function GoalVocabCard() {
+  const queryClient = useQueryClient();
+  const { data: vocab } = useGetGoalVocab({ query: { queryKey: getGetGoalVocabQueryKey() } });
+
+  const [lists, setLists] = useState<GoalVocabResponse | null>(null);
+  const [newValue, setNewValue] = useState<Record<string, string>>({});
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Load the saved lists into local edit state once (and after each save).
+  useEffect(() => {
+    if (vocab && lists === null) setLists(vocab);
+  }, [vocab, lists]);
+
+  const save = useSaveGoalVocab({ mutation: {
+    onSuccess: (saved) => {
+      setOk("Saved — the Goals tab dropdowns use these lists straight away.");
+      setLists(saved);
+      queryClient.setQueryData(getGetGoalVocabQueryKey(), saved);
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  if (!lists) return null;
+
+  const setField = (key: keyof GoalVocabResponse, next: string[]) =>
+    setLists({ ...lists, [key]: next });
+  const move = (key: keyof GoalVocabResponse, i: number, dir: -1 | 1) => {
+    const next = [...lists[key]];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    setField(key, next);
+  };
+  const addOption = (key: keyof GoalVocabResponse) => {
+    const v = (newValue[key] ?? "").trim();
+    if (!v || lists[key].includes(v)) return;
+    setField(key, [...lists[key], v]);
+    setNewValue({ ...newValue, [key]: "" });
+  };
+  const dirty = vocab != null && JSON.stringify(lists) !== JSON.stringify(vocab);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Goal-coding dropdowns</CardTitle>
+        <CardDescription>
+          The option lists behind the Goals-tab dropdowns — one house standard shared by every league.
+          Add, remove or reorder, then save. Removing an option never touches old goals: a retired value
+          stays selectable on the goal that already uses it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {VOCAB_FIELD_META.map(({ key, label }) => (
+            <div key={key} className="space-y-2">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <div className="rounded-md border border-border/60 divide-y divide-border/40">
+                {lists[key].map((opt, i) => (
+                  <div key={opt} className="flex items-center gap-1 px-2 py-1 text-sm">
+                    <span className="truncate flex-1">{opt}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" disabled={i === 0} onClick={() => move(key, i, -1)}>
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" disabled={i === lists[key].length - 1} onClick={() => move(key, i, 1)}>
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground"
+                      disabled={lists[key].length <= 1}
+                      onClick={() => setField(key, lists[key].filter((_, j) => j !== i))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                <Input
+                  className="h-8 text-sm" placeholder="Add an option"
+                  value={newValue[key] ?? ""}
+                  onChange={e => setNewValue({ ...newValue, [key]: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addOption(key); } }}
+                />
+                <Button variant="secondary" size="sm" className="h-8" disabled={!(newValue[key] ?? "").trim()} onClick={() => addOption(key)}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            disabled={!dirty || save.isPending}
+            onClick={() => { setOk(null); setErr(null); save.mutate({ data: lists }); }}
+          >
+            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save dropdown lists"}
+          </Button>
+          {dirty && !save.isPending && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+          <StatusLine ok={ok} err={err} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
