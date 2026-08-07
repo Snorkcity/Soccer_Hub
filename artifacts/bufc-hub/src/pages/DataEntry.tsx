@@ -780,13 +780,12 @@ function GoalForm({ teamId, seasonId, fixtures, options }: {
           <Field label="Pass string" className="w-24 shrink-0">
             <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} title="Passes in buildup" />
           </Field>
-          <div className="flex items-end pb-2">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={firstTime} onCheckedChange={v => setFirstTime(v === true)} />
-              First-time finish
-            </label>
-          </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+          <Checkbox checked={firstTime} onCheckedChange={v => setFirstTime(v === true)} />
+          First-time finish
+        </label>
 
         <GoalSpotPicker goalX={goalX} goalY={goalY} onPick={(x, y) => { setGoalX(x); setGoalY(y); }} />
 
