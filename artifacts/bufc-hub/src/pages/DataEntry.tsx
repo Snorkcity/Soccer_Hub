@@ -615,6 +615,8 @@ function GoalForm({ teamId, seasonId, fixtures }: {
     setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
     setHowPenetrated(""); setBuildupLane(""); setFinishType(""); setFirstTime(false);
     setPassString(""); setGoalX(null); setGoalY(null);
+    setScorerNum(""); setAssistNum("");
+    scorerAutoRef.current = null; assistAutoRef.current = null;
   };
 
   const create = useCreateEntryGoal({ mutation: {
