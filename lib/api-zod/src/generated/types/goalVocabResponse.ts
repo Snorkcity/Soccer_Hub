@@ -12,4 +12,5 @@ export interface GoalVocabResponse {
   howPenetrated: string[];
   buildupLanes: string[];
   finishTypes: string[];
+  sources: string[];
 }

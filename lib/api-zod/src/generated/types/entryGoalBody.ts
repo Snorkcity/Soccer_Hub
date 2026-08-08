@@ -37,6 +37,8 @@ export interface EntryGoalBody {
   finishType?: string | null;
   /** @nullable */
   passString?: string | null;
+  /** @nullable */
+  source?: string | null;
   /**
      * @minimum 0
      * @maximum 100

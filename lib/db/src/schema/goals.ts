@@ -20,6 +20,7 @@ export const goalsTable = pgTable("goals", {
   firstTimeFinish: boolean("first_time_finish"),
   finishType: text("finish_type"),
   passString: text("pass_string"),
+  source: text("source"),
   goalX: numeric("goal_x", { precision: 6, scale: 2 }),
   goalY: numeric("goal_y", { precision: 6, scale: 2 }),
   teamId: integer("team_id").notNull(),

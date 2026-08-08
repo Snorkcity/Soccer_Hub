@@ -1992,6 +1992,7 @@ export interface GoalVocabResponse {
   howPenetrated: string[];
   buildupLanes: string[];
   finishTypes: string[];
+  sources: string[];
 }
 
 export interface GoalVocabBody {
@@ -2020,6 +2021,11 @@ export interface GoalVocabBody {
      * @items.minLength 1
      */
   finishTypes: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  sources: string[];
 }
 
 export interface EntryMatchBody {
@@ -2113,6 +2119,8 @@ export interface EntryGoalBody {
   finishType?: string | null;
   /** @nullable */
   passString?: string | null;
+  /** @nullable */
+  source?: string | null;
   /**
      * @minimum 0
      * @maximum 100
@@ -2325,6 +2333,8 @@ export interface EntryGoalListItem {
   /** @nullable */
   passString: string | null;
   /** @nullable */
+  source: string | null;
+  /** @nullable */
   goalX: number | null;
   /** @nullable */
   goalY: number | null;
@@ -2361,6 +2371,8 @@ export interface EntryGoalEditBody {
   finishType?: string | null;
   /** @nullable */
   passString?: string | null;
+  /** @nullable */
+  source?: string | null;
   /**
      * @minimum 0
      * @maximum 100

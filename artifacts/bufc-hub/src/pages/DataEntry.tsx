@@ -130,11 +130,16 @@ function Field({ label, children, className }: { label: string; children: React.
 
 const DEFAULT_GOAL_VOCAB: GoalVocabResponse = {
   goalTypes: ["R-FT-DT", "R-FT-AT", "R-MT-DT", "R-MT-AT", "R-BT-DT", "R-BT-AT", "SP-P", "SP-C", "SP-T", "SP-F"],
-  assistTypes: ["Inswinger", "Outswinger", "Buildup", "Cross", "Cutback", "Through ball", "Pass", "Error", "Shot", "Counter"],
+  assistTypes: ["Inswinger", "Outswinger", "Cross", "Cutback", "Through ball", "Pass", "Error", "Shot"],
   howPenetrated: ["Through", "Around", "Over"],
   buildupLanes: ["Left", "Centre", "Right"],
   finishTypes: ["Right Foot", "Left Foot", "Head"],
+  sources: ["Buildup", "Counter", "Press"],
 };
+
+/** Inswinger/Outswinger only make sense on dead-ball crosses: corners and free kicks. */
+const SET_PIECE_CROSS_TYPES = new Set(["SP-C", "SP-F"]);
+const SWINGER_ASSIST_TYPES = new Set(["Inswinger", "Outswinger"]);
 /** Locked dropdown: fixed option list; a legacy value on an old goal stays selectable so editing never wipes it. */
 function LockedSelect({ label, value, onChange, options, className }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -534,6 +539,10 @@ function GoalForm({ teamId, seasonId, fixtures }: {
   const [finishType, setFinishType] = useState("");
   const [firstTime, setFirstTime] = useState(false);
   const [passString, setPassString] = useState("");
+  const [source, setSource] = useState("");
+  // Remembers a Source value WE auto-picked (Buildup on 6+ passes) so we only
+  // ever overwrite/clear our own auto-pick, never the coach's manual choice.
+  const sourceAutoRef = useRef<string | null>(null);
   const [goalX, setGoalX] = useState<number | null>(null);
   const [goalY, setGoalY] = useState<number | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -615,9 +624,39 @@ function GoalForm({ teamId, seasonId, fixtures }: {
     setMinute(""); setScorer(""); setAssist(""); setGoalType(""); setAssistType("");
     setHowPenetrated(""); setBuildupLane(""); setFinishType(""); setFirstTime(false);
     setPassString(""); setGoalX(null); setGoalY(null);
+    setSource(""); sourceAutoRef.current = null;
     setScorerNum(""); setAssistNum("");
     scorerAutoRef.current = null; assistAutoRef.current = null;
   };
+
+  // Inswinger/Outswinger are dead-ball crosses — only offered on corner (SP-C)
+  // and free-kick (SP-F) goal types. Clearing happens only when the COACH
+  // changes goal type (see onGoalTypeChange), never when an old goal loads,
+  // so legacy data survives unrelated edits.
+  const isSetPieceCross = SET_PIECE_CROSS_TYPES.has(goalType);
+  const assistTypeOptions = isSetPieceCross
+    ? vocab.assistTypes
+    : vocab.assistTypes.filter(o => !SWINGER_ASSIST_TYPES.has(o));
+  const onGoalTypeChange = (v: string) => {
+    setGoalType(v);
+    if (!SET_PIECE_CROSS_TYPES.has(v) && SWINGER_ASSIST_TYPES.has(assistType)) setAssistType("");
+  };
+
+  // Buildup goals are 6+ passes: auto-pick Source when the pass string says so,
+  // but only overwrite/clear our own auto-pick, never a manual choice.
+  useEffect(() => {
+    const n = Number(passString);
+    const isBuildup = passString.trim() !== "" && Number.isFinite(n) && n >= 6;
+    if (isBuildup) {
+      if (source === "" || source === sourceAutoRef.current) {
+        sourceAutoRef.current = "Buildup";
+        setSource("Buildup");
+      }
+    } else if (sourceAutoRef.current != null && source === sourceAutoRef.current) {
+      sourceAutoRef.current = null;
+      setSource("");
+    }
+  }, [passString, source]);
 
   const create = useCreateEntryGoal({ mutation: {
     onSuccess: (res) => {
@@ -648,6 +687,7 @@ function GoalForm({ teamId, seasonId, fixtures }: {
     setFinishType(g.finishType ?? "");
     setFirstTime(g.firstTimeFinish === true);
     setPassString(g.passString ?? "");
+    setSource(g.source ?? ""); sourceAutoRef.current = null;
     setGoalX(g.goalX == null ? null : Number(g.goalX));
     setGoalY(g.goalY == null ? null : Number(g.goalY));
   };
@@ -782,8 +822,9 @@ function GoalForm({ teamId, seasonId, fixtures }: {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <LockedSelect label="Goal type" value={goalType} onChange={setGoalType} options={vocab.goalTypes} className="w-[7.5rem] shrink-0" />
-          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={vocab.assistTypes} className="w-36 shrink-0" />
+          <LockedSelect label="Goal type" value={goalType} onChange={onGoalTypeChange} options={vocab.goalTypes} className="w-[7.5rem] shrink-0" />
+          <LockedSelect label="Assist type" value={assistType} onChange={setAssistType} options={assistTypeOptions} className="w-36 shrink-0" />
+          <LockedSelect label="Source" value={source} onChange={v => { setSource(v); sourceAutoRef.current = null; }} options={vocab.sources} className="w-28 shrink-0" />
           <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={vocab.howPenetrated} className="w-[7.75rem] shrink-0" />
           <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={vocab.buildupLanes} className="w-28 shrink-0" />
           <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={vocab.finishTypes} className="w-32 shrink-0" />
@@ -816,6 +857,7 @@ function GoalForm({ teamId, seasonId, fixtures }: {
                 firstTimeFinish: firstTime,
                 finishType: finishType.trim() || null,
                 passString: passString.trim() || null,
+                source: source.trim() || null,
                 goalX, goalY,
               };
               if (editingGoalId != null) update.mutate({ goalId: editingGoalId, data: detail });
@@ -1705,6 +1747,7 @@ function LeagueSetupCard() {
 const VOCAB_FIELD_META: Array<{ key: keyof GoalVocabResponse; label: string }> = [
   { key: "goalTypes", label: "Goal type" },
   { key: "assistTypes", label: "Assist type" },
+  { key: "sources", label: "Source" },
   { key: "howPenetrated", label: "How penetrated" },
   { key: "buildupLanes", label: "Buildup lane" },
   { key: "finishTypes", label: "Finish" },

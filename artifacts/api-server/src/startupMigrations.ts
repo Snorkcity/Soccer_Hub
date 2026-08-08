@@ -488,6 +488,29 @@ export async function runStartupMigrations(): Promise<void> {
     ON CONFLICT (field) DO NOTHING
   `);
 
+  // ── Goal "Source" field (2026-08): how the attack started (Buildup/Counter/
+  // Press) moves out of assist type into its own column + vocab list. Old goals
+  // coded with those assist types are re-filed into source (idempotent).
+  await db.execute(sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS source text`);
+  await db.execute(sql`ALTER TABLE league_goals ADD COLUMN IF NOT EXISTS source text`);
+  await db.execute(sql`
+    INSERT INTO goal_vocab (field, options) VALUES
+      ('sources', '["Buildup","Counter","Press"]'::jsonb)
+    ON CONFLICT (field) DO NOTHING
+  `);
+  await db.execute(sql`
+    UPDATE goal_vocab SET options = (options - 'Buildup') - 'Counter', updated_at = now()
+    WHERE field = 'assistTypes' AND (options ? 'Buildup' OR options ? 'Counter')
+  `);
+  await db.execute(sql`
+    UPDATE goals SET source = assist_type, assist_type = NULL
+    WHERE assist_type IN ('Buildup', 'Counter', 'Press') AND source IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE league_goals SET source = assist_type, assist_type = NULL
+    WHERE assist_type IN ('Buildup', 'Counter', 'Press') AND source IS NULL
+  `);
+
   await syncPracticeLibrary();
   await syncRounds();
   await syncPlayerSheets();

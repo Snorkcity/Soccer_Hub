@@ -172,6 +172,7 @@ router.get("/entry/goals", async (req, res): Promise<void> => {
       firstTimeFinish: leagueGoalsTable.firstTimeFinish,
       finishType: leagueGoalsTable.finishType,
       passString: leagueGoalsTable.passString,
+      source: leagueGoalsTable.source,
       goalX: leagueGoalsTable.goalX,
       goalY: leagueGoalsTable.goalY,
     })
@@ -250,6 +251,7 @@ router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {
         nullSafe(goalsTable.firstTimeFinish, goal.firstTimeFinish),
         nullSafe(goalsTable.finishType, goal.finishType),
         nullSafe(goalsTable.passString, goal.passString),
+        nullSafe(goalsTable.source, goal.source),
         nullSafe(goalsTable.goalX, goal.goalX),
         nullSafe(goalsTable.goalY, goal.goalY),
       ));
@@ -307,6 +309,7 @@ router.patch("/entry/goal/:goalId", async (req, res): Promise<void> => {
     firstTimeFinish: b.firstTimeFinish ?? null,
     finishType: b.finishType ?? null,
     passString: b.passString ?? null,
+    source: b.source ?? null,
     goalX: n2s(b.goalX),
     goalY: n2s(b.goalY),
   };
@@ -343,6 +346,7 @@ router.patch("/entry/goal/:goalId", async (req, res): Promise<void> => {
         nullSafe(goalsTable.firstTimeFinish, goal.firstTimeFinish),
         nullSafe(goalsTable.finishType, goal.finishType),
         nullSafe(goalsTable.passString, goal.passString),
+        nullSafe(goalsTable.source, goal.source),
         nullSafe(goalsTable.goalX, goal.goalX),
         nullSafe(goalsTable.goalY, goal.goalY),
       ));
@@ -362,7 +366,7 @@ router.patch("/entry/goal/:goalId", async (req, res): Promise<void> => {
 // field in goal_vocab (seeded by startup migrations). Writes are gated by the
 // central middleware (/entry ⇒ data-entry module).
 
-const VOCAB_FIELDS = ["goalTypes", "assistTypes", "howPenetrated", "buildupLanes", "finishTypes"] as const;
+const VOCAB_FIELDS = ["goalTypes", "assistTypes", "howPenetrated", "buildupLanes", "finishTypes", "sources"] as const;
 
 async function readGoalVocab(): Promise<Record<(typeof VOCAB_FIELDS)[number], string[]>> {
   const rows = await db.select().from(goalVocabTable);
@@ -373,6 +377,7 @@ async function readGoalVocab(): Promise<Record<(typeof VOCAB_FIELDS)[number], st
     howPenetrated: byField.get("howPenetrated") ?? [],
     buildupLanes: byField.get("buildupLanes") ?? [],
     finishTypes: byField.get("finishTypes") ?? [],
+    sources: byField.get("sources") ?? [],
   };
 }
 
@@ -575,6 +580,7 @@ router.post("/entry/goal", async (req, res): Promise<void> => {
     firstTimeFinish: b.firstTimeFinish ?? null,
     finishType: b.finishType ?? null,
     passString: b.passString ?? null,
+    source: b.source ?? null,
   };
 
   const focusClub = await focusClubForRequest(req, b.seasonId);

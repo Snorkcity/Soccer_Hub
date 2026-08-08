@@ -31,6 +31,8 @@ export interface EntryGoalListItem {
   /** @nullable */
   passString: string | null;
   /** @nullable */
+  source: string | null;
+  /** @nullable */
   goalX: number | null;
   /** @nullable */
   goalY: number | null;

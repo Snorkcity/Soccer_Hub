@@ -2546,7 +2546,8 @@ export const GetGoalVocabResponse = zod.object({
   "assistTypes": zod.array(zod.string()),
   "howPenetrated": zod.array(zod.string()),
   "buildupLanes": zod.array(zod.string()),
-  "finishTypes": zod.array(zod.string())
+  "finishTypes": zod.array(zod.string()),
+  "sources": zod.array(zod.string())
 })
 
 
@@ -2565,12 +2566,15 @@ export const GetGoalVocabResponse = zod.object({
 
 
 
+
+
 export const SaveGoalVocabBody = zod.object({
   "goalTypes": zod.array(zod.string().min(1)).min(1),
   "assistTypes": zod.array(zod.string().min(1)).min(1),
   "howPenetrated": zod.array(zod.string().min(1)).min(1),
   "buildupLanes": zod.array(zod.string().min(1)).min(1),
-  "finishTypes": zod.array(zod.string().min(1)).min(1)
+  "finishTypes": zod.array(zod.string().min(1)).min(1),
+  "sources": zod.array(zod.string().min(1)).min(1)
 })
 
 export const SaveGoalVocabResponse = zod.object({
@@ -2578,7 +2582,8 @@ export const SaveGoalVocabResponse = zod.object({
   "assistTypes": zod.array(zod.string()),
   "howPenetrated": zod.array(zod.string()),
   "buildupLanes": zod.array(zod.string()),
-  "finishTypes": zod.array(zod.string())
+  "finishTypes": zod.array(zod.string()),
+  "sources": zod.array(zod.string())
 })
 
 
@@ -2638,6 +2643,7 @@ export const ListEntryGoalsResponse = zod.object({
   "firstTimeFinish": zod.boolean().nullable(),
   "finishType": zod.string().nullable(),
   "passString": zod.string().nullable(),
+  "source": zod.string().nullable(),
   "goalX": zod.number().nullable(),
   "goalY": zod.number().nullable()
 }))
@@ -2674,6 +2680,7 @@ export const UpdateEntryGoalBody = zod.object({
   "firstTimeFinish": zod.boolean().nullish(),
   "finishType": zod.string().nullish(),
   "passString": zod.string().nullish(),
+  "source": zod.string().nullish(),
   "goalX": zod.number().min(updateEntryGoalBodyGoalXMin).max(updateEntryGoalBodyGoalXMax).nullish(),
   "goalY": zod.number().min(updateEntryGoalBodyGoalYMin).nullish()
 })
@@ -2779,6 +2786,7 @@ export const CreateEntryGoalBody = zod.object({
   "firstTimeFinish": zod.boolean().nullish(),
   "finishType": zod.string().nullish(),
   "passString": zod.string().nullish(),
+  "source": zod.string().nullish(),
   "goalX": zod.number().min(createEntryGoalBodyGoalXMin).max(createEntryGoalBodyGoalXMax).nullish(),
   "goalY": zod.number().min(createEntryGoalBodyGoalYMin).nullish()
 })

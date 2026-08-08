@@ -23,6 +23,7 @@ export const leagueGoalsTable = pgTable("league_goals", {
   firstTimeFinish: boolean("first_time_finish"),
   finishType: text("finish_type"),
   passString: text("pass_string"),
+  source: text("source"),
   goalX: text("goal_x"),
   goalY: text("goal_y"),
   seasonId: integer("season_id").notNull(),

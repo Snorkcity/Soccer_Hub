@@ -32,4 +32,9 @@ export interface GoalVocabBody {
      * @items.minLength 1
      */
   finishTypes: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  sources: string[];
 }
