@@ -39,3 +39,9 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 ## Locked goal-coding vocab (2026-08)
 - Goal type / Assist type / How penetrated / Buildup lane / Finish are LOCKED shadcn Selects in the Goals tab (constants in DataEntry.tsx, from the coach's spreadsheet) — not free text with datalist any more. Legacy values on old goals are prepended so editing never wipes them.
 - Prod typos normalised at the same time ("Through Ball"→"Through ball", "Right Foot9"→"Right Foot"). Hip/Knee finishes left as genuine legacy values.
+
+## Goal Source field (Aug 2026)
+- `source` column on goals + league_goals: how the attack started — Buildup / Counter / Press (vocab field `sources`, editable in League Setup like the others).
+- Buildup = 6+ passes by the coach's definition; the Goals form auto-picks Buildup when passString >= 6 (sourceAutoRef guards manual choices — only ever overwrite/clear our own auto-pick).
+- Assist types Buildup/Counter were REMOVED from vocab and refiled into source by an idempotent startup migration (guarded `source IS NULL` so restarts never clobber manual values).
+- Inswinger/Outswinger assist types are dead-ball crosses: only offered when goal type is SP-C or SP-F; cleared only on a coach-initiated goal-type change, never on edit hydration (legacy data survives edits).
