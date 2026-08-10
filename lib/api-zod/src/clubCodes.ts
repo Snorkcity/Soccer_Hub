@@ -52,7 +52,14 @@ export function clubCodesFor(clubs: string[]): Record<string, string> {
   for (const [, names] of byBase) {
     if (names.length === 1) continue;
     for (const name of names) {
-      const pick = candidates(name).find((c) => !taken.has(c)) ?? baseCode(name);
+      let pick = candidates(name).find((c) => !taken.has(c));
+      if (!pick) {
+        // Pathological sets (many near-identical names) — never emit a
+        // duplicate: extend with a numeric suffix until free.
+        const stem = baseCode(name) || "X";
+        for (let i = 10; taken.has(pick ?? stem); i++) pick = `${stem}${i}`;
+        pick = pick ?? stem;
+      }
       out[name] = pick;
       taken.add(pick);
     }
