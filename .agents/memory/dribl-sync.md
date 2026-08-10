@@ -18,6 +18,8 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 
 **Why:** Dribl runs all AU federated leagues, so this pattern generalises to any club/league later.
 
+**Match-ID club codes (Aug 2026):** first-3-letters codes collide (Sydney University/Olympic → SYD, Western City/Western Sydney → WES) and can merge two fixtures under one ID. Shared `clubCodesFor` in @workspace/api-zod builds per-league unique codes (non-colliding clubs keep first-3 so old IDs stay stable; colliders get word-aware codes like SYU/SYO/WEC/WES); used by both the Dribl sync matchId build and the Data Entry auto-ID. NSW prod rows were renamed accordingly (league_matches/league_goals/league_player_stats).
+
 **Matching existing games:** never match on the rebuilt match-ID string — hand-entered IDs use their own club codes (e.g. BELR vs BEL). Match on round+home+away (fallback date+home+away) and reuse the existing match ID so top-ups hit the right row.
 
 **Lineups endpoint (cracked from SPA JS):** `GET /matchcentre-match-members/match/{match_hash_id}/team/{home|away_team_hash_id}?tenant=...` → per player: first/last name, jersey, starting, playing, is_captain, is_goalkeeper, role_slug (staff too). Use fixture's `match_hash_id`, not hash_id. Sub minutes aren't here — check match_events for substitution events.
