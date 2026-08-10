@@ -26,9 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
-import { FileDown, CalendarIcon, Loader2, Sparkles, Save, Copy, Trash2, FolderOpen } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { FileDown, Loader2, Sparkles, Save, Copy, Trash2, FolderOpen } from "lucide-react";
 import { format, parse, isValid } from "date-fns";
 import type { PitchPlayer, SetPieceGroup, UnitObjectives } from "@/lib/prematchPptx";
 import WeekAheadCard from "@/components/WeekAheadCard";
@@ -219,31 +217,21 @@ const blankDraft = (): Draft => ({
   kickoff: "", commentsTrends: "",
 });
 
+// Native date input — same calendar style as the Week Ahead brief picker.
+// Stored value stays "d MMMM yyyy" (saved reports, deck titles rely on it);
+// only the input speaks ISO.
 function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
   const parsed = value ? parse(value, "d MMMM yyyy", new Date()) : undefined;
-  const selected = parsed && isValid(parsed) ? parsed : undefined;
+  const iso = parsed && isValid(parsed) ? format(parsed, "yyyy-MM-dd") : "";
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-start font-normal">
-          <CalendarIcon className="mr-2 h-4 w-4 opacity-60" />
-          {value || <span className="text-muted-foreground">Pick a date</span>}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          weekStartsOn={1}
-          selected={selected}
-          defaultMonth={selected}
-          onSelect={(day) => {
-            if (day) onChange(format(day, "d MMMM yyyy"));
-            setOpen(false);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+    <Input
+      type="date"
+      value={iso}
+      onChange={(e) => {
+        const v = e.target.value; // "yyyy-MM-dd" or "" while typing/cleared
+        onChange(v ? format(new Date(`${v}T12:00:00`), "d MMMM yyyy") : "");
+      }}
+    />
   );
 }
 
