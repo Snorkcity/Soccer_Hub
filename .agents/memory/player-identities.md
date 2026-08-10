@@ -15,3 +15,8 @@ description: How duplicate GPS names (U17-/U18- eras, nicknames) pool into one c
 - Frontend needs no awareness — it only ever sees canonical names.
 - Unresolved as of July 2026: Mackenzie vs U18-Mack, Maddie vs Maddy, and remaining U17-/U18- prefixed juniors left unmapped on purpose.
 - Verified: no same-game dual-name collisions exist in the data (checked year+round+split per canonical).
+
+## Reserves roster naming (league_player_stats, Aug 2026)
+- Reserves (league 81, season 4) uses coach first names; Dribl imports had added surname duplicates. Merged by DIRECT rename in league_player_stats/player_stats/goals (prod+dev) — not via gps_player_aliases (that's GPS-only).
+- Evidence for merges: `dribl_name_map` full names (e.g. gemma toseland→Gemma, samantha shea→Sammy). Coach-confirmed: Tozer = ET (Emily Tozer), Hay = Emily, Teresa = Tess.
+- Deliberately separate players (18s who played in reserves, keep as-is): Aislinn, Amy, Marley, Zoe, Sybilla.
