@@ -17,4 +17,5 @@ export interface WeekAheadBriefRequest {
   ourGamesText?: string;
   lastMeetingText?: string;
   lastReportText?: string;
+  prevMeetingPrepText?: string;
 }

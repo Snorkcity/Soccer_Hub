@@ -6258,6 +6258,9 @@ components:
         # Continuity inputs (Task: consider previous meeting + our last match report)
         lastMeetingText:    { type: string }
         lastReportText:     { type: string }
+        # What we worked on in training in the lead-up to the last meeting vs
+        # this opponent (client-side reflection lookup).
+        prevMeetingPrepText: { type: string }
       required: [opponent]
 
     WeekAheadBriefResponse:
@@ -6272,6 +6275,12 @@ components:
         # Deterministic headline facts from the last league meeting vs this
         # opponent (score, scorers, goal types) — empty when it's the first meeting.
         lastMeeting:
+          type: array
+          items: { type: string }
+        # Suggested training focuses for the week, each grounded in the
+        # opponent's recent strengths/weaknesses, the last meeting, or our own
+        # recent form.
+        trainingFocus:
           type: array
           items: { type: string }
       required: [review, pointers]

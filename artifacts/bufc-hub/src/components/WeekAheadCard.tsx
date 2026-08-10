@@ -262,7 +262,7 @@ export default function WeekAheadCard() {
     await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(leagueParams) });
   }
 
-  type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[]; lastMeeting?: string[] };
+  type SavedBriefData = { opponent?: string; weekOf?: string; round?: string; matchDate?: string; review?: string[]; pointers?: string[]; trainingFocus?: string[]; lastMeeting?: string[] };
 
   /** "Sunday 2 August 2026" from the yyyy-mm-dd date input. */
   function niceGameDate(iso: string): string {
@@ -292,7 +292,7 @@ export default function WeekAheadCard() {
         kind: "monday",
         title: briefTitle("", opponent, ""),
         opponent,
-        data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [], lastMeeting: data.lastMeeting ?? [] },
+        data: { opponent, weekOf: wk, review: data.review ?? [], pointers: data.pointers ?? [], trainingFocus: data.trainingFocus ?? [], lastMeeting: data.lastMeeting ?? [] },
       });
       await refreshList();
       toast({ title: "New briefing created from that one", description: `Dated ${wk}.` });
@@ -379,27 +379,40 @@ export default function WeekAheadCard() {
           (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
           (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
       );
-      const latestMatch = sorted.find((r) => r.kind === "match_reflection");
-      // All training sessions since the last game (there are usually 1–2 per
-      // week); fall back to the single latest if none are newer than the game.
-      const matchTime = latestMatch
-        ? (parseEntryDate(latestMatch.entryDate) ?? new Date(latestMatch.createdAt).getTime())
-        : 0;
-      const trainings = sorted.filter((r) => r.kind === "session_reflection");
-      const sinceMatch = trainings.filter(
-        (r) => (parseEntryDate(r.entryDate) ?? new Date(r.createdAt).getTime()) >= matchTime,
-      );
-      const recentTrainings = (sinceMatch.length ? sinceMatch : trainings.slice(0, 1)).slice(0, 3);
+      // Roughly the last 3 weeks of reflections (trainings + matches), newest
+      // first — the brief looks for themes that recur across weeks, not just
+      // what happened since the last game.
+      const rTime = (r: NonNullable<typeof reflections>[number]) =>
+        parseEntryDate(r.entryDate) ?? new Date(r.createdAt).getTime();
+      const threeWeeksAgo = Date.now() - 22 * 24 * 60 * 60 * 1000;
+      const windowed = sorted
+        .filter((r) => r.kind === "session_reflection" || r.kind === "match_reflection")
+        .filter((r) => rTime(r) >= threeWeeksAgo)
+        .slice(0, 10);
+      // Never send an empty review section — fall back to the latest few.
+      const recent = windowed.length ? windowed : sorted.slice(0, 4);
       const oppNeedle = weekOpp.toLowerCase();
       const lastVsOpp = sorted.find(
         (r) =>
           r.kind === "match_reflection" &&
           `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
       );
-
-      const recent = [...recentTrainings, latestMatch].filter(
-        (r): r is NonNullable<typeof r> => r != null,
-      );
+      // What we trained on in the ~10 days before the last meeting vs this
+      // opponent — lets the brief connect "what we worked on then" to now.
+      let prevMeetingPrepText: string | undefined;
+      if (lastVsOpp) {
+        const meetT = rTime(lastVsOpp);
+        const prepRows = sorted.filter(
+          (r) =>
+            r.kind === "session_reflection" &&
+            rTime(r) < meetT &&
+            rTime(r) >= meetT - 10 * 24 * 60 * 60 * 1000,
+        );
+        prevMeetingPrepText =
+          prepRows
+            .map((r) => `Training (${r.entryDate ?? ""}):\n${reflectionText(r)}`)
+            .join("\n\n") || undefined;
+      }
       const brief = await createWeekAheadBrief({
         opponent: weekOpp,
         seasonId,
@@ -408,6 +421,7 @@ export default function WeekAheadCard() {
           .map((r) => `${KIND_DEFS[r.kind as JournalStandaloneKind]?.title ?? r.kind} (${r.entryDate ?? ""}):\n${reflectionText(r)}`)
           .join("\n\n") || undefined,
         lastVsOpponentText: lastVsOpp ? reflectionText(lastVsOpp) : undefined,
+        prevMeetingPrepText,
         lastMeetingText,
         lastReportText,
         theirGamesText: gamesText(theirGames) || undefined,
@@ -428,6 +442,7 @@ export default function WeekAheadCard() {
           matchDate: weekDate || undefined,
           review: brief.review,
           pointers: brief.pointers,
+          trainingFocus: brief.trainingFocus ?? [],
           lastMeeting: brief.lastMeeting ?? [],
         },
       });
@@ -476,6 +491,7 @@ export default function WeekAheadCard() {
         generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
         review: data.review ?? [],
         pointers: data.pointers ?? [],
+        trainingFocus: data.trainingFocus ?? [],
         lastMeeting: data.lastMeeting ?? [],
         lastVsOpponent: lastVsOpp
           ? { title: "Match Reflection", date: lastVsOpp.entryDate ?? "", rows: reflectionRows(lastVsOpp) }

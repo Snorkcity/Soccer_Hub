@@ -10,4 +10,5 @@ export interface WeekAheadBriefResponse {
   review: string[];
   pointers: string[];
   lastMeeting?: string[];
+  trainingFocus?: string[];
 }

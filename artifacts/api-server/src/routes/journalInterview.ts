@@ -744,8 +744,10 @@ export async function lastMeetingFacts(seasonId: number, opponent: string): Prom
   return lines;
 }
 
-/** Condensed text from our latest saved Friday pre-match deck whose game has been played. */
-export async function previousDeckText(leagueId: number): Promise<string | null> {
+/** Condensed text from our latest saved Friday pre-match deck whose game has
+ * been played. Pass `opponent` to instead get the latest played deck vs that
+ * club — the plan we took into the previous meeting. */
+export async function previousDeckText(leagueId: number, opponent?: string): Promise<string | null> {
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
@@ -758,7 +760,9 @@ export async function previousDeckText(leagueId: number): Promise<string | null>
     const t = new Date(md).getTime(); // "2 August 2026" parses in V8
     return Number.isNaN(t) ? NaN : t;
   };
+  const oppLc = opponent?.trim().toLowerCase();
   const played = rows
+    .filter((r) => !oppLc || (r.opponent ?? "").trim().toLowerCase() === oppLc)
     .map((r) => ({ r, t: time(r.matchDate) }))
     .filter((x) => !Number.isNaN(x.t) && x.t <= now)
     .sort((a, b) => b.t - a.t);
@@ -797,14 +801,17 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
     const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
     const { opponent, seasonId, leagueId, reflectionsText, lastVsOpponentText, theirGamesText,
-      ourGamesText, lastMeetingText, lastReportText } = parsed.data;
+      ourGamesText, lastMeetingText, lastReportText, prevMeetingPrepText } = parsed.data;
 
-    // Server-side context: the last league meeting vs this opponent and our
-    // latest saved pre-match deck. Both are optional — first meeting of the
-    // season / no saved deck simply contributes nothing.
-    const [lastMeeting, prevDeck] = await Promise.all([
+    // Server-side context: the last league meeting vs this opponent, our
+    // latest saved pre-match deck, the deck we took into the previous meeting
+    // vs this opponent, and their scouting fingerprint. All optional — first
+    // meeting / no saved deck / thin data simply contributes nothing.
+    const [lastMeeting, prevDeck, prevOppDeck, scout] = await Promise.all([
       seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
       leagueId != null ? previousDeckText(leagueId).catch(() => null) : Promise.resolve(null),
+      leagueId != null ? previousDeckText(leagueId, opponent).catch(() => null) : Promise.resolve(null),
+      seasonId != null ? opponentScoutFingerprint(seasonId, opponent).catch(() => null) : Promise.resolve(null),
     ]);
 
     const sections = [
@@ -820,6 +827,13 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
         : "",
       lastReportText ? `## Our most recent match report (analyst's read of our last game)\n${lastReportText}` : "",
       prevDeck ? `## Our match plan from our most recent game\n${prevDeck}` : "",
+      prevOppDeck && prevOppDeck !== prevDeck
+        ? `## The match plan we took into the previous meeting vs ${opponent}\n${prevOppDeck}`
+        : "",
+      prevMeetingPrepText
+        ? `## What we worked on in training before the last meeting vs ${opponent}\n${prevMeetingPrepText}`
+        : "",
+      scout ? `## ${opponent}'s season scouting fingerprint (recorded league data)\n${scout}` : "",
       theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
       ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
     ]
@@ -836,10 +850,11 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
           {
             role: "system",
             content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
-Return JSON: {"review": string[], "pointers": string[]}.
-- "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote.
-- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions).
+Return JSON: {"review": string[], "pointers": string[], "trainingFocus": string[]}.
+- "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote. His reflections may span the last few weeks: when the same theme recurs across weeks, say so explicitly ("third week running you've flagged...") — a recurring thread matters more than a one-off from the latest session.
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions). Don't let the latest week dominate: weigh the last 2-3 weeks of reflections together, and where the inputs include what we worked on or planned before the previous meeting vs this opponent, connect back to it ("before the last ${opponent} game you worked on X — it paid off / it's still the gap").
 - If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice. When the input includes our match plan from our most recent game, carry forward anything still relevant rather than starting from scratch.
+- "trainingFocus": 2-4 suggested training focuses for this week's sessions. Each must be grounded in one of: something ${opponent} is strong at (recently or against us last time) that we should prepare for; something they're weak at that we could exploit; something we've struggled with recently ourselves; or something that worked last time we played them and is worth sharpening again. Name the evidence in the bullet itself ("they've scored 3 from corners in their last 3 — rehearse defending set pieces"). Only suggest what the data or his notes actually support — fewer, grounded suggestions beat padded ones.
 - Use the club's principles-of-play vocabulary where it fits naturally — specifically the U16+/senior phase language, since this app serves U18s and above: patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, dominate transitions through anticipation, not reaction; losing the ball is a collective emergency ("lose it — close it"); stay compact vertically and horizontally, reduce the space between the lines, compact when we lose it; control the tempo — accelerate or secure; fast brain, calm feet. Never force a term where it doesn't fit the facts.
 - Plain spoken English, each bullet under 30 words, no headings, no numbering, no invented facts. If a section of input is missing, simply use what is there.`,
           },
@@ -853,10 +868,11 @@ Return JSON: {"review": string[], "pointers": string[]}.
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
     const review = clean(out.review);
     const pointers = clean(out.pointers);
+    const trainingFocus = clean(out.trainingFocus);
     if (!review.length && !pointers.length) {
       return res.status(502).json({ error: "The briefing came back empty. Please try again." });
     }
-    return res.json({ review, pointers, lastMeeting });
+    return res.json({ review, pointers, trainingFocus, lastMeeting });
   } catch (err) {
     return next(err);
   }

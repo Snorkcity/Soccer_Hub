@@ -3379,12 +3379,14 @@ export interface WeekAheadBriefRequest {
   ourGamesText?: string;
   lastMeetingText?: string;
   lastReportText?: string;
+  prevMeetingPrepText?: string;
 }
 
 export interface WeekAheadBriefResponse {
   review: string[];
   pointers: string[];
   lastMeeting?: string[];
+  trainingFocus?: string[];
 }
 
 export interface PrematchBriefRequest {

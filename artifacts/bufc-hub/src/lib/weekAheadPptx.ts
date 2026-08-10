@@ -45,6 +45,8 @@ export interface WeekAheadInput {
   generatedOn: string;
   review: string[];
   pointers: string[];
+  /** Suggested training focuses — grounded in the opponent's strengths/weaknesses or our own recent form. */
+  trainingFocus?: string[];
   /** Headline facts from the last league meeting vs this opponent (score, scorers, goal types). */
   lastMeeting?: string[];
   lastVsOpponent: WeekAheadReflection | null;
@@ -285,6 +287,16 @@ export function buildWeekAheadPptx(input: WeekAheadInput): PptxGenJS {
     bulletCards(s, input.pointers, { numbered: true });
     s.addText("Read before choosing this week's two sessions.", {
       x: MX, y: H - 0.42, w: 6, h: 0.3, fontSize: 9.5, color: SKY, italic: true,
+    });
+    footer(s, foot);
+  }
+
+  // ── Suggested training focus — what the data says to work on this week ──
+  if (input.trainingFocus?.length) {
+    const s = darkSlide(pptx, "This coming week", "Training — suggested focus");
+    bulletCards(s, input.trainingFocus.slice(0, 4), { numbered: true });
+    s.addText("Grounded in their recent form, the last meeting, and our own trends.", {
+      x: MX, y: H - 0.42, w: 6.5, h: 0.3, fontSize: 9.5, color: SKY, italic: true,
     });
     footer(s, foot);
   }
