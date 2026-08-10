@@ -2921,7 +2921,8 @@ export const AssembleDriblPreviewResponse = zod.object({
   "match": zod.string(),
   "team": zod.string()
 })),
-  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up')
+  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up'),
+  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation')
 })
 
 
@@ -2976,7 +2977,8 @@ export const GetDriblPreviewResponse = zod.object({
   "match": zod.string(),
   "team": zod.string()
 })),
-  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up')
+  "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up'),
+  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation')
 })
 
 

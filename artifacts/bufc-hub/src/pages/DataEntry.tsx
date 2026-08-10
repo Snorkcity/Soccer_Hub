@@ -2746,8 +2746,8 @@ function GpsUploadsManager({ leagueId }: { leagueId: number }) {
 // Dribl sync — pull results (and goal scorers/minutes) straight from Dribl
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DriblSyncCard({ teamId, seasonId, onSaved }: {
-  teamId: number; seasonId: number; onSaved: () => void;
+function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
+  teamId: number; seasonId: number; leagueId: number; onSaved: () => void;
 }) {
   const [preview, setPreview] = useState<DriblPreviewResponse | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -2762,6 +2762,11 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
   // Games where a previous sync found no published team sheet are skipped on
   // re-syncs (that's what keeps them fast); this forces a one-off re-check.
   const [recheckNoLineups, setRecheckNoLineups] = useState(false);
+  // First sync on a league with no clubs yet: the server offers club names
+  // pulled from the Dribl fixture list; the coach reviews/edits, then creates.
+  const [clubDrafts, setClubDrafts] = useState<string[] | null>(null);
+  const [creatingClubs, setCreatingClubs] = useState(false);
+  const createClubMut = useCreateClub();
 
   // The browser talks to Dribl directly when the server is blocked by
   // Cloudflare (hosting IPs score badly; home connections are fine, and
@@ -2900,6 +2905,7 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
       }
       setPreview(result);
       setDeselected(new Set());
+      setClubDrafts(result.suggestedClubs?.length ? [...result.suggestedClubs] : null);
     } catch (e) {
       setPreviewError(errMsg(e));
     } finally {
@@ -2912,6 +2918,33 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
   const createMatch = useCreateEntryMatch();
   const createGoal = useCreateEntryGoal();
   const savePlayerStats = useSaveEntryPlayerStats();
+
+  // Create the reviewed club list, then immediately re-fetch so the same sync
+  // can now match every fixture against the freshly created clubs.
+  const createSuggestedClubs = async () => {
+    const names = [...new Set((clubDrafts ?? []).map(n => n.trim()).filter(Boolean))];
+    if (names.length === 0 || !leagueId) return;
+    setCreatingClubs(true); setErr(null); setOk(null);
+    let added = 0;
+    const failures: string[] = [];
+    for (const name of names) {
+      try {
+        await createClubMut.mutateAsync({ data: { leagueId, name } });
+        added++;
+      } catch (e) {
+        failures.push(`${name}: ${errMsg(e)}`);
+      }
+    }
+    setCreatingClubs(false);
+    if (failures.length > 0) {
+      setErr(failures.slice(0, 4).join(" · ") + (failures.length > 4 ? ` (+${failures.length - 4} more)` : ""));
+      return; // leave the list up so the coach can fix and retry
+    }
+    setOk(`Created ${added} club${added === 1 ? "" : "s"} — fetching results…`);
+    setClubDrafts(null);
+    onSaved();
+    void fetchPreview();
+  };
 
   const importable = useMemo(
     () => (preview?.matches ?? []).filter(m => (!m.exists || m.goalsOnly || m.statsOnly) && m.unmatched.length === 0),
@@ -3054,7 +3087,32 @@ function DriblSyncCard({ teamId, seasonId, onSaved }: {
               </p>
             )}
 
-            {preview.matches.length === 0 ? (
+            {clubDrafts ? (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  This league has no clubs yet. Here are the teams Dribl lists for it — check the names
+                  (edit or blank out any you don't want), then create them to run the sync.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {clubDrafts.map((name, i) => (
+                    <Input
+                      key={i}
+                      value={name}
+                      disabled={creatingClubs}
+                      onChange={e => setClubDrafts(prev => prev?.map((v, j) => (j === i ? e.target.value : v)) ?? prev)}
+                    />
+                  ))}
+                </div>
+                <Button
+                  onClick={() => void createSuggestedClubs()}
+                  disabled={creatingClubs || clubDrafts.every(n => !n.trim())}
+                >
+                  {creatingClubs
+                    ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Creating clubs…</>
+                    : `Create ${new Set(clubDrafts.map(n => n.trim()).filter(Boolean)).size} clubs and sync`}
+                </Button>
+              </div>
+            ) : preview.matches.length === 0 ? (
               <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>
             ) : (
               <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
@@ -3211,7 +3269,7 @@ function EntryWorkspace() {
           // switch would kill it. Keep it mounted and just hide it.
           <TabsContent value="dribl" forceMount className="mt-6 data-[state=inactive]:hidden">
             <DriblSyncCard
-              teamId={teamId} seasonId={seasonId}
+              teamId={teamId} seasonId={seasonId} leagueId={season?.leagueId ?? 0}
               onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
             />
           </TabsContent>

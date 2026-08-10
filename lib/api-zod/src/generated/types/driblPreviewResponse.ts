@@ -16,4 +16,6 @@ export interface DriblPreviewResponse {
   needLineups: DriblNeedLineup[];
   /** Club sheets skipped because a previous sync found no published line-up */
   skippedNoLineups: number;
+  /** Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation */
+  suggestedClubs?: string[];
 }

@@ -5218,6 +5218,10 @@ components:
         skippedNoLineups:
           type: integer
           description: Club sheets skipped because a previous sync found no published line-up
+        suggestedClubs:
+          type: array
+          items: { type: string }
+          description: Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation
       required: [driblSeason, driblLeague, matches, needDetail, needLineups, skippedNoLineups]
 
     DriblConfigResponse:

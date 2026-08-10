@@ -177,6 +177,19 @@ function matchClub(driblTeamName: string, clubs: string[]): string | null {
   return null;
 }
 
+/** Suggest a local club name from a Dribl team name, for first-sync club
+ * creation on a league with no clubs yet. Cuts the name at the first
+ * grade/gender qualifier ("First Grade", "U23", "NPL Women's", …) and drops a
+ * trailing bare "FC"/"SFC" token, e.g. "Sydney University SFC NPL Women's
+ * First Grade" → "Sydney University". */
+function suggestClubName(driblTeamName: string): string {
+  let n = driblTeamName.replace(/\s+/g, " ").trim();
+  const cut = n.search(/\b(first grade|1st grade|u ?\d{2}|npl[wm]?|reserves|women'?s?|female|male|men'?s?|senior|all age|premier league)\b/i);
+  if (cut > 0) n = n.slice(0, cut);
+  n = n.replace(/\b(sfc|fc)\s*$/i, "").trim().replace(/[-–—,·]+$/, "").trim();
+  return n || driblTeamName.trim();
+}
+
 /** Dribl timestamps are UTC; matches are played in ACT. */
 function toLocalDbDate(utc: string): string {
   // /results uses "YYYY-MM-DD HH:MM:SS", /fixtures uses full ISO ("…T…Z")
@@ -342,9 +355,23 @@ async function buildPreview(
   getDetail: (hash: string) => Promise<NormDetail | null>,
   getLineup?: (matchHash: string, teamHash: string) => Promise<NormLineupPlayer[] | null>,
   recheckNoLineups = false,
-): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }>; skippedNoLineups: number }> {
+): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }>; skippedNoLineups: number; suggestedClubs?: string[] }> {
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
+  if (clubs.length === 0) {
+    // Brand-new league with no clubs yet: instead of matching nothing, offer
+    // the distinct team names from the fixture list (cleaned of grade/gender
+    // qualifiers) so the coach can create the clubs right from the sync.
+    const names = new Set<string>();
+    for (const f of fixtures) {
+      names.add(suggestClubName(f.homeTeamName));
+      names.add(suggestClubName(f.awayTeamName));
+    }
+    return {
+      matches: [], needDetail: [], needLineups: [], skippedNoLineups: 0,
+      suggestedClubs: [...names].filter(Boolean).sort(),
+    };
+  }
   // Per-league unique 3-letter codes for new match IDs (Sydney Uni/Olympic etc.
   // would otherwise both be SYD and risk two fixtures sharing one ID).
   const clubCodes = clubCodesFor(clubs);
@@ -681,7 +708,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       if (!cursor) break;
     }
 
-    const { matches, skippedNoLineups } = await buildPreview(
+    const { matches, skippedNoLineups, suggestedClubs } = await buildPreview(
       seasonId, seasonRow, fixtures,
       async (hash) => {
         const mc = await driblGet(`/matchcentre/${hash}`, { tenant }, dribl.tenant);
@@ -738,7 +765,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       String(req.query.recheckNoLineups ?? "") === "true",
     );
 
-    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [], skippedNoLineups }));
+    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [], skippedNoLineups, suggestedClubs }));
   } catch (e) {
     logger.error({ err: String(e) }, "Dribl preview failed");
     res.status(502).json({ error: `Couldn't reach Dribl: ${e instanceof Error ? e.message : String(e)}` });
@@ -792,7 +819,7 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
     })));
   }
 
-  const { matches, needDetail, needLineups, skippedNoLineups } = await buildPreview(
+  const { matches, needDetail, needLineups, skippedNoLineups, suggestedClubs } = await buildPreview(
     b.seasonId, seasonRow, b.fixtures,
     async (hash) => detailByHash.get(hash) ?? null,
     async (matchHash, teamHash) => lineupByKey.get(`${matchHash}|${teamHash}`) ?? null,
@@ -801,7 +828,7 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
 
   res.json(GetDriblPreviewResponse.parse({
     driblSeason: b.driblSeason ?? seasonRow.year,
-    driblLeague, matches, needDetail, needLineups, skippedNoLineups,
+    driblLeague, matches, needDetail, needLineups, skippedNoLineups, suggestedClubs,
   }));
 });
 
