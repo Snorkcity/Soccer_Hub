@@ -41,10 +41,15 @@ function driblHeaders(tenantSlug: string) {
 // to. The competition hash filters the fixtures feed down from thousands of
 // rows (every grade in the federation) to just the NPL games. Extend as
 // leagues are added. Tenant slugs: capital = Capital Football (ACT),
-// fv = Football Victoria.
+// fv = Football Victoria, fdprod = Football NSW (their Match Centre lives at
+// competitions.footballnsw.com.au but the Dribl tenant slug is "fdprod").
 function driblLeagueFor(leagueName: string): { tenant: string; league: string; competition: string } | null {
   if (/VIC.*NPLW|NPLW.*VIC/i.test(leagueName))
     return { tenant: "fv", league: "NPL VIC Women", competition: "Senol NPL Victoria Women" };
+  if (/NSW.*NPLW.*U.?23|NPLW.*U.?23.*NSW/i.test(leagueName))
+    return { tenant: "fdprod", league: "U23", competition: "NPL Women's NSW" };
+  if (/NSW.*NPLW|NPLW.*NSW/i.test(leagueName))
+    return { tenant: "fdprod", league: "First Grade", competition: "NPL Women's NSW" };
   if (/NPLM.*U.?23/i.test(leagueName)) return { tenant: "capital", league: "NPLM U23", competition: "National Premier League Men's" };
   if (/NPLM/i.test(leagueName)) return { tenant: "capital", league: "NPLM 1st Grade", competition: "National Premier League Men's" };
   if (/NPLW.*Reserve/i.test(leagueName)) return { tenant: "capital", league: "NPLW Reserve Grade", competition: "National Premier League Women's" };
