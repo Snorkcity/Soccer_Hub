@@ -761,8 +761,13 @@ export async function previousDeckText(leagueId: number, opponent?: string): Pro
     return Number.isNaN(t) ? NaN : t;
   };
   const oppLc = opponent?.trim().toLowerCase();
+  // Older rows may only carry the opponent inside the jsonb payload.
+  const rowOpp = (r: (typeof rows)[number]): string => {
+    const d = (r.data ?? {}) as Record<string, unknown>;
+    return (r.opponent ?? (typeof d.opponent === "string" ? d.opponent : "")).trim().toLowerCase();
+  };
   const played = rows
-    .filter((r) => !oppLc || (r.opponent ?? "").trim().toLowerCase() === oppLc)
+    .filter((r) => !oppLc || rowOpp(r) === oppLc)
     .map((r) => ({ r, t: time(r.matchDate) }))
     .filter((x) => !Number.isNaN(x.t) && x.t <= now)
     .sort((a, b) => b.t - a.t);
