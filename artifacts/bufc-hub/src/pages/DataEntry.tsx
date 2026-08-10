@@ -3206,7 +3206,10 @@ function EntryWorkspace() {
         </TabsList>
 
         {driblAvailable && (
-          <TabsContent value="dribl" className="mt-6">
+          // forceMount: an in-flight sync (browser-fallback fetch loop + import
+          // posts) lives in this component's state, so unmounting on a tab
+          // switch would kill it. Keep it mounted and just hide it.
+          <TabsContent value="dribl" forceMount className="mt-6 data-[state=inactive]:hidden">
             <DriblSyncCard
               teamId={teamId} seasonId={seasonId}
               onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
