@@ -2922,23 +2922,39 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
   // Create the reviewed club list, then immediately re-fetch so the same sync
   // can now match every fixture against the freshly created clubs.
   const createSuggestedClubs = async () => {
-    const names = [...new Set((clubDrafts ?? []).map(n => n.trim()).filter(Boolean))];
+    // Dedupe case-insensitively — "Croatia" and "croatia" would create two DB
+    // rows that fixture matching can't tell apart.
+    const seen = new Set<string>();
+    const names = (clubDrafts ?? []).map(n => n.trim().replace(/\s+/g, " ")).filter(n => {
+      const key = n.toLowerCase();
+      if (!n || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (names.length === 0 || !leagueId) return;
     setCreatingClubs(true); setErr(null); setOk(null);
     let added = 0;
     const failures: string[] = [];
+    const failedNames: string[] = [];
     for (const name of names) {
       try {
         await createClubMut.mutateAsync({ data: { leagueId, name } });
         added++;
       } catch (e) {
-        failures.push(`${name}: ${errMsg(e)}`);
+        // "Already exists" counts as done — a retry after a partial failure
+        // must not trip over the clubs it created last time.
+        const msg = errMsg(e);
+        if (/already exists/i.test(msg)) { added++; continue; }
+        failures.push(`${name}: ${msg}`);
+        failedNames.push(name);
       }
     }
     setCreatingClubs(false);
     if (failures.length > 0) {
+      // Keep only the failed ones in the list so a retry doesn't resubmit successes.
+      setClubDrafts(failedNames);
       setErr(failures.slice(0, 4).join(" · ") + (failures.length > 4 ? ` (+${failures.length - 4} more)` : ""));
-      return; // leave the list up so the coach can fix and retry
+      return;
     }
     setOk(`Created ${added} club${added === 1 ? "" : "s"} — fetching results…`);
     setClubDrafts(null);
