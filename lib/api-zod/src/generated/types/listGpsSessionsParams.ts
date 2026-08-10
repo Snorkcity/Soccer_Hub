@@ -17,4 +17,8 @@ playerName?: string;
  * Filter by split name (e.g. game, 1st.half, 2nd.half)
  */
 split?: string;
+/**
+ * For GPS-fed leagues only: read a different squad's rows from the source league (e.g. "1sts" so a reserves report can show 1st-grade averages). Ignored for leagues with their own uploads.
+ */
+squad?: string;
 };

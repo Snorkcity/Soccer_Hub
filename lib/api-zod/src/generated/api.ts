@@ -599,7 +599,8 @@ export const ListGpsSessionsQueryParams = zod.object({
   "teamId": zod.coerce.number().optional(),
   "round": zod.coerce.string().optional(),
   "playerName": zod.coerce.string().optional(),
-  "split": zod.coerce.string().optional().describe('Filter by split name (e.g. game, 1st.half, 2nd.half)')
+  "split": zod.coerce.string().optional().describe('Filter by split name (e.g. game, 1st.half, 2nd.half)'),
+  "squad": zod.coerce.string().optional().describe('For GPS-fed leagues only: read a different squad\'s rows from the source league (e.g. \"1sts\" so a reserves report can show 1st-grade averages). Ignored for leagues with their own uploads.\n')
 })
 
 export const ListGpsSessionsResponseItem = zod.object({

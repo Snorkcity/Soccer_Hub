@@ -148,7 +148,7 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const { leagueId, playerId, year, teamId, round, playerName, split } = query.data;
+  const { leagueId, playerId, year, teamId, round, playerName, split, squad } = query.data;
   if (!leagueId) {
     res.status(400).json({ error: "leagueId is required" });
     return;
@@ -178,11 +178,28 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     .where(and(...conditions))
     .orderBy(gpsSessionsTable.sessionDate);
 
-  // Feed: only the configured squad's rows cross the league boundary.
-  const rows = feed ? allRows.filter(r => squadOfRound(r.round) === feed.squad) : allRows;
+  // Feed: only the configured squad's rows cross the league boundary — unless
+  // the caller explicitly asks for the 1sts (e.g. a reserves player report
+  // showing 1st-grade averages). ONLY "1sts" may be requested as an override:
+  // the source league IS the 1sts, so this widens nothing beyond the top
+  // grade; any other squad label is ignored to keep the configured boundary.
+  const wantSquad = feed ? (squad === "1sts" ? "1sts" : feed.squad) : null;
+  const overrideSquad = feed != null && wantSquad !== feed.squad;
+  const rows = wantSquad ? allRows.filter(r => squadOfRound(r.round) === wantSquad) : allRows;
 
   let withOpponent;
-  if (feed) {
+  if (feed && overrideSquad) {
+    // 1sts override rows belong to the SOURCE league's competition — pair them
+    // with the source league's own fixtures, not the feed league's.
+    const fixtureOpps = await fixtureOpponentMap(feed.sourceLeagueId);
+    withOpponent = rows.map(r => {
+      if (r.opponent || !r.round || !r.year) return r;
+      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
+      if (!rd) return r;
+      const opp = fixtureOpps.get(`${r.year}|1sts|${rd[1].toUpperCase()}`);
+      return opp ? { ...r, opponent: opp } : r;
+    });
+  } else if (feed) {
     // Pair shared rounds with the FEED league's own fixtures by round number.
     // A carried GPS opponent that loosely agrees is replaced by the fixture's
     // spelling; a disagreement keeps the carried name (the mismatch endpoint

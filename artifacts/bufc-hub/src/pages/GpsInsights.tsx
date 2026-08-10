@@ -8,6 +8,8 @@ import {
   getListGpsPlayerEmailsQueryKey,
   useListGpsOpponentMismatches,
   getListGpsOpponentMismatchesQueryKey,
+  useListLeagues,
+  getListLeaguesQueryKey,
   saveGpsPlayerEmails,
   sendGpsReportEmail,
   type GpsSession,
@@ -379,12 +381,27 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
   const { data: positions, isLoading: loadingPos } = useListGpsPlayerPositions(
     { query: { enabled: open, queryKey: getListGpsPlayerPositionsQueryKey() } },
   );
-  const loadingAverages = open && (loadingAll || loadingPos);
+
+  // GPS-fed league (e.g. Reserves): also pull the source league's 1sts rows so
+  // the report can offer 1st-grade averages alongside the squad's own.
+  const { data: leagues } = useListLeagues(
+    { query: { enabled: open, queryKey: getListLeaguesQueryKey() } },
+  );
+  const activeLeague = (leagues ?? []).find(l => l.id === activeLeagueId);
+  const isFedLeague = activeLeague?.gpsSourceLeagueId != null;
+  const firstsParams = { leagueId: activeLeagueId ?? 0, year, squad: "1sts" };
+  const { data: firstsRows, isLoading: loadingFirsts } = useListGpsSessions(
+    firstsParams,
+    { query: { enabled: open && activeLeagueId != null && isFedLeague, queryKey: getListGpsSessionsQueryKey(firstsParams) } },
+  );
+
+  const loadingAverages = open && (loadingAll || loadingPos || (isFedLeague && loadingFirsts));
 
   // Every player-game bundle in the year, tagged with its player + squad
   const allBundles = useMemo(() => {
     const byPlayer = new Map<string, GpsSession[]>();
-    for (const r of (allRows ?? []).filter(r => r.tags === "game")) {
+    const pooled = [...(allRows ?? []), ...(isFedLeague ? firstsRows ?? [] : [])];
+    for (const r of pooled.filter(r => r.tags === "game")) {
       if (!r.playerName) continue;
       byPlayer.set(r.playerName, [...(byPlayer.get(r.playerName) ?? []), r]);
     }
@@ -395,7 +412,7 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
       }
     }
     return out;
-  }, [allRows]);
+  }, [allRows, firstsRows, isFedLeague]);
 
   const posOf = useMemo(
     () => new Map((positions ?? []).map(p => [p.playerName, p.position])),

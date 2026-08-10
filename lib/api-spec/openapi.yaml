@@ -506,6 +506,13 @@ paths:
           in: query
           description: Filter by split name (e.g. game, 1st.half, 2nd.half)
           schema: { type: string }
+        - name: squad
+          in: query
+          description: >
+            For GPS-fed leagues only: read a different squad's rows from the
+            source league (e.g. "1sts" so a reserves report can show 1st-grade
+            averages). Ignored for leagues with their own uploads.
+          schema: { type: string }
       responses:
         "200":
           description: List of GPS sessions
