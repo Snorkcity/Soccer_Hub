@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, inArray, desc, ne, isNotNull } from "drizzle-orm";
-import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, gpsPlayerPositionsTable, teamsTable, seasonsTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
+import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, gpsPlayerPositionsTable, teamsTable, seasonsTable, leaguesTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
 import { GetGoalsByOpponentQueryParams, GetGoalsByOpponentResponse } from "@workspace/api-zod"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import {
   GetSeasonSummaryQueryParams,
@@ -3659,10 +3659,25 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
         eq(gpsSessionsTable.year, seasonRow.year),
         eq(gpsSessionsTable.splitName, "game"),
       ));
-    // 1sts rounds only: bare "R7" or "R14-1sts" — reserves/juniors carry other
-    // suffixes. Normalise the suffix away so both spellings pool per round.
-    const allRows = (await gpsRowsQuery).filter(r => /^R\d+(-1sts)?$/i.test(r.round ?? ""));
-    const roundKey = (r: string) => r.replace(/-1sts$/i, "").toUpperCase();
+    // Squad filter: GPS rounds carry a squad suffix ("R14-1sts", "R14-res").
+    // A GPS-fed league (e.g. Reserves) reads the source league's rows scoped
+    // to its configured squad; a league with its own uploads is the 1sts.
+    const squadOfRound = (round: string | null | undefined): string => {
+      if (!round) return "1sts";
+      if (/-(res|r)$/i.test(round)) return "Reserves";
+      if (/-1[78]s$/i.test(round)) return "17s / 18s";
+      return "1sts";
+    };
+    const [leagueRow] = seasonRow.leagueId != null
+      ? await db.select().from(leaguesTable).where(eq(leaguesTable.id, seasonRow.leagueId)).limit(1)
+      : [];
+    const wantSquad = leagueRow?.gpsSourceLeagueId && leagueRow.gpsSourceSquad
+      ? leagueRow.gpsSourceSquad
+      : "1sts";
+    const allRows = (await gpsRowsQuery).filter(
+      r => /^R\d+(-[A-Za-z0-9]+)?$/i.test(r.round ?? "") && squadOfRound(r.round) === wantSquad,
+    );
+    const roundKey = (r: string) => r.replace(/-[A-Za-z0-9]+$/i, "").toUpperCase();
     const gpsRows = allRows.filter(r => roundKey(r.round!) === roundShort.toUpperCase());
     if (gpsRows.length) {
       const positions = await db.select().from(gpsPlayerPositionsTable);
