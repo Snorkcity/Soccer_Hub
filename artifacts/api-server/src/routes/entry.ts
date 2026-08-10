@@ -658,7 +658,10 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
     return;
   }
   const names = b.rows.map(r => r.playerName.trim());
-  if (new Set(names).size !== names.length) {
+  // Compare names case-insensitively — "j.smith" must replace "J.Smith",
+  // not sit beside it as a second player.
+  const nameKeys = names.map(n => n.toLowerCase());
+  if (new Set(nameKeys).size !== names.length) {
     res.status(400).json({ error: "Duplicate player names in the rows — each player should appear once" });
     return;
   }
@@ -695,7 +698,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         eq(leaguePlayerStatsTable.matchId, b.matchId),
         eq(leaguePlayerStatsTable.seasonId, b.seasonId),
         eq(leaguePlayerStatsTable.club, b.club),
-        ...(b.append ? [inArray(leaguePlayerStatsTable.playerName, names)] : []),
+        ...(b.append ? [inArray(sql`lower(${leaguePlayerStatsTable.playerName})`, nameKeys)] : []),
       ))
       .returning({ id: leaguePlayerStatsTable.id })).length;
 
@@ -729,7 +732,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         await tx.delete(playerStatsTable).where(and(
           eq(playerStatsTable.matchId, match.id),
           eq(playerStatsTable.club, b.club),
-          ...(b.append ? [inArray(playerStatsTable.playerName, names)] : []),
+          ...(b.append ? [inArray(sql`lower(${playerStatsTable.playerName})`, nameKeys)] : []),
         ));
         for (const r of b.rows) {
           const name = r.playerName.trim();

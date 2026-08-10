@@ -912,10 +912,13 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
     { query: { enabled: !!matchId, queryKey: getGetPlayerTallyQueryKey({ seasonId, matchId }) } },
   );
 
-  const { data: savedPlayers } = useListEntryPlayerStats(
+  const { data: savedPlayers, isPending: savedPlayersPending } = useListEntryPlayerStats(
     { seasonId, matchId, club },
     { query: { enabled: !!matchId && !!club, queryKey: getListEntryPlayerStatsQueryKey({ seasonId, matchId, club }) } },
   );
+  // Saving needs to know whether a sheet already exists (append vs replace) —
+  // block it until that lookup has settled, or a quick save could full-replace.
+  const savedPlayersLoading = !!matchId && !!club && savedPlayersPending;
 
   // Prefix invalidation (no params) so caches for EVERY fixture refresh — safe even
   // if the coach switches match while a save/delete is still in flight
@@ -1303,7 +1306,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
 
         <div className="flex items-center gap-3">
           <Button
-            disabled={!fixture || !club || rows.length === 0 || rows.some(r => !r.playerName.trim()) || save.isPending}
+            disabled={!fixture || !club || rows.length === 0 || rows.some(r => !r.playerName.trim()) || save.isPending || savedPlayersLoading}
             onClick={() => {
               setOk(null); setErr(null);
               // Hand-added rows on top of an already-saved sheet: append (only
