@@ -151,6 +151,17 @@ function clubCode(name: string): string {
   return name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
 }
 
+/** Lowercase, drop filler tokens like "FC", collapse punctuation/whitespace —
+ * so "Bulls Academy" still matches Dribl's "Bulls FC Academy First Grade Female". */
+function clubMatchKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter(w => w && w !== "fc")
+    .join(" ");
+}
+
 /** Map a Dribl team name ("Canberra Croatia FC All Age Men 1st Grade Male") to a local club name. */
 function matchClub(driblTeamName: string, clubs: string[]): string | null {
   const hay = driblTeamName.toLowerCase();
@@ -158,6 +169,12 @@ function matchClub(driblTeamName: string, clubs: string[]): string | null {
   const sorted = [...clubs].sort((a, b) => b.length - a.length);
   for (const club of sorted) {
     if (hay.includes(club.toLowerCase())) return club;
+  }
+  // Fallback: compare with "FC" and punctuation stripped from both sides
+  const hayKey = clubMatchKey(driblTeamName);
+  for (const club of sorted) {
+    const key = clubMatchKey(club);
+    if (key && hayKey.includes(key)) return club;
   }
   return null;
 }
