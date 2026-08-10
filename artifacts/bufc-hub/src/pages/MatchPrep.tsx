@@ -815,7 +815,7 @@ export default function MatchPrep() {
   if (allSeasons && seasons.length === 0) return <NoAccess />;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-5xl">
+    <div className="p-4 md:p-6 space-y-4 max-w-7xl">
       <div>
         <h1 className="text-2xl font-bold">Match Prep</h1>
         <p className="text-sm text-muted-foreground">Monday briefing and Friday pre-match deck. Your picks save automatically on this device.</p>
