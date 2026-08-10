@@ -1940,8 +1940,9 @@ export default function SeasonStats() {
 
         {/* ════════════════ TEAM INSIGHTS ════════════════ */}
         <TabsContent value="team" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {/* League Ladder */}
+          {/* League Ladder — always on its own row: sharing a half-width column
+              squeezes the table into horizontal scrolling. */}
+          <div className="grid grid-cols-1 gap-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>League Ladder</CardTitle>
