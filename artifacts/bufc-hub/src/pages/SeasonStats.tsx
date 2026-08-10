@@ -2554,8 +2554,9 @@ export default function SeasonStats() {
             showClub={false}
           />
 
-          {/* 6 & 7 — Starts & Appearances + Total Minutes Played */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {/* 6 & 7 — Starts & Appearances + Total Minutes Played. Whole-squad
+              charts (25+ bars): always full width, never side by side. */}
+          <div className="grid grid-cols-1 gap-4">
             <ChartCard
               title="Starts & Appearances"
               description={tlPlayer ? "Click any dot for match details" : "Blue = starts, amber = bench appearances — click a player for their game-by-game record"}
