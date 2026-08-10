@@ -106,9 +106,6 @@ function toDbDate(isoDate: string): string {
   return isoDate.replaceAll("-", "/");
 }
 
-function clubCode(name: string): string {
-  return name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
-}
 
 function StatusLine({ ok, err }: { ok: string | null; err: string | null }) {
   if (!ok && !err) return null;
@@ -203,13 +200,16 @@ function MatchForm({ teamId, seasonId, clubs, options, onSaved }: {
 
   const isBelconnen = homeTeam === FOCUS_CLUB || awayTeam === FOCUS_CLUB;
 
-  // Auto-build the Match ID from round + clubs unless the coach typed their own
+  // Auto-build the Match ID from round + clubs unless the coach typed their
+  // own. Codes are made unique within the league's club set (Sydney Uni vs
+  // Sydney Olympic would otherwise both be SYD).
+  const codes = useMemo(() => clubCodesFor(clubs), [clubs]);
   useEffect(() => {
     if (matchIdEdited) return;
     if (homeTeam && awayTeam) {
-      setMatchId(`${round ? `R${round}` : "R?"}-${clubCode(homeTeam)}-${clubCode(awayTeam)}`);
+      setMatchId(`${round ? `R${round}` : "R?"}-${codes[homeTeam] ?? "?"}-${codes[awayTeam] ?? "?"}`);
     }
-  }, [round, homeTeam, awayTeam, matchIdEdited]);
+  }, [round, homeTeam, awayTeam, matchIdEdited, codes]);
 
   const create = useCreateEntryMatch({ mutation: {
     onSuccess: (res) => {
@@ -886,7 +886,7 @@ type EditableRow = EntryPlayerRow;
 
 // Position codes + the shared position→unit mapping (same units as the GPS
 // Positions tab) — shared with the API server via @workspace/api-zod.
-import { POSITION_CODES as POSITIONS, unitForPosition } from "@workspace/api-zod";
+import { POSITION_CODES as POSITIONS, unitForPosition, clubCodesFor } from "@workspace/api-zod";
 const unitFor = (pos: string): string | null => unitForPosition(pos);
 
 function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {

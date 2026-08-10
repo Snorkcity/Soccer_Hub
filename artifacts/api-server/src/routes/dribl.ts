@@ -17,6 +17,7 @@ import {
   GetDriblConfigQueryParams,
   GetDriblConfigResponse,
   AssembleDriblPreviewBody,
+  clubCodesFor,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { execFile } from "node:child_process";
@@ -147,9 +148,6 @@ export async function driblClubNamesFor(leagueName: string, year: string): Promi
   }
 }
 
-function clubCode(name: string): string {
-  return name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
-}
 
 /** Lowercase, drop filler tokens like "FC", collapse punctuation/whitespace —
  * so "Bulls Academy" still matches Dribl's "Bulls FC Academy First Grade Female". */
@@ -347,6 +345,9 @@ async function buildPreview(
 ): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }>; skippedNoLineups: number }> {
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
+  // Per-league unique 3-letter codes for new match IDs (Sydney Uni/Olympic etc.
+  // would otherwise both be SYD and risk two fixtures sharing one ID).
+  const clubCodes = clubCodesFor(clubs);
   // Existing matches are matched on round + home + away (with match-date as a
   // backup), NOT on the match-ID string — hand-entered games use their own club
   // codes (e.g. BELR vs BEL) so rebuilding the ID from club names won't line up.
@@ -463,7 +464,7 @@ async function buildPreview(
       : undefined;
     // Reuse the hand-entered match ID when the game is already recorded, so
     // goal top-ups land on the right row instead of creating a duplicate.
-    const matchId = existingId ?? (home && away ? `R${round}-${clubCode(home)}-${clubCode(away)}` : `R${round}-?`);
+    const matchId = existingId ?? (home && away ? `R${round}-${clubCodes[home] ?? "?"}-${clubCodes[away] ?? "?"}` : `R${round}-?`);
     const exists = existingId != null;
     // For matches already recorded, only re-fetch detail when the logged goal
     // count falls short of the scoreline (a partial import worth topping up).
