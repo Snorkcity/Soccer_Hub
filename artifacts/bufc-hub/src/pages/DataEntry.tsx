@@ -603,6 +603,7 @@ function GoalForm({ teamId, seasonId, fixtures }: {
     { query: { enabled: !!matchId, queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) } },
   );
 
+  const [viewingGoalId, setViewingGoalId] = useState<number | null>(null);
   const { data: loggedGoals } = useListEntryGoals(
     { seasonId, matchId },
     { query: { enabled: !!matchId, queryKey: getListEntryGoalsQueryKey({ seasonId, matchId }) } },
@@ -756,34 +757,61 @@ function GoalForm({ teamId, seasonId, fixtures }: {
 
         {loggedGoals && loggedGoals.goals.length > 0 && (
           <div className="rounded-md border border-border/60 divide-y divide-border/40">
-            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Goals logged so far — bin one to fix a mistake, then re-enter it</p>
+            <p className="px-3 py-2 text-xs font-medium text-muted-foreground">Goals logged so far — click a row to see what's recorded; bin one to fix a mistake, then re-enter it</p>
             {loggedGoals.goals.map(g => (
-              <div key={g.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-                <span className="w-10 text-muted-foreground">{g.minuteScored != null ? `${g.minuteScored}'` : "—"}</span>
-                <span className="font-medium">{g.scorer ?? "Unknown"}</span>
-                <span className="text-muted-foreground">({g.scorerTeam ?? "?"})</span>
-                {g.assist && <span className="text-xs text-muted-foreground">assist: {g.assist}</span>}
-                {g.goalType && <Badge variant="outline" className="text-xs">{g.goalType}</Badge>}
-                {!g.goalType && !g.assistType && !g.finishType && (
-                  <Badge variant="outline" className="text-xs text-muted-foreground">details to add</Badge>
+              <div key={g.id}>
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40"
+                  onClick={() => setViewingGoalId(v => (v === g.id ? null : g.id))}
+                >
+                  <span className="w-10 text-muted-foreground">{g.minuteScored != null ? `${g.minuteScored}'` : "—"}</span>
+                  <span className="font-medium">{g.scorer ?? "Unknown"}</span>
+                  <span className="text-muted-foreground">({g.scorerTeam ?? "?"})</span>
+                  {g.assist && <span className="text-xs text-muted-foreground">assist: {g.assist}</span>}
+                  {g.goalType && <Badge variant="outline" className="text-xs">{g.goalType}</Badge>}
+                  {!g.goalType && !g.assistType && !g.finishType && (
+                    <Badge variant="outline" className="text-xs text-muted-foreground">details to add</Badge>
+                  )}
+                  {editingGoalId === g.id && <Badge className="text-xs">editing below</Badge>}
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 ml-auto text-muted-foreground"
+                    disabled={update.isPending}
+                    onClick={(e) => { e.stopPropagation(); startGoalEdit(g); }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 text-muted-foreground"
+                    disabled={removeGoal.isPending}
+                    onClick={(e) => { e.stopPropagation(); setOk(null); setErr(null); if (editingGoalId === g.id) cancelGoalEdit(); removeGoal.mutate({ goalId: g.id }); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {viewingGoalId === g.id && (
+                  <div className="px-3 pb-2.5 pt-0.5 bg-muted/20">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-xs">
+                      {([
+                        ["Goal type", g.goalType],
+                        ["Assist type", g.assistType],
+                        ["Source", g.source],
+                        ["How penetrated", g.howPenetrated],
+                        ["Buildup lane", g.buildupLane],
+                        ["Finish", g.finishType],
+                        ["Pass string", g.passString],
+                        ["First-time finish", g.firstTimeFinish == null ? null : g.firstTimeFinish ? "Yes" : "No"],
+                        ["Where from", g.goalX != null && g.goalY != null ? `${Math.round(g.goalY)} yds out, ${g.goalX < 40 ? "left" : g.goalX > 60 ? "right" : "central"}` : null],
+                      ] as [string, string | null | undefined][]).map(([label, value]) => (
+                        <div key={label}>
+                          <span className="text-muted-foreground">{label}: </span>
+                          <span className={value ? "" : "text-muted-foreground/60 italic"}>{value || "not recorded"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {editingGoalId === g.id && <Badge className="text-xs">editing below</Badge>}
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7 ml-auto text-muted-foreground"
-                  disabled={update.isPending}
-                  onClick={() => startGoalEdit(g)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7 text-muted-foreground"
-                  disabled={removeGoal.isPending}
-                  onClick={() => { setOk(null); setErr(null); if (editingGoalId === g.id) cancelGoalEdit(); removeGoal.mutate({ goalId: g.id }); }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
               </div>
             ))}
           </div>
