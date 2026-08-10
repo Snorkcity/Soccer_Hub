@@ -18,4 +18,6 @@ export interface EntryPlayerStatsBody {
   year?: string | null;
   rows: EntryPlayerRow[];
   ifMissing?: boolean;
+  /** Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet */
+  append?: boolean;
 }

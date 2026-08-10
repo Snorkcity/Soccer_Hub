@@ -3046,7 +3046,8 @@ export const SaveEntryPlayerStatsBody = zod.object({
   "started": zod.boolean(),
   "appearance": zod.boolean()
 })),
-  "ifMissing": zod.boolean().optional()
+  "ifMissing": zod.boolean().optional(),
+  "append": zod.boolean().optional().describe('Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet')
 })
 
 export const SaveEntryPlayerStatsResponse = zod.object({

@@ -900,8 +900,11 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Screenshot-read rows replace the whole saved sheet on save; hand-added
+  // rows on top of an already-saved sheet are appended instead.
+  const [rowsFromExtract, setRowsFromExtract] = useState(false);
   const fixture = fixtures.find(f => f.matchId === matchId);
-  useEffect(() => { setClub(""); setRows([]); setWarnings([]); setOk(null); setErr(null); }, [matchId]);
+  useEffect(() => { setClub(""); setRows([]); setWarnings([]); setOk(null); setErr(null); setRowsFromExtract(false); }, [matchId]);
 
   const queryClient = useQueryClient();
   const { data: playerTally } = useGetPlayerTally(
@@ -1005,6 +1008,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
   const extract = useExtractPlayersFromImage({ mutation: {
     onSuccess: (res) => {
       setRows(res.rows);
+      setRowsFromExtract(true);
       setWarnings(res.warnings);
       setOk(`Read ${res.rows.length} players — check the table, fix anything, then save`);
     },
@@ -1017,7 +1021,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
       // Prefix invalidation so every fixture's tally refreshes, even mid-flight
       invalidatePlayerQueries();
       // Reset back to the default look, ready for the next team sheet
-      setRows([]); setWarnings([]); setClub("");
+      setRows([]); setWarnings([]); setClub(""); setRowsFromExtract(false);
     },
     onError: (e) => setErr(errMsg(e)),
   }});
@@ -1221,7 +1225,7 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
             {rows.length > 0 && (
               <Button
                 variant="outline"
-                onClick={() => { setRows([]); setWarnings([]); setOk(null); setErr(null); }}
+                onClick={() => { setRows([]); setWarnings([]); setOk(null); setErr(null); setRowsFromExtract(false); }}
               >
                 <X className="h-4 w-4 mr-2" />Cancel — clear table
               </Button>
@@ -1302,7 +1306,11 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
             disabled={!fixture || !club || rows.length === 0 || rows.some(r => !r.playerName.trim()) || save.isPending}
             onClick={() => {
               setOk(null); setErr(null);
-              save.mutate({ data: { teamId, seasonId, matchId, club, rows } });
+              // Hand-added rows on top of an already-saved sheet: append (only
+              // same-named players are replaced). Screenshot reads keep the
+              // old behaviour — re-saving replaces the whole sheet.
+              const append = !rowsFromExtract && (savedPlayers?.rows.length ?? 0) > 0;
+              save.mutate({ data: { teamId, seasonId, matchId, club, rows, ...(append ? { append: true } : {}) } });
             }}
           >
             {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}

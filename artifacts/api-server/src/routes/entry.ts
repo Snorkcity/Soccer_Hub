@@ -686,6 +686,8 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
 
   // Single transaction: replace (delete+insert) both the league rows and the
   // legacy mirror atomically — a failed insert can never wipe existing rows.
+  // append mode (hand-added rows on top of a saved sheet) deletes only
+  // same-named players, so the rest of the line-up is left alone.
   const { replaced, belconnenCopies } = await db.transaction(async (tx) => {
     const replaced = (await tx
       .delete(leaguePlayerStatsTable)
@@ -693,6 +695,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         eq(leaguePlayerStatsTable.matchId, b.matchId),
         eq(leaguePlayerStatsTable.seasonId, b.seasonId),
         eq(leaguePlayerStatsTable.club, b.club),
+        ...(b.append ? [inArray(leaguePlayerStatsTable.playerName, names)] : []),
       ))
       .returning({ id: leaguePlayerStatsTable.id })).length;
 
@@ -726,6 +729,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         await tx.delete(playerStatsTable).where(and(
           eq(playerStatsTable.matchId, match.id),
           eq(playerStatsTable.club, b.club),
+          ...(b.append ? [inArray(playerStatsTable.playerName, names)] : []),
         ));
         for (const r of b.rows) {
           const name = r.playerName.trim();

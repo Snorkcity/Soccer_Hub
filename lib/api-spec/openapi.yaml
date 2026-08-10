@@ -5436,6 +5436,9 @@ components:
           type: array
           items: { $ref: "#/components/schemas/EntryPlayerRow" }
         ifMissing: { type: boolean }
+        append:
+          type: boolean
+          description: Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet
       required: [teamId, seasonId, matchId, club, rows]
 
     EntryPlayerStatsResponse:
