@@ -9,6 +9,7 @@ A league can be configured to have NO GPS uploads of its own and instead read an
 **How to apply:**
 - The feed is strictly read-only: every GPS write path must reject a fed league. Any NEW GPS write route needs the same guard.
 - Opponent pairing for a fed league uses the fed league's OWN fixtures, joined by round number only — opponent spellings differ between imports, so loose name agreement adopts the fixture spelling, disagreement keeps the carried name and is surfaced as a mismatch, and **no fixture always clears the opponent** (even a carried one — it came from another competition's upload). Never silently misattribute; the UI shows an explicit "couldn't match" state.
+- One deliberate exception: `/gps-sessions?squad=1sts` lets a FED league read the source league's 1sts rows (for "1st-grade average" comparisons in reserves player reports). ONLY "1sts" is honoured — any other squad label silently falls back to the configured feed squad. Override rows pair opponents against the SOURCE league's own fixtures, not the fed league's.
 - League-privacy middleware stays untouched: requests only ever name the fed leagueId; the squad-scoped read inside the GPS routes is the sole, deliberate crossover.
 - Configuring a feed is superadmin-only (it crosses league-privacy lines) and lives with league setup in Data Entry.
 - Alias pooling and positions are global (not league-keyed), so canonical names carry through the feed for free.
