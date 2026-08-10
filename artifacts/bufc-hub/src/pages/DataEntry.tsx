@@ -134,7 +134,7 @@ const DEFAULT_GOAL_VOCAB: GoalVocabResponse = {
   howPenetrated: ["Through", "Around", "Over"],
   buildupLanes: ["Left", "Centre", "Right"],
   finishTypes: ["Right Foot", "Left Foot", "Head"],
-  sources: ["Buildup", "Counter", "Press"],
+  sources: ["Buildup", "Counter", "Press", "Direct"],
 };
 
 /** Inswinger/Outswinger only make sense on dead-ball crosses: corners and free kicks. */
@@ -828,15 +828,17 @@ function GoalForm({ teamId, seasonId, fixtures }: {
           <LockedSelect label="How penetrated" value={howPenetrated} onChange={setHowPenetrated} options={vocab.howPenetrated} className="w-[7.75rem] shrink-0" />
           <LockedSelect label="Buildup lane" value={buildupLane} onChange={setBuildupLane} options={vocab.buildupLanes} className="w-28 shrink-0" />
           <LockedSelect label="Finish" value={finishType} onChange={setFinishType} options={vocab.finishTypes} className="w-32 shrink-0" />
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
           <Field label="Pass string" className="w-24 shrink-0">
             <Input type="number" min={0} value={passString} onChange={e => setPassString(e.target.value)} title="Passes in buildup" />
           </Field>
+          <label className="flex items-center gap-2 text-sm cursor-pointer pb-2.5">
+            <Checkbox checked={firstTime} onCheckedChange={v => setFirstTime(v === true)} />
+            First-time finish
+          </label>
         </div>
-
-        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
-          <Checkbox checked={firstTime} onCheckedChange={v => setFirstTime(v === true)} />
-          First-time finish
-        </label>
 
         <GoalSpotPicker goalX={goalX} goalY={goalY} onPick={(x, y) => { setGoalX(x); setGoalY(y); }} />
 

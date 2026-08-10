@@ -495,7 +495,7 @@ export async function runStartupMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE league_goals ADD COLUMN IF NOT EXISTS source text`);
   await db.execute(sql`
     INSERT INTO goal_vocab (field, options) VALUES
-      ('sources', '["Buildup","Counter","Press"]'::jsonb)
+      ('sources', '["Buildup","Counter","Press","Direct"]'::jsonb)
     ON CONFLICT (field) DO NOTHING
   `);
   await db.execute(sql`
