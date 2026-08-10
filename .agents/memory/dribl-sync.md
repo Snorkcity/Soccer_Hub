@@ -14,6 +14,8 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 - Dribl league feed name is derived from our league name in `driblLeagueFor`: NPLM → "NPLM 1st Grade", NPLW → "NPLW 1st Grade", NPLW Reserves → "NPLW Reserve Grade". Extend there for new leagues; check `/NPLW.*Reserve/` style specifics before the broader match.
 - **Multi-tenant (Aug 2026):** driblLeagueFor also returns a tenant slug (capital = Capital Football, fv = Football Victoria); Origin/Referer headers, tenant/season/competition caches all keyed per tenant; dribl-config sends driblTenantSlug so the browser fallback uses the right federation. "VIC NPLW" → fv / "NPL VIC Women" / competition "Senol NPL Victoria Women" (sponsor name in competition title — don't match on a generic "NPL Women"). Same data shape as ACT incl. matchcentre goal events and lineups.
 
+**NSW (Aug 2026):** Football NSW tenant slug is **"fdprod"** (name FNSW; Match Centre lives at competitions.footballnsw.com.au — findable via `/tenants?mc_link=competitions.footballnsw.com.au` too, but the normal `?slug=fdprod` + `https://fdprod.dribl.com` Origin works). "NSW NPLW" → First Grade, "NSW NPLW U23" → U23, competition "NPL Women's NSW". Cloudflare gotcha: a bare `Mozilla/5.0` UA gets blocked — always use the full Chrome UA string.
+
 **Why:** Dribl runs all AU federated leagues, so this pattern generalises to any club/league later.
 
 **Matching existing games:** never match on the rebuilt match-ID string — hand-entered IDs use their own club codes (e.g. BELR vs BEL). Match on round+home+away (fallback date+home+away) and reuse the existing match ID so top-ups hit the right row.
