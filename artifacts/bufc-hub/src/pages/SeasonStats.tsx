@@ -1149,12 +1149,14 @@ const AXIS_STYLE = {
 };
 
 // Short-name helper: returns first name, falling back to "First L." if a
-// duplicate first name exists within the provided squad list.
+// DIFFERENT full name shares the first name. Single-word names never get an
+// initial bolted on (it would just double the name, e.g. "Sammy S."), and
+// repeated identical names don't count as duplicates.
 function makeShortName(name: string, allNames: string[]): string {
-  const first = name.split(" ")[0];
-  const dupes = allNames.filter(n => n.split(" ")[0] === first);
-  if (dupes.length > 1) {
-    const parts = name.split(" ");
+  const parts = name.split(" ");
+  const first = parts[0];
+  const dupes = new Set(allNames.filter(n => n.split(" ")[0] === first));
+  if (dupes.size > 1 && parts.length > 1) {
     const last = parts[parts.length - 1];
     return `${first} ${last[0]}.`;
   }
