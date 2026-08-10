@@ -10,15 +10,22 @@
 //        and posts trimmed payloads here for assembly against the database.
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable, driblNameMapTable, driblNoLineupTable } from "@workspace/db";
+import { db, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable, seasonsTable, leaguesTable, clubsTable, driblNameMapTable, driblNoLineupTable, playerStatsTable, playersTable, goalsTable } from "@workspace/db";
 import {
   GetDriblPreviewQueryParams,
   GetDriblPreviewResponse,
   GetDriblConfigQueryParams,
   GetDriblConfigResponse,
   AssembleDriblPreviewBody,
+  ListDriblNameMapQueryParams,
+  ListDriblNameMapResponse,
+  UpdateDriblNameMapBody,
+  UpdateDriblNameMapResponse,
+  DeleteDriblNameMapResponse,
   clubCodesFor,
 } from "@workspace/api-zod";
+import { leagueIdForSeason, mayTouchLeagueRow } from "../middlewares/entryAuth";
+import { pgErrorCode } from "../lib/pgError";
 import { logger } from "../lib/logger";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -263,6 +270,11 @@ type NameBook = {
   byFull: Map<string, string>; // lower-cased full name -> display name
   taken: Set<string>;          // display names already claimed
   fresh: Array<{ fullName: string; displayName: string }>; // new claims to persist
+  /** lower-cased name → exact spelling of names already in saved stat rows for this club. */
+  roster: Map<string, string>;
+  /** lower-cased first name → exact roster spelling, only when that roster name
+   * is a bare first name AND unique — so "amber" → "Amber" but never a guess. */
+  rosterFirst: Map<string, string>;
 };
 
 function claimName(book: NameBook, full: string, nameFormat: string): string {
@@ -270,9 +282,25 @@ function claimName(book: NameBook, full: string, nameFormat: string): string {
   const existing = book.byFull.get(key);
   if (existing) return existing;
   const variants = nameVariants(full, nameFormat);
-  let pick = variants[variants.length - 1];
+  let pick: string | null = null;
+  // Prefer a spelling the coach already uses in saved sheets: an exact variant
+  // hit ("S.Wells" / "Wells") or an unambiguous bare-first-name hit ("Amber"
+  // for "Amber Toseland"). This is what stops a Dribl sync re-creating surname
+  // duplicates of hand-entered players.
   for (const v of variants) {
-    if (!book.taken.has(v)) { pick = v; break; }
+    const hit = book.roster.get(v.toLowerCase());
+    if (hit && !book.taken.has(hit)) { pick = hit; break; }
+  }
+  if (!pick) {
+    const firstName = full.trim().split(/\s+/)[0];
+    const hit = firstName ? book.rosterFirst.get(firstName.toLowerCase()) : undefined;
+    if (hit && !book.taken.has(hit)) pick = hit;
+  }
+  if (!pick) {
+    pick = variants[variants.length - 1];
+    for (const v of variants) {
+      if (!book.taken.has(v)) { pick = v; break; }
+    }
   }
   book.byFull.set(key, pick);
   book.taken.add(pick);
@@ -436,10 +464,40 @@ async function buildPreview(
     .select({ club: driblNameMapTable.club, fullName: driblNameMapTable.fullName, displayName: driblNameMapTable.displayName })
     .from(driblNameMapTable)
     .where(eq(driblNameMapTable.seasonId, seasonId));
+  // Names already in saved stat rows per club (hand-entered sheets included) —
+  // fresh claims prefer these spellings so a Dribl surname never duplicates a
+  // player the coach already entered under a first name.
+  const rosterRows = await db
+    .selectDistinct({ club: leaguePlayerStatsTable.club, playerName: leaguePlayerStatsTable.playerName })
+    .from(leaguePlayerStatsTable)
+    .where(eq(leaguePlayerStatsTable.seasonId, seasonId));
+  const rosterByClub = new Map<string, string[]>();
+  for (const r of rosterRows) {
+    if (!r.club) continue;
+    const list = rosterByClub.get(r.club) ?? [];
+    list.push(r.playerName);
+    rosterByClub.set(r.club, list);
+  }
   const booksByClub = new Map<string, NameBook>();
   const bookFor = (club: string): NameBook => {
     let book = booksByClub.get(club);
-    if (!book) { book = { byFull: new Map(), taken: new Set(), fresh: [] }; booksByClub.set(club, book); }
+    if (!book) {
+      const roster = new Map<string, string>();
+      const firstCounts = new Map<string, string[]>();
+      for (const name of rosterByClub.get(club) ?? []) {
+        roster.set(name.toLowerCase(), name);
+        // Bare first names only (single token, no dot) qualify for first-name matching.
+        if (/^[^\s.]+$/.test(name)) {
+          const list = firstCounts.get(name.toLowerCase()) ?? [];
+          list.push(name);
+          firstCounts.set(name.toLowerCase(), list);
+        }
+      }
+      const rosterFirst = new Map<string, string>();
+      for (const [k, list] of firstCounts) if (list.length === 1) rosterFirst.set(k, list[0]);
+      book = { byFull: new Map(), taken: new Set(), fresh: [], roster, rosterFirst };
+      booksByClub.set(club, book);
+    }
     return book;
   };
   for (const r of mapRows) {
@@ -599,6 +657,39 @@ async function buildPreview(
 
   matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
 
+  // Flag display names claimed FRESH this sync (no prior dribl_name_map row) on
+  // each club's line-up block, so the coach gets a review nudge before the
+  // roster silently grows a new spelling (e.g. a surname variant of a player
+  // they already entered by first name).
+  const freshByClub = new Map<string, Set<string>>();
+  for (const [club, book] of booksByClub) {
+    // A fresh claim that adopted an existing roster spelling is NOT new to the
+    // coach — only genuinely unseen names deserve the warning.
+    const unseen = book.fresh.map(f => f.displayName).filter(n => !book.roster.has(n.toLowerCase()));
+    if (unseen.length > 0) freshByClub.set(club, new Set(unseen));
+  }
+  for (const m of matches) {
+    const shownInStats = new Set<string>();
+    for (const ps of m.playerStats as Array<{ club: string; rows: Array<{ playerName: string }>; newNames?: string[] }>) {
+      const fresh = freshByClub.get(ps.club);
+      if (!fresh) continue;
+      const hits = [...new Set(ps.rows.map(r => r.playerName).filter(n => fresh.has(n)))];
+      if (hits.length > 0) {
+        ps.newNames = hits;
+        for (const n of hits) shownInStats.add(`${ps.club}|${n}`);
+      }
+    }
+    // Goal-only imports (no line-up published) can still learn a brand-new
+    // scorer name — surface those on the match too, minus any already flagged
+    // via a line-up block, so no fresh name slips in unreviewed.
+    const goalHits = [...new Set(
+      (m.goals as Array<{ scorerTeam: string; scorer: string }>)
+        .filter(g => g.scorer && g.scorer !== "Own Goal" && freshByClub.get(g.scorerTeam)?.has(g.scorer) && !shownInStats.has(`${g.scorerTeam}|${g.scorer}`))
+        .map(g => `${g.scorer} (${g.scorerTeam})`),
+    )];
+    if (goalHits.length > 0) m.newGoalNames = goalHits;
+  }
+
   // Persist any newly claimed display names so they stay stable forever.
   // Row-by-row with onConflictDoNothing: if a concurrent run already claimed a
   // full name or display name, that claim wins and this run's alternative is
@@ -633,6 +724,155 @@ async function buildPreview(
 
   return { matches, needDetail, needLineups, skippedNoLineups };
 }
+
+// ── Name-map management ───────────────────────────────────────────────────────
+// The coach's control over what Dribl full names appear as in the roster.
+// Editing a mapping also renames every already-saved stat/goal row this season,
+// so fixing a surname variant merges it into the preferred name instead of
+// leaving a duplicate behind.
+
+router.get("/entry/dribl-name-map", async (req, res): Promise<void> => {
+  const query = ListDriblNameMapQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { seasonId, club } = query.data;
+  const rows = await db
+    .select({ id: driblNameMapTable.id, club: driblNameMapTable.club, fullName: driblNameMapTable.fullName, displayName: driblNameMapTable.displayName })
+    .from(driblNameMapTable)
+    .where(and(eq(driblNameMapTable.seasonId, seasonId), eq(driblNameMapTable.club, club)));
+  // How many saved stat rows each display name currently owns — shows the
+  // coach which mappings actually carry data.
+  const statRows = await db
+    .select({ playerName: leaguePlayerStatsTable.playerName })
+    .from(leaguePlayerStatsTable)
+    .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), eq(leaguePlayerStatsTable.club, club)));
+  const counts = new Map<string, number>();
+  for (const r of statRows) counts.set(r.playerName, (counts.get(r.playerName) ?? 0) + 1);
+  res.json(ListDriblNameMapResponse.parse({
+    rows: rows
+      .map(r => ({ ...r, statRows: counts.get(r.displayName) ?? 0 }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  }));
+});
+
+router.put("/entry/dribl-name-map/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const body = UpdateDriblNameMapBody.safeParse(req.body);
+  if (!Number.isInteger(id) || !body.success) {
+    res.status(400).json({ error: body.success ? "Bad id" : body.error.message });
+    return;
+  }
+  const [row] = await db.select().from(driblNameMapTable).where(eq(driblNameMapTable.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Mapping not found" });
+    return;
+  }
+  // Id-addressed write: the central middleware can't see the league scope, so
+  // check against the row's own league here.
+  const leagueId = await leagueIdForSeason(row.seasonId);
+  if (leagueId == null || !(await mayTouchLeagueRow(req, leagueId, "data-entry"))) {
+    res.status(403).json({ error: "No access to this league" });
+    return;
+  }
+  const newName = body.data.displayName.trim();
+  const oldName = row.displayName;
+  if (!newName || newName === oldName) {
+    res.json(UpdateDriblNameMapResponse.parse({ displayName: oldName, renamedStats: 0, renamedGoals: 0, renamedMirror: 0 }));
+    return;
+  }
+  const [season] = await db.select({ year: seasonsTable.year }).from(seasonsTable).where(eq(seasonsTable.id, row.seasonId));
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.update(driblNameMapTable).set({ displayName: newName }).where(eq(driblNameMapTable.id, id));
+      // League tables — what the roster and player charts are built from.
+      const renamedStats = (await tx.update(leaguePlayerStatsTable).set({ playerName: newName })
+        .where(and(
+          eq(leaguePlayerStatsTable.seasonId, row.seasonId),
+          eq(leaguePlayerStatsTable.club, row.club),
+          eq(leaguePlayerStatsTable.playerName, oldName),
+        )).returning({ id: leaguePlayerStatsTable.id })).length;
+      const renamedScorers = (await tx.update(leagueGoalsTable).set({ scorer: newName })
+        .where(and(
+          eq(leagueGoalsTable.seasonId, row.seasonId),
+          eq(leagueGoalsTable.scorerTeam, row.club),
+          eq(leagueGoalsTable.scorer, oldName),
+        )).returning({ id: leagueGoalsTable.id })).length;
+      const renamedAssists = (await tx.update(leagueGoalsTable).set({ assist: newName })
+        .where(and(
+          eq(leagueGoalsTable.seasonId, row.seasonId),
+          eq(leagueGoalsTable.scorerTeam, row.club),
+          eq(leagueGoalsTable.assist, oldName),
+        )).returning({ id: leagueGoalsTable.id })).length;
+      // Legacy focus-club mirror (player_stats/players/goals) — year-scoped.
+      let renamedMirror = 0;
+      if (season?.year) {
+        const mirrorRows = await tx.update(playerStatsTable).set({ playerName: newName })
+          .where(and(
+            eq(playerStatsTable.club, row.club),
+            eq(playerStatsTable.year, season.year),
+            eq(playerStatsTable.playerName, oldName),
+          )).returning({ id: playerStatsTable.id });
+        renamedMirror += mirrorRows.length;
+        if (mirrorRows.length > 0) {
+          // Keep players rows consistent: repoint stats at an existing player
+          // with the new name, or rename the old player row when there isn't one.
+          const [target] = await tx.select({ id: playersTable.id }).from(playersTable)
+            .where(and(eq(playersTable.name, newName), eq(playersTable.club, row.club)));
+          if (target) {
+            for (const m of mirrorRows) {
+              await tx.update(playerStatsTable).set({ playerId: target.id }).where(eq(playerStatsTable.id, m.id));
+            }
+          } else {
+            await tx.update(playersTable).set({ name: newName })
+              .where(and(eq(playersTable.name, oldName), eq(playersTable.club, row.club)));
+          }
+        }
+        renamedMirror += (await tx.update(goalsTable).set({ scorer: newName })
+          .where(and(
+            eq(goalsTable.seasonId, row.seasonId),
+            eq(goalsTable.scorerTeam, row.club),
+            eq(goalsTable.scorer, oldName),
+          )).returning({ id: goalsTable.id })).length;
+        renamedMirror += (await tx.update(goalsTable).set({ assist: newName })
+          .where(and(
+            eq(goalsTable.seasonId, row.seasonId),
+            eq(goalsTable.scorerTeam, row.club),
+            eq(goalsTable.assist, oldName),
+          )).returning({ id: goalsTable.id })).length;
+      }
+      return { renamedStats, renamedGoals: renamedScorers + renamedAssists, renamedMirror };
+    });
+    res.json(UpdateDriblNameMapResponse.parse({ displayName: newName, ...result }));
+  } catch (e) {
+    if (pgErrorCode(e) === "23505") {
+      res.status(409).json({ error: `"${newName}" is already used by another mapped player in ${row.club} this season` });
+      return;
+    }
+    throw e;
+  }
+});
+
+router.delete("/entry/dribl-name-map/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Bad id" });
+    return;
+  }
+  const [row] = await db.select().from(driblNameMapTable).where(eq(driblNameMapTable.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Mapping not found" });
+    return;
+  }
+  const leagueId = await leagueIdForSeason(row.seasonId);
+  if (leagueId == null || !(await mayTouchLeagueRow(req, leagueId, "data-entry"))) {
+    res.status(403).json({ error: "No access to this league" });
+    return;
+  }
+  await db.delete(driblNameMapTable).where(eq(driblNameMapTable.id, id));
+  res.json(DeleteDriblNameMapResponse.parse({ deleted: true }));
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 

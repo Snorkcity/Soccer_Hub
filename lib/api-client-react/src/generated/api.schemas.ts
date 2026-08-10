@@ -2164,6 +2164,8 @@ export interface DriblPreviewClubStats {
   club: string;
   exists: boolean;
   rows: DriblPreviewPlayerRow[];
+  /** Display names claimed fresh this sync (no prior mapping) — review them in the player name map before/after importing */
+  newNames?: string[];
 }
 
 export interface DriblPreviewMatch {
@@ -2184,6 +2186,43 @@ export interface DriblPreviewMatch {
   goals: DriblPreviewGoal[];
   statsOnly: boolean;
   playerStats: DriblPreviewClubStats[];
+  /** Display names claimed fresh this sync from goal events with no line-up block (e.g. "S.Wells (Belconnen)") — review in the player name map */
+  newGoalNames?: string[];
+}
+
+export interface DriblNameMapEntry {
+  id: number;
+  club: string;
+  fullName: string;
+  displayName: string;
+  /** Saved league player-stat rows currently using this display name */
+  statRows: number;
+}
+
+export interface DriblNameMapListResponse {
+  rows: DriblNameMapEntry[];
+}
+
+export interface DriblNameMapUpdateBody {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  displayName: string;
+}
+
+export interface DriblNameMapUpdateResponse {
+  displayName: string;
+  /** League player-stat rows renamed */
+  renamedStats: number;
+  /** League goal rows (scorer or assist) renamed */
+  renamedGoals: number;
+  /** Legacy focus-club mirror rows renamed */
+  renamedMirror: number;
+}
+
+export interface DriblNameMapDeleteResponse {
+  deleted: boolean;
 }
 
 export interface DriblNeedLineup {
@@ -3712,6 +3751,11 @@ seasonId: number;
  * Re-check games previously remembered as having no published team sheet
  */
 recheckNoLineups?: boolean;
+};
+
+export type ListDriblNameMapParams = {
+seasonId: number;
+club: string;
 };
 
 export type ListEntryPlayerStatsParams = {

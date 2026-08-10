@@ -65,6 +65,11 @@ import {
   getDriblPreview,
   getDriblConfig,
   assembleDriblPreview,
+  useListDriblNameMap,
+  getListDriblNameMapQueryKey,
+  useUpdateDriblNameMap,
+  useDeleteDriblNameMap,
+  type DriblNameMapEntry,
   type DriblPreviewResponse,
   type DriblRawFixture,
   type DriblRawLineup,
@@ -3190,6 +3195,15 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                           {m.goals.length > 0 && ` · ${m.goals.length} goal${m.goals.length === 1 ? "" : "s"} with scorer + minute`}
                           {m.playerStats.length > 0 && ` · line-ups: ${m.playerStats.map(ps => `${ps.club} ${ps.rows.length}`).join(", ")}`}
                         </div>
+                        {(m.playerStats.some(ps => (ps.newNames?.length ?? 0) > 0) || (m.newGoalNames?.length ?? 0) > 0) && (
+                          <div className="text-xs text-chart-4 mt-0.5">
+                            New player names this sync: {[
+                              ...m.playerStats.flatMap(ps => (ps.newNames ?? []).map(n => `${n} (${ps.club})`)),
+                              ...(m.newGoalNames ?? []),
+                            ].join(", ")}
+                            {" — check them in the Player name map below so they don't duplicate someone already in the roster."}
+                          </div>
+                        )}
                       </div>
                       {m.unmatched.length > 0 ? (
                         <Badge variant="outline" className="shrink-0 text-chart-4 border-chart-4" title={m.unmatched.join("; ")}>
@@ -3225,6 +3239,107 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
   );
 }
 
+function DriblNameMapCard({ seasonId, clubs, defaultClub }: {
+  seasonId: number; clubs: string[]; defaultClub: string;
+}) {
+  const queryClient = useQueryClient();
+  const [club, setClub] = useState(defaultClub);
+  useEffect(() => { setClub(defaultClub); }, [defaultClub, seasonId]);
+  const effectiveClub = clubs.includes(club) ? club : (clubs.includes(defaultClub) ? defaultClub : clubs[0] ?? "");
+
+  const params = { seasonId, club: effectiveClub };
+  const { data } = useListDriblNameMap(params, {
+    query: { enabled: !!effectiveClub, queryKey: getListDriblNameMapQueryKey(params) },
+  });
+  const rows = data?.rows ?? [];
+
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: getListDriblNameMapQueryKey(params) });
+  };
+
+  const update = useUpdateDriblNameMap({ mutation: {
+    onSuccess: (res) => {
+      const renamed = res.renamedStats + res.renamedGoals + res.renamedMirror;
+      setOk(renamed > 0
+        ? `Renamed to ${res.displayName} — ${renamed} saved row${renamed === 1 ? "" : "s"} updated with it`
+        : `Saved — future syncs will use ${res.displayName}`);
+      setDrafts({});
+      refresh();
+    },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+  const remove = useDeleteDriblNameMap({ mutation: {
+    onSuccess: () => { setOk("Mapping removed — the next sync will claim a fresh name for that player."); refresh(); },
+    onError: (e) => setErr(errMsg(e)),
+  }});
+
+  const fmtFull = (full: string) => full.replace(/\b\w/g, ch => ch.toUpperCase());
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Player name map</CardTitle>
+        <CardDescription>
+          What each Dribl full name shows up as in the roster and charts. Change a display name to your preferred
+          short form (e.g. "Toseland" → "Amber") and every saved stat and goal row this season is renamed with it —
+          future syncs then keep using your name instead of re-creating the Dribl one.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Field label="Club" className="max-w-xs">
+          <Select value={effectiveClub} onValueChange={v => { setClub(v); setDrafts({}); setOk(null); setErr(null); }}>
+            <SelectTrigger><SelectValue placeholder="Club" /></SelectTrigger>
+            <SelectContent>{clubs.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No mapped names for {effectiveClub || "this club"} yet — they appear here after a Dribl sync brings in team sheets or goal scorers.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {rows.map((r: DriblNameMapEntry) => {
+              const draft = drafts[r.id] ?? r.displayName;
+              const dirty = draft.trim() !== r.displayName && draft.trim() !== "";
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm">{fmtFull(r.fullName)}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {r.statRows > 0 ? `${r.statRows} saved row${r.statRows === 1 ? "" : "s"}` : "no saved rows yet"}
+                    </span>
+                  </div>
+                  <Input
+                    className="h-8 w-40"
+                    value={draft}
+                    onChange={e => setDrafts(d => ({ ...d, [r.id]: e.target.value }))}
+                  />
+                  <Button
+                    size="sm" variant={dirty ? "default" : "outline"} disabled={!dirty || update.isPending}
+                    onClick={() => { setOk(null); setErr(null); update.mutate({ id: r.id, data: { displayName: draft.trim() } }); }}
+                  >
+                    {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  </Button>
+                  <Button
+                    size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={remove.isPending}
+                    title="Forget this mapping (saved rows keep their current name)"
+                    onClick={() => { setOk(null); setErr(null); remove.mutate({ id: r.id }); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <StatusLine ok={ok} err={err} />
+      </CardContent>
+    </Card>
+  );
+}
 function EntryWorkspace() {
   const queryClient = useQueryClient();
   const { data: teams } = useListTeams();
@@ -3275,6 +3390,8 @@ function EntryWorkspace() {
     () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),
     [clubs, season],
   );
+  const { data: leagues } = useListLeagues();
+  const focusClub = leagues?.find(l => l.id === season?.leagueId)?.focusClub ?? FOCUS_CLUB;
 
   // No season belongs to a league where the user has data-entry access.
   if (allSeasons && seasons.length === 0) return <NoAccess />;
@@ -3323,10 +3440,13 @@ function EntryWorkspace() {
           // posts) lives in this component's state, so unmounting on a tab
           // switch would kill it. Keep it mounted and just hide it.
           <TabsContent value="dribl" forceMount className="mt-6 data-[state=inactive]:hidden">
-            <DriblSyncCard
-              teamId={teamId} seasonId={seasonId} leagueId={season?.leagueId ?? 0}
-              onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
-            />
+            <div className="space-y-6">
+              <DriblSyncCard
+                teamId={teamId} seasonId={seasonId} leagueId={season?.leagueId ?? 0}
+                onSaved={() => { void queryClient.invalidateQueries({ queryKey: getListLeagueMatchesQueryKey({ seasonId }) }); }}
+              />
+              <DriblNameMapCard seasonId={seasonId} clubs={clubNames} defaultClub={focusClub} />
+            </div>
           </TabsContent>
         )}
         <TabsContent value="match" className="mt-6">

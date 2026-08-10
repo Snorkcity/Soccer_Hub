@@ -26,4 +26,6 @@ export interface DriblPreviewMatch {
   goals: DriblPreviewGoal[];
   statsOnly: boolean;
   playerStats: DriblPreviewClubStats[];
+  /** Display names claimed fresh this sync from goal events with no line-up block (e.g. "S.Wells (Belconnen)") — review in the player name map */
+  newGoalNames?: string[];
 }

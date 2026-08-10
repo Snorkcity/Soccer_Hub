@@ -39,6 +39,10 @@ import type {
   DeleteEntryPlayerStatsParams,
   DriblAssembleBody,
   DriblConfigResponse,
+  DriblNameMapDeleteResponse,
+  DriblNameMapListResponse,
+  DriblNameMapUpdateBody,
+  DriblNameMapUpdateResponse,
   DriblPreviewResponse,
   EntryAthleticTestsSaveRequest,
   EntryAthleticTestsSaveResponse,
@@ -159,6 +163,7 @@ import type {
   LibraryFlagResult,
   LibraryPracticeList,
   ListAthleticTestsParams,
+  ListDriblNameMapParams,
   ListEntryGoalsParams,
   ListEntryGpsFixturesParams,
   ListEntryGpsUploadsParams,
@@ -7444,6 +7449,233 @@ export function useGetDriblPreview<TData = Awaited<ReturnType<typeof getDriblPre
 
 
 
+
+export const getListDriblNameMapUrl = (params: ListDriblNameMapParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/entry/dribl-name-map?${stringifiedParams}` : `/api/entry/dribl-name-map`
+}
+
+/**
+ * @summary List the season's Dribl full-name → display-name mappings for one club
+ */
+export const listDriblNameMap = async (params: ListDriblNameMapParams, options?: RequestInit): Promise<DriblNameMapListResponse> => {
+
+  return customFetch<DriblNameMapListResponse>(getListDriblNameMapUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDriblNameMapQueryKey = (params?: ListDriblNameMapParams,) => {
+    return [
+    `/api/entry/dribl-name-map`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDriblNameMapQueryOptions = <TData = Awaited<ReturnType<typeof listDriblNameMap>>, TError = ErrorType<unknown>>(params: ListDriblNameMapParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriblNameMap>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDriblNameMapQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDriblNameMap>>> = ({ signal }) => listDriblNameMap(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDriblNameMap>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDriblNameMapQueryResult = NonNullable<Awaited<ReturnType<typeof listDriblNameMap>>>
+export type ListDriblNameMapQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the season's Dribl full-name → display-name mappings for one club
+ */
+
+export function useListDriblNameMap<TData = Awaited<ReturnType<typeof listDriblNameMap>>, TError = ErrorType<unknown>>(
+ params: ListDriblNameMapParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriblNameMap>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDriblNameMapQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateDriblNameMapUrl = (id: number,) => {
+
+
+
+
+  return `/api/entry/dribl-name-map/${id}`
+}
+
+/**
+ * @summary Rename a mapped player's display name (also renames their saved stat and goal rows this season)
+ */
+export const updateDriblNameMap = async (id: number,
+    driblNameMapUpdateBody: DriblNameMapUpdateBody, options?: RequestInit): Promise<DriblNameMapUpdateResponse> => {
+
+  return customFetch<DriblNameMapUpdateResponse>(getUpdateDriblNameMapUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driblNameMapUpdateBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateDriblNameMapMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriblNameMap>>, TError,{id: number;data: BodyType<DriblNameMapUpdateBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDriblNameMap>>, TError,{id: number;data: BodyType<DriblNameMapUpdateBody>}, TContext> => {
+
+const mutationKey = ['updateDriblNameMap'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDriblNameMap>>, {id: number;data: BodyType<DriblNameMapUpdateBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDriblNameMap(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDriblNameMapMutationResult = NonNullable<Awaited<ReturnType<typeof updateDriblNameMap>>>
+    export type UpdateDriblNameMapMutationBody = BodyType<DriblNameMapUpdateBody>
+    export type UpdateDriblNameMapMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Rename a mapped player's display name (also renames their saved stat and goal rows this season)
+ */
+export const useUpdateDriblNameMap = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriblNameMap>>, TError,{id: number;data: BodyType<DriblNameMapUpdateBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDriblNameMap>>,
+        TError,
+        {id: number;data: BodyType<DriblNameMapUpdateBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateDriblNameMapMutationOptions(options));
+    }
+
+export const getDeleteDriblNameMapUrl = (id: number,) => {
+
+
+
+
+  return `/api/entry/dribl-name-map/${id}`
+}
+
+/**
+ * @summary Forget a Dribl name mapping (the next sync will re-claim a name for that player)
+ */
+export const deleteDriblNameMap = async (id: number, options?: RequestInit): Promise<DriblNameMapDeleteResponse> => {
+
+  return customFetch<DriblNameMapDeleteResponse>(getDeleteDriblNameMapUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDriblNameMapMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDriblNameMap>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDriblNameMap>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteDriblNameMap'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDriblNameMap>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteDriblNameMap(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDriblNameMapMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDriblNameMap>>>
+
+    export type DeleteDriblNameMapMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Forget a Dribl name mapping (the next sync will re-claim a name for that player)
+ */
+export const useDeleteDriblNameMap = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDriblNameMap>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDriblNameMap>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteDriblNameMapMutationOptions(options));
+    }
 
 export const getListEntryPlayerStatsUrl = (params: ListEntryPlayerStatsParams,) => {
   const normalizedParams = new URLSearchParams();

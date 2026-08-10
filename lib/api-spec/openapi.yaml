@@ -2023,6 +2023,64 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/DriblPreviewResponse" }
 
+  /entry/dribl-name-map:
+    get:
+      operationId: listDriblNameMap
+      tags: [entry]
+      summary: List the season's Dribl full-name → display-name mappings for one club
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: club
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Mappings for the club this season, with how many saved stat rows use each display name
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblNameMapListResponse" }
+
+  /entry/dribl-name-map/{id}:
+    put:
+      operationId: updateDriblNameMap
+      tags: [entry]
+      summary: Rename a mapped player's display name (also renames their saved stat and goal rows this season)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DriblNameMapUpdateBody" }
+      responses:
+        "200":
+          description: Mapping updated; existing rows renamed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblNameMapUpdateResponse" }
+    delete:
+      operationId: deleteDriblNameMap
+      tags: [entry]
+      summary: Forget a Dribl name mapping (the next sync will re-claim a name for that player)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Mapping removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriblNameMapDeleteResponse" }
+
   /entry/player-stats:
     get:
       operationId: listEntryPlayerStats
@@ -5171,6 +5229,10 @@ components:
         playerStats:
           type: array
           items: { $ref: "#/components/schemas/DriblPreviewClubStats" }
+        newGoalNames:
+          type: array
+          items: { type: string }
+          description: "Display names claimed fresh this sync from goal events with no line-up block (e.g. \"S.Wells (Belconnen)\") — review in the player name map"
       required: [matchId, round, matchDate, homeTeam, awayTeam, driblHome, driblAway, homeGoals, awayGoals, halfScore, exists, goalsOnly, unmatched, goals, statsOnly, playerStats]
 
     DriblPreviewPlayerRow:
@@ -5192,7 +5254,50 @@ components:
         rows:
           type: array
           items: { $ref: "#/components/schemas/DriblPreviewPlayerRow" }
+        newNames:
+          type: array
+          items: { type: string }
+          description: Display names claimed fresh this sync (no prior mapping) — review them in the player name map before/after importing
       required: [club, exists, rows]
+
+    DriblNameMapEntry:
+      type: object
+      properties:
+        id:          { type: integer }
+        club:        { type: string }
+        fullName:    { type: string }
+        displayName: { type: string }
+        statRows:    { type: integer, description: Saved league player-stat rows currently using this display name }
+      required: [id, club, fullName, displayName, statRows]
+
+    DriblNameMapListResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/DriblNameMapEntry" }
+      required: [rows]
+
+    DriblNameMapUpdateBody:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+      required: [displayName]
+
+    DriblNameMapUpdateResponse:
+      type: object
+      properties:
+        displayName:   { type: string }
+        renamedStats:  { type: integer, description: League player-stat rows renamed }
+        renamedGoals:  { type: integer, description: League goal rows (scorer or assist) renamed }
+        renamedMirror: { type: integer, description: Legacy focus-club mirror rows renamed }
+      required: [displayName, renamedStats, renamedGoals, renamedMirror]
+
+    DriblNameMapDeleteResponse:
+      type: object
+      properties:
+        deleted: { type: boolean }
+      required: [deleted]
 
     DriblNeedLineup:
       type: object

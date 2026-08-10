@@ -40,6 +40,12 @@ description: How the password-gated data-entry flow works — auth scheme, dual-
 - Goal type / Assist type / How penetrated / Buildup lane / Finish are LOCKED shadcn Selects in the Goals tab (constants in DataEntry.tsx, from the coach's spreadsheet) — not free text with datalist any more. Legacy values on old goals are prepended so editing never wipes them.
 - Prod typos normalised at the same time ("Through Ball"→"Through ball", "Right Foot9"→"Right Foot"). Hip/Knee finishes left as genuine legacy values.
 
+## Dribl name map — surname-duplicate prevention (Aug 2026)
+- Dribl imports name by surname; coach's hand-entered sheets use first names → syncs re-created duplicate roster rows. Fix: on import, `claimName` first prefers a spelling already in saved `league_player_stats` (exact variant OR an unambiguous bare-first-name hit) before minting a new one. Roster is loaded per club per season alongside dribl_name_map.
+- Genuinely-new display names are surfaced as `newNames` on preview playerStats blocks AND, for goal-only imports with no lineup, as `newGoalNames` on the match → amber warning in the sync list + a "Player name map" editor card (per club) on the Dribl tab.
+- Editing a mapping (`PUT /entry/dribl-name-map/:id`) renames the display AND every already-saved row this season in lockstep: league_player_stats, league_goals (scorer+assist), and the legacy focus-club mirror (player_stats + players + goals). This is how you MERGE a stray variant into the preferred name. Unique index `dribl_name_map_display_unique` → 409 on collision.
+- Id-addressed routes self-check league via `mayTouchLeagueRow(req, leagueId, "data-entry")` since central middleware can't see scope.
+
 ## Goal Source field (Aug 2026)
 - `source` column on goals + league_goals: how the attack started — Buildup / Counter / Press (vocab field `sources`, editable in League Setup like the others).
 - Buildup = 6+ passes by the coach's definition; the Goals form auto-picks Buildup when passString >= 6 (sourceAutoRef guards manual choices — only ever overwrite/clear our own auto-pick).

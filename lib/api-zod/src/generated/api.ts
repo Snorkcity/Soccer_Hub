@@ -2913,8 +2913,10 @@ export const AssembleDriblPreviewResponse = zod.object({
   "started": zod.boolean(),
   "appearance": zod.boolean(),
   "position": zod.string().nullable()
-}))
-}))
+})),
+  "newNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync (no prior mapping) — review them in the player name map before\/after importing')
+})),
+  "newGoalNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync from goal events with no line-up block (e.g. \"S.Wells (Belconnen)\") — review in the player name map')
 })),
   "needDetail": zod.array(zod.string()),
   "needLineups": zod.array(zod.object({
@@ -2969,8 +2971,10 @@ export const GetDriblPreviewResponse = zod.object({
   "started": zod.boolean(),
   "appearance": zod.boolean(),
   "position": zod.string().nullable()
-}))
-}))
+})),
+  "newNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync (no prior mapping) — review them in the player name map before\/after importing')
+})),
+  "newGoalNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync from goal events with no line-up block (e.g. \"S.Wells (Belconnen)\") — review in the player name map')
 })),
   "needDetail": zod.array(zod.string()),
   "needLineups": zod.array(zod.object({
@@ -2979,6 +2983,60 @@ export const GetDriblPreviewResponse = zod.object({
 })),
   "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up'),
   "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation')
+})
+
+
+/**
+ * @summary List the season's Dribl full-name → display-name mappings for one club
+ */
+export const ListDriblNameMapQueryParams = zod.object({
+  "seasonId": zod.coerce.number(),
+  "club": zod.coerce.string()
+})
+
+export const ListDriblNameMapResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "club": zod.string(),
+  "fullName": zod.string(),
+  "displayName": zod.string(),
+  "statRows": zod.number().describe('Saved league player-stat rows currently using this display name')
+}))
+})
+
+
+/**
+ * @summary Rename a mapped player's display name (also renames their saved stat and goal rows this season)
+ */
+export const UpdateDriblNameMapParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateDriblNameMapBodyDisplayNameMax = 80;
+
+
+
+export const UpdateDriblNameMapBody = zod.object({
+  "displayName": zod.string().min(1).max(updateDriblNameMapBodyDisplayNameMax)
+})
+
+export const UpdateDriblNameMapResponse = zod.object({
+  "displayName": zod.string(),
+  "renamedStats": zod.number().describe('League player-stat rows renamed'),
+  "renamedGoals": zod.number().describe('League goal rows (scorer or assist) renamed'),
+  "renamedMirror": zod.number().describe('Legacy focus-club mirror rows renamed')
+})
+
+
+/**
+ * @summary Forget a Dribl name mapping (the next sync will re-claim a name for that player)
+ */
+export const DeleteDriblNameMapParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteDriblNameMapResponse = zod.object({
+  "deleted": zod.boolean()
 })
 
 

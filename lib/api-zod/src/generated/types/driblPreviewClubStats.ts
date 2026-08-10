@@ -11,4 +11,6 @@ export interface DriblPreviewClubStats {
   club: string;
   exists: boolean;
   rows: DriblPreviewPlayerRow[];
+  /** Display names claimed fresh this sync (no prior mapping) — review them in the player name map before/after importing */
+  newNames?: string[];
 }
