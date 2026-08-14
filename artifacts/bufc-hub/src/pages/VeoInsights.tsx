@@ -93,6 +93,92 @@ function opponentOf(m: { opponent?: string | null; title?: string | null }): str
   return t || raw || "Opponent";
 }
 
+// Clickable opponent legend (same pattern as Season Stats): toggle a club off
+// to drop its games from every season chart — handy for judging the numbers
+// against just the stronger teams.
+function OppToggleLegend({ opponents, hidden, onToggle }: {
+  opponents: string[]; hidden: Set<string>; onToggle: (opp: string) => void;
+}) {
+  if (opponents.length < 2) return null;
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+      {opponents.map((opp) => {
+        const off = hidden.has(opp);
+        return (
+          <button key={opp} type="button" onClick={() => onToggle(opp)} aria-pressed={!off}
+            className="flex items-center gap-1.5" style={{ cursor: "pointer" }}>
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(var(--chart-1))", opacity: off ? 0.25 : 1 }} />
+            <span style={{
+              color: off ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
+              textDecoration: off ? "line-through" : "none",
+            }}>
+              {opp}
+            </span>
+          </button>
+        );
+      })}
+      {hidden.size > 0 && (
+        <button type="button" className="text-muted-foreground underline" onClick={() => opponents.forEach((o) => hidden.has(o) && onToggle(o))}>
+          show all
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Rich hover card for the season trend charts: hovered series values up top,
+// then the full context of that match (score, shots, corners, tilt) so any
+// chart's hover tells the whole story of the game.
+type SeasonRow = {
+  label?: string; opp?: string; date?: string;
+  goalsFor?: number; goalsAgainst?: number; shotsFor?: number; shotsAgainst?: number;
+  cornersFor?: number; cornersAgainst?: number; tilt?: number | null;
+};
+function VeoSeasonTooltip({ active, payload }: {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number; color?: string; payload?: SeasonRow }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  const shownNames = new Set(payload.map((p) => p.name));
+  const ctx: { label: string; value: string }[] = [];
+  const pair = (name: string, f?: number, a?: number) => {
+    if (!shownNames.has(name) && f != null && a != null) ctx.push({ label: name, value: `${f} – ${a}` });
+  };
+  pair("Score", row.goalsFor, row.goalsAgainst);
+  pair("Shots", row.shotsFor, row.shotsAgainst);
+  pair("Corners", row.cornersFor, row.cornersAgainst);
+  if (row.tilt != null && !shownNames.has("Field tilt")) ctx.push({ label: "Field tilt", value: `${row.tilt.toFixed(0)}% us` });
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-2">
+      <div className="font-semibold text-sm">{row.label}</div>
+      <div className="border-t pt-2 space-y-1">
+        {payload.map((p) => (
+          <div key={p.name} className="flex justify-between gap-6">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
+              {p.name}
+            </span>
+            <span>{p.name === "Field tilt" ? `${Number(p.value).toFixed(0)}% us` : p.value}</span>
+          </div>
+        ))}
+      </div>
+      {ctx.length > 0 && (
+        <div className="border-t pt-2 space-y-1">
+          {ctx.map((c) => (
+            <div key={c.label} className="flex justify-between gap-6">
+              <span className="text-muted-foreground">{c.label}</span>
+              <span>{c.value}</span>
+            </div>
+          ))}
+          <div className="text-[10px] text-muted-foreground pt-1">us – them, from Veo events</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function fmtDate(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -391,13 +477,31 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
       : years[0] ?? "all";
   const setYear = setPickedYear;
 
-  const filtered = useMemo(() => {
+  const yearFiltered = useMemo(() => {
     if (year === "all") return matches;
     return matches.filter((m) => {
       const d = m.startsAt ? new Date(m.startsAt) : null;
       return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
     });
   }, [matches, year]);
+
+  // Clickable opponent legend: hide clubs to focus the season charts on the
+  // games that matter (e.g. just the stronger teams).
+  const [hiddenOpps, setHiddenOpps] = useState<Set<string>>(new Set());
+  const toggleOpp = (opp: string) =>
+    setHiddenOpps((prev) => {
+      const next = new Set(prev);
+      if (next.has(opp)) next.delete(opp); else next.add(opp);
+      return next;
+    });
+  const allOpponents = useMemo(
+    () => Array.from(new Set(yearFiltered.map(opponentOf))).sort((a, b) => a.localeCompare(b)),
+    [yearFiltered],
+  );
+  const filtered = useMemo(
+    () => yearFiltered.filter((m) => !hiddenOpps.has(opponentOf(m))),
+    [yearFiltered, hiddenOpps],
+  );
 
   const rows = useMemo(() => {
     return filtered.map((m, i) => {
@@ -434,12 +538,13 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
   const [showUs, setShowUs] = useState(true);
   const [showThem, setShowThem] = useState(true);
   const filteredShotMatches = useMemo(() => {
-    if (year === "all") return shotMatches;
     return shotMatches.filter((m) => {
+      if (hiddenOpps.has(opponentOf(m))) return false;
+      if (year === "all") return true;
       const d = m.startsAt ? new Date(m.startsAt) : null;
       return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
     });
-  }, [shotMatches, year]);
+  }, [shotMatches, year, hiddenOpps]);
 
   const seasonShots = useMemo(() => {
     const pts: { x: number; y: number; own: boolean; goal: boolean }[] = [];
@@ -517,11 +622,7 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
   }
 
   const tooltip = (
-    <Tooltip
-      contentStyle={TOOLTIP_BOX}
-      cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-      labelFormatter={(_, payload) => (payload?.[0]?.payload as { label?: string })?.label ?? ""}
-    />
+    <Tooltip content={<VeoSeasonTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
   );
   // With a big "All matches" set, per-match labels turn to soup — thin them out.
   const xAxis = (
@@ -545,6 +646,7 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
           </Select>
         </div>
       )}
+      <OppToggleLegend opponents={allOpponents} hidden={hiddenOpps} onToggle={toggleOpp} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Games with Veo events" value={String(totals.games)} />
         <StatCard
@@ -631,12 +733,7 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 {xAxis}
                 <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                <Tooltip
-                  contentStyle={TOOLTIP_BOX}
-                  cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-                  formatter={(v: number) => [`${Number(v).toFixed(0)}%`, "Field tilt"]}
-                  labelFormatter={(_, payload) => (payload?.[0]?.payload as { label?: string })?.label ?? ""}
-                />
+                {tooltip}
                 <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
                 {totals.avgTilt != null && (
                   <ReferenceLine y={totals.avgTilt} stroke={C_US} strokeDasharray="5 4" />
