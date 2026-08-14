@@ -249,6 +249,11 @@ export function getRoster(creds: VeoCredentials, matchId: string) {
   return apiGet<Record<string, unknown>>(creds, `/matches/${matchId}/roster/`);
 }
 
+// Raw GET against the Veo app API (for exploratory scripts / future endpoints).
+export function veoApiGet<T = unknown>(creds: VeoCredentials, path: string): Promise<T> {
+  return apiGet<T>(creds, path);
+}
+
 // Default credentials from environment secrets.
 export function defaultVeoCreds(): VeoCredentials | null {
   const email = process.env.VEO_EMAIL;

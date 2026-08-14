@@ -70,3 +70,10 @@ with Veo team match_count of 81). Dribl pattern reference: artifacts/api-server/
 Veo recordings upload from hardware weekly and finish processing anywhere Sunday night–Tuesday
 morning; a scheduled sync would mis-time it. Coach explicitly wants the manual "Sync from Veo"
 button as the only trigger — do not add auto-sync (related follow-up task was cancelled).
+
+## No possession or pass data on this tier (probed Aug 2026)
+/matches/{id}/stats/ lists PossessionPercent/PossessionMinutes/PossessionWon/PassesCompleted in
+"ordering" but returns null for all of them, and its counting stats are all zeros — the Hub
+computes counts from the events feed itself. No pass events exist in /events/. Pass strings and
+possession charts are NOT buildable from Veo for this account; don't re-probe unless the coach's
+Veo plan changes. Exploratory raw GETs: use exported veoApiGet() in api-server lib/veo.ts.
