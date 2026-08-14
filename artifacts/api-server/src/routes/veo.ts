@@ -199,8 +199,10 @@ router.get("/veo/matches", async (req, res) => {
       hasMomentum: veoMatchesTable.hasMomentum,
       synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
       syncedAt: veoMatchesTable.syncedAt,
+      matchCode: matchesTable.matchId,
     })
     .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
     .where(eq(veoMatchesTable.leagueId, leagueId))
     .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
   return res.json({ matches: rows });
@@ -221,8 +223,10 @@ router.get("/veo/season", async (req, res) => {
       opponent: veoMatchesTable.opponent,
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
+      matchCode: matchesTable.matchId,
     })
     .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
     .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.map((r) => {
@@ -262,8 +266,10 @@ router.get("/veo/season-shots", async (req, res) => {
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
+      matchCode: matchesTable.matchId,
     })
     .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
     .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.map((r) => {

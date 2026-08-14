@@ -13,5 +13,6 @@ export interface VeoSeasonShotMatch {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  matchCode?: string | null;
   shots: VeoSeasonShot[];
 }

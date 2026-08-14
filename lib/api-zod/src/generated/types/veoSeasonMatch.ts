@@ -14,6 +14,7 @@ export interface VeoSeasonMatch {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  matchCode?: string | null;
   countsFor: VeoSeasonMatchCountsFor;
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }

@@ -42,6 +42,7 @@ Design generalisable: future clubs supply their own Veo login → same flow, per
   PossessionPercent, FootballShot, TotalAttempts, FootballCornerKick, FootballFoul, FootballFreeKick,
   PassesCompleted, FootballPenaltyKick, PossessionMinutes, PossessionWon, FootballThrowIn. NOTE: on the test
   match own/opp came back 0 (may need a periods query param, or is analytics-tier dependent) — trust events.
+- **own_side semantic**: `own_side` is the end OUR GOAL defends — we attack the OPPOSITE end. It's easy to invert (that once plotted every shot at the wrong end); sanity-check any pitch-oriented chart against raw per-period x values before trusting it.
 - **`/matches/{id}/periods/`** → `[{public_identifier, timeframe:[startSec,endSec], own_side:"left"|"right",
   duration, is_confirmed}]`. Needed to map period_time → overall match minute and to know which goal end is ours.
 - **`/matches/{id}/roster/`** → `{items:[{player:{user_id,name,initials,avatar}, jersey_number, field_position,

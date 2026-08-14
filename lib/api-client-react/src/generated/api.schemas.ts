@@ -30,6 +30,7 @@ export interface VeoMatchSummary {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  matchCode?: string | null;
   hasAnalytics?: boolean;
   hasEvents?: boolean;
   hasTracking?: boolean;
@@ -62,6 +63,7 @@ export interface VeoSeasonMatch {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  matchCode?: string | null;
   countsFor: VeoSeasonMatchCountsFor;
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }
@@ -80,6 +82,7 @@ export interface VeoSeasonShotMatch {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  matchCode?: string | null;
   shots: VeoSeasonShot[];
 }
 

@@ -3494,6 +3494,7 @@ components:
         title: { type: string, nullable: true }
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
+        matchCode: { type: string, nullable: true }
         hasAnalytics: { type: boolean }
         hasEvents: { type: boolean }
         hasTracking: { type: boolean }
@@ -3524,6 +3525,7 @@ components:
         title: { type: string, nullable: true }
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
+        matchCode: { type: string, nullable: true }
         countsFor:
           type: object
           additionalProperties: { type: number }
@@ -3548,6 +3550,7 @@ components:
         title: { type: string, nullable: true }
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
+        matchCode: { type: string, nullable: true }
         shots:
           type: array
           items: { $ref: "#/components/schemas/VeoSeasonShot" }

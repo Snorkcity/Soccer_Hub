@@ -213,7 +213,7 @@ export default function VeoInsights() {
                 <SelectContent>
                   {synced.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
-                      {opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
+                      {m.matchCode ? `${m.matchCode} · ` : ""}{opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -415,9 +415,13 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
       const tilt = wFor + wAgainst > 0 ? (wFor / (wFor + wAgainst)) * 100 : null;
       return {
         idx: i + 1,
-        opp: opponentOf(m),
+        // Match ID (e.g. R16-WAN-BEL) when linked — matches GPS Insights so the
+        // coach can correlate across tabs; fall back to opponent for unlinked games.
+        opp: m.matchCode ?? opponentOf(m),
         date: fmtDate(m.startsAt),
-        label: `${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`,
+        label: m.matchCode
+          ? `${m.matchCode} · ${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`
+          : `${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`,
         shotsFor, shotsAgainst,
         goalsFor: n(f, "FootballGoal"), goalsAgainst: n(a, "FootballGoal"),
         cornersFor: n(f, "FootballCornerKick"), cornersAgainst: n(a, "FootballCornerKick"),
@@ -556,10 +560,7 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
         <Card>
           <CardHeader>
             <CardTitle>Shots per match</CardTitle>
-            <CardDescription>
-              Shots (incl. goals) for and against, round by round. Dashed lines are the season
-              averages ({totals.shotsForPg.toFixed(1)} us, {totals.shotsAgainstPg.toFixed(1)} them).
-            </CardDescription>
+            <CardDescription>Shots (incl. goals) for and against, round by round.</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -571,8 +572,6 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
                 {legend}
                 <Bar dataKey="shotsFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
                 <Bar dataKey="shotsAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                <ReferenceLine y={totals.shotsForPg} stroke={C_US} strokeDasharray="5 4" />
-                <ReferenceLine y={totals.shotsAgainstPg} stroke={C_THEM} strokeDasharray="5 4" />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -593,12 +592,6 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
                 {legend}
                 <Bar dataKey="goalsFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
                 <Bar dataKey="goalsAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                {totals.games > 0 && (
-                  <ReferenceLine y={totals.goalsFor / totals.games} stroke={C_US} strokeDasharray="5 4" />
-                )}
-                {totals.games > 0 && (
-                  <ReferenceLine y={totals.goalsAgainst / totals.games} stroke={C_THEM} strokeDasharray="5 4" />
-                )}
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -607,10 +600,7 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
         <Card>
           <CardHeader>
             <CardTitle>Corners per match</CardTitle>
-            <CardDescription>
-              Corner counts for and against, round by round. Dashed lines are the season
-              averages ({totals.cornersForPg.toFixed(1)} us, {totals.cornersAgainstPg.toFixed(1)} them).
-            </CardDescription>
+            <CardDescription>Corner counts for and against, round by round.</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -622,8 +612,6 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
                 {legend}
                 <Bar dataKey="cornersFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
                 <Bar dataKey="cornersAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                <ReferenceLine y={totals.cornersForPg} stroke={C_US} strokeDasharray="5 4" />
-                <ReferenceLine y={totals.cornersAgainstPg} stroke={C_THEM} strokeDasharray="5 4" />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -738,7 +726,6 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function MatchView({ match, events }: { match: { opponent?: string | null; title?: string | null; startsAt?: string | null; periods?: unknown }; events: VeoEvent[] }) {
   const opp = opponentOf(match);
 
@@ -784,9 +771,8 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
       const side = periods[(Number(e.period_id) || 1) - 1]?.own_side ?? "right";
       // own_side = the end our GOAL is at, so we attack the other end. To show
       // us always attacking right (and them left), rotate the WHOLE pitch 180°
-      // for any period where our goal sits on the right. (Season-aggregate data
-      // confirms this orientation — shots cluster at the attacked goal.)
-      const flip = side !== "left";
+      // for any period where our goal sits on the RIGHT (we'd be attacking left).
+      const flip = side === "right";
       const x = flip ? 1 - e.x : e.x;
       const y = flip ? 1 - e.z : e.z;
       pts.push({ x, y, own: isOwn(e), goal: e.event_type === "FootballGoal" });
@@ -799,6 +785,65 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
     for (const e of events) if (e.event_type === "FootballShot" || e.event_type === "FootballGoal") (isOwn(e) ? us++ : them++);
     return { us, them };
   }, [events]);
+
+  // Shot timeline: every shot (both teams) placed on the match clock; goals highlighted.
+  const timeline = useMemo(() => {
+    const minuteOf = makeMinuteOf(match.periods);
+    const pts: { min: number; own: boolean; goal: boolean }[] = [];
+    for (const e of events) {
+      if (e.event_type !== "FootballShot" && e.event_type !== "FootballGoal") continue;
+      pts.push({ min: minuteOf(e), own: isOwn(e), goal: e.event_type === "FootballGoal" });
+    }
+    pts.sort((a, b) => a.min - b.min);
+    const maxMin = Math.max(90, ...pts.map((p) => p.min));
+    // Half-time marker from real period durations when available.
+    const durs = Array.isArray(match.periods)
+      ? (match.periods as { duration?: number }[]).map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45))
+      : [];
+    const halfAt = durs.length > 0 ? durs[0] : 45;
+    return { pts, maxMin, halfAt };
+  }, [events, match.periods]);
+
+  // Set-piece pressure: corners + free kicks by half, us vs them.
+  const setPieces = useMemo(() => {
+    const nHalves = Math.max(2, Array.isArray(match.periods) ? (match.periods as unknown[]).length : 2);
+    const rows = Array.from({ length: nHalves }, (_, i) => ({
+      half: i === 0 ? "1st half" : i === 1 ? "2nd half" : `Period ${i + 1}`,
+      usCorners: 0, usFreeKicks: 0, themCorners: 0, themFreeKicks: 0,
+    }));
+    let any = false;
+    for (const e of events) {
+      if (e.event_type !== "FootballCornerKick" && e.event_type !== "FootballFreeKick") continue;
+      const idx = Math.min(rows.length - 1, Math.max(0, (Number(e.period_id) || 1) - 1));
+      const corner = e.event_type === "FootballCornerKick";
+      if (isOwn(e)) (corner ? rows[idx].usCorners++ : rows[idx].usFreeKicks++);
+      else (corner ? rows[idx].themCorners++ : rows[idx].themFreeKicks++);
+      any = true;
+    }
+    return { rows, any };
+  }, [events, match.periods]);
+
+  // Box vs outside: bucket located shots by whether they were struck inside the
+  // penalty box. Uses the already-flipped shot coords (we attack right, them
+  // left); box depth 16.5/105 ≈ 0.157 of pitch length, width 40.3/68 ≈ 0.59.
+  const shotZones = useMemo(() => {
+    const BOX_X = 16.5 / 105, BOX_Y_LO = 0.5 - 40.3 / 68 / 2, BOX_Y_HI = 0.5 + 40.3 / 68 / 2;
+    const z = { usBox: 0, usOut: 0, themBox: 0, themOut: 0 };
+    for (const s of shots) {
+      const inBox = s.own
+        ? s.x >= 1 - BOX_X && s.y >= BOX_Y_LO && s.y <= BOX_Y_HI
+        : s.x <= BOX_X && s.y >= BOX_Y_LO && s.y <= BOX_Y_HI;
+      if (s.own) (inBox ? z.usBox++ : z.usOut++);
+      else (inBox ? z.themBox++ : z.themOut++);
+    }
+    return {
+      any: shots.length > 0,
+      rows: [
+        { zone: "Inside the box", us: z.usBox, them: z.themBox },
+        { zone: "Outside the box", us: z.usOut, them: z.themOut },
+      ],
+    };
+  }, [shots]);
 
   return (
     <div className="space-y-6">
@@ -861,6 +906,76 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
 
       <Card>
         <CardHeader>
+          <CardTitle>Shot timeline</CardTitle>
+          <CardDescription>
+            {timeline.pts.length > 0
+              ? <>Every shot on the match clock — us above the line, {opp} below. Filled markers are goals. Read alongside the momentum chart to spot goals against the run of play.</>
+              : "No shots recorded for this match."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} halfAt={timeline.halfAt} opp={opp} />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Set-piece pressure</CardTitle>
+            <CardDescription>
+              {setPieces.any
+                ? <>Corners and free kicks by half — us vs {opp}.</>
+                : "No corners or free kicks recorded for this match."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {setPieces.any && (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={setPieces.rows} margin={{ left: -10, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="half" {...AXIS} />
+                  <YAxis {...AXIS} allowDecimals={false} />
+                  <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="usCorners" name="Our corners" stackId="us" fill={C_US} />
+                  <Bar dataKey="usFreeKicks" name="Our free kicks" stackId="us" fill={C_US} fillOpacity={0.45} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="themCorners" name={`${opp} corners`} stackId="them" fill={C_THEM} />
+                  <Bar dataKey="themFreeKicks" name={`${opp} free kicks`} stackId="them" fill={C_THEM} fillOpacity={0.45} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Box vs outside shots</CardTitle>
+            <CardDescription>
+              {shotZones.any
+                ? <>Located shots bucketed by where they were struck — inside the penalty box (real chances) vs outside (hopeful punts).</>
+                : "No shot locations recorded for this match."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {shotZones.any && (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={shotZones.rows} layout="vertical" margin={{ left: 20, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" {...AXIS} allowDecimals={false} />
+                  <YAxis type="category" dataKey="zone" width={100} {...AXIS} />
+                  <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="them" name={opp} fill={C_THEM} radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Shot map</CardTitle>
           <CardDescription>
             {shotTotals.us + shotTotals.them > 0
@@ -876,7 +991,46 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
   );
 }
 
-// A simple SVG pitch with shot markers. x,y are 0..1 (x = length, y = width).
+function ShotTimeline({ pts, maxMin, halfAt, opp }: { pts: { min: number; own: boolean; goal: boolean }[]; maxMin: number; halfAt: number; opp: string }) {
+  if (pts.length === 0) return null;
+  const W = 900, H = 150, padX = 28, padY = 18;
+  const midY = H / 2;
+  const px = (m: number) => padX + (m / maxMin) * (W - 2 * padX);
+  const line = "hsl(var(--border))";
+  const muted = "hsl(var(--muted-foreground))";
+  const ticks: number[] = [];
+  for (let m = 0; m <= maxMin; m += 15) ticks.push(m);
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 170 }}>
+        <line x1={padX} y1={midY} x2={W - padX} y2={midY} stroke={line} />
+        <line x1={px(halfAt)} y1={padY} x2={px(halfAt)} y2={H - padY} stroke={muted} strokeDasharray="4 4" opacity={0.6} />
+        <text x={px(halfAt)} y={padY - 5} textAnchor="middle" fontSize={10} fill={muted}>HT</text>
+        {ticks.map((m) => (
+          <g key={m}>
+            <line x1={px(m)} y1={midY - 3} x2={px(m)} y2={midY + 3} stroke={muted} />
+            <text x={px(m)} y={H - 2} textAnchor="middle" fontSize={10} fill={muted}>{m}'</text>
+          </g>
+        ))}
+        <text x={padX} y={padY + 2} fontSize={10} fill={C_US}>Belconnen</text>
+        <text x={padX} y={H - padY + 4} fontSize={10} fill={C_THEM}>{opp}</text>
+        {pts.map((p, i) => {
+          const cy = p.own ? midY - 22 : midY + 22;
+          return (
+            <g key={i}>
+              <line x1={px(p.min)} y1={midY} x2={px(p.min)} y2={cy} stroke={p.own ? C_US : C_THEM} strokeWidth={1} opacity={0.35} />
+              <circle cx={px(p.min)} cy={cy} r={p.goal ? 8 : 5}
+                fill={p.goal ? (p.own ? C_US : C_THEM) : "transparent"}
+                stroke={p.own ? C_US : C_THEM} strokeWidth={2} opacity={0.9}>
+                <title>{`${Math.floor(p.min)}' — ${p.own ? "Belconnen" : opp} ${p.goal ? "GOAL" : "shot"}`}</title>
+              </circle>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 function ShotMap({ shots }: { shots: { x: number; y: number; own: boolean; goal: boolean }[] }) {
   const W = 900, H = 560, pad = 12;
   const px = (x: number) => pad + x * (W - 2 * pad);

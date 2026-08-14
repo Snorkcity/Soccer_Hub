@@ -4754,6 +4754,7 @@ export const ListVeoMatchesResponse = zod.object({
   "title": zod.string().nullish(),
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
+  "matchCode": zod.string().nullish(),
   "hasAnalytics": zod.boolean().optional(),
   "hasEvents": zod.boolean().optional(),
   "hasTracking": zod.boolean().optional(),
@@ -4778,6 +4779,7 @@ export const GetVeoSeasonResponse = zod.object({
   "title": zod.string().nullish(),
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
+  "matchCode": zod.string().nullish(),
   "countsFor": zod.record(zod.string(), zod.number()),
   "countsAgainst": zod.record(zod.string(), zod.number())
 }))
@@ -4798,6 +4800,7 @@ export const GetVeoSeasonShotsResponse = zod.object({
   "title": zod.string().nullish(),
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
+  "matchCode": zod.string().nullish(),
   "shots": zod.array(zod.object({
   "x": zod.number().nullish(),
   "y": zod.number().nullish(),
