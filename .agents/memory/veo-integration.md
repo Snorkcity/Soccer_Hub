@@ -77,12 +77,14 @@ Veo recordings upload from hardware weekly and finish processing anywhere Sunday
 morning; a scheduled sync would mis-time it. Coach explicitly wants the manual "Sync from Veo"
 button as the only trigger — do not add auto-sync (related follow-up task was cancelled).
 
-## No possession or pass data on this tier (probed Aug 2026)
-/matches/{id}/stats/ lists PossessionPercent/PossessionMinutes/PossessionWon/PassesCompleted in
-"ordering" but returns null for all of them, and its counting stats are all zeros — the Hub
-computes counts from the events feed itself. No pass events exist in /events/. Pass strings and
-possession charts are NOT buildable from Veo for this account; don't re-probe unless the coach's
-Veo plan changes. Exploratory raw GETs: use exported veoApiGet() in api-server lib/veo.ts.
+## Possession & pass-strings data EXISTS but endpoint unknown (Aug 2026)
+Coach's Veo web UI shows Pass strings / Possession location / Pass location panels WITH data, so
+the tier does have it — the earlier "not on this tier" conclusion was wrong. But it is NOT at any
+guessable path: /matches/{id}/stats/ returns nulls for possession/pass slugs, and pass-strings,
+passes, possession(-location), analytics, insights, advanced-stats, heatmap, zones all 404
+(probe: artifacts/api-server/scripts/probe-veo-pass.ts). The UI must load a different service
+(svc.veo.co or GraphQL) — needs a headless-browser network capture to find (follow-up task filed).
+Exploratory raw GETs: exported veoApiGet() in api-server lib/veo.ts.
 
 ## Shot-map orientation (own_side)
 Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".

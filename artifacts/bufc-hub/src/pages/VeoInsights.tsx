@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   useVeoSync,
   useListVeoMatches,
@@ -141,7 +141,11 @@ function VeoSeasonTooltip({ active, payload }: {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
-  const shownNames = new Set(payload.map((p) => p.name));
+  // Drop null-valued series (e.g. tilt on a no-event match) — showing "0% us"
+  // for missing tilt would be false data, not an unavailable stat.
+  const items = payload.filter((p) => p.value != null);
+  if (!items.length) return null;
+  const shownNames = new Set(items.map((p) => p.name));
   const ctx: { label: string; value: string }[] = [];
   const pair = (name: string, f?: number, a?: number) => {
     if (!shownNames.has(name) && f != null && a != null) ctx.push({ label: name, value: `${f} – ${a}` });
@@ -154,7 +158,7 @@ function VeoSeasonTooltip({ active, payload }: {
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-2">
       <div className="font-semibold text-sm">{row.label}</div>
       <div className="border-t pt-2 space-y-1">
-        {payload.map((p) => (
+        {items.map((p) => (
           <div key={p.name} className="flex justify-between gap-6">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
@@ -488,6 +492,11 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
   // Clickable opponent legend: hide clubs to focus the season charts on the
   // games that matter (e.g. just the stronger teams).
   const [hiddenOpps, setHiddenOpps] = useState<Set<string>>(new Set());
+  // A hidden club must not silently filter a different season or league —
+  // reset the legend whenever the dataset scope changes.
+  useEffect(() => {
+    setHiddenOpps(new Set());
+  }, [year, matches]);
   const toggleOpp = (opp: string) =>
     setHiddenOpps((prev) => {
       const next = new Set(prev);
