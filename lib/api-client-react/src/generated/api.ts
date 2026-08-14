@@ -112,6 +112,8 @@ import type {
   GetVeoReportStatsParams,
   GetVeoSeason200,
   GetVeoSeasonParams,
+  GetVeoSeasonShots200,
+  GetVeoSeasonShotsParams,
   Goal,
   GoalBreakdownResponse,
   GoalCombosResponse,
@@ -12470,6 +12472,90 @@ export function useGetVeoSeason<TData = Awaited<ReturnType<typeof getVeoSeason>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVeoSeasonQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVeoSeasonShotsUrl = (params: GetVeoSeasonShotsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/season-shots?${stringifiedParams}` : `/api/veo/season-shots`
+}
+
+/**
+ * @summary Season-wide shot locations and minutes across every synced match
+ */
+export const getVeoSeasonShots = async (params: GetVeoSeasonShotsParams, options?: RequestInit): Promise<GetVeoSeasonShots200> => {
+
+  return customFetch<GetVeoSeasonShots200>(getGetVeoSeasonShotsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoSeasonShotsQueryKey = (params?: GetVeoSeasonShotsParams,) => {
+    return [
+    `/api/veo/season-shots`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoSeasonShotsQueryOptions = <TData = Awaited<ReturnType<typeof getVeoSeasonShots>>, TError = ErrorType<unknown>>(params: GetVeoSeasonShotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonShots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoSeasonShotsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoSeasonShots>>> = ({ signal }) => getVeoSeasonShots(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonShots>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoSeasonShotsQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoSeasonShots>>>
+export type GetVeoSeasonShotsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Season-wide shot locations and minutes across every synced match
+ */
+
+export function useGetVeoSeasonShots<TData = Awaited<ReturnType<typeof getVeoSeasonShots>>, TError = ErrorType<unknown>>(
+ params: GetVeoSeasonShotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonShots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoSeasonShotsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

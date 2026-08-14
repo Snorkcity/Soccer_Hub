@@ -247,6 +247,77 @@ router.get("/veo/season", async (req, res) => {
   return res.json({ matches });
 });
 
+// GET /veo/season-shots?leagueId= — every shot/goal event across the season's
+// synced matches, with match minute (period-duration-aware) and pitch coords
+// normalised per period's own_side so we always attack right, them left.
+router.get("/veo/season-shots", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const rows = await db
+    .select({
+      id: veoMatchesTable.id,
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+      events: veoMatchesTable.events,
+      periods: veoMatchesTable.periods,
+    })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`))
+    .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
+  const matches = rows.map((r) => {
+    const events = Array.isArray(r.events)
+      ? (r.events as {
+          event_type?: string;
+          team?: string;
+          period_id?: number;
+          period_time_ms?: number;
+          x?: number | null;
+          z?: number | null;
+        }[])
+      : [];
+    const periods = Array.isArray(r.periods)
+      ? (r.periods as { duration?: number; own_side?: string }[])
+      : [];
+    // Cumulative period offsets in minutes (real durations, 45-min fallback).
+    const offsets: number[] = [0];
+    for (const p of periods) {
+      const durMin = Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45;
+      offsets.push(offsets[offsets.length - 1] + durMin);
+    }
+    const shots: { x: number | null; y: number | null; minute: number; goal: boolean; us: boolean }[] = [];
+    for (const e of events) {
+      if (e?.event_type !== "FootballShot" && e?.event_type !== "FootballGoal") continue;
+      const pid = Number(e.period_id) || 1;
+      const off = offsets[pid - 1] ?? (pid - 1) * 45;
+      const minute = off + (Number(e.period_time_ms) || 0) / 60000;
+      // own_side = the end our GOAL is at; rotate the whole pitch 180° for
+      // periods where our goal is on the right so we always attack right.
+      // (Season-scale data confirms this orientation: our shots cluster at
+      // the goal we attack, so flipping on "right" puts them on the right.)
+      const flip = (periods[pid - 1]?.own_side ?? "right") !== "left";
+      const hasXY = e.x != null && e.z != null;
+      shots.push({
+        x: hasXY ? (flip ? 1 - Number(e.x) : Number(e.x)) : null,
+        y: hasXY ? (flip ? 1 - Number(e.z) : Number(e.z)) : null,
+        minute,
+        goal: e.event_type === "FootballGoal",
+        us: e.team === "Own",
+      });
+    }
+    return {
+      id: r.id,
+      veoMatchId: r.veoMatchId,
+      title: r.title,
+      opponent: r.opponent,
+      startsAt: r.startsAt,
+      shots,
+    };
+  });
+  return res.json({ matches });
+});
+
 // GET /veo/match?id=&leagueId= — one match with its raw events/stats/periods.
 router.get("/veo/match", async (req, res) => {
   const leagueId = Number(req.query.leagueId);

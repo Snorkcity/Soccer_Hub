@@ -3345,6 +3345,29 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/VeoSeasonMatch" }
 
+  /veo/season-shots:
+    get:
+      operationId: getVeoSeasonShots
+      tags: [veo]
+      summary: Season-wide shot locations and minutes across every synced match
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-match normalised shot events (we always attack right), oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: "#/components/schemas/VeoSeasonShotMatch" }
+
   /veo/match:
     get:
       operationId: getVeoMatch
@@ -3507,6 +3530,27 @@ components:
         countsAgainst:
           type: object
           additionalProperties: { type: number }
+    VeoSeasonShot:
+      type: object
+      required: [minute, goal, us]
+      properties:
+        x: { type: number, nullable: true }
+        y: { type: number, nullable: true }
+        minute: { type: number }
+        goal: { type: boolean }
+        us: { type: boolean }
+    VeoSeasonShotMatch:
+      type: object
+      required: [id, veoMatchId, shots]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        shots:
+          type: array
+          items: { $ref: "#/components/schemas/VeoSeasonShot" }
     VeoMatchDetail:
       type: object
       required: [id, veoMatchId]

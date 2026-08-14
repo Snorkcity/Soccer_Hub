@@ -7,12 +7,15 @@ import {
   getGetVeoMatchQueryKey,
   useGetVeoSeason,
   getGetVeoSeasonQueryKey,
+  useGetVeoSeasonShots,
+  getGetVeoSeasonShotsQueryKey,
   useListVeoLinks,
   getListVeoLinksQueryKey,
   useVeoAutoLink,
   useVeoSetLink,
   type VeoMatchSummary,
   type VeoSeasonMatch,
+  type VeoSeasonShotMatch,
   type VeoEvent,
   type VeoLinkRow,
   type HubMatchOption,
@@ -128,6 +131,13 @@ export default function VeoInsights() {
     },
   });
 
+  const { data: seasonShotsData } = useGetVeoSeasonShots(seasonParams, {
+    query: {
+      enabled: view === "season" && activeLeagueId != null,
+      queryKey: getGetVeoSeasonShotsQueryKey(seasonParams),
+    },
+  });
+
   const syncMut = useVeoSync();
   async function runSync() {
     if (activeLeagueId == null) return;
@@ -140,6 +150,7 @@ export default function VeoInsights() {
       }
       qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey(listParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
+      qc.invalidateQueries({ queryKey: getGetVeoSeasonShotsQueryKey(seasonParams) });
     } catch {
       setSyncMsg("Sync failed — please try again.");
     }
@@ -214,7 +225,7 @@ export default function VeoInsights() {
             seasonLoading || !seasonData ? (
               <Card><CardContent className="py-16 text-center text-muted-foreground">Loading season…</CardContent></Card>
             ) : (
-              <SeasonView matches={seasonData.matches} />
+              <SeasonView matches={seasonData.matches} shotMatches={seasonShotsData?.matches ?? []} />
             )
           ) : matchLoading || !match ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">Loading match…</CardContent></Card>
@@ -360,7 +371,7 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches }: { matches: VeoSeasonMatch[] }) {
+function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotMatches: VeoSeasonShotMatch[] }) {
   // A "season" is one calendar year here; the Veo library spans several years,
   // so charts default to the latest year with a year picker to look back.
   const years = useMemo(() => {
@@ -414,6 +425,69 @@ function SeasonView({ matches }: { matches: VeoSeasonMatch[] }) {
       };
     });
   }, [filtered]);
+
+  // Season shot map + 15-min threat bands (from /veo/season-shots).
+  const [showUs, setShowUs] = useState(true);
+  const [showThem, setShowThem] = useState(true);
+  const filteredShotMatches = useMemo(() => {
+    if (year === "all") return shotMatches;
+    return shotMatches.filter((m) => {
+      const d = m.startsAt ? new Date(m.startsAt) : null;
+      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
+    });
+  }, [shotMatches, year]);
+
+  const seasonShots = useMemo(() => {
+    const pts: { x: number; y: number; own: boolean; goal: boolean }[] = [];
+    let usTotal = 0, themTotal = 0, located = 0;
+    for (const m of filteredShotMatches) {
+      for (const s of m.shots) {
+        if (s.us) usTotal++; else themTotal++;
+        if (s.x == null || s.y == null) continue;
+        located++;
+        if (s.us && !showUs) continue;
+        if (!s.us && !showThem) continue;
+        pts.push({ x: s.x, y: s.y, own: s.us, goal: s.goal });
+      }
+    }
+    return { pts, usTotal, themTotal, located };
+  }, [filteredShotMatches, showUs, showThem]);
+
+  // Share of each side's shots per 15-min band, computed per match then
+  // averaged across matches (so one shot-heavy game can't dominate).
+  const threatBands = useMemo(() => {
+    const BANDS = 6;
+    const sumUs = Array(BANDS).fill(0), sumThem = Array(BANDS).fill(0);
+    let nUs = 0, nThem = 0;
+    for (const m of filteredShotMatches) {
+      const cu = Array(BANDS).fill(0), ct = Array(BANDS).fill(0);
+      let tu = 0, tt = 0;
+      for (const s of m.shots) {
+        // Extra/stoppage time folds into the 75–90 band.
+        const b = Math.min(BANDS - 1, Math.max(0, Math.floor(s.minute / 15)));
+        if (s.us) { cu[b]++; tu++; } else { ct[b]++; tt++; }
+      }
+      if (tu > 0) { nUs++; for (let i = 0; i < BANDS; i++) sumUs[i] += cu[i] / tu; }
+      if (tt > 0) { nThem++; for (let i = 0; i < BANDS; i++) sumThem[i] += ct[i] / tt; }
+    }
+    const labels = ["0–15", "15–30", "30–45", "45–60", "60–75", "75–90"];
+    return labels.map((label, i) => ({
+      label,
+      us: nUs > 0 ? (sumUs[i] / nUs) * 100 : 0,
+      them: nThem > 0 ? (sumThem[i] / nThem) * 100 : 0,
+    }));
+  }, [filteredShotMatches]);
+
+  // Hedged insight line: flag our strongest and quietest bands, with the
+  // even-share baseline (~16.7%) as the reference point.
+  const threatInsight = useMemo(() => {
+    if (filteredShotMatches.length < 3) return null;
+    const withIdx = threatBands.map((b, i) => ({ ...b, i }));
+    const hi = [...withIdx].sort((a, b) => b.us - a.us)[0];
+    const lo = [...withIdx].sort((a, b) => a.us - b.us)[0];
+    if (hi.us <= 0) return null;
+    return `An even spread would put ~17% in each band — so far our threat looks heaviest in the ${hi.label} window (${hi.us.toFixed(0)}%) and quietest in ${lo.label} (${lo.us.toFixed(0)}%), though a handful of games can still swing these numbers.`;
+  }, [threatBands, filteredShotMatches.length]);
 
   const totals = useMemo(() => {
     const withTilt = rows.filter((r) => r.tilt != null);
@@ -589,6 +663,65 @@ function SeasonView({ matches }: { matches: VeoSeasonMatch[] }) {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Season shot map</CardTitle>
+          <CardDescription>
+            {seasonShots.located > 0 ? (
+              <>Every shot with a recorded location across {filteredShotMatches.length} synced {filteredShotMatches.length === 1 ? "match" : "matches"} — we attack right ({seasonShots.usTotal} shots), opponents attack left ({seasonShots.themTotal}). Filled markers are goals.</>
+            ) : (
+              "No shot locations recorded for this season yet."
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={showUs ? "default" : "outline"} size="sm"
+              onClick={() => setShowUs((v) => !v)}
+            >
+              Belconnen
+            </Button>
+            <Button
+              variant={showThem ? "default" : "outline"} size="sm"
+              onClick={() => setShowThem((v) => !v)}
+            >
+              Opponents
+            </Button>
+          </div>
+          <ShotMap shots={seasonShots.pts} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>When the threat comes — 15-minute bands</CardTitle>
+          <CardDescription>
+            Share of each side's shots (incl. goals) per 15-minute window, averaged per match across the season. Stoppage and extra time count in the 75–90 band.
+            {threatInsight ? <> {threatInsight}</> : null}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={threatBands} margin={{ left: -10, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="label" {...AXIS} />
+              <YAxis {...AXIS} tickFormatter={(v) => `${v}%`} />
+              <Tooltip
+                contentStyle={TOOLTIP_BOX}
+                cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                formatter={(v: number, n) => [`${Number(v).toFixed(1)}%`, n]}
+                labelFormatter={(l) => `${l} min`}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceLine y={100 / 6} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" />
+              <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="them" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -651,8 +784,9 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
       const side = periods[(Number(e.period_id) || 1) - 1]?.own_side ?? "right";
       // own_side = the end our GOAL is at, so we attack the other end. To show
       // us always attacking right (and them left), rotate the WHOLE pitch 180°
-      // for any period where our goal sits on the left.
-      const flip = side === "left";
+      // for any period where our goal sits on the right. (Season-aggregate data
+      // confirms this orientation — shots cluster at the attacked goal.)
+      const flip = side !== "left";
       const x = flip ? 1 - e.x : e.x;
       const y = flip ? 1 - e.z : e.z;
       pts.push({ x, y, own: isOwn(e), goal: e.event_type === "FootballGoal" });

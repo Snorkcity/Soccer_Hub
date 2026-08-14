@@ -82,3 +82,8 @@ button as the only trigger — do not add auto-sync (related follow-up task was 
 computes counts from the events feed itself. No pass events exist in /events/. Pass strings and
 possession charts are NOT buildable from Veo for this account; don't re-probe unless the coach's
 Veo plan changes. Exploratory raw GETs: use exported veoApiGet() in api-server lib/veo.ts.
+
+## Shot-map orientation (own_side)
+Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".
+**Why:** the earlier per-match map flipped on "left" and was silently backwards; season-aggregate shot clustering (shots pile up at the attacked goal) proved the correct direction.
+**How to apply:** any new chart using Veo x/z coords must reuse this convention (season-shots endpoint + VeoInsights match view both do). Sanity-check orientation against aggregate clustering, never a single match.

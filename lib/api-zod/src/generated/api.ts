@@ -4785,6 +4785,31 @@ export const GetVeoSeasonResponse = zod.object({
 
 
 /**
+ * @summary Season-wide shot locations and minutes across every synced match
+ */
+export const GetVeoSeasonShotsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoSeasonShotsResponse = zod.object({
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "shots": zod.array(zod.object({
+  "x": zod.number().nullish(),
+  "y": zod.number().nullish(),
+  "minute": zod.number(),
+  "goal": zod.boolean(),
+  "us": zod.boolean()
+}))
+}))
+})
+
+
+/**
  * @summary One synced Veo match with its raw events/stats/periods/roster
  */
 export const GetVeoMatchQueryParams = zod.object({

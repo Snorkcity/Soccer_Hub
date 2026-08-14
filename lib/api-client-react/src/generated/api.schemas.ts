@@ -66,6 +66,23 @@ export interface VeoSeasonMatch {
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }
 
+export interface VeoSeasonShot {
+  x?: number | null;
+  y?: number | null;
+  minute: number;
+  goal: boolean;
+  us: boolean;
+}
+
+export interface VeoSeasonShotMatch {
+  id: number;
+  veoMatchId: string;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  shots: VeoSeasonShot[];
+}
+
 export type VeoMatchDetailStats = { [key: string]: unknown } | null;
 
 export type VeoMatchDetailPeriodsItem = { [key: string]: unknown };
@@ -4011,6 +4028,14 @@ leagueId: number;
 
 export type GetVeoSeason200 = {
   matches: VeoSeasonMatch[];
+};
+
+export type GetVeoSeasonShotsParams = {
+leagueId: number;
+};
+
+export type GetVeoSeasonShots200 = {
+  matches: VeoSeasonShotMatch[];
 };
 
 export type GetVeoMatchParams = {
