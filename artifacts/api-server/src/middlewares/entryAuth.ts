@@ -235,6 +235,7 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/match-report-coach-emails", "data-entry"], // routes additionally enforce admin-only
   ["/match-report-email", "data-entry"],
   ["/athletic-tests", "testing"],
+  ["/veo", "veo"], // Veo Insights reads; sync writes ride /entry/veo-sync
   ["/match-prep", "match-prep"],
   ["/journal", "reflections"], // reflection journal routes
 ];

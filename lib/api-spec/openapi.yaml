@@ -3264,8 +3264,172 @@ paths:
               schema:
                 $ref: "#/components/schemas/InterviewWriteupResponse"
 
+  /entry/veo-sync:
+    post:
+      operationId: veoSync
+      tags: [veo]
+      summary: Pull a squad's match data from Veo (incremental, batch-capped)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoSyncInput" }
+      responses:
+        "200":
+          description: Sync progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoSyncResult" }
+
+  /veo/leagues:
+    get:
+      operationId: listVeoLeagues
+      tags: [veo]
+      summary: Leagues that have a Veo team mapping (can be synced)
+      responses:
+        "200":
+          description: Veo-mapped leagues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leagues]
+                properties:
+                  leagues:
+                    type: array
+                    items: { $ref: "#/components/schemas/VeoLeague" }
+
+  /veo/matches:
+    get:
+      operationId: listVeoMatches
+      tags: [veo]
+      summary: Synced Veo matches for a league (metadata only)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Synced match list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: "#/components/schemas/VeoMatchSummary" }
+
+  /veo/match:
+    get:
+      operationId: getVeoMatch
+      tags: [veo]
+      summary: One synced Veo match with its raw events/stats/periods/roster
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Veo match detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoMatchDetail" }
+
 components:
   schemas:
+    VeoSyncInput:
+      type: object
+      required: [leagueId]
+      properties:
+        leagueId: { type: integer }
+        batch: { type: integer }
+    VeoSyncResult:
+      type: object
+      required: [league, totalMatches, fetched, remaining, done]
+      properties:
+        league: { type: string }
+        totalMatches: { type: integer }
+        fetched: { type: integer }
+        remaining: { type: integer }
+        done: { type: boolean }
+    VeoLeague:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        veoTeamSlug: { type: string, nullable: true }
+    VeoMatchSummary:
+      type: object
+      required: [id, veoMatchId, synced]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        hasAnalytics: { type: boolean }
+        hasEvents: { type: boolean }
+        hasTracking: { type: boolean }
+        hasMomentum: { type: boolean }
+        synced: { type: boolean }
+        syncedAt: { type: string, nullable: true }
+    VeoEvent:
+      type: object
+      required: [event_type, team, period_id, period_time_ms]
+      properties:
+        id: { type: string }
+        event_type: { type: string }
+        team: { type: string }
+        video_time_ms: { type: number, nullable: true }
+        period_id: { type: integer }
+        period_time_ms: { type: number }
+        player_jersey: { type: integer, nullable: true }
+        player_id: { type: string, nullable: true }
+        outcome: { type: string, nullable: true }
+        x: { type: number, nullable: true }
+        z: { type: number, nullable: true }
+    VeoMatchDetail:
+      type: object
+      required: [id, veoMatchId]
+      properties:
+        id: { type: integer }
+        leagueId: { type: integer }
+        veoMatchId: { type: string }
+        veoTeamSlug: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        hasAnalytics: { type: boolean }
+        hasEvents: { type: boolean }
+        hasTracking: { type: boolean }
+        hasMomentum: { type: boolean }
+        events:
+          type: array
+          nullable: true
+          items: { $ref: "#/components/schemas/VeoEvent" }
+        stats:
+          type: object
+          nullable: true
+          additionalProperties: true
+        periods:
+          type: array
+          nullable: true
+          items: { type: object, additionalProperties: true }
+        roster:
+          type: object
+          nullable: true
+          additionalProperties: true
+        matchId: { type: integer, nullable: true }
+        syncedAt: { type: string, nullable: true }
     HealthStatus:
       type: object
       properties:

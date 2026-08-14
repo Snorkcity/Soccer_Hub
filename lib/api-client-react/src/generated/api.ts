@@ -108,6 +108,7 @@ import type {
   GetSubImpactParams,
   GetTeamFormParams,
   GetUnitBreakdownParams,
+  GetVeoMatchParams,
   Goal,
   GoalBreakdownResponse,
   GoalCombosResponse,
@@ -183,6 +184,9 @@ import type {
   ListMatchesParams,
   ListPlayerStatsParams,
   ListPlayersParams,
+  ListVeoLeagues200,
+  ListVeoMatches200,
+  ListVeoMatchesParams,
   Match,
   MatchInput,
   MatchPrepReport,
@@ -242,6 +246,9 @@ import type {
   UploadLibraryPracticeRequest,
   UploadLibraryPracticeResult,
   UserInfo,
+  VeoMatchDetail,
+  VeoSyncInput,
+  VeoSyncResult,
   WeekAheadBriefRequest,
   WeekAheadBriefResponse
 } from './api.schemas';
@@ -12148,4 +12155,320 @@ export const useJournalInterviewWriteup = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getJournalInterviewWriteupMutationOptions(options));
     }
+
+export const getVeoSyncUrl = () => {
+
+
+
+
+  return `/api/entry/veo-sync`
+}
+
+/**
+ * @summary Pull a squad's match data from Veo (incremental, batch-capped)
+ */
+export const veoSync = async (veoSyncInput: VeoSyncInput, options?: RequestInit): Promise<VeoSyncResult> => {
+
+  return customFetch<VeoSyncResult>(getVeoSyncUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoSyncInput)
+  }
+);}
+
+
+
+
+
+export const getVeoSyncMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSync>>, TError,{data: BodyType<VeoSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoSync>>, TError,{data: BodyType<VeoSyncInput>}, TContext> => {
+
+const mutationKey = ['veoSync'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoSync>>, {data: BodyType<VeoSyncInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoSync(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoSyncMutationResult = NonNullable<Awaited<ReturnType<typeof veoSync>>>
+    export type VeoSyncMutationBody = BodyType<VeoSyncInput>
+    export type VeoSyncMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Pull a squad's match data from Veo (incremental, batch-capped)
+ */
+export const useVeoSync = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSync>>, TError,{data: BodyType<VeoSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoSync>>,
+        TError,
+        {data: BodyType<VeoSyncInput>},
+        TContext
+      > => {
+      return useMutation(getVeoSyncMutationOptions(options));
+    }
+
+export const getListVeoLeaguesUrl = () => {
+
+
+
+
+  return `/api/veo/leagues`
+}
+
+/**
+ * @summary Leagues that have a Veo team mapping (can be synced)
+ */
+export const listVeoLeagues = async ( options?: RequestInit): Promise<ListVeoLeagues200> => {
+
+  return customFetch<ListVeoLeagues200>(getListVeoLeaguesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVeoLeaguesQueryKey = () => {
+    return [
+    `/api/veo/leagues`
+    ] as const;
+    }
+
+
+export const getListVeoLeaguesQueryOptions = <TData = Awaited<ReturnType<typeof listVeoLeagues>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoLeagues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVeoLeaguesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVeoLeagues>>> = ({ signal }) => listVeoLeagues({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVeoLeagues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVeoLeaguesQueryResult = NonNullable<Awaited<ReturnType<typeof listVeoLeagues>>>
+export type ListVeoLeaguesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Leagues that have a Veo team mapping (can be synced)
+ */
+
+export function useListVeoLeagues<TData = Awaited<ReturnType<typeof listVeoLeagues>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoLeagues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVeoLeaguesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListVeoMatchesUrl = (params: ListVeoMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/matches?${stringifiedParams}` : `/api/veo/matches`
+}
+
+/**
+ * @summary Synced Veo matches for a league (metadata only)
+ */
+export const listVeoMatches = async (params: ListVeoMatchesParams, options?: RequestInit): Promise<ListVeoMatches200> => {
+
+  return customFetch<ListVeoMatches200>(getListVeoMatchesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVeoMatchesQueryKey = (params?: ListVeoMatchesParams,) => {
+    return [
+    `/api/veo/matches`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListVeoMatchesQueryOptions = <TData = Awaited<ReturnType<typeof listVeoMatches>>, TError = ErrorType<unknown>>(params: ListVeoMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVeoMatchesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVeoMatches>>> = ({ signal }) => listVeoMatches(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVeoMatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVeoMatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listVeoMatches>>>
+export type ListVeoMatchesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Synced Veo matches for a league (metadata only)
+ */
+
+export function useListVeoMatches<TData = Awaited<ReturnType<typeof listVeoMatches>>, TError = ErrorType<unknown>>(
+ params: ListVeoMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVeoMatchesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVeoMatchUrl = (params: GetVeoMatchParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/match?${stringifiedParams}` : `/api/veo/match`
+}
+
+/**
+ * @summary One synced Veo match with its raw events/stats/periods/roster
+ */
+export const getVeoMatch = async (params: GetVeoMatchParams, options?: RequestInit): Promise<VeoMatchDetail> => {
+
+  return customFetch<VeoMatchDetail>(getGetVeoMatchUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoMatchQueryKey = (params?: GetVeoMatchParams,) => {
+    return [
+    `/api/veo/match`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoMatchQueryOptions = <TData = Awaited<ReturnType<typeof getVeoMatch>>, TError = ErrorType<unknown>>(params: GetVeoMatchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoMatchQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoMatch>>> = ({ signal }) => getVeoMatch(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoMatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoMatch>>>
+export type GetVeoMatchQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary One synced Veo match with its raw events/stats/periods/roster
+ */
+
+export function useGetVeoMatch<TData = Awaited<ReturnType<typeof getVeoMatch>>, TError = ErrorType<unknown>>(
+ params: GetVeoMatchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoMatchQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -1159,6 +1159,56 @@ async function runUserAccountsMigration(): Promise<void> {
     )
   `);
 
+  // ── Veo stats sync (2026-08) ──────────────────────────────────────────────
+  // Maps each league to a Veo club + team slug and stores synced matches (raw
+  // events/stats/periods/roster as jsonb). See .agents/memory/veo-integration.md.
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_club_slug text`);
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_team_slug text`);
+  await db.execute(sql`
+    UPDATE leagues SET veo_club_slug = 'scott-conlon', veo_team_slug = '2024-nplw-firsts'
+    WHERE name = 'ACT NPLW' AND veo_team_slug IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE leagues SET veo_club_slug = 'scott-conlon', veo_team_slug = '2024-nplw-reserves'
+    WHERE name = 'ACT NPLW Reserves' AND veo_team_slug IS NULL
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS veo_matches (
+      id serial PRIMARY KEY,
+      league_id integer NOT NULL REFERENCES leagues(id),
+      veo_match_id text NOT NULL,
+      veo_team_slug text,
+      title text,
+      opponent text,
+      starts_at text,
+      has_analytics boolean NOT NULL DEFAULT false,
+      has_events boolean NOT NULL DEFAULT false,
+      has_tracking boolean NOT NULL DEFAULT false,
+      has_momentum boolean NOT NULL DEFAULT false,
+      events jsonb,
+      stats jsonb,
+      periods jsonb,
+      roster jsonb,
+      match_id integer,
+      synced_at text
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_match_idx ON veo_matches (league_id, veo_match_id)`);
+  // Grant the "veo" module to everyone who already has "gps" (same clubs that
+  // record on Veo), once. Nav + read gating use this module.
+  const veoModuleMarker = await db.execute(sql`SELECT 1 FROM seed_markers WHERE key = 'veo-module-grant-v1'`);
+  if (veoModuleMarker.rows.length === 0) {
+    await db.execute(sql`
+      UPDATE user_league_access
+      SET modules = (
+        SELECT jsonb_agg(DISTINCT m)
+        FROM jsonb_array_elements(modules || '["veo"]'::jsonb) AS m
+      )
+      WHERE modules @> '["gps"]'::jsonb AND NOT (modules @> '["veo"]'::jsonb)
+    `);
+    await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('veo-module-grant-v1') ON CONFLICT DO NOTHING`);
+  }
+
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

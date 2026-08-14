@@ -58,3 +58,4 @@
 - [Shared position→unit mapping](position-units.md) — canonical code→unit map lives in @workspace/api-zod (only package both server & web use); unit analytics prefer game-day position, fall back to assigned GPS unit.
 - [Weighted insight candidates](weighted-insight-candidates.md) — every auto-insight surface = weighted candidate pool incl. concern ("watch"/amber) candidates; joint-worst extremes via raw min/max, not rank.
 - [Goal-map coordinates & poacher zone](goal-map-coordinates.md) — goalX 0–100 width (posts 45/55), goalY = yards from goal line (goal at TOP); close/far model is now the poacher zone (gx 45–55, gy ≤ 10), DNA-spoke only — standalone chart removed.
+- [Veo stats integration](veo-integration.md) — Veo internal API (PKCE auth, events endpoint = source of truth); slugs live on leagues rows; sync is incremental batches, events-fail = retry.

@@ -21,6 +21,12 @@ export const leaguesTable = pgTable("leagues", {
   // re-uploads happen in the source league and flow through automatically.
   gpsSourceLeagueId: integer("gps_source_league_id").references((): AnyPgColumn => leaguesTable.id),
   gpsSourceSquad:    text("gps_source_squad"),
+  // Veo stats sync (2026-08): which Veo club + team this league maps to. The
+  // club slug + team slug drive the recordings listing
+  // (/clubs/{club}/recordings/?filter=own&team={team}). Null = no Veo sync for
+  // this league. See .agents/memory/veo-integration.md.
+  veoClubSlug:  text("veo_club_slug"),
+  veoTeamSlug:  text("veo_team_slug"),
 });
 
 export const insertLeagueSchema = createInsertSchema(leaguesTable).omit({ id: true });

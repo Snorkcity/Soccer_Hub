@@ -5,6 +5,79 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+export interface VeoSyncInput {
+  leagueId: number;
+  batch?: number;
+}
+
+export interface VeoSyncResult {
+  league: string;
+  totalMatches: number;
+  fetched: number;
+  remaining: number;
+  done: boolean;
+}
+
+export interface VeoLeague {
+  id: number;
+  name: string;
+  veoTeamSlug?: string | null;
+}
+
+export interface VeoMatchSummary {
+  id: number;
+  veoMatchId: string;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  hasAnalytics?: boolean;
+  hasEvents?: boolean;
+  hasTracking?: boolean;
+  hasMomentum?: boolean;
+  synced: boolean;
+  syncedAt?: string | null;
+}
+
+export interface VeoEvent {
+  id?: string;
+  event_type: string;
+  team: string;
+  video_time_ms?: number | null;
+  period_id: number;
+  period_time_ms: number;
+  player_jersey?: number | null;
+  player_id?: string | null;
+  outcome?: string | null;
+  x?: number | null;
+  z?: number | null;
+}
+
+export type VeoMatchDetailStats = { [key: string]: unknown } | null;
+
+export type VeoMatchDetailPeriodsItem = { [key: string]: unknown };
+
+export type VeoMatchDetailRoster = { [key: string]: unknown } | null;
+
+export interface VeoMatchDetail {
+  id: number;
+  leagueId?: number;
+  veoMatchId: string;
+  veoTeamSlug?: string | null;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  hasAnalytics?: boolean;
+  hasEvents?: boolean;
+  hasTracking?: boolean;
+  hasMomentum?: boolean;
+  events?: VeoEvent[] | null;
+  stats?: VeoMatchDetailStats;
+  periods?: VeoMatchDetailPeriodsItem[] | null;
+  roster?: VeoMatchDetailRoster;
+  matchId?: number | null;
+  syncedAt?: string | null;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -3841,5 +3914,22 @@ seasonId: number;
  * @minLength 1
  */
 opponent: string;
+};
+
+export type ListVeoLeagues200 = {
+  leagues: VeoLeague[];
+};
+
+export type ListVeoMatchesParams = {
+leagueId: number;
+};
+
+export type ListVeoMatches200 = {
+  matches: VeoMatchSummary[];
+};
+
+export type GetVeoMatchParams = {
+id: number;
+leagueId: number;
 };
 

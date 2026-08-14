@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, X } from "lucide-react";
+import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, Video, X } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
@@ -20,6 +20,7 @@ const navItems: {
   { href: "/season-stats", label: "Season Stats", icon: BarChart3, module: "season-stats" },
   { href: "/season-report", label: "Season Report", icon: TrendingUp2, module: "season-stats" },
   { href: "/gps", label: "GPS Insights", icon: Navigation2, module: "gps" },
+  { href: "/veo", label: "Veo Insights", icon: Video, module: "veo" },
   { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
   { href: "/match-prep", label: "Match Prep", icon: Trophy, module: "match-prep" },
   { href: "/reflections", label: "Reflections", icon: BookHeart, module: "reflections" },

@@ -4711,3 +4711,97 @@ export const JournalInterviewWriteupResponse = zod.object({
 })
 
 
+/**
+ * @summary Pull a squad's match data from Veo (incremental, batch-capped)
+ */
+export const VeoSyncBody = zod.object({
+  "leagueId": zod.number(),
+  "batch": zod.number().optional()
+})
+
+export const VeoSyncResponse = zod.object({
+  "league": zod.string(),
+  "totalMatches": zod.number(),
+  "fetched": zod.number(),
+  "remaining": zod.number(),
+  "done": zod.boolean()
+})
+
+
+/**
+ * @summary Leagues that have a Veo team mapping (can be synced)
+ */
+export const ListVeoLeaguesResponse = zod.object({
+  "leagues": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "veoTeamSlug": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Synced Veo matches for a league (metadata only)
+ */
+export const ListVeoMatchesQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListVeoMatchesResponse = zod.object({
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "hasAnalytics": zod.boolean().optional(),
+  "hasEvents": zod.boolean().optional(),
+  "hasTracking": zod.boolean().optional(),
+  "hasMomentum": zod.boolean().optional(),
+  "synced": zod.boolean(),
+  "syncedAt": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary One synced Veo match with its raw events/stats/periods/roster
+ */
+export const GetVeoMatchQueryParams = zod.object({
+  "id": zod.coerce.number(),
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoMatchResponse = zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number().optional(),
+  "veoMatchId": zod.string(),
+  "veoTeamSlug": zod.string().nullish(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "hasAnalytics": zod.boolean().optional(),
+  "hasEvents": zod.boolean().optional(),
+  "hasTracking": zod.boolean().optional(),
+  "hasMomentum": zod.boolean().optional(),
+  "events": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "event_type": zod.string(),
+  "team": zod.string(),
+  "video_time_ms": zod.number().nullish(),
+  "period_id": zod.number(),
+  "period_time_ms": zod.number(),
+  "player_jersey": zod.number().nullish(),
+  "player_id": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "x": zod.number().nullish(),
+  "z": zod.number().nullish()
+})).nullish(),
+  "stats": zod.record(zod.string(), zod.unknown()).nullish(),
+  "periods": zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
+  "roster": zod.record(zod.string(), zod.unknown()).nullish(),
+  "matchId": zod.number().nullish(),
+  "syncedAt": zod.string().nullish()
+})
+
+

@@ -12,6 +12,7 @@ import Home from '@/pages/Home';
 import SeasonStats from '@/pages/SeasonStats';
 import SeasonReport from '@/pages/SeasonReport';
 import GpsInsights from '@/pages/GpsInsights';
+import VeoInsights from '@/pages/VeoInsights';
 import Testing from '@/pages/Testing';
 import DataEntry from '@/pages/DataEntry';
 import SessionLibrary from '@/pages/SessionLibrary';
@@ -40,6 +41,7 @@ function Router() {
             <Route path="/season-stats" component={SeasonStats} />
             <Route path="/season-report" component={SeasonReport} />
             <Route path="/gps" component={GpsInsights} />
+            <Route path="/veo" component={VeoInsights} />
             <Route path="/testing" component={Testing} />
             <Route path="/library" component={SessionLibrary} />
             <Route path="/library/review" component={DiagramReview} />
