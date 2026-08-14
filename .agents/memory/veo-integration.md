@@ -65,3 +65,8 @@ Wire into momentum/field-tilt chart (up=us/down=them, 2–5min bins), shot maps,
 maybe a dedicated "Veo Insights" tab. Map league→Veo team slug (store on leagues row, allow override).
 Prod reserves league id = 81; dev firsts league 1/season 1, reserves league 9/season 4 (don't confuse
 with Veo team match_count of 81). Dribl pattern reference: artifacts/api-server/src/routes/dribl.ts.
+
+## Sync stays MANUAL (coach decision)
+Veo recordings upload from hardware weekly and finish processing anywhere Sunday night–Tuesday
+morning; a scheduled sync would mis-time it. Coach explicitly wants the manual "Sync from Veo"
+button as the only trigger — do not add auto-sync (related follow-up task was cancelled).
