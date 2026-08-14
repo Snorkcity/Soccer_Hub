@@ -66,6 +66,11 @@ maybe a dedicated "Veo Insights" tab. Map league→Veo team slug (store on leagu
 Prod reserves league id = 81; dev firsts league 1/season 1, reserves league 9/season 4 (don't confuse
 with Veo team match_count of 81). Dribl pattern reference: artifacts/api-server/src/routes/dribl.ts.
 
+
+## Veo ↔ Hub match linking (match reports)
+- `veo_matches.match_id` → `matches.id`; one recording per Hub match (manual link steals from any other row holding it).
+- Auto-link: kickoff ±1.5 days; single candidate wins on date alone, multiple candidates need an opponent-name match (normalised containment, min 4 chars) or the row is left for manual fixing. Veo opponents are often abbreviations (TUFC, WCW, COFC) that never fuzzy-match Hub names — the manual Select on the Veo Insights "Match links" card is the real workhorse for those.
+- `/veo/report-stats?leagueId&matchRowId` serves shots + 5-min momentum bins for a linked Hub match; maths deliberately mirrors the client-side VeoInsights MatchView (same weights/bins) — change them in both places.
 ## Sync stays MANUAL (coach decision)
 Veo recordings upload from hardware weekly and finish processing anywhere Sunday night–Tuesday
 morning; a scheduled sync would mis-time it. Coach explicitly wants the manual "Sync from Veo"

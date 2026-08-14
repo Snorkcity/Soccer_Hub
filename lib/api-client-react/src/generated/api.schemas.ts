@@ -52,6 +52,20 @@ export interface VeoEvent {
   z?: number | null;
 }
 
+export type VeoSeasonMatchCountsFor = {[key: string]: number};
+
+export type VeoSeasonMatchCountsAgainst = {[key: string]: number};
+
+export interface VeoSeasonMatch {
+  id: number;
+  veoMatchId: string;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  countsFor: VeoSeasonMatchCountsFor;
+  countsAgainst: VeoSeasonMatchCountsAgainst;
+}
+
 export type VeoMatchDetailStats = { [key: string]: unknown } | null;
 
 export type VeoMatchDetailPeriodsItem = { [key: string]: unknown };
@@ -76,6 +90,69 @@ export interface VeoMatchDetail {
   roster?: VeoMatchDetailRoster;
   matchId?: number | null;
   syncedAt?: string | null;
+}
+
+export interface VeoLinkRow {
+  id: number;
+  veoMatchId: string;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  matchId?: number | null;
+  synced: boolean;
+}
+
+export interface HubMatchOption {
+  id: number;
+  matchId: string;
+  matchDate?: string | null;
+  opponent: string;
+  teamId: number;
+  seasonId: number;
+}
+
+export interface VeoLinksResponse {
+  links: VeoLinkRow[];
+  hubMatches: HubMatchOption[];
+}
+
+export interface VeoAutoLinkInput {
+  leagueId: number;
+}
+
+export interface VeoAutoLinkResult {
+  linked: number;
+  ambiguous: number;
+  unmatched: number;
+}
+
+export interface VeoSetLinkInput {
+  leagueId: number;
+  veoId: number;
+  matchId?: number | null;
+}
+
+export interface VeoSetLinkResult {
+  ok: boolean;
+}
+
+export interface VeoShotTotals {
+  us: number;
+  them: number;
+}
+
+export interface VeoMomentumBin {
+  min: number;
+  us: number;
+  them: number;
+}
+
+export interface VeoReportStats {
+  linked: boolean;
+  veoId?: number | null;
+  startsAt?: string | null;
+  shots?: VeoShotTotals;
+  momentum?: VeoMomentumBin[];
 }
 
 export interface HealthStatus {
@@ -3928,8 +4005,25 @@ export type ListVeoMatches200 = {
   matches: VeoMatchSummary[];
 };
 
+export type GetVeoSeasonParams = {
+leagueId: number;
+};
+
+export type GetVeoSeason200 = {
+  matches: VeoSeasonMatch[];
+};
+
 export type GetVeoMatchParams = {
 id: number;
 leagueId: number;
+};
+
+export type ListVeoLinksParams = {
+leagueId: number;
+};
+
+export type GetVeoReportStatsParams = {
+leagueId: number;
+matchRowId: number;
 };
 

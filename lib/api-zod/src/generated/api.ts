@@ -4765,6 +4765,26 @@ export const ListVeoMatchesResponse = zod.object({
 
 
 /**
+ * @summary Season-wide per-match Veo event counts (for/against by event type)
+ */
+export const GetVeoSeasonQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoSeasonResponse = zod.object({
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "countsFor": zod.record(zod.string(), zod.number()),
+  "countsAgainst": zod.record(zod.string(), zod.number())
+}))
+})
+
+
+/**
  * @summary One synced Veo match with its raw events/stats/periods/roster
  */
 export const GetVeoMatchQueryParams = zod.object({
@@ -4802,6 +4822,86 @@ export const GetVeoMatchResponse = zod.object({
   "roster": zod.record(zod.string(), zod.unknown()).nullish(),
   "matchId": zod.number().nullish(),
   "syncedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Veo↔Hub match links for a league, plus the Hub matches to link to
+ */
+export const ListVeoLinksQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListVeoLinksResponse = zod.object({
+  "links": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "matchId": zod.number().nullish(),
+  "synced": zod.boolean()
+})),
+  "hubMatches": zod.array(zod.object({
+  "id": zod.number(),
+  "matchId": zod.string(),
+  "matchDate": zod.string().nullish(),
+  "opponent": zod.string(),
+  "teamId": zod.number(),
+  "seasonId": zod.number()
+}))
+})
+
+
+/**
+ * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ */
+export const VeoAutoLinkBody = zod.object({
+  "leagueId": zod.number()
+})
+
+export const VeoAutoLinkResponse = zod.object({
+  "linked": zod.number(),
+  "ambiguous": zod.number(),
+  "unmatched": zod.number()
+})
+
+
+/**
+ * @summary Manually set or clear the Hub match a Veo match is linked to
+ */
+export const VeoSetLinkBody = zod.object({
+  "leagueId": zod.number(),
+  "veoId": zod.number(),
+  "matchId": zod.number().nullish()
+})
+
+export const VeoSetLinkResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Veo shots + momentum for the Hub match a report is showing (via the link)
+ */
+export const GetVeoReportStatsQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "matchRowId": zod.coerce.number()
+})
+
+export const GetVeoReportStatsResponse = zod.object({
+  "linked": zod.boolean(),
+  "veoId": zod.number().nullish(),
+  "startsAt": zod.string().nullish(),
+  "shots": zod.object({
+  "us": zod.number(),
+  "them": zod.number()
+}).optional(),
+  "momentum": zod.array(zod.object({
+  "min": zod.number(),
+  "us": zod.number(),
+  "them": zod.number()
+})).optional()
 })
 
 

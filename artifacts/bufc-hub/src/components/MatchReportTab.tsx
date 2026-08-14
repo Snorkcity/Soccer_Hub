@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { VeoReportPanel } from "@/components/VeoReportPanel";
 import type { FootballMatchReportModel } from "@/lib/matchReportPptx";
 
 interface Props {
@@ -266,6 +267,11 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                 );
               })}
             </div>
+          )}
+
+          {/* ── Veo video stats (only when this match has a linked recording) ─ */}
+          {!viewingSaved && selectedId != null && activeLeagueId != null && selectedMatch && (
+            <VeoReportPanel leagueId={activeLeagueId} matchRowId={selectedId} opponent={selectedMatch.opponent} />
           )}
 
           {/* ── GPS + previous meetings ────────────────────────────────────── */}

@@ -109,6 +109,9 @@ import type {
   GetTeamFormParams,
   GetUnitBreakdownParams,
   GetVeoMatchParams,
+  GetVeoReportStatsParams,
+  GetVeoSeason200,
+  GetVeoSeasonParams,
   Goal,
   GoalBreakdownResponse,
   GoalCombosResponse,
@@ -185,6 +188,7 @@ import type {
   ListPlayerStatsParams,
   ListPlayersParams,
   ListVeoLeagues200,
+  ListVeoLinksParams,
   ListVeoMatches200,
   ListVeoMatchesParams,
   Match,
@@ -246,7 +250,13 @@ import type {
   UploadLibraryPracticeRequest,
   UploadLibraryPracticeResult,
   UserInfo,
+  VeoAutoLinkInput,
+  VeoAutoLinkResult,
+  VeoLinksResponse,
   VeoMatchDetail,
+  VeoReportStats,
+  VeoSetLinkInput,
+  VeoSetLinkResult,
   VeoSyncInput,
   VeoSyncResult,
   WeekAheadBriefRequest,
@@ -12388,6 +12398,90 @@ export function useListVeoMatches<TData = Awaited<ReturnType<typeof listVeoMatch
 
 
 
+export const getGetVeoSeasonUrl = (params: GetVeoSeasonParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/season?${stringifiedParams}` : `/api/veo/season`
+}
+
+/**
+ * @summary Season-wide per-match Veo event counts (for/against by event type)
+ */
+export const getVeoSeason = async (params: GetVeoSeasonParams, options?: RequestInit): Promise<GetVeoSeason200> => {
+
+  return customFetch<GetVeoSeason200>(getGetVeoSeasonUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoSeasonQueryKey = (params?: GetVeoSeasonParams,) => {
+    return [
+    `/api/veo/season`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoSeasonQueryOptions = <TData = Awaited<ReturnType<typeof getVeoSeason>>, TError = ErrorType<unknown>>(params: GetVeoSeasonParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeason>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoSeasonQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoSeason>>> = ({ signal }) => getVeoSeason(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoSeason>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoSeasonQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoSeason>>>
+export type GetVeoSeasonQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Season-wide per-match Veo event counts (for/against by event type)
+ */
+
+export function useGetVeoSeason<TData = Awaited<ReturnType<typeof getVeoSeason>>, TError = ErrorType<unknown>>(
+ params: GetVeoSeasonParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeason>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoSeasonQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetVeoMatchUrl = (params: GetVeoMatchParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -12460,6 +12554,316 @@ export function useGetVeoMatch<TData = Awaited<ReturnType<typeof getVeoMatch>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVeoMatchQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListVeoLinksUrl = (params: ListVeoLinksParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/links?${stringifiedParams}` : `/api/veo/links`
+}
+
+/**
+ * @summary Veo↔Hub match links for a league, plus the Hub matches to link to
+ */
+export const listVeoLinks = async (params: ListVeoLinksParams, options?: RequestInit): Promise<VeoLinksResponse> => {
+
+  return customFetch<VeoLinksResponse>(getListVeoLinksUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVeoLinksQueryKey = (params?: ListVeoLinksParams,) => {
+    return [
+    `/api/veo/links`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListVeoLinksQueryOptions = <TData = Awaited<ReturnType<typeof listVeoLinks>>, TError = ErrorType<unknown>>(params: ListVeoLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVeoLinksQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVeoLinks>>> = ({ signal }) => listVeoLinks(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVeoLinks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVeoLinksQueryResult = NonNullable<Awaited<ReturnType<typeof listVeoLinks>>>
+export type ListVeoLinksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Veo↔Hub match links for a league, plus the Hub matches to link to
+ */
+
+export function useListVeoLinks<TData = Awaited<ReturnType<typeof listVeoLinks>>, TError = ErrorType<unknown>>(
+ params: ListVeoLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVeoLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVeoLinksQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getVeoAutoLinkUrl = () => {
+
+
+
+
+  return `/api/entry/veo-auto-link`
+}
+
+/**
+ * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ */
+export const veoAutoLink = async (veoAutoLinkInput: VeoAutoLinkInput, options?: RequestInit): Promise<VeoAutoLinkResult> => {
+
+  return customFetch<VeoAutoLinkResult>(getVeoAutoLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoAutoLinkInput)
+  }
+);}
+
+
+
+
+
+export const getVeoAutoLinkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoAutoLink>>, TError,{data: BodyType<VeoAutoLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoAutoLink>>, TError,{data: BodyType<VeoAutoLinkInput>}, TContext> => {
+
+const mutationKey = ['veoAutoLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoAutoLink>>, {data: BodyType<VeoAutoLinkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoAutoLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoAutoLinkMutationResult = NonNullable<Awaited<ReturnType<typeof veoAutoLink>>>
+    export type VeoAutoLinkMutationBody = BodyType<VeoAutoLinkInput>
+    export type VeoAutoLinkMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ */
+export const useVeoAutoLink = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoAutoLink>>, TError,{data: BodyType<VeoAutoLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoAutoLink>>,
+        TError,
+        {data: BodyType<VeoAutoLinkInput>},
+        TContext
+      > => {
+      return useMutation(getVeoAutoLinkMutationOptions(options));
+    }
+
+export const getVeoSetLinkUrl = () => {
+
+
+
+
+  return `/api/entry/veo-link`
+}
+
+/**
+ * @summary Manually set or clear the Hub match a Veo match is linked to
+ */
+export const veoSetLink = async (veoSetLinkInput: VeoSetLinkInput, options?: RequestInit): Promise<VeoSetLinkResult> => {
+
+  return customFetch<VeoSetLinkResult>(getVeoSetLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoSetLinkInput)
+  }
+);}
+
+
+
+
+
+export const getVeoSetLinkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSetLink>>, TError,{data: BodyType<VeoSetLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoSetLink>>, TError,{data: BodyType<VeoSetLinkInput>}, TContext> => {
+
+const mutationKey = ['veoSetLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoSetLink>>, {data: BodyType<VeoSetLinkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoSetLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoSetLinkMutationResult = NonNullable<Awaited<ReturnType<typeof veoSetLink>>>
+    export type VeoSetLinkMutationBody = BodyType<VeoSetLinkInput>
+    export type VeoSetLinkMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Manually set or clear the Hub match a Veo match is linked to
+ */
+export const useVeoSetLink = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSetLink>>, TError,{data: BodyType<VeoSetLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoSetLink>>,
+        TError,
+        {data: BodyType<VeoSetLinkInput>},
+        TContext
+      > => {
+      return useMutation(getVeoSetLinkMutationOptions(options));
+    }
+
+export const getGetVeoReportStatsUrl = (params: GetVeoReportStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/report-stats?${stringifiedParams}` : `/api/veo/report-stats`
+}
+
+/**
+ * @summary Veo shots + momentum for the Hub match a report is showing (via the link)
+ */
+export const getVeoReportStats = async (params: GetVeoReportStatsParams, options?: RequestInit): Promise<VeoReportStats> => {
+
+  return customFetch<VeoReportStats>(getGetVeoReportStatsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoReportStatsQueryKey = (params?: GetVeoReportStatsParams,) => {
+    return [
+    `/api/veo/report-stats`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoReportStatsQueryOptions = <TData = Awaited<ReturnType<typeof getVeoReportStats>>, TError = ErrorType<unknown>>(params: GetVeoReportStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoReportStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoReportStatsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoReportStats>>> = ({ signal }) => getVeoReportStats(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoReportStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoReportStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoReportStats>>>
+export type GetVeoReportStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Veo shots + momentum for the Hub match a report is showing (via the link)
+ */
+
+export function useGetVeoReportStats<TData = Awaited<ReturnType<typeof getVeoReportStats>>, TError = ErrorType<unknown>>(
+ params: GetVeoReportStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoReportStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoReportStatsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

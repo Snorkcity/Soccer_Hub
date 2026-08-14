@@ -5,16 +5,26 @@ import {
   getListVeoMatchesQueryKey,
   useGetVeoMatch,
   getGetVeoMatchQueryKey,
+  useGetVeoSeason,
+  getGetVeoSeasonQueryKey,
+  useListVeoLinks,
+  getListVeoLinksQueryKey,
+  useVeoAutoLink,
+  useVeoSetLink,
   type VeoMatchSummary,
+  type VeoSeasonMatch,
   type VeoEvent,
+  type VeoLinkRow,
+  type HubMatchOption,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Video } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
+  ComposedChart, Line, Legend,
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
@@ -89,12 +99,13 @@ function fmtDate(iso?: string | null): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VeoInsights() {
-  const { hasModule, ready } = useLeagueModules();
+  const { hasModule, ready, isSuperadmin } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
   const qc = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [view, setView] = useState<"season" | "match">("season");
 
   const listParams = { leagueId: activeLeagueId ?? 0 };
   const { data: listData, isLoading: listLoading } = useListVeoMatches(listParams, {
@@ -109,6 +120,14 @@ export default function VeoInsights() {
     query: { enabled: currentId != null && activeLeagueId != null, queryKey: getGetVeoMatchQueryKey(detailParams) },
   });
 
+  const seasonParams = { leagueId: activeLeagueId ?? 0 };
+  const { data: seasonData, isLoading: seasonLoading } = useGetVeoSeason(seasonParams, {
+    query: {
+      enabled: view === "season" && activeLeagueId != null,
+      queryKey: getGetVeoSeasonQueryKey(seasonParams),
+    },
+  });
+
   const syncMut = useVeoSync();
   async function runSync() {
     if (activeLeagueId == null) return;
@@ -120,6 +139,7 @@ export default function VeoInsights() {
         if (r.done) { setSyncMsg(`Done — ${r.totalMatches} matches synced.`); break; }
       }
       qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey(listParams) });
+      qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
     } catch {
       setSyncMsg("Sync failed — please try again.");
     }
@@ -157,21 +177,46 @@ export default function VeoInsights() {
         </CardContent></Card>
       ) : (
         <>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground shrink-0">Match</span>
-            <Select value={String(currentId ?? "")} onValueChange={(v) => setSelectedId(Number(v))}>
-              <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Pick a match" /></SelectTrigger>
-              <SelectContent>
-                {synced.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <MatchLinksCard
+            leagueId={activeLeagueId!}
+            canLink={isSuperadmin || hasModule(activeLeagueId!, "data-entry")}
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+              {(["season", "match"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                    view === v ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v === "season" ? "Season" : "Match"}
+                </button>
+              ))}
+            </div>
+            {view === "match" && (
+              <Select value={String(currentId ?? "")} onValueChange={(v) => setSelectedId(Number(v))}>
+                <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Pick a match" /></SelectTrigger>
+                <SelectContent>
+                  {synced.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          {matchLoading || !match ? (
+          {view === "season" ? (
+            seasonLoading || !seasonData ? (
+              <Card><CardContent className="py-16 text-center text-muted-foreground">Loading season…</CardContent></Card>
+            ) : (
+              <SeasonView matches={seasonData.matches} />
+            )
+          ) : matchLoading || !match ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">Loading match…</CardContent></Card>
           ) : events.length === 0 ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">
@@ -183,6 +228,380 @@ export default function VeoInsights() {
         </>
       )}
     </div>
+  );
+}
+
+function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: boolean }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const linkParams = { leagueId };
+  const { data } = useListVeoLinks(linkParams, {
+    query: { queryKey: getListVeoLinksQueryKey(linkParams) },
+  });
+  const links: VeoLinkRow[] = data?.links ?? [];
+  const hubMatches: HubMatchOption[] = data?.hubMatches ?? [];
+  const linkedCount = links.filter((l) => l.matchId != null).length;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListVeoLinksQueryKey(linkParams) });
+
+  const autoMut = useVeoAutoLink();
+  async function runAutoLink() {
+    setMsg(null);
+    try {
+      const r = await autoMut.mutateAsync({ data: { leagueId } });
+      setMsg(
+        r.linked > 0
+          ? `Linked ${r.linked} match${r.linked === 1 ? "" : "es"}${r.ambiguous > 0 ? ` — ${r.ambiguous} ambiguous, fix below` : ""}.`
+          : r.ambiguous > 0
+            ? `No confident matches — ${r.ambiguous} ambiguous, pick them below.`
+            : "Nothing new to link.",
+      );
+      invalidate();
+    } catch {
+      setMsg("Auto-link failed — try again.");
+    }
+  }
+
+  const setMut = useVeoSetLink();
+  async function setLink(veoId: number, matchId: number | null) {
+    try {
+      await setMut.mutateAsync({ data: { leagueId, veoId, matchId } });
+      invalidate();
+    } catch {
+      setMsg("Couldn't save that link — try again.");
+    }
+  }
+
+  const hubLabel = (h: HubMatchOption) =>
+    `${h.matchId.split("-")[0]} v ${h.opponent}${h.matchDate ? ` · ${h.matchDate}` : ""}`;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 cursor-pointer select-none" onClick={() => setOpen((o) => !o)}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Link2 className="h-4 w-4" /> Match links
+              <span className="text-xs font-normal text-muted-foreground">
+                {linkedCount}/{links.length} linked
+              </span>
+            </CardTitle>
+            <CardDescription className="text-xs mt-1">
+              Link each Veo recording to its Hub match so video stats appear on the Football Match Report.
+            </CardDescription>
+          </div>
+          {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+        </div>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-3">
+          {canLink && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" variant="outline" onClick={runAutoLink} disabled={autoMut.isPending} className="gap-1.5">
+                {autoMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                Auto-link by date & opponent
+              </Button>
+              {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+            </div>
+          )}
+          <div className="space-y-2">
+            {links.map((l) => (
+              <div key={l.id} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5">
+                <div className="min-w-0 sm:w-1/2">
+                  <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                    {l.matchId != null && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+                    {opponentOf(l)}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {[fmtDate(l.startsAt), l.title].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <div className="sm:flex-1">
+                  {canLink ? (
+                    <Select
+                      value={l.matchId != null ? String(l.matchId) : "none"}
+                      onValueChange={(v) => setLink(l.id, v === "none" ? null : Number(v))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Not linked" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not linked</SelectItem>
+                        {hubMatches.map((h) => (
+                          <SelectItem key={h.id} value={String(h.id)}>{hubLabel(h)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {l.matchId != null
+                        ? hubMatches.find((h) => h.id === l.matchId)
+                          ? hubLabel(hubMatches.find((h) => h.id === l.matchId)!)
+                          : "Linked"
+                        : "Not linked"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {links.length === 0 && (
+              <p className="text-xs text-muted-foreground">No Veo matches synced yet.</p>
+            )}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Season view — one row per synced match (oldest → newest), server-aggregated
+// event counts, momentum weights applied client-side (same weights as the
+// match view's momentum chart).
+function SeasonView({ matches }: { matches: VeoSeasonMatch[] }) {
+  // A "season" is one calendar year here; the Veo library spans several years,
+  // so charts default to the latest year with a year picker to look back.
+  const years = useMemo(() => {
+    const ys = new Set<number>();
+    for (const m of matches) {
+      const d = m.startsAt ? new Date(m.startsAt) : null;
+      if (d && !isNaN(d.getTime())) ys.add(d.getFullYear());
+    }
+    return Array.from(ys).sort((a, b) => b - a);
+  }, [matches]);
+  const [pickedYear, setPickedYear] = useState<number | "all" | null>(null);
+  // Clamp to the years that actually exist for this league — a stale pick from
+  // another league (or after a re-sync) falls back to the latest year.
+  const year: number | "all" =
+    pickedYear === "all" || (typeof pickedYear === "number" && years.includes(pickedYear))
+      ? pickedYear
+      : years[0] ?? "all";
+  const setYear = setPickedYear;
+
+  const filtered = useMemo(() => {
+    if (year === "all") return matches;
+    return matches.filter((m) => {
+      const d = m.startsAt ? new Date(m.startsAt) : null;
+      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
+    });
+  }, [matches, year]);
+
+  const rows = useMemo(() => {
+    return filtered.map((m, i) => {
+      const f = (m.countsFor ?? {}) as Record<string, number>;
+      const a = (m.countsAgainst ?? {}) as Record<string, number>;
+      const n = (c: Record<string, number>, k: string) => Number(c[k] ?? 0);
+      // Match view counts goals as shots too (a goal is an on-target shot).
+      const shotsFor = n(f, "FootballShot") + n(f, "FootballGoal");
+      const shotsAgainst = n(a, "FootballShot") + n(a, "FootballGoal");
+      let wFor = 0, wAgainst = 0;
+      for (const [type, w] of Object.entries(MOMENTUM_WEIGHT)) {
+        wFor += n(f, type) * w;
+        wAgainst += n(a, type) * w;
+      }
+      const tilt = wFor + wAgainst > 0 ? (wFor / (wFor + wAgainst)) * 100 : null;
+      return {
+        idx: i + 1,
+        opp: opponentOf(m),
+        date: fmtDate(m.startsAt),
+        label: `${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`,
+        shotsFor, shotsAgainst,
+        goalsFor: n(f, "FootballGoal"), goalsAgainst: n(a, "FootballGoal"),
+        cornersFor: n(f, "FootballCornerKick"), cornersAgainst: n(a, "FootballCornerKick"),
+        tilt,
+      };
+    });
+  }, [filtered]);
+
+  const totals = useMemo(() => {
+    const withTilt = rows.filter((r) => r.tilt != null);
+    const avgTilt = withTilt.length > 0 ? withTilt.reduce((s, r) => s + (r.tilt ?? 0), 0) / withTilt.length : null;
+    const sum = (k: "shotsFor" | "shotsAgainst" | "goalsFor" | "goalsAgainst" | "cornersFor" | "cornersAgainst") =>
+      rows.reduce((s, r) => s + r[k], 0);
+    const games = rows.length || 1;
+    return {
+      games: rows.length,
+      avgTilt,
+      shotsForPg: sum("shotsFor") / games, shotsAgainstPg: sum("shotsAgainst") / games,
+      goalsFor: sum("goalsFor"), goalsAgainst: sum("goalsAgainst"),
+      cornersForPg: sum("cornersFor") / games, cornersAgainstPg: sum("cornersAgainst") / games,
+    };
+  }, [rows]);
+
+  if (rows.length === 0) {
+    return (
+      <Card><CardContent className="py-16 text-center text-muted-foreground">
+        No synced matches with event data yet.
+      </CardContent></Card>
+    );
+  }
+
+  const tooltip = (
+    <Tooltip
+      contentStyle={TOOLTIP_BOX}
+      cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+      labelFormatter={(_, payload) => (payload?.[0]?.payload as { label?: string })?.label ?? ""}
+    />
+  );
+  // With a big "All matches" set, per-match labels turn to soup — thin them out.
+  const xAxis = (
+    <XAxis dataKey="opp" {...AXIS} interval={rows.length > 24 ? Math.ceil(rows.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+  );
+  const legend = <Legend wrapperStyle={{ fontSize: 12 }} />;
+
+  return (
+    <div className="space-y-6">
+      {years.length > 1 && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground shrink-0">Season</span>
+          <Select value={String(year)} onValueChange={(v) => setYear(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+              <SelectItem value="all">All matches</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Games with Veo events" value={String(totals.games)} />
+        <StatCard
+          label="Avg field tilt (us)"
+          value={totals.avgTilt != null ? `${totals.avgTilt.toFixed(0)}%` : "—"}
+          sub="Event-weighted momentum share"
+        />
+        <StatCard label="Shots per game" value={`${totals.shotsForPg.toFixed(1)} – ${totals.shotsAgainstPg.toFixed(1)}`} sub="us – them" />
+        <StatCard label="Corners per game" value={`${totals.cornersForPg.toFixed(1)} – ${totals.cornersAgainstPg.toFixed(1)}`} sub="us – them" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Shots per match</CardTitle>
+            <CardDescription>
+              Shots (incl. goals) for and against, round by round. Dashed lines are the season
+              averages ({totals.shotsForPg.toFixed(1)} us, {totals.shotsAgainstPg.toFixed(1)} them).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={rows} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                {xAxis}
+                <YAxis {...AXIS} allowDecimals={false} />
+                {tooltip}
+                {legend}
+                <Bar dataKey="shotsFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="shotsAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                <ReferenceLine y={totals.shotsForPg} stroke={C_US} strokeDasharray="5 4" />
+                <ReferenceLine y={totals.shotsAgainstPg} stroke={C_THEM} strokeDasharray="5 4" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Goals per match</CardTitle>
+            <CardDescription>Season so far: {totals.goalsFor} scored, {totals.goalsAgainst} conceded (from Veo events).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={rows} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                {xAxis}
+                <YAxis {...AXIS} allowDecimals={false} />
+                {tooltip}
+                {legend}
+                <Bar dataKey="goalsFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="goalsAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                {totals.games > 0 && (
+                  <ReferenceLine y={totals.goalsFor / totals.games} stroke={C_US} strokeDasharray="5 4" />
+                )}
+                {totals.games > 0 && (
+                  <ReferenceLine y={totals.goalsAgainst / totals.games} stroke={C_THEM} strokeDasharray="5 4" />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Corners per match</CardTitle>
+            <CardDescription>
+              Corner counts for and against, round by round. Dashed lines are the season
+              averages ({totals.cornersForPg.toFixed(1)} us, {totals.cornersAgainstPg.toFixed(1)} them).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={rows} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                {xAxis}
+                <YAxis {...AXIS} allowDecimals={false} />
+                {tooltip}
+                {legend}
+                <Bar dataKey="cornersFor" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="cornersAgainst" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                <ReferenceLine y={totals.cornersForPg} stroke={C_US} strokeDasharray="5 4" />
+                <ReferenceLine y={totals.cornersAgainstPg} stroke={C_THEM} strokeDasharray="5 4" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Field tilt per match</CardTitle>
+            <CardDescription>
+              Our share of event-weighted attacking momentum — above 50% means we carried more threat.
+              Dashed line is the season average{totals.avgTilt != null ? ` (${totals.avgTilt.toFixed(0)}%)` : ""}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={rows} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                {xAxis}
+                <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  contentStyle={TOOLTIP_BOX}
+                  cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                  formatter={(v: number) => [`${Number(v).toFixed(0)}%`, "Field tilt"]}
+                  labelFormatter={(_, payload) => (payload?.[0]?.payload as { label?: string })?.label ?? ""}
+                />
+                <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
+                {totals.avgTilt != null && (
+                  <ReferenceLine y={totals.avgTilt} stroke={C_US} strokeDasharray="5 4" />
+                )}
+                <Bar dataKey="tilt" name="Field tilt">
+                  {rows.map((r, i) => (
+                    <Cell key={i} fill={(r.tilt ?? 0) >= 50 ? C_US : C_THEM} />
+                  ))}
+                </Bar>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-2xl font-bold mt-1">{value}</div>
+        {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+      </CardContent>
+    </Card>
   );
 }
 

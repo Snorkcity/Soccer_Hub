@@ -3322,6 +3322,29 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/VeoMatchSummary" }
 
+  /veo/season:
+    get:
+      operationId: getVeoSeason
+      tags: [veo]
+      summary: Season-wide per-match Veo event counts (for/against by event type)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-match event counts across every synced match, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: "#/components/schemas/VeoSeasonMatch" }
+
   /veo/match:
     get:
       operationId: getVeoMatch
@@ -3342,6 +3365,78 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VeoMatchDetail" }
+
+  /veo/links:
+    get:
+      operationId: listVeoLinks
+      tags: [veo]
+      summary: Veo↔Hub match links for a league, plus the Hub matches to link to
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Link rows and Hub match options
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoLinksResponse" }
+
+  /entry/veo-auto-link:
+    post:
+      operationId: veoAutoLink
+      tags: [veo]
+      summary: Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoAutoLinkInput" }
+      responses:
+        "200":
+          description: Auto-link outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoAutoLinkResult" }
+
+  /entry/veo-link:
+    post:
+      operationId: veoSetLink
+      tags: [veo]
+      summary: Manually set or clear the Hub match a Veo match is linked to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoSetLinkInput" }
+      responses:
+        "200":
+          description: Link updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
+
+  /veo/report-stats:
+    get:
+      operationId: getVeoReportStats
+      tags: [veo]
+      summary: Veo shots + momentum for the Hub match a report is showing (via the link)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchRowId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Linked Veo stats, or linked=false when no Veo match is linked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoReportStats" }
 
 components:
   schemas:
@@ -3397,6 +3492,21 @@ components:
         outcome: { type: string, nullable: true }
         x: { type: number, nullable: true }
         z: { type: number, nullable: true }
+    VeoSeasonMatch:
+      type: object
+      required: [id, veoMatchId, countsFor, countsAgainst]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        countsFor:
+          type: object
+          additionalProperties: { type: number }
+        countsAgainst:
+          type: object
+          additionalProperties: { type: number }
     VeoMatchDetail:
       type: object
       required: [id, veoMatchId]
@@ -3430,6 +3540,85 @@ components:
           additionalProperties: true
         matchId: { type: integer, nullable: true }
         syncedAt: { type: string, nullable: true }
+    VeoLinkRow:
+      type: object
+      required: [id, veoMatchId, synced]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        matchId: { type: integer, nullable: true }
+        synced: { type: boolean }
+    HubMatchOption:
+      type: object
+      required: [id, matchId, opponent, teamId, seasonId]
+      properties:
+        id: { type: integer }
+        matchId: { type: string }
+        matchDate: { type: string, nullable: true }
+        opponent: { type: string }
+        teamId: { type: integer }
+        seasonId: { type: integer }
+    VeoLinksResponse:
+      type: object
+      required: [links, hubMatches]
+      properties:
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/VeoLinkRow" }
+        hubMatches:
+          type: array
+          items: { $ref: "#/components/schemas/HubMatchOption" }
+    VeoAutoLinkInput:
+      type: object
+      required: [leagueId]
+      properties:
+        leagueId: { type: integer }
+    VeoAutoLinkResult:
+      type: object
+      required: [linked, ambiguous, unmatched]
+      properties:
+        linked: { type: integer }
+        ambiguous: { type: integer }
+        unmatched: { type: integer }
+    VeoSetLinkInput:
+      type: object
+      required: [leagueId, veoId]
+      properties:
+        leagueId: { type: integer }
+        veoId: { type: integer }
+        matchId: { type: integer, nullable: true }
+    VeoSetLinkResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    VeoShotTotals:
+      type: object
+      required: [us, them]
+      properties:
+        us: { type: integer }
+        them: { type: integer }
+    VeoMomentumBin:
+      type: object
+      required: [min, us, them]
+      properties:
+        min: { type: integer }
+        us: { type: number }
+        them: { type: number }
+    VeoReportStats:
+      type: object
+      required: [linked]
+      properties:
+        linked: { type: boolean }
+        veoId: { type: integer, nullable: true }
+        startsAt: { type: string, nullable: true }
+        shots: { $ref: "#/components/schemas/VeoShotTotals" }
+        momentum:
+          type: array
+          items: { $ref: "#/components/schemas/VeoMomentumBin" }
     HealthStatus:
       type: object
       properties:
