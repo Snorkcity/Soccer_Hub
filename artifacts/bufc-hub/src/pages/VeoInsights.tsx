@@ -935,7 +935,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
         <StatCard label="Corners per game" value={`${totals.cornersForPg.toFixed(1)} – ${totals.cornersAgainstPg.toFixed(1)}`} sub="us – them" />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Shots per match</CardTitle>
@@ -1286,7 +1286,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>When our threat comes — 15-minute bands</CardTitle>
@@ -1852,7 +1852,7 @@ function MatchView({ match, events, passing }: {
             <StatCard label="Possession won" value={`${passStats.possWonUs} – ${passStats.possWonThem}`} sub="regains, us – them" />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Pass strings</CardTitle>
@@ -2000,7 +2000,7 @@ function MatchView({ match, events, passing }: {
         </>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Match events — us vs {opp}</CardTitle>
@@ -2103,7 +2103,7 @@ function MatchView({ match, events, passing }: {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Set-piece pressure</CardTitle>
