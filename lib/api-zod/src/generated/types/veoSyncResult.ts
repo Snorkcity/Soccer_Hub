@@ -11,5 +11,6 @@ export interface VeoSyncResult {
   totalMatches: number;
   fetched: number;
   remaining: number;
+  analyticsPending: number;
   done: boolean;
 }

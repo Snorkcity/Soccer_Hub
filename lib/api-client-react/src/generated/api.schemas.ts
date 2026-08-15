@@ -15,6 +15,7 @@ export interface VeoSyncResult {
   totalMatches: number;
   fetched: number;
   remaining: number;
+  analyticsPending: number;
   done: boolean;
 }
 
@@ -31,6 +32,7 @@ export interface VeoMatchSummary {
   opponent?: string | null;
   startsAt?: string | null;
   matchCode?: string | null;
+  hubOpponent?: string | null;
   hasAnalytics?: boolean;
   hasEvents?: boolean;
   hasTracking?: boolean;
@@ -64,6 +66,7 @@ export interface VeoSeasonMatch {
   opponent?: string | null;
   startsAt?: string | null;
   matchCode?: string | null;
+  hubOpponent?: string | null;
   countsFor: VeoSeasonMatchCountsFor;
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }
@@ -83,6 +86,7 @@ export interface VeoSeasonShotMatch {
   opponent?: string | null;
   startsAt?: string | null;
   matchCode?: string | null;
+  hubOpponent?: string | null;
   shots: VeoSeasonShot[];
 }
 
@@ -91,6 +95,8 @@ export type VeoMatchDetailStats = { [key: string]: unknown } | null;
 export type VeoMatchDetailPeriodsItem = { [key: string]: unknown };
 
 export type VeoMatchDetailRoster = { [key: string]: unknown } | null;
+
+export type VeoMatchDetailPassDetails = { [key: string]: unknown } | null;
 
 export interface VeoMatchDetail {
   id: number;
@@ -108,8 +114,39 @@ export interface VeoMatchDetail {
   stats?: VeoMatchDetailStats;
   periods?: VeoMatchDetailPeriodsItem[] | null;
   roster?: VeoMatchDetailRoster;
+  passDetails?: VeoMatchDetailPassDetails;
   matchId?: number | null;
   syncedAt?: string | null;
+}
+
+export interface VeoPassStringBucket {
+  len: number;
+  count: number;
+}
+
+export interface VeoThirds {
+  defensive: number;
+  middle: number;
+  attacking: number;
+}
+
+export interface VeoSeasonPassingMatch {
+  id: number;
+  veoMatchId: string;
+  title?: string | null;
+  opponent?: string | null;
+  startsAt?: string | null;
+  matchCode?: string | null;
+  possessionSecUs: number;
+  possessionSecThem: number;
+  passesUs: number;
+  passesThem: number;
+  possessionWonUs: number;
+  possessionWonThem: number;
+  passStringsUs: VeoPassStringBucket[];
+  passStringsThem: VeoPassStringBucket[];
+  thirdsUs: VeoThirds;
+  thirdsThem: VeoThirds;
 }
 
 export interface VeoLinkRow {
@@ -4039,6 +4076,14 @@ leagueId: number;
 
 export type GetVeoSeasonShots200 = {
   matches: VeoSeasonShotMatch[];
+};
+
+export type GetVeoSeasonPassingParams = {
+leagueId: number;
+};
+
+export type GetVeoSeasonPassing200 = {
+  matches: VeoSeasonPassingMatch[];
 };
 
 export type GetVeoMatchParams = {

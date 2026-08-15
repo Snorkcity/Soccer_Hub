@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VeoEvent } from './veoEvent';
+import type { VeoMatchDetailPassDetails } from './veoMatchDetailPassDetails';
 import type { VeoMatchDetailPeriodsItem } from './veoMatchDetailPeriodsItem';
 import type { VeoMatchDetailRoster } from './veoMatchDetailRoster';
 import type { VeoMatchDetailStats } from './veoMatchDetailStats';
@@ -26,6 +27,7 @@ export interface VeoMatchDetail {
   stats?: VeoMatchDetailStats;
   periods?: VeoMatchDetailPeriodsItem[] | null;
   roster?: VeoMatchDetailRoster;
+  passDetails?: VeoMatchDetailPassDetails;
   matchId?: number | null;
   syncedAt?: string | null;
 }

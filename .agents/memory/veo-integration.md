@@ -77,14 +77,27 @@ Veo recordings upload from hardware weekly and finish processing anywhere Sunday
 morning; a scheduled sync would mis-time it. Coach explicitly wants the manual "Sync from Veo"
 button as the only trigger — do not add auto-sync (related follow-up task was cancelled).
 
-## Possession & pass-strings data EXISTS but endpoint unknown (Aug 2026)
-Coach's Veo web UI shows Pass strings / Possession location / Pass location panels WITH data, so
-the tier does have it — the earlier "not on this tier" conclusion was wrong. But it is NOT at any
-guessable path: /matches/{id}/stats/ returns nulls for possession/pass slugs, and pass-strings,
-passes, possession(-location), analytics, insights, advanced-stats, heatmap, zones all 404
-(probe: artifacts/api-server/scripts/probe-veo-pass.ts). The UI must load a different service
-(svc.veo.co or GraphQL) — needs a headless-browser network capture to find (follow-up task filed).
-Exploratory raw GETs: exported veoApiGet() in api-server lib/veo.ts.
+## Possession & pass-strings: the RAS service (FOUND Aug 2026)
+Pass strings / possession location / pass location panels are NOT on app.veo.co/api — they come
+from the **RAS service**: base URL in `window.VEO_SERVICE_URLS.RAS_URL` embedded in the app.veo.co
+page HTML (currently `https://dt3kfuz4eo879.cloudfront.net` — a CloudFront host that could rotate,
+so re-scrape the page HTML if it 403s). Same Bearer token as `/api/app` works. Endpoints:
+- `GET {RAS}/recordings/{matchId}/analytics` → pipeline status map, e.g.
+  `{"match-details":"completed","shot-details":"completed",...}` — gate on `match-details==="completed"`.
+- `GET {RAS}/recordings/{matchId}/match-details?filters=start,end&filters=start2,end2` where each
+  filter pair is a period's video-time `timeframe` from `/matches/{id}/periods/`. Returns one item
+  per period: `{start, end, stats:{PossessionSeconds:{L,R}, PassesCompleted:{L,R}, PossessionWon:{L,R}},
+  passStrings:{L:[[len,count],...],R}, passLocations:{L:[{x,y},...],R},
+  possessionLocations:{L:{defensive,middle,attacking},R}, possessionLocationsGrid:{L:{type:"18_zone_system",values:[18]},R}}`.
+- `&interactiveStrings=true` adds per-string detail `[len,count,[{start,end,endLocation},...]]`.
+- `GET {RAS}/recordings/{matchId}/shot-details?filters=...` also exists.
+- **L/R are PITCH SIDES, not teams** — map via each period's `own_side`: own = "L" when
+  `own_side==="left"` (mirrors Veo's client; possession-location thirds keys are used as-is, no flip).
+Implementation: `getPassDetails()` in api-server lib/veo.ts (status-gated, stores `{available:false}`
+when analytics absent so sync never re-loops); stored in `veo_matches.pass_details` jsonb; served by
+`/veo/season-passing`; charts in VeoInsights (season "Possession & passing" section + match panels).
+Probe scripts: scripts/probe-veo-ras.ts, CLI sync: scripts/veo-sync-cli.ts (same code path as the
+route via exported syncVeoLeagueOnce/autoLinkVeoLeague).
 
 ## Shot-map orientation (own_side)
 Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".

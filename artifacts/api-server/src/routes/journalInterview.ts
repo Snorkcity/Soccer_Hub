@@ -13,9 +13,10 @@
  *  - /writeup  — full Q&A → journal field content in the coach's voice
  */
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable, seasonsTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable, seasonsTable, veoMatchesTable } from "@workspace/db";
 import { focusClubForSeason } from "../lib/focusClub";
+import { summarisePassDetails } from "./veo";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, type IntelGoal } from "../lib/goalIntel";
 import {
@@ -419,7 +420,7 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       leagueId = season.leagueId;
     }
 
-    const [lastMeeting, prevVsOpponent, mondayBrief, scoutText] = await Promise.all([
+    const [lastMeeting, prevVsOpponent, mondayBrief, scoutText, ourPassing, oppPassing] = await Promise.all([
       seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
       leagueId != null
         ? previousDecksVsOpponentText(leagueId, opponent).catch(() => null)
@@ -430,6 +431,8 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       seasonId != null
         ? opponentScoutFingerprint(seasonId, opponent).catch(() => null)
         : Promise.resolve(null),
+      leagueId != null ? recentPassingContext(leagueId).catch(() => null) : Promise.resolve(null),
+      leagueId != null ? opponentPassingContext(leagueId, opponent).catch(() => null) : Promise.resolve(null),
     ]);
 
     const sections = [
@@ -443,6 +446,8 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       scoutText
         ? `## Scouting fingerprint on ${opponent} (computed from recorded league data)\n${scoutText}`
         : "",
+      ourPassing ? `## Our possession & passing trends (Veo data)\n${ourPassing}` : "",
+      oppPassing ? `## ${opponent}'s Veo passing numbers — last recorded meeting\n${oppPassing}` : "",
       gamePlanNotes ? `## The coach's game plan notes for this match\n${gamePlanNotes}` : "",
     ]
       .filter(Boolean)
@@ -462,8 +467,9 @@ Coaching identity: controlled positional play (Guardiola-style) — passionate b
 Return JSON: {"lines": string[]} — 5 to 8 talking points, one line each.
 - Direct address to the players, spoken not written ("Their goals come from the right — show them onto the left back.").
 - Each line under 20 words. Plain spoken Australian English (defence, organisation), no jargon beyond common football terms (6, 8, 10, press, block).
-- Ground every line in the input: previous talks vs this opponent, recorded last-meeting facts, the Monday brief, the scouting fingerprint. Never invent facts about the opponent.
+- Ground every line in the input: previous talks vs this opponent, recorded last-meeting facts, the Monday brief, the scouting fingerprint, and the Veo possession/passing data. Never invent facts about the opponent.
 - When the scouting fingerprint is provided, at least two lines must turn its specific patterns (e.g. set-piece share, favourite lane, transition threat, named scorers) into instructions for the players. Cite only patterns actually stated — do not extrapolate beyond them.
+- If Veo possession/passing data is provided (for us or for them), incorporate any meaningful pattern into a line — e.g. if we've been high-possession lately ("control the tempo — this is how we play"), or if they had unusually high 6+ pass strings in the last meeting ("they can move it — stay compact, press the trigger").
 - If a previous talk vs this opponent is provided, carry forward what is still relevant rather than starting from scratch — continuity in the message matters.
 - If the last-meeting facts are provided, at least one line must build on what actually happened.
 - No headings, no numbering, no motivational filler ("give 110%") — every line must be specific and actionable.`,
@@ -681,6 +687,170 @@ export async function opponentScoutFingerprint(
   return lines.join("\n");
 }
 
+// ── Veo possession / passing context helpers ───────────────────────────────
+
+type PassSummary = NonNullable<ReturnType<typeof summarisePassDetails>>;
+
+function possessionPct(s: PassSummary): number | null {
+  const total = s.possessionSecUs + s.possessionSecThem;
+  if (total <= 0) return null;
+  return Math.round((s.possessionSecUs / total) * 100);
+}
+
+function longStringsCount(strings: PassSummary["passStringsUs"], minLen = 6): number {
+  return strings.filter((e) => e.len >= minLen).reduce((acc, e) => acc + e.count, 0);
+}
+
+function thirdsDistribution(t: { defensive: number; middle: number; attacking: number }): string | null {
+  const total = t.defensive + t.middle + t.attacking;
+  if (total <= 0) return null;
+  const pct = (n: number) => Math.round((n / total) * 100);
+  return `def ${pct(t.defensive)}% / mid ${pct(t.middle)}% / att ${pct(t.attacking)}%`;
+}
+
+function confidenceLabel(n: number): string {
+  if (n >= 6) return "Strong evidence";
+  if (n >= 3) return "Emerging pattern";
+  return "Observation (limited games)";
+}
+
+/**
+ * Summarise our own possession/passing trends from the last `lastN`
+ * Veo-recorded games for a league, in the house hedged-voice style.
+ */
+async function recentPassingContext(leagueId: number, lastN = 3): Promise<string | null> {
+  const rows = await db
+    .select({
+      id: veoMatchesTable.id,
+      startsAt: veoMatchesTable.startsAt,
+      opponent: veoMatchesTable.opponent,
+      passDetails: veoMatchesTable.passDetails,
+      periods: veoMatchesTable.periods,
+    })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.passDetails} IS NOT NULL`,
+      ),
+    )
+    .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
+
+  const summaries: { opponent: string | null; s: PassSummary }[] = [];
+  for (const r of rows) {
+    if (summaries.length >= lastN) break;
+    const s = summarisePassDetails(r.passDetails, r.periods);
+    if (s) summaries.push({ opponent: r.opponent, s });
+  }
+  if (!summaries.length) return null;
+
+  const n = summaries.length;
+  const pcts = summaries.map((x) => possessionPct(x.s)).filter((v): v is number => v !== null);
+  const strings6 = summaries.map((x) => longStringsCount(x.s.passStringsUs));
+
+  const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const minPct = pcts.length ? Math.min(...pcts) : null;
+  const maxPct = pcts.length ? Math.max(...pcts) : null;
+  const avgStrings6 = Math.round(strings6.reduce((a, b) => a + b, 0) / n);
+
+  // Thirds: average across all summaries
+  const totalThirds = summaries.reduce(
+    (acc, x) => ({
+      defensive: acc.defensive + x.s.thirdsUs.defensive,
+      middle: acc.middle + x.s.thirdsUs.middle,
+      attacking: acc.attacking + x.s.thirdsUs.attacking,
+    }),
+    { defensive: 0, middle: 0, attacking: 0 },
+  );
+  const thirdsStr = thirdsDistribution(totalThirds);
+
+  const confidence = confidenceLabel(n);
+  const lines: string[] = [
+    `Our possession & passing — last ${n} Veo-recorded game${n === 1 ? "" : "s"} (${confidence.toLowerCase()}):`,
+  ];
+
+  if (avgPct !== null && pcts.length > 0) {
+    const rangeStr =
+      pcts.length > 1 && minPct !== maxPct ? ` (range ${minPct}%–${maxPct}%)` : "";
+    lines.push(`  Possession: ${avgPct}%${rangeStr} on average.`);
+  }
+  lines.push(`  Sequences of 6+ passes: ${avgStrings6} per game on average.`);
+  if (thirdsStr) lines.push(`  Where we held the ball (combined): ${thirdsStr}.`);
+
+  // Add a hedged observation line when there's enough to say something
+  if (pcts.length >= 2) {
+    if (avgPct !== null && avgPct >= 55) {
+      lines.push(
+        `  The available evidence suggests we've dominated possession — consistent with the build-up-heavy identity when that share has held across multiple games.`,
+      );
+    } else if (avgPct !== null && avgPct < 45) {
+      lines.push(
+        `  The available evidence suggests we've been under possession pressure recently — may indicate opponents sitting deeper or our build-up recycling breaking down.`,
+      );
+    }
+    if (avgStrings6 >= 8) {
+      lines.push(`  6+ pass sequences are consistent with a controlled, patient build-up phase.`);
+    } else if (avgStrings6 <= 3) {
+      lines.push(
+        `  Low sustained sequence count — may indicate early ball losses, a high-press opponent, or a more direct intent from kick-off.`,
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Passing/possession numbers from the most recent Veo-recorded meeting vs
+ * this opponent, giving their side of the story.
+ */
+async function opponentPassingContext(leagueId: number, opponent: string): Promise<string | null> {
+  const oppLc = opponent.trim().toLowerCase();
+  const rows = await db
+    .select({
+      id: veoMatchesTable.id,
+      startsAt: veoMatchesTable.startsAt,
+      opponent: veoMatchesTable.opponent,
+      passDetails: veoMatchesTable.passDetails,
+      periods: veoMatchesTable.periods,
+    })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.passDetails} IS NOT NULL`,
+        sql`LOWER(${veoMatchesTable.opponent}) = ${oppLc}`,
+      ),
+    )
+    .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
+
+  for (const r of rows) {
+    const s = summarisePassDetails(r.passDetails, r.periods);
+    if (!s) continue;
+
+    const theirPct = (() => {
+      const total = s.possessionSecUs + s.possessionSecThem;
+      if (total <= 0) return null;
+      return Math.round((s.possessionSecThem / total) * 100);
+    })();
+    const theirStrings6 = longStringsCount(s.passStringsThem);
+    const theirThirds = thirdsDistribution(s.thirdsThem);
+
+    const dateLbl = r.startsAt
+      ? new Date(r.startsAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+      : null;
+
+    const lines = [
+      `${opponent}'s Veo numbers — last recorded meeting${dateLbl ? ` (${dateLbl})` : ""}:`,
+    ];
+    if (theirPct !== null) lines.push(`  Their possession: ${theirPct}%.`);
+    lines.push(`  Their 6+ pass sequences: ${theirStrings6}.`);
+    if (theirThirds) lines.push(`  Their possession thirds: ${theirThirds}.`);
+    return lines.join("\n");
+  }
+  return null;
+}
+
 // ── Week-ahead server-side context lookups ─────────────────────────────────
 
 /** Headline-fact lines from the most recent league meeting vs `opponent` this season. */
@@ -810,13 +980,16 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
 
     // Server-side context: the last league meeting vs this opponent, our
     // latest saved pre-match deck, the deck we took into the previous meeting
-    // vs this opponent, and their scouting fingerprint. All optional — first
-    // meeting / no saved deck / thin data simply contributes nothing.
-    const [lastMeeting, prevDeck, prevOppDeck, scout] = await Promise.all([
+    // vs this opponent, their scouting fingerprint, and Veo passing trends.
+    // All optional — first meeting / no saved deck / thin data simply
+    // contributes nothing.
+    const [lastMeeting, prevDeck, prevOppDeck, scout, ourPassing, oppPassing] = await Promise.all([
       seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
       leagueId != null ? previousDeckText(leagueId).catch(() => null) : Promise.resolve(null),
       leagueId != null ? previousDeckText(leagueId, opponent).catch(() => null) : Promise.resolve(null),
       seasonId != null ? opponentScoutFingerprint(seasonId, opponent).catch(() => null) : Promise.resolve(null),
+      leagueId != null ? recentPassingContext(leagueId).catch(() => null) : Promise.resolve(null),
+      leagueId != null ? opponentPassingContext(leagueId, opponent).catch(() => null) : Promise.resolve(null),
     ]);
 
     const sections = [
@@ -839,6 +1012,8 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
         ? `## What we worked on in training before the last meeting vs ${opponent}\n${prevMeetingPrepText}`
         : "",
       scout ? `## ${opponent}'s season scouting fingerprint (recorded league data)\n${scout}` : "",
+      ourPassing ? `## Our possession & passing trends (Veo data)\n${ourPassing}` : "",
+      oppPassing ? `## ${opponent}'s Veo passing numbers — last recorded meeting\n${oppPassing}` : "",
       theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
       ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
     ]
@@ -857,7 +1032,7 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
             content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
 Return JSON: {"review": string[], "pointers": string[], "trainingFocus": string[]}.
 - "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote. His reflections may span the last few weeks: when the same theme recurs across weeks, say so explicitly ("third week running you've flagged...") — a recurring thread matters more than a one-off from the latest session.
-- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions). Don't let the latest week dominate: weigh the last 2-3 weeks of reflections together, and where the inputs include what we worked on or planned before the previous meeting vs this opponent, connect back to it ("before the last ${opponent} game you worked on X — it paid off / it's still the gap").
+- "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, Veo possession/passing trends, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions). Don't let the latest week dominate: weigh the last 2-3 weeks of reflections together, and where the inputs include what we worked on or planned before the previous meeting vs this opponent, connect back to it ("before the last ${opponent} game you worked on X — it paid off / it's still the gap"). When Veo passing data is provided (for us or for them), include a pointer grounded in it — e.g. if our possession has been low ("our build-up has been under pressure — look to get an early foothold this week"), or if the opponent had high sustained sequences last time ("they moved the ball well last meeting — we'll need to be compact and press our triggers").
 - If the last-meeting facts or last match report are provided, at least one pointer must build on them — continuity from what actually happened, not generic advice. When the input includes our match plan from our most recent game, carry forward anything still relevant rather than starting from scratch.
 - "trainingFocus": 2-4 suggested training focuses for this week's sessions. Each must be grounded in one of: something ${opponent} is strong at (recently or against us last time) that we should prepare for; something they're weak at that we could exploit; something we've struggled with recently ourselves; or something that worked last time we played them and is worth sharpening again. Name the evidence in the bullet itself ("they've scored 3 from corners in their last 3 — rehearse defending set pieces"). Only suggest what the data or his notes actually support — fewer, grounded suggestions beat padded ones.
 - Use the club's principles-of-play vocabulary where it fits naturally — specifically the U16+/senior phase language, since this app serves U18s and above: patience in buildup when the opponent is organised; penetrate / break the line when the moment arrives, don't force it; be brave and take responsibility; transition is the 5-7 seconds after losing or winning the ball — think faster, move faster, dominate transitions through anticipation, not reaction; losing the ball is a collective emergency ("lose it — close it"); stay compact vertically and horizontally, reduce the space between the lines, compact when we lose it; control the tempo — accelerate or secure; fast brain, calm feet. Never force a term where it doesn't fit the facts.

@@ -3368,6 +3368,29 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/VeoSeasonShotMatch" }
 
+  /veo/season-passing:
+    get:
+      operationId: getVeoSeasonPassing
+      tags: [veo]
+      summary: Season-wide per-match possession & passing summaries from Veo RAS analytics
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Per-match passing/possession summaries, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: "#/components/schemas/VeoSeasonPassingMatch" }
+
   /veo/match:
     get:
       operationId: getVeoMatch
@@ -3471,12 +3494,13 @@ components:
         batch: { type: integer }
     VeoSyncResult:
       type: object
-      required: [league, totalMatches, fetched, remaining, done]
+      required: [league, totalMatches, fetched, remaining, analyticsPending, done]
       properties:
         league: { type: string }
         totalMatches: { type: integer }
         fetched: { type: integer }
         remaining: { type: integer }
+        analyticsPending: { type: integer }
         done: { type: boolean }
     VeoLeague:
       type: object
@@ -3495,6 +3519,7 @@ components:
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
         matchCode: { type: string, nullable: true }
+        hubOpponent: { type: string, nullable: true }
         hasAnalytics: { type: boolean }
         hasEvents: { type: boolean }
         hasTracking: { type: boolean }
@@ -3526,6 +3551,7 @@ components:
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
         matchCode: { type: string, nullable: true }
+        hubOpponent: { type: string, nullable: true }
         countsFor:
           type: object
           additionalProperties: { type: number }
@@ -3551,6 +3577,7 @@ components:
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
         matchCode: { type: string, nullable: true }
+        hubOpponent: { type: string, nullable: true }
         shots:
           type: array
           items: { $ref: "#/components/schemas/VeoSeasonShot" }
@@ -3585,8 +3612,51 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+        passDetails:
+          type: object
+          nullable: true
+          additionalProperties: true
         matchId: { type: integer, nullable: true }
         syncedAt: { type: string, nullable: true }
+    VeoPassStringBucket:
+      type: object
+      required: [len, count]
+      properties:
+        len: { type: integer }
+        count: { type: integer }
+    VeoThirds:
+      type: object
+      required: [defensive, middle, attacking]
+      properties:
+        defensive: { type: number }
+        middle: { type: number }
+        attacking: { type: number }
+    VeoSeasonPassingMatch:
+      type: object
+      required:
+        [id, veoMatchId, possessionSecUs, possessionSecThem, passesUs, passesThem,
+         possessionWonUs, possessionWonThem, passStringsUs, passStringsThem, thirdsUs, thirdsThem]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        title: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        startsAt: { type: string, nullable: true }
+        matchCode: { type: string, nullable: true }
+        possessionSecUs: { type: number }
+        possessionSecThem: { type: number }
+        passesUs: { type: number }
+        passesThem: { type: number }
+        possessionWonUs: { type: number }
+        possessionWonThem: { type: number }
+        passStringsUs:
+          type: array
+          items: { $ref: "#/components/schemas/VeoPassStringBucket" }
+        passStringsThem:
+          type: array
+          items: { $ref: "#/components/schemas/VeoPassStringBucket" }
+        thirdsUs: { $ref: "#/components/schemas/VeoThirds" }
+        thirdsThem: { $ref: "#/components/schemas/VeoThirds" }
     VeoLinkRow:
       type: object
       required: [id, veoMatchId, synced]

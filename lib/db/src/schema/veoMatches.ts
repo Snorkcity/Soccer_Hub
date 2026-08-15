@@ -31,6 +31,11 @@ export const veoMatchesTable = pgTable(
     stats: jsonb("stats").$type<Record<string, unknown>>(),
     periods: jsonb("periods").$type<unknown[]>(),
     roster: jsonb("roster").$type<Record<string, unknown>>(),
+    // Pass/possession analytics from Veo's RAS service (pass strings, pass
+    // locations, possession thirds + 18-zone grid, per period). Stored as the
+    // whole VeoPassDetails result incl. {available:false} markers so the sync
+    // knows it already checked a match that lacks the data.
+    passDetails: jsonb("pass_details").$type<Record<string, unknown>>(),
     // Link to our own matches.id once reconciled by round / opponent / date.
     matchId: integer("match_id"),
     syncedAt: text("synced_at"),

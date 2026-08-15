@@ -4724,6 +4724,7 @@ export const VeoSyncResponse = zod.object({
   "totalMatches": zod.number(),
   "fetched": zod.number(),
   "remaining": zod.number(),
+  "analyticsPending": zod.number(),
   "done": zod.boolean()
 })
 
@@ -4755,6 +4756,7 @@ export const ListVeoMatchesResponse = zod.object({
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
+  "hubOpponent": zod.string().nullish(),
   "hasAnalytics": zod.boolean().optional(),
   "hasEvents": zod.boolean().optional(),
   "hasTracking": zod.boolean().optional(),
@@ -4780,6 +4782,7 @@ export const GetVeoSeasonResponse = zod.object({
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
+  "hubOpponent": zod.string().nullish(),
   "countsFor": zod.record(zod.string(), zod.number()),
   "countsAgainst": zod.record(zod.string(), zod.number())
 }))
@@ -4801,6 +4804,7 @@ export const GetVeoSeasonShotsResponse = zod.object({
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
+  "hubOpponent": zod.string().nullish(),
   "shots": zod.array(zod.object({
   "x": zod.number().nullish(),
   "y": zod.number().nullish(),
@@ -4808,6 +4812,49 @@ export const GetVeoSeasonShotsResponse = zod.object({
   "goal": zod.boolean(),
   "us": zod.boolean()
 }))
+}))
+})
+
+
+/**
+ * @summary Season-wide per-match possession & passing summaries from Veo RAS analytics
+ */
+export const GetVeoSeasonPassingQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoSeasonPassingResponse = zod.object({
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "matchCode": zod.string().nullish(),
+  "possessionSecUs": zod.number(),
+  "possessionSecThem": zod.number(),
+  "passesUs": zod.number(),
+  "passesThem": zod.number(),
+  "possessionWonUs": zod.number(),
+  "possessionWonThem": zod.number(),
+  "passStringsUs": zod.array(zod.object({
+  "len": zod.number(),
+  "count": zod.number()
+})),
+  "passStringsThem": zod.array(zod.object({
+  "len": zod.number(),
+  "count": zod.number()
+})),
+  "thirdsUs": zod.object({
+  "defensive": zod.number(),
+  "middle": zod.number(),
+  "attacking": zod.number()
+}),
+  "thirdsThem": zod.object({
+  "defensive": zod.number(),
+  "middle": zod.number(),
+  "attacking": zod.number()
+})
 }))
 })
 
@@ -4848,6 +4895,7 @@ export const GetVeoMatchResponse = zod.object({
   "stats": zod.record(zod.string(), zod.unknown()).nullish(),
   "periods": zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
   "roster": zod.record(zod.string(), zod.unknown()).nullish(),
+  "passDetails": zod.record(zod.string(), zod.unknown()).nullish(),
   "matchId": zod.number().nullish(),
   "syncedAt": zod.string().nullish()
 })

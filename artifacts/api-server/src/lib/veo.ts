@@ -164,6 +164,23 @@ async function apiGet<T>(creds: VeoCredentials, path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+// Fetch an absolute URL (e.g. the RAS analytics service on cloudfront) with the
+// same bearer token. Returns the raw Response so callers can inspect status.
+export async function veoFetchAbsolute(creds: VeoCredentials, url: string): Promise<Response> {
+  const token = await login(creds);
+  const res = await fetch(url, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+  });
+  if (res.status === 401) {
+    tokenCache.delete(creds.email);
+    const fresh = await login(creds);
+    return fetch(url, {
+      headers: { authorization: `Bearer ${fresh}`, accept: "application/json" },
+    });
+  }
+  return res;
+}
+
 // ── Shapes (only the fields we use) ─────────────────────────────────────────
 export interface VeoRecording {
   identifier: string;
@@ -247,6 +264,91 @@ export function getPeriods(creds: VeoCredentials, matchId: string) {
 }
 export function getRoster(creds: VeoCredentials, matchId: string) {
   return apiGet<Record<string, unknown>>(creds, `/matches/${matchId}/roster/`);
+}
+
+// ── RAS (recording analytics service) — passes & possession ─────────────────
+// The web UI's "Pass strings" / "Possession location" / "Pass location" panels
+// load from a separate CDN-fronted service, NOT /api/app. Host comes from the
+// app.veo.co page bootstrap (window.VEO_SERVICE_URLS.RAS_URL); same Bearer
+// token works. See .agents/memory/veo-integration.md ("RAS service").
+const RAS_BASE = "https://dt3kfuz4eo879.cloudfront.net";
+
+export interface VeoPassDetailPeriod {
+  start: number; // video-time seconds (period timeframe start)
+  end: number;
+  // L/R are PITCH SIDES; map to us/them via the period's own_side (own = "L"
+  // when own_side === "left"), exactly like Veo's own client code.
+  stats?: {
+    PossessionSeconds?: Record<string, number>;
+    PassesCompleted?: Record<string, number>;
+    PossessionWon?: Record<string, number>;
+  };
+  passStrings?: Record<string, [number, number][]>; // [stringLength, count]
+  passLocations?: Record<string, { x: number; y: number }[]>;
+  possessionLocations?: Record<string, { defensive?: number; middle?: number; attacking?: number }>;
+  possessionLocationsGrid?: Record<string, { type?: string; values?: number[] }>;
+}
+
+export type VeoPassDetails =
+  | { available: true; checkedAt: string; items: VeoPassDetailPeriod[] }
+  // `pending: true` = transient (pipeline still running / temporary error) — the
+  // sync backfill re-checks these on every manual sync. `pending: false` is a
+  // terminal "this recording will never have match-details" marker.
+  | { available: false; pending: boolean; checkedAt: string; status?: Record<string, unknown> };
+
+// RAS pipeline states that will never turn into "completed" on their own.
+const RAS_TERMINAL_STATES = new Set(["failed", "unsupported", "disabled", "not-applicable"]);
+
+// Fetch pass/possession analytics for a match. Returns an "unavailable" marker
+// (rather than throwing) when the RAS pipeline hasn't produced match-details
+// for this recording, so callers can persist the result either way.
+export async function getPassDetails(creds: VeoCredentials, matchId: string): Promise<VeoPassDetails> {
+  const checkedAt = new Date().toISOString();
+  const statusRes = await veoFetchAbsolute(creds, `${RAS_BASE}/recordings/${matchId}/analytics`);
+  if (!statusRes.ok) {
+    // 404 = RAS has never heard of this recording (no analytics on it); other
+    // HTTP failures are transient and must be retried.
+    return { available: false, pending: statusRes.status !== 404, checkedAt, status: { httpStatus: statusRes.status } };
+  }
+  const status = (await statusRes.json()) as Record<string, unknown>;
+  const mdState = String(status["match-details"] ?? "");
+  if (mdState !== "completed") {
+    return { available: false, pending: !RAS_TERMINAL_STATES.has(mdState), checkedAt, status };
+  }
+
+  const periods = await apiGet<Array<{ timeframe?: [number, number] }>>(creds, `/matches/${matchId}/periods/`);
+  const filters = periods
+    .filter((p) => Array.isArray(p.timeframe) && p.timeframe.length === 2)
+    .map((p) => `filters=${p.timeframe![0]},${p.timeframe![1]}`)
+    .join("&");
+  // Periods can appear after processing — keep retrying.
+  if (!filters) return { available: false, pending: true, checkedAt, status: { ...status, reason: "no-periods" } };
+
+  const res = await veoFetchAbsolute(creds, `${RAS_BASE}/recordings/${matchId}/match-details?${filters}`);
+  if (!res.ok) return { available: false, pending: true, checkedAt, status: { ...status, httpStatus: res.status } };
+  const items = (await res.json()) as VeoPassDetailPeriod[];
+  return { available: true, checkedAt, items };
+}
+
+// Pull the opponent CLUB out of a Veo recording title. Handles both classic
+// "Something vs Club" titles and the coach's naming convention
+// "YYYYMMDD-<round>-<squad>-Club" (e.g. 20260222-FR-1sts-Flame → Flame).
+// Anything unrecognised falls back to the raw title so nothing goes blank.
+export function opponentFromVeoTitle(title: string | null | undefined): string | null {
+  const t = (title ?? "").trim();
+  if (!t) return null;
+  const vs = t.match(/\bvs?\.?\s+(.+)$/i);
+  if (vs) return vs[1].trim() || null;
+  if (/^\d{8}-/.test(t)) {
+    const segs = t.split("-").map((s) => s.trim()).filter(Boolean);
+    // Club = everything after the squad token (1sts/2nds/Reserves…); if no
+    // squad token, assume date-round-squad-club and take from segment 4 on.
+    const squadIdx = segs.findIndex((s) => /^(1sts?|2nds?|firsts?|seconds?|res(erves)?|u\d+)$/i.test(s));
+    const rest = squadIdx >= 0 ? segs.slice(squadIdx + 1) : segs.slice(3);
+    if (rest.length > 0) return rest.join("-");
+    return segs[segs.length - 1] ?? null;
+  }
+  return t;
 }
 
 // Raw GET against the Veo app API (for exploratory scripts / future endpoints).

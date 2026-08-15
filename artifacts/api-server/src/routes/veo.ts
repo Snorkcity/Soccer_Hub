@@ -17,7 +17,11 @@ import {
   getStats,
   getPeriods,
   getRoster,
+  getPassDetails,
+  opponentFromVeoTitle,
   type VeoCredentials,
+  type VeoPassDetails,
+  type VeoPassDetailPeriod,
 } from "../lib/veo";
 import { logger } from "../lib/logger";
 import { getSessionUser, canSeeLeague } from "../middlewares/entryAuth";
@@ -63,18 +67,25 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
   return out;
 }
 
-// POST /entry/veo-sync  { leagueId, batch? }
-// Rides the /entry prefix → data-entry module + leagueId access check.
-router.post("/entry/veo-sync", async (req, res) => {
-  const leagueId = Number(req.body?.leagueId);
-  const batch = Number.isFinite(Number(req.body?.batch)) ? Number(req.body?.batch) : DEFAULT_BATCH;
-  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+// One sync pass for a league: upsert recording metadata, fetch heavy payloads
+// for up to `batch` unfetched matches, then backfill pass/possession analytics.
+// Shared by the /entry/veo-sync route and the CLI runner (scripts/veo-sync-cli).
+type VeoSyncError = { error: string; status: number };
+type VeoSyncResult = {
+  league: string;
+  totalMatches: number;
+  fetched: number;
+  remaining: number;
+  analyticsPending: number;
+  done: boolean;
+};
 
+export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH): Promise<VeoSyncError | VeoSyncResult> {
   const mapping = await leagueVeoMapping(leagueId);
-  if (!mapping) return res.status(400).json({ error: "This league has no Veo team mapping." });
+  if (!mapping) return { error: "This league has no Veo team mapping.", status: 400 };
 
   const creds: VeoCredentials | null = defaultVeoCreds();
-  if (!creds) return res.status(503).json({ error: "Veo credentials are not configured on the server." });
+  if (!creds) return { error: "Veo credentials are not configured on the server.", status: 503 };
 
   const nowIso = new Date().toISOString();
 
@@ -83,7 +94,7 @@ router.post("/entry/veo-sync", async (req, res) => {
     recordings = await listRecordings(creds, mapping.veoClubSlug, mapping.veoTeamSlug);
   } catch (e) {
     logger.error({ err: e, leagueId }, "veo: listRecordings failed");
-    return res.status(502).json({ error: "Could not reach Veo. Try again shortly." });
+    return { error: "Could not reach Veo. Try again shortly.", status: 502 };
   }
 
   // Upsert metadata for every recording (cheap; keeps the match list complete).
@@ -96,7 +107,7 @@ router.post("/entry/veo-sync", async (req, res) => {
         veoMatchId: rec.identifier,
         veoTeamSlug: mapping.veoTeamSlug,
         title: rec.title ?? null,
-        opponent: rec.title ? rec.title.replace(/^.*\bvs\.?\s*/i, "").trim() || null : null,
+        opponent: opponentFromVeoTitle(rec.title),
         startsAt: rec.start ?? null,
         syncedAt: nowIso,
       })
@@ -104,6 +115,9 @@ router.post("/entry/veo-sync", async (req, res) => {
         target: [veoMatchesTable.leagueId, veoMatchesTable.veoMatchId],
         set: {
           title: rec.title ?? null,
+          // Re-derive on every sync so renaming a recording in Veo fixes its
+          // opponent here too (the coach renames to date-round-squad-club).
+          opponent: opponentFromVeoTitle(rec.title),
           startsAt: rec.start ?? null,
           veoTeamSlug: mapping.veoTeamSlug,
         },
@@ -125,12 +139,15 @@ router.post("/entry/veo-sync", async (req, res) => {
       // Events are the core payload: if that request fails we persist NOTHING,
       // so the match stays events-IS-NULL and is retried on the next sync.
       // The side payloads may fail soft (older matches lack some of them).
-      const [detail, events, stats, periods, roster] = await Promise.all([
+      const [detail, events, stats, periods, roster, passDetails] = await Promise.all([
         getMatchDetail(creds, veoMatchId).catch(() => null),
         getEvents(creds, veoMatchId),
         getStats(creds, veoMatchId).catch(() => ({})),
         getPeriods(creds, veoMatchId).catch(() => [] as unknown[]),
         getRoster(creds, veoMatchId).catch(() => ({})),
+        // Network hiccups return null (→ retried by the backfill pass below);
+        // a definitive "no analytics for this match" is stored as available:false.
+        getPassDetails(creds, veoMatchId).catch(() => null),
       ]);
       await db
         .update(veoMatchesTable)
@@ -145,6 +162,7 @@ router.post("/entry/veo-sync", async (req, res) => {
           stats,
           periods,
           roster,
+          ...(passDetails ? { passDetails: passDetails as unknown as Record<string, unknown> } : {}),
           syncedAt: nowIso,
         })
         .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.veoMatchId, veoMatchId)));
@@ -155,16 +173,76 @@ router.post("/entry/veo-sync", async (req, res) => {
     }
   });
 
+  // Backfill pass/possession analytics for matches synced before the RAS
+  // service was discovered (pass_details never checked) AND matches whose RAS
+  // pipeline was still running last time (available:false + pending:true) —
+  // Veo's analytics finish hours after upload, so these must be re-checked on
+  // every manual sync until they resolve either way.
+  const passPending = await db
+    .select({ veoMatchId: veoMatchesTable.veoMatchId })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.events} IS NOT NULL`,
+        // COALESCE: rows written before the pending flag existed count as pending.
+        sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
+      ),
+    );
+  let passFetched = 0;
+  await mapPool(passPending.slice(0, batch), 4, async ({ veoMatchId }) => {
+    try {
+      const pd = await getPassDetails(creds, veoMatchId);
+      await db
+        .update(veoMatchesTable)
+        .set({ passDetails: pd as unknown as Record<string, unknown> })
+        .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.veoMatchId, veoMatchId)));
+      passFetched++;
+    } catch (e) {
+      logger.warn({ err: e, veoMatchId }, "veo: pass-details fetch failed; will retry next sync");
+    }
+  });
+
+  // Count matches whose RAS analytics pipeline is still running after this
+  // backfill pass (available:false + pending:true). These need a re-sync later.
+  const stillPendingRows = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.events} IS NOT NULL`,
+        sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
+      ),
+    );
+  const analyticsPending = Number(stillPendingRows[0]?.count ?? 0);
+
+  // `remaining` and `done` track only the core events-payload queue (events IS
+  // NULL). Analytics backfill (RAS pipeline) is decoupled: it may stay pending
+  // across many syncs while Veo processes the recording server-side. The client
+  // loops until `done`, then shows the `analyticsPending` advisory separately.
   const remaining = Math.max(0, pending.length - fetched);
-  return res.json({
+  return {
     league: mapping.name,
     totalMatches: recordings.length,
     fetched,
     remaining,
-    // Only "done" when nothing is left AND nothing failed this pass — failed
-    // matches stay pending and should be retried, not silently dropped.
+    analyticsPending,
+    // Only "done" when the core events queue is empty AND nothing failed this
+    // pass — failed matches stay pending and should be retried, not dropped.
     done: remaining === 0 && failed === 0,
-  });
+  };
+}
+
+// POST /entry/veo-sync  { leagueId, batch? }
+// Rides the /entry prefix → data-entry module + leagueId access check.
+router.post("/entry/veo-sync", async (req, res) => {
+  const leagueId = Number(req.body?.leagueId);
+  const batch = Number.isFinite(Number(req.body?.batch)) ? Number(req.body?.batch) : DEFAULT_BATCH;
+  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const result = await syncVeoLeagueOnce(leagueId, batch);
+  if ("error" in result) return res.status(result.status).json({ error: result.error });
+  return res.json(result);
 });
 
 // GET /veo/leagues — which of the USER'S leagues have a Veo mapping.
@@ -200,6 +278,7 @@ router.get("/veo/matches", async (req, res) => {
       synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
       syncedAt: veoMatchesTable.syncedAt,
       matchCode: matchesTable.matchId,
+      hubOpponent: matchesTable.opponent,
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
@@ -224,6 +303,7 @@ router.get("/veo/season", async (req, res) => {
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
       matchCode: matchesTable.matchId,
+      hubOpponent: matchesTable.opponent,
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
@@ -244,6 +324,8 @@ router.get("/veo/season", async (req, res) => {
       title: r.title,
       opponent: r.opponent,
       startsAt: r.startsAt,
+      matchCode: r.matchCode ?? null,
+      hubOpponent: r.hubOpponent ?? null,
       countsFor,
       countsAgainst,
     };
@@ -267,6 +349,7 @@ router.get("/veo/season-shots", async (req, res) => {
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
       matchCode: matchesTable.matchId,
+      hubOpponent: matchesTable.opponent,
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
@@ -318,8 +401,123 @@ router.get("/veo/season-shots", async (req, res) => {
       title: r.title,
       opponent: r.opponent,
       startsAt: r.startsAt,
+      matchCode: r.matchCode ?? null,
+      hubOpponent: r.hubOpponent ?? null,
       shots,
     };
+  });
+  return res.json({ matches });
+});
+
+// ── Passing & possession (RAS analytics) ────────────────────────────────────
+// L/R in the RAS payload are PITCH SIDES; each period's own_side tells which
+// side is ours ("L" when own_side === "left"). This mirrors Veo's own client
+// code — do not "fix" it to team keys.
+interface ThirdCounts {
+  defensive: number;
+  middle: number;
+  attacking: number;
+}
+
+function emptyThirds(): ThirdCounts {
+  return { defensive: 0, middle: 0, attacking: 0 };
+}
+
+export function summarisePassDetails(passDetails: unknown, periods: unknown) {
+  const pd = passDetails as VeoPassDetails | null | undefined;
+  if (!pd || pd.available !== true || !Array.isArray(pd.items)) return null;
+  const periodRows = Array.isArray(periods)
+    ? (periods as { timeframe?: [number, number]; own_side?: string }[])
+    : [];
+  const sideFor = (item: VeoPassDetailPeriod): { own: "L" | "R"; opp: "L" | "R" } | null => {
+    const p = periodRows.find((r) => r.timeframe?.[0] === item.start && r.timeframe?.[1] === item.end);
+    if (!p?.own_side) return null;
+    return p.own_side === "left" ? { own: "L", opp: "R" } : { own: "R", opp: "L" };
+  };
+
+  let possessionSecUs = 0, possessionSecThem = 0;
+  let passesUs = 0, passesThem = 0;
+  let possessionWonUs = 0, possessionWonThem = 0;
+  const stringsUs = new Map<number, number>();
+  const stringsThem = new Map<number, number>();
+  const thirdsUs = emptyThirds();
+  const thirdsThem = emptyThirds();
+  let any = false;
+
+  for (const item of pd.items) {
+    const side = sideFor(item);
+    if (!side) continue;
+    any = true;
+    const s = item.stats ?? {};
+    possessionSecUs += Number(s.PossessionSeconds?.[side.own] ?? 0);
+    possessionSecThem += Number(s.PossessionSeconds?.[side.opp] ?? 0);
+    passesUs += Number(s.PassesCompleted?.[side.own] ?? 0);
+    passesThem += Number(s.PassesCompleted?.[side.opp] ?? 0);
+    possessionWonUs += Number(s.PossessionWon?.[side.own] ?? 0);
+    possessionWonThem += Number(s.PossessionWon?.[side.opp] ?? 0);
+    for (const [team, map] of [[side.own, stringsUs], [side.opp, stringsThem]] as const) {
+      for (const entry of item.passStrings?.[team] ?? []) {
+        const len = Number(entry?.[0]);
+        const count = Number(entry?.[1]);
+        if (Number.isFinite(len) && Number.isFinite(count)) map.set(len, (map.get(len) ?? 0) + count);
+      }
+    }
+    for (const [team, tgt] of [[side.own, thirdsUs], [side.opp, thirdsThem]] as const) {
+      const loc = item.possessionLocations?.[team];
+      if (!loc) continue;
+      tgt.defensive += Number(loc.defensive ?? 0);
+      tgt.middle += Number(loc.middle ?? 0);
+      tgt.attacking += Number(loc.attacking ?? 0);
+    }
+  }
+  if (!any) return null;
+
+  const toSorted = (m: Map<number, number>) =>
+    Array.from(m.entries()).sort((a, b) => a[0] - b[0]).map(([len, count]) => ({ len, count }));
+
+  return {
+    possessionSecUs, possessionSecThem,
+    passesUs, passesThem,
+    possessionWonUs, possessionWonThem,
+    passStringsUs: toSorted(stringsUs),
+    passStringsThem: toSorted(stringsThem),
+    thirdsUs, thirdsThem,
+  };
+}
+
+// GET /veo/season-passing?leagueId= — per-match possession/passing summaries
+// (oldest first) for every synced match whose RAS analytics are available.
+router.get("/veo/season-passing", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const rows = await db
+    .select({
+      id: veoMatchesTable.id,
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+      periods: veoMatchesTable.periods,
+      passDetails: veoMatchesTable.passDetails,
+      matchCode: matchesTable.matchId,
+      hubOpponent: matchesTable.opponent,
+    })
+    .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.passDetails} IS NOT NULL`))
+    .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
+  const matches = rows.flatMap((r) => {
+    const summary = summarisePassDetails(r.passDetails, r.periods);
+    if (!summary) return [];
+    return [{
+      id: r.id,
+      veoMatchId: r.veoMatchId,
+      title: r.title,
+      opponent: r.opponent,
+      startsAt: r.startsAt,
+      matchCode: r.matchCode,
+      ...summary,
+    }];
   });
   return res.json({ matches });
 });
@@ -418,12 +616,10 @@ router.get("/veo/links", async (req, res) => {
   return res.json({ links, hubMatches });
 });
 
-// POST /entry/veo-auto-link { leagueId } — fill match_id where it's confidently
-// derivable; never overwrites an existing link (manual fixes stay put).
-router.post("/entry/veo-auto-link", async (req, res) => {
-  const leagueId = Number(req.body?.leagueId);
-  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
-
+// Auto-link pass for a league: fill match_id where it's confidently derivable;
+// never overwrites an existing link (manual fixes stay put). Shared by the
+// /entry/veo-auto-link route and the CLI runner.
+export async function autoLinkVeoLeague(leagueId: number) {
   const [veoRows, hubMatches] = await Promise.all([
     db
       .select({
@@ -480,7 +676,14 @@ router.post("/entry/veo-auto-link", async (req, res) => {
   }
 
   logger.info({ leagueId, linked, ambiguous, unmatched }, "veo: auto-link pass");
-  return res.json({ linked, ambiguous, unmatched });
+  return { linked, ambiguous, unmatched };
+}
+
+// POST /entry/veo-auto-link { leagueId }
+router.post("/entry/veo-auto-link", async (req, res) => {
+  const leagueId = Number(req.body?.leagueId);
+  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  return res.json(await autoLinkVeoLeague(leagueId));
 });
 
 // POST /entry/veo-link { leagueId, veoId, matchId|null } — manual set/clear.

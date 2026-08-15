@@ -9,6 +9,9 @@ import {
   getGetVeoSeasonQueryKey,
   useGetVeoSeasonShots,
   getGetVeoSeasonShotsQueryKey,
+  useGetVeoSeasonPassing,
+  getGetVeoSeasonPassingQueryKey,
+  type VeoSeasonPassingMatch,
   useListVeoLinks,
   getListVeoLinksQueryKey,
   useVeoAutoLink,
@@ -86,10 +89,23 @@ function makeMinuteOf(periods: unknown): (e: VeoEvent) => number {
   };
 }
 
-function opponentOf(m: { opponent?: string | null; title?: string | null }): string {
+// Opponent CLUB for a recording. Best source is the linked Hub match's own
+// opponent (always a clean club name); otherwise parse it out of the Veo
+// title — "… vs Club" or the coach's "YYYYMMDD-round-squad-Club" convention.
+function opponentOf(m: { opponent?: string | null; title?: string | null; hubOpponent?: string | null }): string {
+  const hub = (m.hubOpponent ?? "").trim();
+  if (hub) return hub;
   const raw = (m.opponent ?? "").trim();
-  if (raw && !/firsts|reserves|nplw|1sts|^$/i.test(raw)) return raw;
-  const t = (m.title ?? "").replace(/^.*\bvs\.?\s*/i, "").trim();
+  if (raw && !/firsts|reserves|nplw|1sts|^\d{8}-|^$/i.test(raw)) return raw;
+  const t = (m.title ?? "").trim();
+  const vs = t.match(/\bvs?\.?\s+(.+)$/i);
+  if (vs && vs[1].trim()) return vs[1].trim();
+  if (/^\d{8}-/.test(t)) {
+    const segs = t.split("-").map((s) => s.trim()).filter(Boolean);
+    const squadIdx = segs.findIndex((s) => /^(1sts?|2nds?|firsts?|seconds?|res(erves)?|u\d+)$/i.test(s));
+    const rest = squadIdx >= 0 ? segs.slice(squadIdx + 1) : segs.slice(3);
+    if (rest.length > 0) return rest.join("-");
+  }
   return t || raw || "Opponent";
 }
 
@@ -228,6 +244,15 @@ export default function VeoInsights() {
     },
   });
 
+  // Possession & passing summaries (Veo RAS analytics) — used by the season
+  // trend charts AND the match view (looked up by veo row id).
+  const { data: seasonPassingData } = useGetVeoSeasonPassing(seasonParams, {
+    query: {
+      enabled: activeLeagueId != null,
+      queryKey: getGetVeoSeasonPassingQueryKey(seasonParams),
+    },
+  });
+
   const syncMut = useVeoSync();
   async function runSync() {
     if (activeLeagueId == null) return;
@@ -236,11 +261,20 @@ export default function VeoInsights() {
       for (let i = 0; i < 25; i++) {
         const r = await syncMut.mutateAsync({ data: { leagueId: activeLeagueId, batch: 20 } });
         setSyncMsg(`Synced ${r.totalMatches - r.remaining}/${r.totalMatches} matches…`);
-        if (r.done) { setSyncMsg(`Done — ${r.totalMatches} matches synced.`); break; }
+        if (r.done) {
+          if (r.analyticsPending > 0) {
+            const n = r.analyticsPending;
+            setSyncMsg(`Done — ${n} ${n === 1 ? "match" : "matches"} still processing on Veo — sync again later.`);
+          } else {
+            setSyncMsg(`Done — ${r.totalMatches} matches synced.`);
+          }
+          break;
+        }
       }
       qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey(listParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonShotsQueryKey(seasonParams) });
+      qc.invalidateQueries({ queryKey: getGetVeoSeasonPassingQueryKey(seasonParams) });
     } catch {
       setSyncMsg("Sync failed — please try again.");
     }
@@ -315,7 +349,11 @@ export default function VeoInsights() {
             seasonLoading || !seasonData ? (
               <Card><CardContent className="py-16 text-center text-muted-foreground">Loading season…</CardContent></Card>
             ) : (
-              <SeasonView matches={seasonData.matches} shotMatches={seasonShotsData?.matches ?? []} />
+              <SeasonView
+                matches={seasonData.matches}
+                shotMatches={seasonShotsData?.matches ?? []}
+                passingMatches={seasonPassingData?.matches ?? []}
+              />
             )
           ) : matchLoading || !match ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">Loading match…</CardContent></Card>
@@ -324,7 +362,11 @@ export default function VeoInsights() {
               This match has no event data in Veo.
             </CardContent></Card>
           ) : (
-            <MatchView match={match} events={events} />
+            <MatchView
+              match={match}
+              events={events}
+              passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
+            />
           )}
         </>
       )}
@@ -461,7 +503,11 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotMatches: VeoSeasonShotMatch[] }) {
+function SeasonView({ matches, shotMatches, passingMatches }: {
+  matches: VeoSeasonMatch[];
+  shotMatches: VeoSeasonShotMatch[];
+  passingMatches: VeoSeasonPassingMatch[];
+}) {
   // A "season" is one calendar year here; the Veo library spans several years,
   // so charts default to the latest year with a year picker to look back.
   const years = useMemo(() => {
@@ -606,6 +652,104 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
     if (hi.us <= 0) return null;
     return `An even spread would put ~17% in each band — so far our threat looks heaviest in the ${hi.label} window (${hi.us.toFixed(0)}%) and quietest in ${lo.label} (${lo.us.toFixed(0)}%), though a handful of games can still swing these numbers.`;
   }, [threatBands, filteredShotMatches.length]);
+
+  // ── Possession & passing rows (from Veo RAS analytics) ─────────────────────
+  // Same year + opponent-legend filters as the event charts; oldest first, so
+  // left→right on these charts reads as the season's progression.
+  const passRows = useMemo(() => {
+    const filteredPassing = passingMatches.filter((m) => {
+      if (hiddenOpps.has(opponentOf(m))) return false;
+      if (year === "all") return true;
+      const d = m.startsAt ? new Date(m.startsAt) : null;
+      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
+    });
+    return filteredPassing.map((m) => {
+      const totalSec = m.possessionSecUs + m.possessionSecThem;
+      const possPct = totalSec > 0 ? (m.possessionSecUs / totalSec) * 100 : null;
+      const bucket = (strings: { len: number; count: number }[]) => {
+        let short = 0, mid = 0, long = 0, weighted = 0, total = 0;
+        for (const s of strings) {
+          if (s.len <= 2) short += s.count;
+          else if (s.len <= 5) mid += s.count;
+          else long += s.count;
+          weighted += s.len * s.count;
+          total += s.count;
+        }
+        return { short, mid, long, avgLen: total > 0 ? weighted / total : null, total };
+      };
+      const us = bucket(m.passStringsUs);
+      const them = bucket(m.passStringsThem);
+      const thirdsTotal = m.thirdsUs.defensive + m.thirdsUs.middle + m.thirdsUs.attacking;
+      return {
+        opp: m.matchCode ?? opponentOf(m),
+        date: fmtDate(m.startsAt),
+        label: m.matchCode
+          ? `${m.matchCode} · ${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`
+          : `${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`,
+        possPct: possPct != null ? Number(possPct.toFixed(1)) : null,
+        possMinUs: Number((m.possessionSecUs / 60).toFixed(1)),
+        possMinThem: Number((m.possessionSecThem / 60).toFixed(1)),
+        passesUs: m.passesUs,
+        passesThem: m.passesThem,
+        possWonUs: m.possessionWonUs,
+        possWonThem: m.possessionWonThem,
+        strings2: us.short, strings35: us.mid, strings6: us.long,
+        avgStringUs: us.avgLen != null ? Number(us.avgLen.toFixed(2)) : null,
+        avgStringThem: them.avgLen != null ? Number(them.avgLen.toFixed(2)) : null,
+        longThem: them.long,
+        thirdDef: thirdsTotal > 0 ? Number(((m.thirdsUs.defensive / thirdsTotal) * 100).toFixed(1)) : null,
+        thirdMid: thirdsTotal > 0 ? Number(((m.thirdsUs.middle / thirdsTotal) * 100).toFixed(1)) : null,
+        thirdAtt: thirdsTotal > 0 ? Number(((m.thirdsUs.attacking / thirdsTotal) * 100).toFixed(1)) : null,
+      };
+    });
+  }, [passingMatches, year, hiddenOpps]);
+
+  // Rolling 3-game averages — the "momentum" read: is the trend line climbing?
+  const passRowsWithRolling = useMemo(() => {
+    const roll = (vals: (number | null)[], i: number) => {
+      const win = vals.slice(Math.max(0, i - 2), i + 1).filter((v): v is number => v != null);
+      return win.length > 0 ? Number((win.reduce((s, v) => s + v, 0) / win.length).toFixed(1)) : null;
+    };
+    const poss = passRows.map((r) => r.possPct);
+    const passes = passRows.map((r) => r.passesUs as number | null);
+    const mins = passRows.map((r) => r.possMinUs as number | null);
+    const longs = passRows.map((r) => r.strings6 as number | null);
+    return passRows.map((r, i) => ({
+      ...r,
+      possRoll: roll(poss, i),
+      passesRoll: roll(passes, i),
+      minsRoll: roll(mins, i),
+      longRoll: roll(longs, i),
+    }));
+  }, [passRows]);
+
+  const passTotals = useMemo(() => {
+    const withPct = passRows.filter((r) => r.possPct != null);
+    const avg = (vals: number[]) => (vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null);
+    return {
+      games: passRows.length,
+      avgPoss: avg(withPct.map((r) => r.possPct!)),
+      avgPasses: avg(passRows.map((r) => r.passesUs)),
+      avgPossMin: avg(passRows.map((r) => r.possMinUs)),
+      avgLongStrings: avg(passRows.map((r) => r.strings6)),
+    };
+  }, [passRows]);
+
+  // Hedged progress line for the team talk: first third vs last third of games.
+  const passInsight = useMemo(() => {
+    const withPct = passRowsWithRolling.filter((r) => r.possPct != null);
+    if (withPct.length < 6) return null;
+    const n = Math.max(2, Math.floor(withPct.length / 3));
+    const early = withPct.slice(0, n);
+    const late = withPct.slice(-n);
+    const avg = (vals: number[]) => vals.reduce((s, v) => s + v, 0) / vals.length;
+    const dPoss = avg(late.map((r) => r.possPct!)) - avg(early.map((r) => r.possPct!));
+    const dPasses = avg(late.map((r) => r.passesUs)) - avg(early.map((r) => r.passesUs));
+    const dLong = avg(late.map((r) => r.strings6)) - avg(early.map((r) => r.strings6));
+    const dir = (v: number, unit: string, noun: string) =>
+      `${noun} ${v >= 0 ? "up" : "down"} ${Math.abs(v).toFixed(1)}${unit}`;
+    return `Comparing the first ${n} and last ${n} games with tracking: ${dir(dPoss, " pts", "possession share")}, ${dir(dPasses, "", "completed passes per game")}, ${dir(dLong, "", "6+ pass strings per game")}. A few one-sided games can swing these, so read the rolling lines rather than any single match.`;
+  }, [passRowsWithRolling]);
 
   const totals = useMemo(() => {
     const withTilt = rows.filter((r) => r.tilt != null);
@@ -758,6 +902,161 @@ function SeasonView({ matches, shotMatches }: { matches: VeoSeasonMatch[]; shotM
         </Card>
       </div>
 
+      {passRowsWithRolling.length > 0 && (
+        <>
+          <div className="pt-2">
+            <h2 className="text-xl font-semibold tracking-tight">Possession &amp; passing</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              From Veo's ball-tracking analytics — how our passing game is developing across the season.
+              {passInsight ? <> {passInsight}</> : null}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="Avg possession"
+              value={passTotals.avgPoss != null ? `${passTotals.avgPoss.toFixed(0)}%` : "—"}
+              sub={`${passTotals.games} games with tracking`}
+            />
+            <StatCard
+              label="Passes per game"
+              value={passTotals.avgPasses != null ? passTotals.avgPasses.toFixed(0) : "—"}
+              sub="completed, us"
+            />
+            <StatCard
+              label="Possession minutes"
+              value={passTotals.avgPossMin != null ? passTotals.avgPossMin.toFixed(1) : "—"}
+              sub="per game, us"
+            />
+            <StatCard
+              label="6+ pass strings"
+              value={passTotals.avgLongStrings != null ? passTotals.avgLongStrings.toFixed(1) : "—"}
+              sub="per game, us"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Possession share per match</CardTitle>
+                <CardDescription>
+                  Our share of ball-in-possession time. Solid line is the 3-game rolling average — that's the trend to watch.
+                  {passTotals.avgPoss != null ? ` Season average ${passTotals.avgPoss.toFixed(0)}% (dashed).` : ""}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                    {tooltip}
+                    <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
+                    {passTotals.avgPoss != null && (
+                      <ReferenceLine y={passTotals.avgPoss} stroke={C_US} strokeDasharray="5 4" />
+                    )}
+                    <Bar dataKey="possPct" name="Possession %">
+                      {passRowsWithRolling.map((r, i) => (
+                        <Cell key={i} fill={(r.possPct ?? 0) >= 50 ? C_US : C_THEM} />
+                      ))}
+                    </Bar>
+                    <Line dataKey="possRoll" name="3-game trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Possession minutes per match</CardTitle>
+                <CardDescription>Minutes of ball-in-possession time, us vs opponents, with our 3-game rolling average.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis {...AXIS} />
+                    {tooltip}
+                    {legend}
+                    <Bar dataKey="possMinUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="possMinThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                    <Line dataKey="minsRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Completed passes per match</CardTitle>
+                <CardDescription>Completed passes for and against, with our 3-game rolling average.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis {...AXIS} allowDecimals={false} />
+                    {tooltip}
+                    {legend}
+                    <Bar dataKey="passesUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="passesThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                    <Line dataKey="passesRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Pass strings per match</CardTitle>
+                <CardDescription>
+                  Our connected-pass sequences by length — the taller the 3–5 and 6+ segments, the more we're keeping the ball moving. Line tracks 6+ strings (3-game rolling).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis {...AXIS} allowDecimals={false} />
+                    {tooltip}
+                    {legend}
+                    <Bar dataKey="strings2" name="2 passes" stackId="s" fill={C_US} fillOpacity={0.35} />
+                    <Bar dataKey="strings35" name="3–5 passes" stackId="s" fill={C_US} fillOpacity={0.7} />
+                    <Bar dataKey="strings6" name="6+ passes" stackId="s" fill={C_US} radius={[3, 3, 0, 0]} />
+                    <Line dataKey="longRoll" name="6+ trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Where we have the ball — possession by third</CardTitle>
+              <CardDescription>
+                Share of our possession spent in each third of the pitch, match by match. More middle/attacking third over time = playing higher up.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={passRowsWithRolling} stackOffset="expand" margin={{ left: -10, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                  <YAxis {...AXIS} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
+                  {tooltip}
+                  {legend}
+                  <Bar dataKey="thirdDef" name="Defensive third" stackId="t" fill={C_THEM} fillOpacity={0.6} />
+                  <Bar dataKey="thirdMid" name="Middle third" stackId="t" fill={C_US} fillOpacity={0.45} />
+                  <Bar dataKey="thirdAtt" name="Attacking third" stackId="t" fill={C_US} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Season shot map</CardTitle>
@@ -832,8 +1131,84 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function MatchView({ match, events }: { match: { opponent?: string | null; title?: string | null; startsAt?: string | null; periods?: unknown }; events: VeoEvent[] }) {
+function MatchView({ match, events, passing }: {
+  match: { opponent?: string | null; title?: string | null; startsAt?: string | null; periods?: unknown; passDetails?: Record<string, unknown> | null };
+  events: VeoEvent[];
+  passing: VeoSeasonPassingMatch | null;
+}) {
   const opp = opponentOf(match);
+
+  // Pass-location dot map: extract oriented {x,y} points from the stored RAS
+  // passDetails, applying the same own_side flip as the shot map so Belconnen
+  // always attacks right.  L/R are pitch sides; ownLR = "L" when own_side ===
+  // "left" (mirrors Veo's client).
+  const passLocPts = useMemo(() => {
+    const pd = match.passDetails as { available?: boolean; items?: Array<{
+      start: number; end: number;
+      passLocations?: Record<string, { x: number; y: number }[]>;
+    }> } | null | undefined;
+    if (!pd || pd.available !== true || !Array.isArray(pd.items)) return null;
+    const periodRows = Array.isArray(match.periods)
+      ? (match.periods as { timeframe?: [number, number]; own_side?: string }[])
+      : [];
+    const us: { x: number; y: number }[] = [];
+    const them: { x: number; y: number }[] = [];
+    for (const item of pd.items) {
+      const period = periodRows.find(
+        (p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end,
+      );
+      // own_side = the end our GOAL is at; we attack the opposite end.
+      // Rotate 180° when own_side === "right" so we always attack right.
+      const ownSide = period?.own_side ?? "right";
+      const flip = ownSide === "right";
+      const ownLR = ownSide === "left" ? "L" : "R";
+      const oppLR = ownSide === "left" ? "R" : "L";
+      const orientPt = (pt: { x: number; y: number }) =>
+        flip ? { x: 1 - pt.x, y: 1 - pt.y } : { x: pt.x, y: pt.y };
+      for (const pt of item.passLocations?.[ownLR] ?? []) us.push(orientPt(pt));
+      for (const pt of item.passLocations?.[oppLR] ?? []) them.push(orientPt(pt));
+    }
+    if (us.length === 0 && them.length === 0) return null;
+    return { us, them };
+  }, [match.passDetails, match.periods]);
+
+  const [passMapShowUs, setPassMapShowUs] = useState(true);
+  const [passMapShowThem, setPassMapShowThem] = useState(false);
+
+  // Possession & passing (Veo RAS analytics) for this match, when available.
+  const passStats = useMemo(() => {
+    if (!passing) return null;
+    const totalSec = passing.possessionSecUs + passing.possessionSecThem;
+    if (totalSec <= 0) return null;
+    // Merge both teams' pass-string buckets onto one axis for the histogram.
+    const lens = Array.from(new Set([
+      ...passing.passStringsUs.map((s) => s.len),
+      ...passing.passStringsThem.map((s) => s.len),
+    ])).sort((a, b) => a - b);
+    const hist = lens.map((len) => ({
+      len: `${len}`,
+      us: passing.passStringsUs.find((s) => s.len === len)?.count ?? 0,
+      them: passing.passStringsThem.find((s) => s.len === len)?.count ?? 0,
+    }));
+    const thirds = (t: { defensive: number; middle: number; attacking: number }) => {
+      const total = t.defensive + t.middle + t.attacking;
+      return total > 0
+        ? { def: (t.defensive / total) * 100, mid: (t.middle / total) * 100, att: (t.attacking / total) * 100 }
+        : null;
+    };
+    return {
+      possPctUs: (passing.possessionSecUs / totalSec) * 100,
+      possMinUs: passing.possessionSecUs / 60,
+      possMinThem: passing.possessionSecThem / 60,
+      passesUs: passing.passesUs,
+      passesThem: passing.passesThem,
+      possWonUs: passing.possessionWonUs,
+      possWonThem: passing.possessionWonThem,
+      hist,
+      thirdsUs: thirds(passing.thirdsUs),
+      thirdsThem: thirds(passing.thirdsThem),
+    };
+  }, [passing]);
 
   const goals = useMemo(() => {
     let us = 0, them = 0;
@@ -967,6 +1342,104 @@ function MatchView({ match, events }: { match: { opponent?: string | null; title
           <div className="w-full text-xs text-muted-foreground">{fmtDate(match.startsAt)} · from Veo events</div>
         </CardContent>
       </Card>
+
+      {passStats && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Possession" value={`${passStats.possPctUs.toFixed(0)}%`} sub="of ball-in-possession time" />
+            <StatCard label="Possession minutes" value={`${passStats.possMinUs.toFixed(1)} – ${passStats.possMinThem.toFixed(1)}`} sub="us – them" />
+            <StatCard label="Completed passes" value={`${passStats.passesUs} – ${passStats.passesThem}`} sub="us – them" />
+            <StatCard label="Possession won" value={`${passStats.possWonUs} – ${passStats.possWonThem}`} sub="regains, us – them" />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pass strings</CardTitle>
+                <CardDescription>
+                  Connected-pass sequences by length — us vs {opp}. Longer strings mean the ball is sticking with us.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={passStats.hist} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="len" {...AXIS} label={{ value: "passes in string", position: "insideBottom", offset: -2, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} height={36} />
+                    <YAxis {...AXIS} allowDecimals={false} />
+                    <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} labelFormatter={(l) => `${l}-pass strings`} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="them" name={opp} fill={C_THEM} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Possession location</CardTitle>
+                <CardDescription>Where each side's possession happened — defensive, middle and attacking thirds.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {passStats.thirdsUs && passStats.thirdsThem ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={[
+                        { zone: "Defensive third", us: Number(passStats.thirdsUs.def.toFixed(1)), them: Number(passStats.thirdsThem.def.toFixed(1)) },
+                        { zone: "Middle third", us: Number(passStats.thirdsUs.mid.toFixed(1)), them: Number(passStats.thirdsThem.mid.toFixed(1)) },
+                        { zone: "Attacking third", us: Number(passStats.thirdsUs.att.toFixed(1)), them: Number(passStats.thirdsThem.att.toFixed(1)) },
+                      ]}
+                      layout="vertical" margin={{ left: 30, right: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                      <XAxis type="number" {...AXIS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                      <YAxis type="category" dataKey="zone" width={100} {...AXIS} />
+                      <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} formatter={(v: number, n) => [`${Number(v).toFixed(0)}%`, n]} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[0, 3, 3, 0]} />
+                      <Bar dataKey="them" name={opp} fill={C_THEM} radius={[0, 3, 3, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No possession-location data for this match.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {passLocPts && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pass location map</CardTitle>
+                <CardDescription>
+                  Every recorded completed-pass location — we attack right ({passLocPts.us.length} passes), {opp} attack left ({passLocPts.them.length} passes).
+                  Dense clusters reveal where each side builds play.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={passMapShowUs ? "default" : "outline"} size="sm"
+                    onClick={() => setPassMapShowUs((v) => !v)}
+                  >
+                    Belconnen
+                  </Button>
+                  <Button
+                    variant={passMapShowThem ? "default" : "outline"} size="sm"
+                    onClick={() => setPassMapShowThem((v) => !v)}
+                  >
+                    {opp}
+                  </Button>
+                </div>
+                <PassMap
+                  us={passMapShowUs ? passLocPts.us : []}
+                  them={passMapShowThem ? passLocPts.them : []}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
@@ -1155,6 +1628,46 @@ function ShotMap({ shots }: { shots: { x: number; y: number; own: boolean; goal:
           <circle key={i} cx={px(s.x)} cy={py(s.y)} r={s.goal ? 9 : 6}
             fill={s.goal ? (s.own ? C_US : C_THEM) : "transparent"}
             stroke={s.own ? C_US : C_THEM} strokeWidth={2} opacity={0.9} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// Pass-location dot map: same pitch outline as ShotMap; each pass is a small
+// semi-transparent dot (Belconnen in blue, opponent in red).  Overlapping dots
+// form a natural density gradient — denser areas = more passing activity.
+function PassMap({ us, them }: { us: { x: number; y: number }[]; them: { x: number; y: number }[] }) {
+  const W = 900, H = 560, pad = 12;
+  const px = (x: number) => pad + x * (W - 2 * pad);
+  const py = (y: number) => pad + y * (H - 2 * pad);
+  const line = "hsl(var(--border))";
+  if (us.length === 0 && them.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-8 text-center">
+        Select Belconnen or the opponent above to show their passes.
+      </p>
+    );
+  }
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 420 }}>
+        {/* pitch markings */}
+        <rect x={pad} y={pad} width={W - 2 * pad} height={H - 2 * pad} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
+        <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
+        <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
+        {/* penalty boxes */}
+        <rect x={pad} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
+        <rect x={W - pad - (W - 2 * pad) * 0.16} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
+        {/* goal mouths */}
+        <rect x={pad} y={H * 0.39} width={(W - 2 * pad) * 0.055} height={H * 0.22} fill="none" stroke={line} opacity={0.5} />
+        <rect x={W - pad - (W - 2 * pad) * 0.055} y={H * 0.39} width={(W - 2 * pad) * 0.055} height={H * 0.22} fill="none" stroke={line} opacity={0.5} />
+        {/* opponent dots drawn first so Belconnen dots sit on top */}
+        {them.map((p, i) => (
+          <circle key={`t${i}`} cx={px(p.x)} cy={py(p.y)} r={3.5} fill={C_THEM} opacity={0.35} />
+        ))}
+        {us.map((p, i) => (
+          <circle key={`u${i}`} cx={px(p.x)} cy={py(p.y)} r={3.5} fill={C_US} opacity={0.35} />
         ))}
       </svg>
     </div>

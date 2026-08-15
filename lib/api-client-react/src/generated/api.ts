@@ -112,6 +112,8 @@ import type {
   GetVeoReportStatsParams,
   GetVeoSeason200,
   GetVeoSeasonParams,
+  GetVeoSeasonPassing200,
+  GetVeoSeasonPassingParams,
   GetVeoSeasonShots200,
   GetVeoSeasonShotsParams,
   Goal,
@@ -12556,6 +12558,90 @@ export function useGetVeoSeasonShots<TData = Awaited<ReturnType<typeof getVeoSea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVeoSeasonShotsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVeoSeasonPassingUrl = (params: GetVeoSeasonPassingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/season-passing?${stringifiedParams}` : `/api/veo/season-passing`
+}
+
+/**
+ * @summary Season-wide per-match possession & passing summaries from Veo RAS analytics
+ */
+export const getVeoSeasonPassing = async (params: GetVeoSeasonPassingParams, options?: RequestInit): Promise<GetVeoSeasonPassing200> => {
+
+  return customFetch<GetVeoSeasonPassing200>(getGetVeoSeasonPassingUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoSeasonPassingQueryKey = (params?: GetVeoSeasonPassingParams,) => {
+    return [
+    `/api/veo/season-passing`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoSeasonPassingQueryOptions = <TData = Awaited<ReturnType<typeof getVeoSeasonPassing>>, TError = ErrorType<unknown>>(params: GetVeoSeasonPassingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonPassing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoSeasonPassingQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoSeasonPassing>>> = ({ signal }) => getVeoSeasonPassing(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonPassing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoSeasonPassingQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoSeasonPassing>>>
+export type GetVeoSeasonPassingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Season-wide per-match possession & passing summaries from Veo RAS analytics
+ */
+
+export function useGetVeoSeasonPassing<TData = Awaited<ReturnType<typeof getVeoSeasonPassing>>, TError = ErrorType<unknown>>(
+ params: GetVeoSeasonPassingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoSeasonPassing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoSeasonPassingQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
