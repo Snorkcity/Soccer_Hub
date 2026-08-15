@@ -1356,6 +1356,81 @@ function MatchView({ match, events, passing }: {
     return arr;
   }, [events, match.periods]);
 
+  // Field-tilt timeline: a 0–90′ line sampled every 5 minutes. Each point is
+  // our share of the weighted threat events (shots, goals, corners, frees…)
+  // inside a 15-minute window centred on that point — the window smooths out
+  // bins that happen to have no events. Stored as tilt−50 so the midline is an
+  // even game. A dashed per-half step line adds pass TERRITORY when RAS pass
+  // locations exist: our share of all final-third passes that half.
+  const tiltLine = useMemo(() => {
+    const minuteOf = makeMinuteOf(match.periods);
+    const evs = events
+      .map((e) => ({ min: minuteOf(e), w: MOMENTUM_WEIGHT[e.event_type] ?? 0, own: isOwn(e) }))
+      .filter((e) => e.w > 0);
+    if (evs.length === 0) return null;
+
+    // Per-half pass-territory tilt from RAS pass locations (no timestamps on
+    // passes — only per-half buckets — so it renders as flat half segments).
+    const halfTilt: { from: number; to: number; tilt: number }[] = [];
+    const pd = match.passDetails as { available?: boolean; items?: Array<{
+      start: number; end: number; passLocations?: Record<string, { x: number; y: number }[]>;
+    }> } | null | undefined;
+    const periodRows = Array.isArray(match.periods)
+      ? (match.periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
+    const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
+    // Chart extent: total played time from real period durations (short halves
+    // exist!); fall back to 90 only when Veo gave us no periods.
+    const playedMin = durMin.reduce((a, b) => a + b, 0);
+    const maxEventMin = Math.max(...evs.map((e) => e.min));
+    const maxMin = periodRows.length > 0 ? Math.max(playedMin, maxEventMin) : Math.max(90, maxEventMin);
+    if (pd?.available === true && Array.isArray(pd.items)) {
+      pd.items.forEach((item) => {
+        const idx = periodRows.findIndex((p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end);
+        if (idx < 0) return;
+        const ownSide = periodRows[idx]?.own_side ?? "right";
+        const flip = ownSide === "right"; // same convention as the maps: we attack right
+        const ownLR = ownSide === "left" ? "L" : "R";
+        const oppLR = ownSide === "left" ? "R" : "L";
+        const fin = (pts: { x: number }[] | undefined, ours: boolean) => {
+          let n = 0;
+          for (const pt of pts ?? []) {
+            const x = flip ? 1 - pt.x : pt.x;
+            // Our final third is the right end; theirs the left.
+            if (ours ? x >= 2 / 3 : x <= 1 / 3) n++;
+          }
+          return n;
+        };
+        const usFin = fin(item.passLocations?.[ownLR], true);
+        const themFin = fin(item.passLocations?.[oppLR], false);
+        if (usFin + themFin === 0) return;
+        const from = durMin.slice(0, idx).reduce((a, b) => a + b, 0);
+        halfTilt.push({ from, to: from + durMin[idx], tilt: (usFin / (usFin + themFin)) * 100 });
+      });
+    }
+
+    const HALF_WINDOW = 7.5;
+    const rows: { min: number; tiltDiff: number | null; evUs: number; evThem: number; passDiff: number | null }[] = [];
+    for (let t = 0; t <= Math.ceil(maxMin / 5) * 5; t += 5) {
+      let us = 0, them = 0, evUs = 0, evThem = 0;
+      for (const e of evs) {
+        if (e.min < t - HALF_WINDOW || e.min >= t + HALF_WINDOW) continue;
+        if (e.own) { us += e.w; evUs++; } else { them += e.w; evThem++; }
+      }
+      const tot = us + them;
+      // Half-open interval so a boundary sample (e.g. exactly 45') belongs to
+      // the second half; the very last endpoint stays with the final half.
+      const seg = halfTilt.find((h, i) => t >= h.from && (i === halfTilt.length - 1 ? t <= h.to : t < h.to));
+      rows.push({
+        min: t,
+        tiltDiff: tot > 0 ? Number(((us / tot) * 100 - 50).toFixed(1)) : null,
+        evUs, evThem,
+        passDiff: seg ? Number((seg.tilt - 50).toFixed(1)) : null,
+      });
+    }
+    const halfAt = periodRows.length > 0 && Number(periodRows[0]?.duration) > 0 ? Number(periodRows[0].duration) / 60 : 45;
+    return { rows, maxMin: rows[rows.length - 1].min, halfAt, hasPass: halfTilt.length > 0 };
+  }, [events, match.periods, match.passDetails]);
+
   // Shot map: normalise so we always attack to the right, them to the left.
   const shots = useMemo(() => {
     const periods = Array.isArray(match.periods) ? (match.periods as { own_side?: string }[]) : [];
@@ -1672,6 +1747,53 @@ function MatchView({ match, events, passing }: {
           </CardContent>
         </Card>
       </div>
+
+      {tiltLine && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Field tilt through the match</CardTitle>
+            <CardDescription>
+              Our share of the threat (shots, corners, frees — same weights as the momentum chart) sampled every 5 minutes over a rolling 15-minute window.
+              Midline is an even game; above it we were on top, below it {opp} were.
+              {tiltLine.hasPass && <> The dashed line adds pass territory — our share of all final-third passes, per half (Veo only gives pass locations by half, not by minute).</>}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={tiltLine.rows} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="min" type="number" domain={[0, tiltLine.maxMin]} ticks={[0, 15, 30, 45, 60, 75, 90].filter((t) => t <= tiltLine.maxMin)} {...AXIS} tickFormatter={(m) => `${m}'`} />
+                <YAxis {...AXIS} domain={[-50, 50]} ticks={[-50, -25, 0, 25, 50]} tickFormatter={(v: number) => `${v + 50}%`} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const row = payload[0]?.payload as { tiltDiff: number | null; evUs: number; evThem: number; passDiff: number | null } | undefined;
+                    if (!row) return null;
+                    return (
+                      <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[170px] space-y-1">
+                        <div className="font-semibold">{Math.max(0, Number(label) - 7.5).toFixed(0)}–{Math.min(tiltLine.maxMin, Number(label) + 7.5).toFixed(0)} min window</div>
+                        {row.tiltDiff != null && (
+                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Field tilt</span><span className="font-medium">{(row.tiltDiff + 50).toFixed(0)}% us</span></div>
+                        )}
+                        <div className="flex justify-between gap-6"><span className="text-muted-foreground">Threat events</span><span>{row.evUs} us · {row.evThem} them</span></div>
+                        {row.passDiff != null && (
+                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Pass territory (half)</span><span>{(row.passDiff + 50).toFixed(0)}% us</span></div>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
+                <ReferenceLine x={tiltLine.halfAt} stroke="hsl(var(--border))" strokeDasharray="4 4" label={{ value: "HT", fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "top" }} />
+                <Line dataKey="tiltDiff" name="Field tilt" stroke={C_US} strokeWidth={2.5} dot={{ r: 2.5, fill: C_US, strokeWidth: 0 }} connectNulls />
+                {tiltLine.hasPass && (
+                  <Line type="stepAfter" dataKey="passDiff" name="Pass territory" stroke="hsl(var(--foreground))" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls={false} />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
