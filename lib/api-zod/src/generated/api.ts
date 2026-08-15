@@ -4762,7 +4762,8 @@ export const ListVeoMatchesResponse = zod.object({
   "hasTracking": zod.boolean().optional(),
   "hasMomentum": zod.boolean().optional(),
   "synced": zod.boolean(),
-  "syncedAt": zod.string().nullish()
+  "syncedAt": zod.string().nullish(),
+  "pendingAnalytics": zod.boolean().optional()
 }))
 })
 
@@ -4927,7 +4928,14 @@ export const ListVeoLinksResponse = zod.object({
   "startsAt": zod.string().nullish(),
   "matchId": zod.number().nullish(),
   "synced": zod.boolean(),
-  "removed": zod.boolean().optional()
+  "removed": zod.boolean().optional(),
+  "pendingAnalytics": zod.boolean().optional(),
+  "scoreMismatch": zod.object({
+  "veoFor": zod.number(),
+  "veoAgainst": zod.number(),
+  "hubFor": zod.number(),
+  "hubAgainst": zod.number()
+}).nullish()
 })),
   "hubMatches": zod.array(zod.object({
   "id": zod.number(),
@@ -4964,6 +4972,19 @@ export const VeoSetLinkBody = zod.object({
 })
 
 export const VeoSetLinkResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Clear and re-download stats for a single Veo game (e.g. after fixing team directions in Veo)
+ */
+export const VeoRefetchMatchBody = zod.object({
+  "leagueId": zod.number(),
+  "veoId": zod.number()
+})
+
+export const VeoRefetchMatchResponse = zod.object({
   "ok": zod.boolean()
 })
 

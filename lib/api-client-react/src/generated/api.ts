@@ -12991,6 +12991,7 @@ export const veoRefetchMatch = async (veoRefetchInput: VeoRefetchInput, options?
 
 
 
+
 export const getVeoRefetchMatchMutationOptions = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoRefetchMatch>>, TError,{data: BodyType<VeoRefetchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof veoRefetchMatch>>, TError,{data: BodyType<VeoRefetchInput>}, TContext> => {
@@ -13010,6 +13011,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
           return  veoRefetchMatch(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}

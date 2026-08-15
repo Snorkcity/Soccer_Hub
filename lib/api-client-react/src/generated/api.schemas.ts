@@ -158,6 +158,12 @@ export interface VeoSeasonPassingMatch {
   passLenThem?: VeoPassLenStats | null;
 }
 
+export interface VeoScoreMismatch {
+  veoFor: number;
+  veoAgainst: number;
+  hubFor: number;
+  hubAgainst: number;
+}
 export interface VeoLinkRow {
   id: number;
   veoMatchId: string;
@@ -168,6 +174,7 @@ export interface VeoLinkRow {
   synced: boolean;
   removed?: boolean;
   pendingAnalytics?: boolean;
+  scoreMismatch?: VeoScoreMismatch | null;
 }
 
 export interface HubMatchOption {
@@ -4121,4 +4128,3 @@ export type GetVeoReportStatsParams = {
 leagueId: number;
 matchRowId: number;
 };
-

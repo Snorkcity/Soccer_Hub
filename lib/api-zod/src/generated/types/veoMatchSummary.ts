@@ -20,4 +20,5 @@ export interface VeoMatchSummary {
   hasMomentum?: boolean;
   synced: boolean;
   syncedAt?: string | null;
+  pendingAnalytics?: boolean;
 }

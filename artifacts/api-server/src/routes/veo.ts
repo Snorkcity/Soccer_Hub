@@ -646,7 +646,7 @@ function opponentsMatch(a: string | null | undefined, b: string | null | undefin
 router.get("/veo/links", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
   if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
-  const [links, hubMatches] = await Promise.all([
+  const [rows, hubMatches] = await Promise.all([
     db
       .select({
         id: veoMatchesTable.id,
@@ -660,12 +660,42 @@ router.get("/veo/links", async (req, res) => {
         removed: sql<boolean>`${veoMatchesTable.removedAt} IS NOT NULL`,
         // True when events are present but RAS pass analytics are still processing.
         pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
+        // Events JSON so we can count Veo goals for the mismatch check.
+        events: veoMatchesTable.events,
+        // Hub result (null when not linked or result not entered).
+        hubGoalsScored: matchesTable.goalsScored,
+        hubGoalsConceded: matchesTable.goalsConceded,
       })
       .from(veoMatchesTable)
+      .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
       .where(eq(veoMatchesTable.leagueId, leagueId))
       .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`),
     hubMatchesForLeague(leagueId),
   ]);
+
+  // Compute score-mismatch for linked, synced rows only.
+  const links = rows.map((r) => {
+    let scoreMismatch: { veoFor: number; veoAgainst: number; hubFor: number; hubAgainst: number } | null = null;
+    const hubFor = r.hubGoalsScored;
+    const hubAgainst = r.hubGoalsConceded;
+    if (r.matchId != null && hubFor != null && hubAgainst != null && Array.isArray(r.events)) {
+      const events = r.events as { event_type?: string; team?: string }[];
+      let veoFor = 0;
+      let veoAgainst = 0;
+      for (const e of events) {
+        if (e?.event_type !== "FootballGoal") continue;
+        // team === "Own" means a goal credited to our team in Veo.
+        if (e.team === "Own") veoFor++; else veoAgainst++;
+      }
+      if (veoFor !== hubFor || veoAgainst !== hubAgainst) {
+        scoreMismatch = { veoFor, veoAgainst, hubFor, hubAgainst };
+      }
+    }
+    // Strip heavy events payload before sending to client.
+    const { events: _events, hubGoalsScored: _hs, hubGoalsConceded: _hc, ...rest } = r;
+    return { ...rest, scoreMismatch };
+  });
+
   return res.json({ links, hubMatches });
 });
 

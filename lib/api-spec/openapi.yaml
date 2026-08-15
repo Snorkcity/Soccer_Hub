@@ -3705,6 +3705,14 @@ components:
         n: { type: number }
         mean: { type: number }
         longPct: { type: number }
+    VeoScoreMismatch:
+      type: object
+      required: [veoFor, veoAgainst, hubFor, hubAgainst]
+      properties:
+        veoFor:     { type: integer }
+        veoAgainst: { type: integer }
+        hubFor:     { type: integer }
+        hubAgainst: { type: integer }
     VeoLinkRow:
       type: object
       required: [id, veoMatchId, synced]
@@ -3718,6 +3726,10 @@ components:
         synced: { type: boolean }
         removed: { type: boolean }
         pendingAnalytics: { type: boolean }
+        scoreMismatch:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/VeoScoreMismatch"
     HubMatchOption:
       type: object
       required: [id, matchId, opponent, teamId, seasonId]

@@ -24,13 +24,14 @@ import {
   type VeoEvent,
   type VeoLinkRow,
   type HubMatchOption,
+  type VeoScoreMismatch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
@@ -530,6 +531,12 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
                   <div className="text-xs text-muted-foreground truncate">
                     {[fmtDate(l.startsAt), l.title].filter(Boolean).join(" · ")}
                   </div>
+                  {l.scoreMismatch && (
+                    <div className="flex items-center gap-1 mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      Veo: {l.scoreMismatch.veoFor}–{l.scoreMismatch.veoAgainst} · Hub: {l.scoreMismatch.hubFor}–{l.scoreMismatch.hubAgainst} — check the result
+                    </div>
+                  )}
                 </div>
                 <div className="sm:flex-1">
                   {l.removed ? (
