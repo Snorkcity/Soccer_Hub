@@ -201,6 +201,8 @@ interface Draft {
   spAgainstMode: "man" | "zonal";
   fkWide: string;
   fkCentral: string;
+  /** Opponent strengths/weaknesses from the match analysis — one point per line. */
+  oppScout: string;
   kickoff: string;
   commentsTrends: string;
 }
@@ -213,7 +215,7 @@ const blankDraft = (): Draft => ({
   xi: {}, subs: [],
   ourBpNotes: "", ourBpoNotes: "", theirBpNotes: "", theirBpoNotes: "",
   gamePlan: "", bp: emptyObjectives(), bpo: emptyObjectives(),
-  spTakers: {}, spFor: {}, spFor2: {}, spAgainst: {}, spAgainstZonal: {}, spAgainstMode: "man", fkWide: "", fkCentral: "",
+  spTakers: {}, spFor: {}, spFor2: {}, spAgainst: {}, spAgainstZonal: {}, spAgainstMode: "man", fkWide: "", fkCentral: "", oppScout: "",
   kickoff: "", commentsTrends: "",
 });
 
@@ -243,6 +245,7 @@ function loadDraft(): Draft {
       // Older saved drafts may lack (or have null) the newer string fields.
       if (typeof d.kickoff !== "string") d.kickoff = "";
       if (typeof d.commentsTrends !== "string") d.commentsTrends = "";
+      if (typeof d.oppScout !== "string") d.oppScout = "";
       // Old drafts named the corners-for role "Near post" — carry the pick over to "Far post".
       if (d.spFor?.["Near post"]?.filter(Boolean).length && !d.spFor["Far post"]?.filter(Boolean).length) {
         d.spFor = { ...d.spFor, "Far post": d.spFor["Near post"] };
@@ -329,9 +332,11 @@ export default function MatchPrep() {
     const loaded: Draft = { ...blankDraft(), ...(r.data as unknown as Partial<Draft>) };
     if (typeof loaded.kickoff !== "string") loaded.kickoff = "";
     if (typeof loaded.commentsTrends !== "string") loaded.commentsTrends = "";
+    if (typeof loaded.oppScout !== "string") loaded.oppScout = "";
     if (asNew) {
       // Continuity: keep shapes, roles and set pieces — clear the match facts.
-      loaded.opponent = ""; loaded.round = ""; loaded.matchDate = "";
+      // The scout notes are about THIS opponent, so they clear too.
+      loaded.opponent = ""; loaded.round = ""; loaded.matchDate = ""; loaded.oppScout = "";
     }
     setD(loaded);
     markClean(loaded);
@@ -514,6 +519,8 @@ export default function MatchPrep() {
         { role: "BPO — set pieces", players: lines(d.fkCentral) },
       ].filter((g) => g.players.length);
 
+      const oppScout = lines(d.oppScout);
+
       const { buildPrematchDeck } = await import("@/lib/prematchPptx");
       const blob = await buildPrematchDeck({
         round: d.round || "Match",
@@ -568,6 +575,7 @@ export default function MatchPrep() {
         },
         cornersAgainstLabel: d.spAgainstMode === "zonal" ? "Corners — against — zonal" : "Corners — against — man marking",
         freeKicks: fk,
+        oppScout,
         kickoff: d.kickoff || undefined,
         commentsTrends: lines(d.commentsTrends),
       });
@@ -1102,6 +1110,12 @@ export default function MatchPrep() {
               <Label className="text-xs text-muted-foreground">BPO — set pieces</Label>
               <Textarea rows={2} value={d.fkCentral} onChange={(e) => set("fkCentral", e.target.value)}
                 placeholder="Protect the GK? Watch out for particular takers?" />
+            </div>
+            <h4 className="font-semibold text-sm pt-2">Opponent — from the match analysis</h4>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Strengths & weaknesses — one point per line</Label>
+              <Textarea rows={4} value={d.oppScout} onChange={(e) => set("oppScout", e.target.value)}
+                placeholder={"e.g. They concede in the first 15 — slow starters\nFront-third regains way above average — beware the press\nHaven't conceded from a corner this season"} />
             </div>
           </div>
         </CardContent>

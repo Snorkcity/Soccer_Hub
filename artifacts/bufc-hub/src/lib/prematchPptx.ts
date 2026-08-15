@@ -65,6 +65,8 @@ export interface PrematchInput {
   cornersAgainst: { groups: SetPieceGroup[]; players: PitchPlayer[] };
   cornersAgainstLabel?: string;
   freeKicks: SetPieceGroup[];
+  /** Opponent strengths/weaknesses from the match analysis — one bullet per line. */
+  oppScout?: string[];
   /** Kickoff time "HH:mm" — drives the printed pre-game countdown table. */
   kickoff?: string;
   /** Opposition comments/trends lines for the printable game-day sheet. */
@@ -538,6 +540,13 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
     footer(s, foot);
   }
 
+  // ── Opponent scout notes — what the match analysis says about them ──
+  if (input.oppScout?.length) {
+    const s = darkSlide(pptx, "Know the opponent", `${input.opponent} — strengths & weaknesses`);
+    noteCards(s, MX, W - 2 * MX, input.oppScout.slice(0, 6));
+    footer(s, foot);
+  }
+
   // ── B/W print copies of the set-piece diagrams (for the changing-room wall) ──
   setPieceSlide("Set pieces", "Corners — for · standard", input.cornersFor.groups, input.cornersFor.players, true, true);
   if (hasVar2 && input.cornersFor2) {
@@ -594,6 +603,7 @@ export async function buildPrematchDeck(input: PrematchInput): Promise<Blob> {
       ["In possession", input.ourBp.notes],
       ["Out of possession", input.ourBpo.notes],
       ["Opponent", [...input.theirBp.notes, ...input.theirBpo.notes]],
+      ["Their S/W", input.oppScout ?? []],
       ["GK", [...input.objectivesBp.gk, ...input.objectivesBpo.gk]],
       ["Defenders", [...input.objectivesBp.defenders, ...input.objectivesBpo.defenders]],
       ["Midfielders", [...input.objectivesBp.midfielders, ...input.objectivesBpo.midfielders]],
