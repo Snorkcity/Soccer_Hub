@@ -1726,7 +1726,8 @@ function MatchView({ match, events, passing }: {
   // Shot map: normalise so we always attack to the right, them to the left.
   const shots = useMemo(() => {
     const periods = Array.isArray(match.periods) ? (match.periods as { own_side?: string }[]) : [];
-    const pts: { x: number; y: number; own: boolean; goal: boolean }[] = [];
+    const minuteOf = makeMinuteOf(match.periods);
+    const pts: { x: number; y: number; own: boolean; goal: boolean; min: number }[] = [];
     for (const e of events) {
       if (e.event_type !== "FootballShot" && e.event_type !== "FootballGoal") continue;
       if (e.x == null || e.z == null) continue;
@@ -1737,7 +1738,7 @@ function MatchView({ match, events, passing }: {
       const flip = side === "right";
       const x = flip ? 1 - e.x : e.x;
       const y = flip ? 1 - e.z : e.z;
-      pts.push({ x, y, own: isOwn(e), goal: e.event_type === "FootballGoal" });
+      pts.push({ x, y, own: isOwn(e), goal: e.event_type === "FootballGoal", min: minuteOf(e) });
     }
     return pts;
   }, [events, match.periods]);
@@ -2226,7 +2227,7 @@ function MatchView({ match, events, passing }: {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ShotMap shots={shots} />
+          <ShotMap shots={shots} opp={opp} />
         </CardContent>
       </Card>
     </div>
@@ -2273,26 +2274,61 @@ function ShotTimeline({ pts, maxMin, halfAt, opp }: { pts: { min: number; own: b
     </div>
   );
 }
-function ShotMap({ shots }: { shots: { x: number; y: number; own: boolean; goal: boolean }[] }) {
+function ShotMap({ shots, opp }: { shots: { x: number; y: number; own: boolean; goal: boolean; min?: number }[]; opp?: string }) {
   const W = 900, H = 560, pad = 12;
   const px = (x: number) => pad + x * (W - 2 * pad);
   const py = (y: number) => pad + y * (H - 2 * pad);
   const line = "hsl(var(--border))";
+  // Styled hover tooltip (same look as the charts) instead of a native title.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ i: number; px: number; py: number } | null>(null);
+  const onMove = (i: number) => (e: React.MouseEvent) => {
+    const box = wrapRef.current?.getBoundingClientRect();
+    if (!box) return;
+    setHover({ i, px: e.clientX - box.left, py: e.clientY - box.top });
+  };
+  const hs = hover ? shots[hover.i] : null;
   return (
     <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 420 }}>
-        <rect x={pad} y={pad} width={W - 2 * pad} height={H - 2 * pad} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
-        <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
-        <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
-        {/* penalty boxes */}
-        <rect x={pad} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        <rect x={W - pad - (W - 2 * pad) * 0.16} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        {shots.map((s, i) => (
-          <circle key={i} cx={px(s.x)} cy={py(s.y)} r={s.goal ? 9 : 6}
-            fill={s.goal ? (s.own ? C_US : C_THEM) : "transparent"}
-            stroke={s.own ? C_US : C_THEM} strokeWidth={2} opacity={0.9} />
-        ))}
-      </svg>
+      <div ref={wrapRef} className="relative" onMouseLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 420 }}>
+          <rect x={pad} y={pad} width={W - 2 * pad} height={H - 2 * pad} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
+          <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
+          <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
+          {/* penalty boxes */}
+          <rect x={pad} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
+          <rect x={W - pad - (W - 2 * pad) * 0.16} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
+          {shots.map((s, i) => (
+            <g key={i}>
+              {/* invisible larger hit area so small dots are easy to hover */}
+              <circle cx={px(s.x)} cy={py(s.y)} r={14} fill="transparent" onMouseMove={onMove(i)} />
+              <circle cx={px(s.x)} cy={py(s.y)} r={s.goal ? 9 : 6}
+                fill={s.goal ? (s.own ? C_US : C_THEM) : "transparent"}
+                stroke={s.own ? C_US : C_THEM} strokeWidth={hover?.i === i ? 3 : 2} opacity={hover?.i === i ? 1 : 0.9}
+                pointerEvents="none" />
+            </g>
+          ))}
+        </svg>
+        {hs && hover && (
+          <div
+            className="pointer-events-none absolute z-10"
+            style={{
+              ...TOOLTIP_BOX,
+              left: hover.px + 12,
+              top: hover.py + 12,
+              transform: hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : undefined,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span className="font-medium" style={{ color: hs.own ? C_US : C_THEM }}>
+              {hs.own ? "Belconnen" : (opp ?? "Opponent")} {hs.goal ? "goal" : "shot"}
+            </span>
+            {hs.min != null && Number.isFinite(hs.min) && (
+              <span className="text-muted-foreground"> — {Math.floor(hs.min)}'</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
