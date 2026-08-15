@@ -2765,6 +2765,7 @@ export default function SeasonStats() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="h-8 py-1">Date</TableHead>
+                          <TableHead className="h-8 py-1">Match</TableHead>
                           <TableHead className="h-8 py-1">Opponent</TableHead>
                           <TableHead className="h-8 py-1 text-center">H/A</TableHead>
                           <TableHead className="h-8 py-1 text-center">Result</TableHead>
@@ -2777,6 +2778,7 @@ export default function SeasonStats() {
                           return (
                             <TableRow key={m.matchId} className="text-sm">
                               <TableCell className="py-1.5 text-muted-foreground">{m.matchDate ?? "—"}</TableCell>
+                              <TableCell className="py-1.5 text-muted-foreground font-mono text-xs">{m.matchId}</TableCell>
                               <TableCell className="py-1.5 font-medium flex items-center gap-2">
                                 <ClubCrest logoUrl={clubLogoMap[m.opponent]} color={clubColorMap[m.opponent]} size={16} />
                                 {m.opponent}
