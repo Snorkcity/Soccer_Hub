@@ -12,7 +12,7 @@ import {
   createMatchReport, deleteMatchReport,
   useListMatchReportCoachEmails, getListMatchReportCoachEmailsQueryKey,
   saveMatchReportCoachEmails, sendMatchReportEmail,
-  useGetVeoReportStats, getGetVeoReportStatsQueryKey,
+  useGetVeoReportStats, getGetVeoReportStatsQueryKey, getVeoReportStats,
   type MatchReportResponse, type SavedMatchReport, type VeoReportStats,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -117,13 +117,25 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
     setSaving(true);
     setSaveMsg(null);
     try {
+      // Freeze the Veo intelligence with the save. The hook above may still be
+      // loading when the coach hits Save, so fetch it here rather than trust
+      // hook state — otherwise a quick save silently drops the video block.
+      let veo = liveModel.veo;
+      if (veo == null && selectedId != null) {
+        try {
+          const fresh = await getVeoReportStats({ leagueId: activeLeagueId, matchRowId: selectedId });
+          if (fresh.linked) veo = fresh;
+        } catch {
+          // No Veo snapshot is acceptable (unlinked match / transient error).
+        }
+      }
       await createMatchReport({
         leagueId: activeLeagueId,
         title: `Match Report — ${liveModel.round} v ${liveModel.opponent}`,
         round: liveModel.round,
         opponent: liveModel.opponent,
         matchDate: liveModel.matchDate ?? undefined,
-        data: liveModel as unknown as Record<string, unknown>,
+        data: { ...liveModel, veo } as unknown as Record<string, unknown>,
       });
       await invalidateSaved();
       setSaveMsg("Saved");
