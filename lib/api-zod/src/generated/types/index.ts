@@ -397,6 +397,7 @@ export * from './veoMatchDetailRoster';
 export * from './veoMatchDetailStats';
 export * from './veoMatchSummary';
 export * from './veoMomentumBin';
+export * from './veoPassLenStats';
 export * from './veoPassStringBucket';
 export * from './veoReportStats';
 export * from './veoSeasonMatch';

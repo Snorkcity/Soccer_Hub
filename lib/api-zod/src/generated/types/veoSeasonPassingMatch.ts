@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoPassLenStats } from './veoPassLenStats';
 import type { VeoPassStringBucket } from './veoPassStringBucket';
 import type { VeoThirds } from './veoThirds';
 
@@ -25,4 +26,6 @@ export interface VeoSeasonPassingMatch {
   passStringsThem: VeoPassStringBucket[];
   thirdsUs: VeoThirds;
   thirdsThem: VeoThirds;
+  passLenUs?: VeoPassLenStats | null;
+  passLenThem?: VeoPassLenStats | null;
 }

@@ -130,6 +130,12 @@ export interface VeoThirds {
   attacking: number;
 }
 
+export interface VeoPassLenStats {
+  n: number;
+  mean: number;
+  longPct: number;
+}
+
 export interface VeoSeasonPassingMatch {
   id: number;
   veoMatchId: string;
@@ -147,6 +153,8 @@ export interface VeoSeasonPassingMatch {
   passStringsThem: VeoPassStringBucket[];
   thirdsUs: VeoThirds;
   thirdsThem: VeoThirds;
+  passLenUs?: VeoPassLenStats | null;
+  passLenThem?: VeoPassLenStats | null;
 }
 
 export interface VeoLinkRow {

@@ -776,6 +776,39 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     }));
   }, [passRows]);
 
+  // Passing style by club — average pass length + long-ball share, aggregated
+  // across every filtered match. Veo's pass vectors give relative lengths (no
+  // known units), so this is an index for comparing styles, not metres.
+  const clubStyle = useMemo(() => {
+    const agg = new Map<string, { sumLen: number; n: number; long: number }>();
+    const add = (club: string, s: { n: number; mean: number; longPct: number } | null | undefined) => {
+      if (!s || s.n <= 0) return;
+      const a = agg.get(club) ?? { sumLen: 0, n: 0, long: 0 };
+      a.sumLen += s.mean * s.n;
+      a.n += s.n;
+      a.long += (s.longPct / 100) * s.n;
+      agg.set(club, a);
+    };
+    for (const m of passingMatches) {
+      if (hiddenOpps.has(opponentOf(m))) continue;
+      if (year !== "all") {
+        const d = m.startsAt ? new Date(m.startsAt) : null;
+        if (d == null || isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+      }
+      add("Belconnen", m.passLenUs);
+      add(opponentOf(m), m.passLenThem);
+    }
+    return Array.from(agg.entries())
+      .map(([club, a]) => ({
+        club,
+        avgIdx: Number(((a.sumLen / a.n) * 100).toFixed(1)),
+        longPct: Number(((a.long / a.n) * 100).toFixed(1)),
+        n: a.n,
+      }))
+      .filter((r) => r.n >= 50) // too few passes = noise, not style
+      .sort((a, b) => b.longPct - a.longPct);
+  }, [passingMatches, year, hiddenOpps]);
+
   const passTotals = useMemo(() => {
     const withPct = passRows.filter((r) => r.possPct != null);
     const avg = (vals: number[]) => (vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null);
@@ -1137,6 +1170,50 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {clubStyle.length >= 2 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Passing style by club</CardTitle>
+                <CardDescription>
+                  How each side moves the ball, from the length of every recorded pass. Veo doesn't give real-world
+                  units, so "length index" is for comparing clubs (higher = longer passing); long passes are the
+                  clearly-hit ones — roughly the longest quarter league-wide. Sorted most direct → shortest passing.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Two panels with independent scales — long-pass share is a %
+                    of passes, the length index is unitless; one shared axis
+                    would invite false comparisons between the two. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { key: "longPct" as const, title: "Long passes — share of all passes", fmt: (v: number, n: number) => `${v.toFixed(1)}% (${n} passes sampled)` },
+                    { key: "avgIdx" as const, title: "Average pass length (index)", fmt: (v: number, n: number) => `${v.toFixed(1)} (${n} passes sampled)` },
+                  ].map(({ key, title, fmt }) => (
+                    <div key={key}>
+                      <div className="text-xs font-medium text-muted-foreground mb-1">{title}</div>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={clubStyle} margin={{ left: -10, right: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="club" {...AXIS} interval={0} angle={-35} textAnchor="end" height={70} />
+                          <YAxis {...AXIS} />
+                          <Tooltip
+                            contentStyle={TOOLTIP_BOX}
+                            cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                            formatter={(v: number, _name, item) => [
+                              fmt(Number(v), (item?.payload as { n?: number })?.n ?? 0),
+                              title,
+                            ]}
+                          />
+                          <Bar dataKey={key} name={title} fill={C_US} radius={[3, 3, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -1345,6 +1422,53 @@ function MatchView({ match, events, passing }: {
     if (a === 0 && b === heatWins.maxMin) return null; // full range = full match
     return [a, b];
   }, [heatWins, heatRange]);
+
+  // Passing style for this match: pass lengths from the RAS pass vectors
+  // (distance from the 0.5,0.5 origin — relative units, comparison only).
+  const passStyle = useMemo(() => {
+    const pd = match.passDetails as { available?: boolean; items?: Array<{
+      start: number; end: number; passLocations?: Record<string, { x: number; y: number }[]>;
+    }> } | null | undefined;
+    if (pd?.available !== true || !Array.isArray(pd.items)) return null;
+    const periodRows = Array.isArray(match.periods)
+      ? (match.periods as { timeframe?: [number, number]; own_side?: string }[])
+      : [];
+    const us: number[] = [];
+    const them: number[] = [];
+    for (const item of pd.items) {
+      const period = periodRows.find(
+        (p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end,
+      );
+      const ownSide = period?.own_side ?? "right";
+      const ownLR = ownSide === "left" ? "L" : "R";
+      const oppLR = ownSide === "left" ? "R" : "L";
+      const push = (arr: number[], pts: { x: number; y: number }[] | undefined) => {
+        for (const pt of pts ?? []) {
+          const dx = Number(pt?.x), dy = Number(pt?.y);
+          if (Number.isFinite(dx) && Number.isFinite(dy)) arr.push(Math.hypot(dx - 0.5, dy - 0.5));
+        }
+      };
+      push(us, item.passLocations?.[ownLR]);
+      push(them, item.passLocations?.[oppLR]);
+    }
+    const stats = (arr: number[]) => {
+      if (arr.length < 20) return null; // too few passes to call it a style
+      const sorted = [...arr].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const shortN = arr.filter((v) => v < 0.1).length;
+      const longN = arr.filter((v) => v > 0.25).length;
+      return {
+        n: arr.length,
+        medianIdx: Number((median * 100).toFixed(1)),
+        shortPct: (shortN / arr.length) * 100,
+        midPct: ((arr.length - shortN - longN) / arr.length) * 100,
+        longPct: (longN / arr.length) * 100,
+      };
+    };
+    const u = stats(us), t = stats(them);
+    if (!u && !t) return null;
+    return { us: u, them: t };
+  }, [match.passDetails, match.periods]);
 
   const heatSel = useMemo(() => {
     if (!heatWins || !heatRangeClamped) return null;
@@ -1788,6 +1912,50 @@ function MatchView({ match, events, passing }: {
                     <HeatPitch label={opp} values={(heatSel ?? possHeat).them} total={(heatSel ?? possHeat).themTot} color={C_THEM} />
                   </>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {passStyle && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Passing style</CardTitle>
+                <CardDescription>
+                  The length of every recorded pass, split short / medium / long. Veo's units are relative, so use
+                  this to compare the two sides — more long passes = a more direct game.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { name: "Belconnen", s: passStyle.us, color: C_US },
+                  { name: opp, s: passStyle.them, color: C_THEM },
+                ].map(({ name, s, color }) => (
+                  <div key={name}>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="font-medium flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />{name}
+                      </span>
+                      {s ? (
+                        <span className="text-muted-foreground">median length index {s.medianIdx} · {s.n} passes</span>
+                      ) : (
+                        <span className="text-muted-foreground">not enough recorded passes</span>
+                      )}
+                    </div>
+                    {s && (
+                      <div className="flex h-6 w-full overflow-hidden rounded-md text-[10px] font-medium text-white">
+                        <div className="flex items-center justify-center" style={{ width: `${s.shortPct}%`, background: color, opacity: 0.45 }}>
+                          {s.shortPct >= 12 ? `short ${s.shortPct.toFixed(0)}%` : ""}
+                        </div>
+                        <div className="flex items-center justify-center" style={{ width: `${s.midPct}%`, background: color, opacity: 0.7 }}>
+                          {s.midPct >= 12 ? `medium ${s.midPct.toFixed(0)}%` : ""}
+                        </div>
+                        <div className="flex items-center justify-center" style={{ width: `${s.longPct}%`, background: color }}>
+                          {s.longPct >= 12 ? `long ${s.longPct.toFixed(0)}%` : ""}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}

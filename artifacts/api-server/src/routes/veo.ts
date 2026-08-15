@@ -459,6 +459,12 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
   const stringsThem = new Map<number, number>();
   const thirdsUs = emptyThirds();
   const thirdsThem = emptyThirds();
+  // Pass LENGTHS: the RAS passLocations x/y are pass vectors (not pitch
+  // positions — see the heat-map notes), so each point's distance from
+  // (0.5, 0.5) is that pass's length in Veo's normalised units. Useful as a
+  // relative style read (long-ball vs short-passing sides), not as metres.
+  const lensUs: number[] = [];
+  const lensThem: number[] = [];
   let any = false;
 
   for (const item of pd.items) {
@@ -486,6 +492,12 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
       tgt.middle += Number(loc.middle ?? 0);
       tgt.attacking += Number(loc.attacking ?? 0);
     }
+    for (const [team, arr] of [[side.own, lensUs], [side.opp, lensThem]] as const) {
+      for (const pt of item.passLocations?.[team] ?? []) {
+        const dx = Number(pt?.x), dy = Number(pt?.y);
+        if (Number.isFinite(dx) && Number.isFinite(dy)) arr.push(Math.hypot(dx - 0.5, dy - 0.5));
+      }
+    }
   }
   if (!any) return null;
 
@@ -499,6 +511,21 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
     passStringsUs: toSorted(stringsUs),
     passStringsThem: toSorted(stringsThem),
     thirdsUs, thirdsThem,
+    passLenUs: lenStats(lensUs),
+    passLenThem: lenStats(lensThem),
+  };
+}
+
+// Long pass = vector length > 0.25 in Veo's normalised units (league p75-ish).
+const LONG_PASS_LEN = 0.25;
+function lenStats(arr: number[]) {
+  if (arr.length === 0) return null;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const long = arr.filter((v) => v > LONG_PASS_LEN).length;
+  return {
+    n: arr.length,
+    mean: Number(mean.toFixed(4)),
+    longPct: Number(((long / arr.length) * 100).toFixed(1)),
   };
 }
 

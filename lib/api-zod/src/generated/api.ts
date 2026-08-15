@@ -4854,7 +4854,17 @@ export const GetVeoSeasonPassingResponse = zod.object({
   "defensive": zod.number(),
   "middle": zod.number(),
   "attacking": zod.number()
-})
+}),
+  "passLenUs": zod.object({
+  "n": zod.number(),
+  "mean": zod.number(),
+  "longPct": zod.number()
+}).nullish(),
+  "passLenThem": zod.object({
+  "n": zod.number(),
+  "mean": zod.number(),
+  "longPct": zod.number()
+}).nullish()
 }))
 })
 

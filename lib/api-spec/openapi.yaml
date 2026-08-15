@@ -3657,6 +3657,19 @@ components:
           items: { $ref: "#/components/schemas/VeoPassStringBucket" }
         thirdsUs: { $ref: "#/components/schemas/VeoThirds" }
         thirdsThem: { $ref: "#/components/schemas/VeoThirds" }
+        passLenUs:
+          allOf: [{ $ref: "#/components/schemas/VeoPassLenStats" }]
+          nullable: true
+        passLenThem:
+          allOf: [{ $ref: "#/components/schemas/VeoPassLenStats" }]
+          nullable: true
+    VeoPassLenStats:
+      type: object
+      required: [n, mean, longPct]
+      properties:
+        n: { type: number }
+        mean: { type: number }
+        longPct: { type: number }
     VeoLinkRow:
       type: object
       required: [id, veoMatchId, synced]
