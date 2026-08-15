@@ -251,9 +251,17 @@ router.post("/entry/veo-sync", async (req, res) => {
   const leagueId = Number(req.body?.leagueId);
   const batch = Number.isFinite(Number(req.body?.batch)) ? Number(req.body?.batch) : DEFAULT_BATCH;
   if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
-  const result = await syncVeoLeagueOnce(leagueId, batch);
-  if ("error" in result) return res.status(result.status).json({ error: result.error });
-  return res.json(result);
+  try {
+    const result = await syncVeoLeagueOnce(leagueId, batch);
+    if ("error" in result) return res.status(result.status).json({ error: result.error });
+    return res.json(result);
+  } catch (e) {
+    // Surface the real failure (Veo login, recordings list, network) to the
+    // client instead of a generic 500 — the coach sees it in the sync status.
+    logger.error({ err: e, leagueId }, "veo: sync failed");
+    const msg = e instanceof Error ? e.message : "unknown error";
+    return res.status(502).json({ error: msg });
+  }
 });
 
 // GET /veo/leagues — which of the USER'S leagues have a Veo mapping.

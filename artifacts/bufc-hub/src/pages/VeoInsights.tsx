@@ -294,8 +294,11 @@ export default function VeoInsights() {
       qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonShotsQueryKey(seasonParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonPassingQueryKey(seasonParams) });
-    } catch {
-      setSyncMsg("Sync failed — please try again.");
+    } catch (e) {
+      // Show the server's actual reason (e.g. Veo login failure) so repeated
+      // failures are diagnosable instead of a generic "try again".
+      const detail = e instanceof Error && e.message ? ` — ${e.message}` : " — please try again.";
+      setSyncMsg(`Sync failed${detail}`);
     }
   }
 
