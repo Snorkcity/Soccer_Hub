@@ -14,4 +14,5 @@ export interface VeoLinkRow {
   startsAt?: string | null;
   matchId?: number | null;
   synced: boolean;
+  removed?: boolean;
 }

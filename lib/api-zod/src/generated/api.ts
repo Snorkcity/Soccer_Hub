@@ -4926,7 +4926,8 @@ export const ListVeoLinksResponse = zod.object({
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
   "matchId": zod.number().nullish(),
-  "synced": zod.boolean()
+  "synced": zod.boolean(),
+  "removed": zod.boolean().optional()
 })),
   "hubMatches": zod.array(zod.object({
   "id": zod.number(),
@@ -4963,6 +4964,20 @@ export const VeoSetLinkBody = zod.object({
 })
 
 export const VeoSetLinkResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Soft-delete or restore a synced Veo game (payloads kept; hidden from all charts and reports)
+ */
+export const VeoRemoveMatchBody = zod.object({
+  "leagueId": zod.number(),
+  "veoId": zod.number(),
+  "removed": zod.boolean()
+})
+
+export const VeoRemoveMatchResponse = zod.object({
   "ok": zod.boolean()
 })
 

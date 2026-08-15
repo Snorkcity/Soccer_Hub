@@ -3463,6 +3463,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
 
+  /entry/veo-remove:
+    post:
+      operationId: veoRemoveMatch
+      tags: [veo]
+      summary: Soft-delete or restore a synced Veo game (payloads kept; hidden from all charts and reports)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoRemoveInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
+
   /veo/report-stats:
     get:
       operationId: getVeoReportStats
@@ -3681,6 +3698,7 @@ components:
         startsAt: { type: string, nullable: true }
         matchId: { type: integer, nullable: true }
         synced: { type: boolean }
+        removed: { type: boolean }
     HubMatchOption:
       type: object
       required: [id, matchId, opponent, teamId, seasonId]
@@ -3720,6 +3738,13 @@ components:
         leagueId: { type: integer }
         veoId: { type: integer }
         matchId: { type: integer, nullable: true }
+    VeoRemoveInput:
+      type: object
+      required: [leagueId, veoId, removed]
+      properties:
+        leagueId: { type: integer }
+        veoId: { type: integer }
+        removed: { type: boolean }
     VeoSetLinkResult:
       type: object
       required: [ok]

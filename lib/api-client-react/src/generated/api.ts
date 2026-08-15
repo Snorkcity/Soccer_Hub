@@ -258,6 +258,7 @@ import type {
   VeoAutoLinkResult,
   VeoLinksResponse,
   VeoMatchDetail,
+  VeoRemoveInput,
   VeoReportStats,
   VeoSetLinkInput,
   VeoSetLinkResult,
@@ -12962,6 +12963,77 @@ export const useVeoSetLink = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVeoSetLinkMutationOptions(options));
+    }
+
+export const getVeoRemoveMatchUrl = () => {
+
+
+
+
+  return `/api/entry/veo-remove`
+}
+
+/**
+ * @summary Soft-delete or restore a synced Veo game (payloads kept; hidden from all charts and reports)
+ */
+export const veoRemoveMatch = async (veoRemoveInput: VeoRemoveInput, options?: RequestInit): Promise<VeoSetLinkResult> => {
+
+  return customFetch<VeoSetLinkResult>(getVeoRemoveMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoRemoveInput)
+  }
+);}
+
+
+
+
+
+export const getVeoRemoveMatchMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoRemoveMatch>>, TError,{data: BodyType<VeoRemoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoRemoveMatch>>, TError,{data: BodyType<VeoRemoveInput>}, TContext> => {
+
+const mutationKey = ['veoRemoveMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoRemoveMatch>>, {data: BodyType<VeoRemoveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoRemoveMatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoRemoveMatchMutationResult = NonNullable<Awaited<ReturnType<typeof veoRemoveMatch>>>
+    export type VeoRemoveMatchMutationBody = BodyType<VeoRemoveInput>
+    export type VeoRemoveMatchMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Soft-delete or restore a synced Veo game (payloads kept; hidden from all charts and reports)
+ */
+export const useVeoRemoveMatch = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoRemoveMatch>>, TError,{data: BodyType<VeoRemoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoRemoveMatch>>,
+        TError,
+        {data: BodyType<VeoRemoveInput>},
+        TContext
+      > => {
+      return useMutation(getVeoRemoveMatchMutationOptions(options));
     }
 
 export const getGetVeoReportStatsUrl = (params: GetVeoReportStatsParams,) => {

@@ -165,6 +165,7 @@ export interface VeoLinkRow {
   startsAt?: string | null;
   matchId?: number | null;
   synced: boolean;
+  removed?: boolean;
 }
 
 export interface HubMatchOption {
@@ -195,6 +196,12 @@ export interface VeoSetLinkInput {
   leagueId: number;
   veoId: number;
   matchId?: number | null;
+}
+
+export interface VeoRemoveInput {
+  leagueId: number;
+  veoId: number;
+  removed: boolean;
 }
 
 export interface VeoSetLinkResult {

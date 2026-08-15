@@ -1196,6 +1196,10 @@ async function runUserAccountsMigration(): Promise<void> {
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_match_idx ON veo_matches (league_id, veo_match_id)`);
   // Pass/possession analytics from Veo's RAS service (2026-08, task: pass strings).
   await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS pass_details jsonb`);
+  // Soft delete for Veo games (2026-08): once synced the Hub keeps the row as
+  // the archive (Veo drops old recordings from the portal over time); the coach
+  // removes/restores games manually and reads skip removed rows.
+  await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS removed_at text`);
   // Grant the "veo" module to everyone who already has "gps" (same clubs that
   // record on Veo), once. Nav + read gating use this module.
   const veoModuleMarker = await db.execute(sql`SELECT 1 FROM seed_markers WHERE key = 'veo-module-grant-v1'`);

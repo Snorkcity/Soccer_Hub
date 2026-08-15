@@ -7,7 +7,7 @@
 // The client loops until { remaining } hits 0. See routes/dribl.ts for the
 // sibling pattern and .agents/memory/veo-integration.md for the API map.
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, veoMatchesTable, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
 import {
   defaultVeoCreds,
@@ -125,25 +125,17 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
       });
   }
 
-  // Prune rows for recordings that no longer exist in this team's Veo folder —
-  // the coach removes misfiled games (wrong team's matches) in Veo, and they
-  // must disappear here too. Guard: never wipe the league on an empty list.
-  if (recordings.length > 0) {
-    const liveIds = recordings.map((r) => r.identifier).filter((id): id is string => !!id);
-    if (liveIds.length > 0) {
-      const pruned = await db
-        .delete(veoMatchesTable)
-        .where(and(eq(veoMatchesTable.leagueId, leagueId), notInArray(veoMatchesTable.veoMatchId, liveIds)))
-        .returning({ id: veoMatchesTable.id });
-      if (pruned.length > 0) logger.info({ leagueId, pruned: pruned.length }, "veo: pruned recordings removed from Veo");
-    }
-  }
+  // NO auto-prune: Veo drops old recordings from the portal over time, so a
+  // recording vanishing from the list must NOT delete our synced copy — once
+  // synced, the Hub is the archive. Misfiled games are removed manually via
+  // /entry/veo-remove (soft delete; sync never resurrects removed rows because
+  // the upsert doesn't touch removed_at).
 
   // Which synced matches still need their heavy payloads?
   const pending = await db
     .select({ veoMatchId: veoMatchesTable.veoMatchId })
     .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NULL`));
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NULL`, sql`${veoMatchesTable.removedAt} IS NULL`));
 
   const toFetch = pending.slice(0, batch);
   let fetched = 0;
@@ -204,6 +196,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         // Third branch: rows synced before 5-min heat windows existed — refetch
         // so the time-scrubbing possession heat map works on old matches too.
         sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true') OR (${veoMatchesTable.passDetails}->>'available' = 'true' AND NOT jsonb_exists(${veoMatchesTable.passDetails}, 'heatWindows')))`,
+        sql`${veoMatchesTable.removedAt} IS NULL`,
       ),
     );
   let passFetched = 0;
@@ -230,6 +223,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         eq(veoMatchesTable.leagueId, leagueId),
         sql`${veoMatchesTable.events} IS NOT NULL`,
         sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
+        sql`${veoMatchesTable.removedAt} IS NULL`,
       ),
     );
   const analyticsPending = Number(stillPendingRows[0]?.count ?? 0);
@@ -299,7 +293,7 @@ router.get("/veo/matches", async (req, res) => {
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
-    .where(eq(veoMatchesTable.leagueId, leagueId))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
   return res.json({ matches: rows });
 });
@@ -324,7 +318,7 @@ router.get("/veo/season", async (req, res) => {
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`, sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.map((r) => {
     const countsFor: Record<string, number> = {};
@@ -370,7 +364,7 @@ router.get("/veo/season-shots", async (req, res) => {
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NOT NULL`, sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.map((r) => {
     const events = Array.isArray(r.events)
@@ -548,7 +542,7 @@ router.get("/veo/season-passing", async (req, res) => {
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.passDetails} IS NOT NULL`))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.passDetails} IS NOT NULL`, sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.flatMap((r) => {
     const summary = summarisePassDetails(r.passDetails, r.periods);
@@ -575,7 +569,7 @@ router.get("/veo/match", async (req, res) => {
   const rows = await db
     .select()
     .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.id, id), eq(veoMatchesTable.leagueId, leagueId)))
+    .where(and(eq(veoMatchesTable.id, id), eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .limit(1);
   if (rows.length === 0) return res.status(404).json({ error: "Not found" });
   return res.json(rows[0]);
@@ -651,6 +645,8 @@ router.get("/veo/links", async (req, res) => {
         startsAt: veoMatchesTable.startsAt,
         matchId: veoMatchesTable.matchId,
         synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
+        // Manage list shows removed games too, so they can be restored.
+        removed: sql<boolean>`${veoMatchesTable.removedAt} IS NOT NULL`,
       })
       .from(veoMatchesTable)
       .where(eq(veoMatchesTable.leagueId, leagueId))
@@ -674,7 +670,7 @@ export async function autoLinkVeoLeague(leagueId: number) {
         matchId: veoMatchesTable.matchId,
       })
       .from(veoMatchesTable)
-      .where(eq(veoMatchesTable.leagueId, leagueId)),
+      .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`)),
     hubMatchesForLeague(leagueId),
   ]);
 
@@ -768,6 +764,27 @@ router.post("/entry/veo-link", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// POST /entry/veo-remove { leagueId, veoId, removed } — soft-delete / restore a
+// synced game. Removed games keep their payloads (the Hub is the archive once
+// Veo drops old recordings) but vanish from every chart, list and report until
+// restored. Rides the /entry prefix → data-entry module + league access check.
+router.post("/entry/veo-remove", async (req, res) => {
+  const leagueId = Number(req.body?.leagueId);
+  const veoId = Number(req.body?.veoId);
+  const removed = req.body?.removed;
+  if (!Number.isFinite(leagueId) || !Number.isFinite(veoId))
+    return res.status(400).json({ error: "leagueId and veoId required" });
+  if (typeof removed !== "boolean") return res.status(400).json({ error: "removed must be true or false" });
+
+  const updated = await db
+    .update(veoMatchesTable)
+    .set({ removedAt: removed ? new Date().toISOString() : null })
+    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
+    .returning({ id: veoMatchesTable.id });
+  if (updated.length === 0) return res.status(404).json({ error: "Veo match not found in this league" });
+  return res.json({ ok: true });
+});
+
 // ── Report stats (shots + momentum) for a linked Hub match ──────────────────
 // Mirrors the client-side maths on the Veo Insights tab (see VeoInsights.tsx):
 // same event weights, same 5-minute bins, same shot definition.
@@ -839,7 +856,7 @@ router.get("/veo/report-stats", async (req, res) => {
       periods: veoMatchesTable.periods,
     })
     .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchRowId)))
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchRowId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .limit(1);
   const row = rows[0];
   if (!row || !Array.isArray(row.events) || row.events.length === 0) return res.json({ linked: false });

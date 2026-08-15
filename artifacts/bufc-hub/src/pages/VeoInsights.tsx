@@ -16,6 +16,7 @@ import {
   getListVeoLinksQueryKey,
   useVeoAutoLink,
   useVeoSetLink,
+  useVeoRemoveMatch,
   type VeoMatchSummary,
   type VeoSeasonMatch,
   type VeoSeasonShotMatch,
@@ -28,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
@@ -236,7 +237,12 @@ export default function VeoInsights() {
   const matches: VeoMatchSummary[] = listData?.matches ?? [];
   const synced = matches.filter((m) => m.synced);
 
-  const currentId = selectedId ?? synced[0]?.id ?? null;
+  // Fall back to the newest match if the selected one disappears from the list
+  // (e.g. the coach just removed it in Match links).
+  const currentId =
+    selectedId != null && synced.some((m) => m.id === selectedId)
+      ? selectedId
+      : synced[0]?.id ?? null;
   const detailParams = { id: currentId ?? 0, leagueId: activeLeagueId ?? 0 };
   const { data: match, isLoading: matchLoading } = useGetVeoMatch(detailParams, {
     query: { enabled: currentId != null && activeLeagueId != null, queryKey: getGetVeoMatchQueryKey(detailParams) },
@@ -430,6 +436,19 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
     }
   }
 
+  const removeMut = useVeoRemoveMatch();
+  async function setRemoved(veoId: number, removed: boolean, label: string) {
+    if (removed && !window.confirm(`Remove "${label}" from all charts and reports? The data is kept and you can restore it here any time.`)) return;
+    try {
+      await removeMut.mutateAsync({ data: { leagueId, veoId, removed } });
+      // A removed/restored game changes every chart on this page, not just
+      // the links list — refetch the lot.
+      qc.invalidateQueries();
+    } catch {
+      setMsg(removed ? "Couldn't remove that game — try again." : "Couldn't restore that game — try again.");
+    }
+  }
+
   const hubLabel = (h: HubMatchOption) =>
     `${h.matchId.split("-")[0]} v ${h.opponent}${h.matchDate ? ` · ${h.matchDate}` : ""}`;
 
@@ -464,18 +483,23 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
           )}
           <div className="space-y-2">
             {links.map((l) => (
-              <div key={l.id} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5">
+              <div key={l.id} className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5 ${l.removed ? "opacity-60" : ""}`}>
                 <div className="min-w-0 sm:w-1/2">
                   <div className="text-sm font-medium truncate flex items-center gap-1.5">
-                    {l.matchId != null && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+                    {!l.removed && l.matchId != null && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
                     {opponentOf(l)}
+                    {l.removed && (
+                      <span className="text-[10px] font-normal uppercase tracking-wide rounded bg-muted px-1.5 py-0.5 text-muted-foreground shrink-0">removed</span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
                     {[fmtDate(l.startsAt), l.title].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <div className="sm:flex-1">
-                  {canLink ? (
+                  {l.removed ? (
+                    <span className="text-xs text-muted-foreground">Hidden from all charts & reports</span>
+                  ) : canLink ? (
                     <Select
                       value={l.matchId != null ? String(l.matchId) : "none"}
                       onValueChange={(v) => setLink(l.id, v === "none" ? null : Number(v))}
@@ -500,6 +524,20 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
                     </span>
                   )}
                 </div>
+                {canLink && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-muted-foreground shrink-0 self-start sm:self-center gap-1"
+                    disabled={removeMut.isPending}
+                    onClick={() =>
+                      setRemoved(l.id, !l.removed, `${opponentOf(l)}${fmtDate(l.startsAt) ? ` · ${fmtDate(l.startsAt)}` : ""}`)
+                    }
+                  >
+                    {l.removed ? <Undo2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    {l.removed ? "Restore" : "Remove"}
+                  </Button>
+                )}
               </div>
             ))}
             {links.length === 0 && (

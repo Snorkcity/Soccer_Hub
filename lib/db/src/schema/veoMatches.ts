@@ -39,6 +39,11 @@ export const veoMatchesTable = pgTable(
     // Link to our own matches.id once reconciled by round / opponent / date.
     matchId: integer("match_id"),
     syncedAt: text("synced_at"),
+    // Soft delete: set when the coach removes a game from the Hub. The row and
+    // its payloads are kept (Veo eventually drops old recordings from the
+    // portal, so once synced the Hub is the archive) but every read endpoint
+    // skips removed rows. Sync never clears this — restore is manual.
+    removedAt: text("removed_at"),
   },
   (t) => ({
     byLeagueMatch: uniqueIndex("veo_matches_league_match_idx").on(t.leagueId, t.veoMatchId),
