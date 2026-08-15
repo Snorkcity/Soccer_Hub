@@ -31,6 +31,7 @@ import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
@@ -89,6 +90,17 @@ function makeMinuteOf(periods: unknown): (e: VeoEvent) => number {
   };
 }
 
+// Old recording titles use club abbreviations — map them to the club names the
+// rest of the Hub uses so the legend groups games under one club per opponent.
+// (The server does the same on sync; this covers rows synced before that.)
+const CLUB_ALIASES: Record<string, string> = { TUFC: "Tuggeranong", CCFC: "Croatia" };
+function normalizeClub(name: string): string {
+  return name
+    .replace(/\b[A-Z]{3,5}\b/g, (tok) => CLUB_ALIASES[tok] ?? tok)
+    .replace(/\s+(Res(erves)?|1sts?|2nds?)$/i, "")
+    .trim();
+}
+
 // Opponent CLUB for a recording. Best source is the linked Hub match's own
 // opponent (always a clean club name); otherwise parse it out of the Veo
 // title — "… vs Club" or the coach's "YYYYMMDD-round-squad-Club" convention.
@@ -96,17 +108,17 @@ function opponentOf(m: { opponent?: string | null; title?: string | null; hubOpp
   const hub = (m.hubOpponent ?? "").trim();
   if (hub) return hub;
   const raw = (m.opponent ?? "").trim();
-  if (raw && !/firsts|reserves|nplw|1sts|^\d{8}-|^$/i.test(raw)) return raw;
+  if (raw && !/firsts|reserves|nplw|1sts|^\d{8}-|^$/i.test(raw)) return normalizeClub(raw) || "Opponent";
   const t = (m.title ?? "").trim();
   const vs = t.match(/\bvs?\.?\s+(.+)$/i);
-  if (vs && vs[1].trim()) return vs[1].trim();
+  if (vs && vs[1].trim()) return normalizeClub(vs[1]) || "Opponent";
   if (/^\d{8}-/.test(t)) {
     const segs = t.split("-").map((s) => s.trim()).filter(Boolean);
     const squadIdx = segs.findIndex((s) => /^(1sts?|2nds?|firsts?|seconds?|res(erves)?|u\d+)$/i.test(s));
     const rest = squadIdx >= 0 ? segs.slice(squadIdx + 1) : segs.slice(3);
-    if (rest.length > 0) return rest.join("-");
+    if (rest.length > 0) return normalizeClub(rest.join("-")) || "Opponent";
   }
-  return t || raw || "Opponent";
+  return normalizeClub(t || raw) || "Opponent";
 }
 
 // Clickable opponent legend (same pattern as Season Stats): toggle a club off
@@ -180,7 +192,7 @@ function VeoSeasonTooltip({ active, payload }: {
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
               {p.name}
             </span>
-            <span>{p.name === "Field tilt" ? `${Number(p.value).toFixed(0)}% us` : p.value}</span>
+            <span>{p.name === "Field tilt" ? `${(Number(p.value) + 50).toFixed(0)}% us` : p.value}</span>
           </div>
         ))}
       </div>
@@ -585,6 +597,9 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
         goalsFor: n(f, "FootballGoal"), goalsAgainst: n(a, "FootballGoal"),
         cornersFor: n(f, "FootballCornerKick"), cornersAgainst: n(a, "FootballCornerKick"),
         tilt,
+        // Diverging view: distance from an even 50/50 game, so "better than
+        // even" bars go up and "worse than even" bars go down.
+        tiltDiff: tilt != null ? tilt - 50 : null,
       };
     });
   }, [filtered]);
@@ -601,10 +616,36 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     });
   }, [shotMatches, year, hiddenOpps]);
 
+  // Per-chart club legends for the busy season charts — the shot map and the
+  // two threat-timing charts each get their own toggle, on top of the page-wide
+  // opponent legend up top.
+  const [hiddenMapOpps, setHiddenMapOpps] = useState<Set<string>>(new Set());
+  const [hiddenThreatUsOpps, setHiddenThreatUsOpps] = useState<Set<string>>(new Set());
+  const [hiddenThreatThemOpps, setHiddenThreatThemOpps] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setHiddenMapOpps(new Set());
+    setHiddenThreatUsOpps(new Set());
+    setHiddenThreatThemOpps(new Set());
+  }, [year, shotMatches]);
+  const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (opp: string) =>
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(opp)) next.delete(opp); else next.add(opp);
+      return next;
+    });
+  const shotOpponents = useMemo(
+    () => Array.from(new Set(filteredShotMatches.map(opponentOf))).sort((a, b) => a.localeCompare(b)),
+    [filteredShotMatches],
+  );
+  const mapMatches = useMemo(
+    () => filteredShotMatches.filter((m) => !hiddenMapOpps.has(opponentOf(m))),
+    [filteredShotMatches, hiddenMapOpps],
+  );
+
   const seasonShots = useMemo(() => {
     const pts: { x: number; y: number; own: boolean; goal: boolean }[] = [];
     let usTotal = 0, themTotal = 0, located = 0;
-    for (const m of filteredShotMatches) {
+    for (const m of mapMatches) {
       for (const s of m.shots) {
         if (s.us) usTotal++; else themTotal++;
         if (s.x == null || s.y == null) continue;
@@ -615,43 +656,52 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
       }
     }
     return { pts, usTotal, themTotal, located };
-  }, [filteredShotMatches, showUs, showThem]);
+  }, [mapMatches, showUs, showThem]);
 
-  // Share of each side's shots per 15-min band, computed per match then
-  // averaged across matches (so one shot-heavy game can't dominate).
-  const threatBands = useMemo(() => {
+  // Average shots per game in each 15-min band — real counts, not shares, so
+  // our volume and the opponents' volume can be compared honestly. One chart
+  // per side (each with its own club toggle) because the raw numbers differ.
+  const bandCounts = (ms: VeoSeasonShotMatch[], us: boolean) => {
     const BANDS = 6;
-    const sumUs = Array(BANDS).fill(0), sumThem = Array(BANDS).fill(0);
-    let nUs = 0, nThem = 0;
-    for (const m of filteredShotMatches) {
-      const cu = Array(BANDS).fill(0), ct = Array(BANDS).fill(0);
-      let tu = 0, tt = 0;
+    const sum = Array(BANDS).fill(0);
+    const n = ms.length;
+    for (const m of ms) {
       for (const s of m.shots) {
+        if (s.us !== us) continue;
         // Extra/stoppage time folds into the 75–90 band.
-        const b = Math.min(BANDS - 1, Math.max(0, Math.floor(s.minute / 15)));
-        if (s.us) { cu[b]++; tu++; } else { ct[b]++; tt++; }
+        sum[Math.min(BANDS - 1, Math.max(0, Math.floor(s.minute / 15)))]++;
       }
-      if (tu > 0) { nUs++; for (let i = 0; i < BANDS; i++) sumUs[i] += cu[i] / tu; }
-      if (tt > 0) { nThem++; for (let i = 0; i < BANDS; i++) sumThem[i] += ct[i] / tt; }
     }
     const labels = ["0–15", "15–30", "30–45", "45–60", "60–75", "75–90"];
     return labels.map((label, i) => ({
       label,
-      us: nUs > 0 ? (sumUs[i] / nUs) * 100 : 0,
-      them: nThem > 0 ? (sumThem[i] / nThem) * 100 : 0,
+      avg: n > 0 ? Number((sum[i] / n).toFixed(2)) : 0,
+      total: sum[i],
     }));
-  }, [filteredShotMatches]);
+  };
+  const threatUs = useMemo(
+    () => bandCounts(filteredShotMatches.filter((m) => !hiddenThreatUsOpps.has(opponentOf(m))), true),
+    [filteredShotMatches, hiddenThreatUsOpps],
+  );
+  const threatThem = useMemo(
+    () => bandCounts(filteredShotMatches.filter((m) => !hiddenThreatThemOpps.has(opponentOf(m))), false),
+    [filteredShotMatches, hiddenThreatThemOpps],
+  );
 
-  // Hedged insight line: flag our strongest and quietest bands, with the
-  // even-share baseline (~16.7%) as the reference point.
+  // Both threat charts share a Y scale so the volumes compare honestly.
+  const threatMax = useMemo(
+    () => Math.max(1, Math.ceil(Math.max(...threatUs.map((b) => b.avg), ...threatThem.map((b) => b.avg)))),
+    [threatUs, threatThem],
+  );
+
+  // Hedged insight line, now on real volumes rather than shares.
   const threatInsight = useMemo(() => {
     if (filteredShotMatches.length < 3) return null;
-    const withIdx = threatBands.map((b, i) => ({ ...b, i }));
-    const hi = [...withIdx].sort((a, b) => b.us - a.us)[0];
-    const lo = [...withIdx].sort((a, b) => a.us - b.us)[0];
-    if (hi.us <= 0) return null;
-    return `An even spread would put ~17% in each band — so far our threat looks heaviest in the ${hi.label} window (${hi.us.toFixed(0)}%) and quietest in ${lo.label} (${lo.us.toFixed(0)}%), though a handful of games can still swing these numbers.`;
-  }, [threatBands, filteredShotMatches.length]);
+    const hi = [...threatUs].sort((a, b) => b.avg - a.avg)[0];
+    const lo = [...threatUs].sort((a, b) => a.avg - b.avg)[0];
+    if (!hi || hi.avg <= 0) return null;
+    return `So far our shot volume looks heaviest in the ${hi.label} window (~${hi.avg.toFixed(1)} per game) and quietest in ${lo.label} (~${lo.avg.toFixed(1)}), though a handful of games can still swing these numbers.`;
+  }, [threatUs, filteredShotMatches.length]);
 
   // ── Possession & passing rows (from Veo RAS analytics) ─────────────────────
   // Same year + opponent-legend filters as the event charts; oldest first, so
@@ -714,12 +764,14 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     const passes = passRows.map((r) => r.passesUs as number | null);
     const mins = passRows.map((r) => r.possMinUs as number | null);
     const longs = passRows.map((r) => r.strings6 as number | null);
+    const wons = passRows.map((r) => r.possWonUs as number | null);
     return passRows.map((r, i) => ({
       ...r,
       possRoll: roll(poss, i),
       passesRoll: roll(passes, i),
       minsRoll: roll(mins, i),
       longRoll: roll(longs, i),
+      wonRoll: roll(wons, i),
     }));
   }, [passRows]);
 
@@ -876,8 +928,9 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
           <CardHeader>
             <CardTitle>Field tilt per match</CardTitle>
             <CardDescription>
-              Our share of event-weighted attacking momentum — above 50% means we carried more threat.
-              Dashed line is the season average{totals.avgTilt != null ? ` (${totals.avgTilt.toFixed(0)}%)` : ""}.
+              Momentum-style view: the middle line is an even 50/50 game. Bars up = we carried more of the threat,
+              bars down = they did — the further from the line, the more one-sided it was.
+              Dashed line is the season average{totals.avgTilt != null ? ` (${totals.avgTilt.toFixed(0)}% us)` : ""}.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -885,15 +938,20 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
               <ComposedChart data={rows} margin={{ left: -10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 {xAxis}
-                <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <YAxis
+                  {...AXIS}
+                  domain={[-50, 50]}
+                  ticks={[-50, -25, 0, 25, 50]}
+                  tickFormatter={(v) => (v === 0 ? "even" : `${v > 0 ? "+" : "−"}${Math.abs(Number(v))}`)}
+                />
                 {tooltip}
-                <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
+                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
                 {totals.avgTilt != null && (
-                  <ReferenceLine y={totals.avgTilt} stroke={C_US} strokeDasharray="5 4" />
+                  <ReferenceLine y={totals.avgTilt - 50} stroke={C_US} strokeDasharray="5 4" />
                 )}
-                <Bar dataKey="tilt" name="Field tilt">
+                <Bar dataKey="tiltDiff" name="Field tilt">
                   {rows.map((r, i) => (
-                    <Cell key={i} fill={(r.tilt ?? 0) >= 50 ? C_US : C_THEM} />
+                    <Cell key={i} fill={(r.tiltDiff ?? 0) >= 0 ? C_US : C_THEM} />
                   ))}
                 </Bar>
               </ComposedChart>
@@ -1030,6 +1088,29 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Possession won per match</CardTitle>
+                <CardDescription>
+                  Regains — how many times each side won the ball back. Line is our 3-game rolling average.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis {...AXIS} allowDecimals={false} />
+                    {tooltip}
+                    {legend}
+                    <Bar dataKey="possWonUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="possWonThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                    <Line dataKey="wonRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
 
           <Card>
@@ -1083,38 +1164,71 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
               Opponents
             </Button>
           </div>
+          <OppToggleLegend opponents={shotOpponents} hidden={hiddenMapOpps} onToggle={toggleIn(setHiddenMapOpps)} />
           <ShotMap shots={seasonShots.pts} />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>When the threat comes — 15-minute bands</CardTitle>
-          <CardDescription>
-            Share of each side's shots (incl. goals) per 15-minute window, averaged per match across the season. Stoppage and extra time count in the 75–90 band.
-            {threatInsight ? <> {threatInsight}</> : null}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={threatBands} margin={{ left: -10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="label" {...AXIS} />
-              <YAxis {...AXIS} tickFormatter={(v) => `${v}%`} />
-              <Tooltip
-                contentStyle={TOOLTIP_BOX}
-                cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-                formatter={(v: number, n) => [`${Number(v).toFixed(1)}%`, n]}
-                labelFormatter={(l) => `${l} min`}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <ReferenceLine y={100 / 6} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" />
-              <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="them" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>When our threat comes — 15-minute bands</CardTitle>
+            <CardDescription>
+              Average shots (incl. goals) we take per game in each 15-minute window — real volumes, so a quiet band means genuinely few shots, not just a smaller share. Stoppage and extra time count in the 75–90 band.
+              {threatInsight ? <> {threatInsight}</> : null}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatUsOpps} onToggle={toggleIn(setHiddenThreatUsOpps)} />
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={threatUs} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" {...AXIS} />
+                <YAxis {...AXIS} domain={[0, threatMax]} />
+                <Tooltip
+                  contentStyle={TOOLTIP_BOX}
+                  cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                  formatter={(v: number, n, item) => [
+                    `${Number(v).toFixed(1)} per game (${(item?.payload as { total?: number })?.total ?? 0} total)`,
+                    "Belconnen shots",
+                  ]}
+                  labelFormatter={(l) => `${l} min`}
+                />
+                <Bar dataKey="avg" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>When their threat comes — 15-minute bands</CardTitle>
+            <CardDescription>
+              Average shots per game our opponents take in each window, on the same scale as our chart — so the two can be compared side by side.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatThemOpps} onToggle={toggleIn(setHiddenThreatThemOpps)} />
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={threatThem} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" {...AXIS} />
+                <YAxis {...AXIS} domain={[0, threatMax]} />
+                <Tooltip
+                  contentStyle={TOOLTIP_BOX}
+                  cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                  formatter={(v: number, n, item) => [
+                    `${Number(v).toFixed(1)} per game (${(item?.payload as { total?: number })?.total ?? 0} total)`,
+                    "Opponent shots",
+                  ]}
+                  labelFormatter={(l) => `${l} min`}
+                />
+                <Bar dataKey="avg" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -1267,6 +1381,34 @@ function MatchView({ match, events, passing }: {
     return { us, them };
   }, [events]);
 
+  // Spider-web match story: each spoke is a metric shown as our share vs
+  // theirs (both sides always sum to 100%), with the raw numbers in the hover.
+  const radar = useMemo(() => {
+    const rows: { metric: string; us: number; them: number; rawUs: string; rawThem: string }[] = [];
+    const add = (metric: string, u: number | null | undefined, t: number | null | undefined, fmt: (v: number) => string = (v) => String(Math.round(v))) => {
+      if (u == null || t == null) return;
+      const tot = u + t;
+      if (tot <= 0) return;
+      rows.push({ metric, us: Number(((u / tot) * 100).toFixed(1)), them: Number(((t / tot) * 100).toFixed(1)), rawUs: fmt(u), rawThem: fmt(t) });
+    };
+    add("Shots", shotTotals.us, shotTotals.them);
+    const corners = { us: 0, them: 0 };
+    for (const e of events) if (e.event_type === "FootballCornerKick") (isOwn(e) ? corners.us++ : corners.them++);
+    add("Corners", corners.us, corners.them);
+    let wUs = 0, wThem = 0;
+    for (const e of events) {
+      const w = MOMENTUM_WEIGHT[e.event_type];
+      if (!w) continue;
+      if (isOwn(e)) wUs += w; else wThem += w;
+    }
+    add("Field tilt", wUs, wThem, (v) => `${Math.round((v / (wUs + wThem)) * 100)}%`);
+    if (passStats) {
+      add("Possession", passStats.possMinUs, passStats.possMinThem, (v) => `${v.toFixed(1)} min`);
+      add("Passes", passStats.passesUs, passStats.passesThem);
+    }
+    return rows;
+  }, [events, shotTotals, passStats]);
+
   // Shot timeline: every shot (both teams) placed on the match clock; goals highlighted.
   const timeline = useMemo(() => {
     const minuteOf = makeMinuteOf(match.periods);
@@ -1342,6 +1484,54 @@ function MatchView({ match, events, passing }: {
           <div className="w-full text-xs text-muted-foreground">{fmtDate(match.startsAt)} · from Veo events</div>
         </CardContent>
       </Card>
+
+      {radar.length >= 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Match story at a glance</CardTitle>
+            <CardDescription>
+              Each spoke splits a metric between the two sides — the bigger our shaded area, the more of the game we owned. Hover a spoke for the real numbers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320}>
+              <RadarChart data={radar} outerRadius="72%">
+                <PolarGrid stroke="hsl(var(--border))" />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                {/* Ticks must be rendered (tiny) or Recharts ignores the domain. */}
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tickCount={3} tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))", opacity: 0.4 }} tickFormatter={(v) => `${v}`} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const row = payload[0]?.payload as { metric: string; rawUs: string; rawThem: string } | undefined;
+                    if (!row) return null;
+                    return (
+                      <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[160px] space-y-1">
+                        <div className="font-semibold text-sm">{row.metric}</div>
+                        <div className="flex justify-between gap-6">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="inline-block h-2 w-2 rounded-full" style={{ background: C_US }} />Belconnen
+                          </span>
+                          <span>{row.rawUs}</span>
+                        </div>
+                        <div className="flex justify-between gap-6">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="inline-block h-2 w-2 rounded-full" style={{ background: C_THEM }} />{opp}
+                          </span>
+                          <span>{row.rawThem}</span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Radar name="Belconnen" dataKey="us" stroke={C_US} fill={C_US} fillOpacity={0.35} />
+                <Radar name={opp} dataKey="them" stroke={C_THEM} fill={C_THEM} fillOpacity={0.2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {passStats && (
         <>

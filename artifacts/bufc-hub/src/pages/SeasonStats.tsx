@@ -3151,6 +3151,8 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
   // view only counts first changes made AFTER half-time. Excluded matches stay
   // on the timeline (faded) so the blowout/injury pattern is still visible.
   const [whenItCounts, setWhenItCounts] = useState(true);
+  // Rich hover card for the timeline dots (index into `dots`).
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!data) return null;
 
   const resColor = (r: string) =>
@@ -3258,10 +3260,11 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
                   title={`Average first sub: ${Math.round(avgMinute)}′`}
                 />
               )}
-              {dots.map(e => (
+              {dots.map((e, i) => (
                 <div
                   key={e.matchId}
-                  title={`${e.matchDate ?? ""} vs ${e.opponent}: ${e.player} on at ${e.minute}′ while ${e.gameState.toLowerCase()} → next 15′: ${e.goalsFor15} for / ${e.goalsAgainst15} against · final result ${e.result}${e.excluded ? " · excluded (45′ or earlier)" : ""}`}
+                  onMouseEnter={() => setHoverIdx(i)}
+                  onMouseLeave={() => setHoverIdx(null)}
                   className="absolute h-3 w-3 rounded-full border border-background cursor-default"
                   style={{
                     left: `${(Math.min(e.minute, 90) / 90) * 100}%`,
@@ -3269,9 +3272,48 @@ function FirstSubCard({ data, club }: { data?: FirstSubResponse; club: string })
                     transform: "translate(-50%, -50%)",
                     background: resColor(e.result),
                     opacity: e.excluded ? 0.25 : 1,
+                    zIndex: hoverIdx === i ? 20 : undefined,
                   }}
                 />
               ))}
+              {hoverIdx != null && dots[hoverIdx] && (() => {
+                const e = dots[hoverIdx];
+                const pct = (Math.min(e.minute, 90) / 90) * 100;
+                // Keep the card on-screen near the edges.
+                const align = pct < 25 ? "translateX(0%)" : pct > 75 ? "translateX(-100%)" : "translateX(-50%)";
+                return (
+                  <div
+                    className="absolute z-30 rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[200px] space-y-1.5 pointer-events-none"
+                    style={{ left: `${pct}%`, bottom: "calc(40% + 14px)", transform: align }}
+                  >
+                    <div className="font-semibold text-sm">
+                      vs {e.opponent}
+                      {e.matchDate ? <span className="text-muted-foreground font-normal"> · {e.matchDate}</span> : null}
+                    </div>
+                    <div className="border-t pt-1.5 space-y-1">
+                      <div className="flex justify-between gap-6"><span className="text-muted-foreground">First change</span><span className="font-medium">{e.player}</span></div>
+                      <div className="flex justify-between gap-6"><span className="text-muted-foreground">Minute</span><span>{e.minute}′</span></div>
+                      <div className="flex justify-between gap-6"><span className="text-muted-foreground">Game state</span><span>{e.gameState}</span></div>
+                      <div className="flex justify-between gap-6">
+                        <span className="text-muted-foreground">Next 15′</span>
+                        <span>
+                          <span className="text-[hsl(var(--chart-3))] font-medium">{e.goalsFor15}</span>
+                          <span className="text-muted-foreground"> for · </span>
+                          <span className="text-[hsl(var(--chart-4))] font-medium">{e.goalsAgainst15}</span>
+                          <span className="text-muted-foreground"> against</span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-6">
+                        <span className="text-muted-foreground">Final result</span>
+                        <span className="font-medium" style={{ color: resColor(e.result) }}>{e.result}</span>
+                      </div>
+                    </div>
+                    {e.excluded && (
+                      <div className="text-[10px] text-muted-foreground border-t pt-1.5">Excluded from the stats — 45′ or earlier (likely half-time or injury).</div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

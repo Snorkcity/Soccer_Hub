@@ -7,7 +7,7 @@
 // The client loops until { remaining } hits 0. See routes/dribl.ts for the
 // sibling pattern and .agents/memory/veo-integration.md for the API map.
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db, veoMatchesTable, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
 import {
   defaultVeoCreds,
@@ -19,6 +19,7 @@ import {
   getRoster,
   getPassDetails,
   opponentFromVeoTitle,
+  normalizeVeoClub,
   type VeoCredentials,
   type VeoPassDetails,
   type VeoPassDetailPeriod,
@@ -124,6 +125,20 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
       });
   }
 
+  // Prune rows for recordings that no longer exist in this team's Veo folder —
+  // the coach removes misfiled games (wrong team's matches) in Veo, and they
+  // must disappear here too. Guard: never wipe the league on an empty list.
+  if (recordings.length > 0) {
+    const liveIds = recordings.map((r) => r.identifier).filter((id): id is string => !!id);
+    if (liveIds.length > 0) {
+      const pruned = await db
+        .delete(veoMatchesTable)
+        .where(and(eq(veoMatchesTable.leagueId, leagueId), notInArray(veoMatchesTable.veoMatchId, liveIds)))
+        .returning({ id: veoMatchesTable.id });
+      if (pruned.length > 0) logger.info({ leagueId, pruned: pruned.length }, "veo: pruned recordings removed from Veo");
+    }
+  }
+
   // Which synced matches still need their heavy payloads?
   const pending = await db
     .select({ veoMatchId: veoMatchesTable.veoMatchId })
@@ -152,7 +167,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
       await db
         .update(veoMatchesTable)
         .set({
-          opponent: detail?.opponent_team_name ?? undefined,
+          opponent: normalizeVeoClub(detail?.opponent_team_name) ?? undefined,
           title: detail?.title ?? undefined,
           hasAnalytics: detail?.has_analytics_enabled ?? false,
           hasEvents: detail?.has_events_enabled ?? false,

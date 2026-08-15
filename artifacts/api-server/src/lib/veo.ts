@@ -334,21 +334,37 @@ export async function getPassDetails(creds: VeoCredentials, matchId: string): Pr
 // "Something vs Club" titles and the coach's naming convention
 // "YYYYMMDD-<round>-<squad>-Club" (e.g. 20260222-FR-1sts-Flame → Flame).
 // Anything unrecognised falls back to the raw title so nothing goes blank.
+// Old recording titles use club abbreviations — map them to the club names the
+// rest of the Hub uses so the season legend groups games under one club.
+const CLUB_ALIASES: Record<string, string> = {
+  TUFC: "Tuggeranong",
+  CCFC: "Croatia",
+};
+export function normalizeVeoClub(name: string | null | undefined): string | null {
+  const n = (name ?? "").trim();
+  if (!n) return null;
+  // Replace standalone alias tokens ("TUFC", "TUFC Res" → "Tuggeranong Res").
+  return n.replace(/\b[A-Z]{3,5}\b/g, (tok) => CLUB_ALIASES[tok] ?? tok)
+    // "Tuggeranong Res" reads better as just the club.
+    .replace(/\s+(Res(erves)?|1sts?|2nds?)$/i, "")
+    .trim();
+}
+
 export function opponentFromVeoTitle(title: string | null | undefined): string | null {
   const t = (title ?? "").trim();
   if (!t) return null;
   const vs = t.match(/\bvs?\.?\s+(.+)$/i);
-  if (vs) return vs[1].trim() || null;
+  if (vs) return normalizeVeoClub(vs[1]) ?? null;
   if (/^\d{8}-/.test(t)) {
     const segs = t.split("-").map((s) => s.trim()).filter(Boolean);
     // Club = everything after the squad token (1sts/2nds/Reserves…); if no
     // squad token, assume date-round-squad-club and take from segment 4 on.
     const squadIdx = segs.findIndex((s) => /^(1sts?|2nds?|firsts?|seconds?|res(erves)?|u\d+)$/i.test(s));
     const rest = squadIdx >= 0 ? segs.slice(squadIdx + 1) : segs.slice(3);
-    if (rest.length > 0) return rest.join("-");
-    return segs[segs.length - 1] ?? null;
+    if (rest.length > 0) return normalizeVeoClub(rest.join("-"));
+    return normalizeVeoClub(segs[segs.length - 1] ?? null);
   }
-  return t;
+  return normalizeVeoClub(t);
 }
 
 // Raw GET against the Veo app API (for exploratory scripts / future endpoints).
