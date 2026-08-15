@@ -39,6 +39,7 @@ export interface VeoMatchSummary {
   hasMomentum?: boolean;
   synced: boolean;
   syncedAt?: string | null;
+  pendingAnalytics?: boolean;
 }
 
 export interface VeoEvent {
@@ -166,6 +167,7 @@ export interface VeoLinkRow {
   matchId?: number | null;
   synced: boolean;
   removed?: boolean;
+  pendingAnalytics?: boolean;
 }
 
 export interface HubMatchOption {
@@ -196,6 +198,11 @@ export interface VeoSetLinkInput {
   leagueId: number;
   veoId: number;
   matchId?: number | null;
+}
+
+export interface VeoRefetchInput {
+  leagueId: number;
+  veoId: number;
 }
 
 export interface VeoRemoveInput {

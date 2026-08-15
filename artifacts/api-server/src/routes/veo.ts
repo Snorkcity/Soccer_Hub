@@ -298,6 +298,9 @@ router.get("/veo/matches", async (req, res) => {
       syncedAt: veoMatchesTable.syncedAt,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
+      // True when events are present but the RAS pass-analytics pipeline hasn't
+      // resolved yet — the coach should sync again later to pick up the data.
+      pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
@@ -655,6 +658,8 @@ router.get("/veo/links", async (req, res) => {
         synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
         // Manage list shows removed games too, so they can be restored.
         removed: sql<boolean>`${veoMatchesTable.removedAt} IS NOT NULL`,
+        // True when events are present but RAS pass analytics are still processing.
+        pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
       })
       .from(veoMatchesTable)
       .where(eq(veoMatchesTable.leagueId, leagueId))
@@ -770,6 +775,72 @@ router.post("/entry/veo-link", async (req, res) => {
 
   await db.update(veoMatchesTable).set({ matchId }).where(eq(veoMatchesTable.id, veoId));
   return res.json({ ok: true });
+});
+
+// POST /entry/veo-refetch { leagueId, veoId } — clears the heavy payloads for one
+// already-synced game and immediately re-downloads them from Veo. Useful when
+// the coach fixes something on the Veo side after the initial sync (e.g. wrong
+// team directions). The row's matchId link and removedAt are preserved.
+router.post("/entry/veo-refetch", async (req, res) => {
+  const leagueId = Number(req.body?.leagueId);
+  const veoId = Number(req.body?.veoId);
+  if (!Number.isFinite(leagueId) || !Number.isFinite(veoId))
+    return res.status(400).json({ error: "leagueId and veoId required" });
+
+  // Verify the row exists in this league and grab its veoMatchId.
+  const existing = await db
+    .select({ veoMatchId: veoMatchesTable.veoMatchId })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
+    .limit(1);
+  if (existing.length === 0) return res.status(404).json({ error: "Veo match not found in this league" });
+  const { veoMatchId } = existing[0];
+
+  const mapping = await leagueVeoMapping(leagueId);
+  if (!mapping) return res.status(400).json({ error: "This league has no Veo team mapping." });
+
+  const creds: VeoCredentials | null = defaultVeoCreds();
+  if (!creds) return res.status(503).json({ error: "Veo credentials are not configured on the server." });
+
+  // Clear the payload columns so this row looks unfetched.
+  await db
+    .update(veoMatchesTable)
+    .set({ events: null, stats: null, periods: null, roster: null, passDetails: null })
+    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
+
+  // Re-fetch the heavy payload for just this match (mirrors the sync loop).
+  const nowIso = new Date().toISOString();
+  try {
+    const [detail, events, stats, periods, roster, passDetails] = await Promise.all([
+      getMatchDetail(creds, veoMatchId).catch(() => null),
+      getEvents(creds, veoMatchId),
+      getStats(creds, veoMatchId).catch(() => ({})),
+      getPeriods(creds, veoMatchId).catch(() => [] as unknown[]),
+      getRoster(creds, veoMatchId).catch(() => ({})),
+      getPassDetails(creds, veoMatchId).catch(() => null),
+    ]);
+    await db
+      .update(veoMatchesTable)
+      .set({
+        opponent: normalizeVeoClub(detail?.opponent_team_name) ?? undefined,
+        title: detail?.title ?? undefined,
+        hasAnalytics: detail?.has_analytics_enabled ?? false,
+        hasEvents: detail?.has_events_enabled ?? false,
+        hasTracking: detail?.has_tracking_data ?? false,
+        hasMomentum: detail?.has_momentum_data ?? false,
+        events,
+        stats,
+        periods,
+        roster,
+        ...(passDetails ? { passDetails: passDetails as unknown as Record<string, unknown> } : {}),
+        syncedAt: nowIso,
+      })
+      .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
+    return res.json({ ok: true });
+  } catch (e) {
+    logger.error({ err: e, veoMatchId }, "veo: refetch payload failed");
+    return res.status(502).json({ error: "Could not re-fetch from Veo. The stats have been cleared — press Sync to retry." });
+  }
 });
 
 // POST /entry/veo-remove { leagueId, veoId, removed } — soft-delete / restore a

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   useVeoSync,
   useListVeoMatches,
@@ -17,6 +17,7 @@ import {
   useVeoAutoLink,
   useVeoSetLink,
   useVeoRemoveMatch,
+  useVeoRefetchMatch,
   type VeoMatchSummary,
   type VeoSeasonMatch,
   type VeoSeasonShotMatch,
@@ -29,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2 } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
@@ -359,7 +360,15 @@ export default function VeoInsights() {
                 <SelectContent>
                   {synced.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
-                      {m.matchCode ? `${m.matchCode} · ` : ""}{opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
+                      <span className="flex items-center gap-1.5">
+                        {m.matchCode ? `${m.matchCode} · ` : ""}{opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
+                        {m.pendingAnalytics && (
+                          <span className="inline-flex items-center gap-0.5 rounded text-[10px] font-medium px-1 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                            <Clock className="h-2.5 w-2.5" />
+                            Passing pending
+                          </span>
+                        )}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -452,6 +461,23 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
     }
   }
 
+  const [refetchingId, setRefetchingId] = useState<number | null>(null);
+  const refetchMut = useVeoRefetchMatch();
+  async function refetchStats(veoId: number, label: string) {
+    if (!window.confirm(`Re-fetch stats for "${label}" from Veo?\n\nThis clears the current data and re-downloads it — useful after fixing team directions or other settings in Veo.`)) return;
+    setRefetchingId(veoId);
+    try {
+      await refetchMut.mutateAsync({ data: { leagueId, veoId } });
+      setMsg("Stats re-fetched — charts will update now.");
+      // Invalidate everything so all charts pick up the fresh data.
+      qc.invalidateQueries();
+    } catch {
+      setMsg("Re-fetch failed — try again or press Sync to retry.");
+    } finally {
+      setRefetchingId(null);
+    }
+  }
+
   const hubLabel = (h: HubMatchOption) =>
     `${h.matchId.split("-")[0]} v ${h.opponent}${h.matchDate ? ` · ${h.matchDate}` : ""}`;
 
@@ -494,6 +520,12 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
                     {l.removed && (
                       <span className="text-[10px] font-normal uppercase tracking-wide rounded bg-muted px-1.5 py-0.5 text-muted-foreground shrink-0">removed</span>
                     )}
+                    {!l.removed && l.pendingAnalytics && (
+                      <span className="inline-flex items-center gap-0.5 rounded text-[10px] font-medium px-1.5 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0" title="Pass analytics are still processing on Veo — sync again later to pick them up">
+                        <Clock className="h-2.5 w-2.5" />
+                        Passing pending
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
                     {[fmtDate(l.startsAt), l.title].filter(Boolean).join(" · ")}
@@ -527,6 +559,21 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
                     </span>
                   )}
                 </div>
+                {canLink && !l.removed && l.synced && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-muted-foreground shrink-0 self-start sm:self-center gap-1"
+                    disabled={refetchingId === l.id}
+                    onClick={() =>
+                      refetchStats(l.id, `${opponentOf(l)}${fmtDate(l.startsAt) ? ` · ${fmtDate(l.startsAt)}` : ""}`)
+                    }
+                    title="Clear and re-download stats from Veo (e.g. after fixing team directions)"
+                  >
+                    {refetchingId === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                    Re-fetch
+                  </Button>
+                )}
                 {canLink && (
                   <Button
                     size="sm"
@@ -2254,6 +2301,11 @@ function HeatPitch({ label, values, total, color }: {
   const line = "hsl(var(--border))";
   const innerW = W - 2 * pad, innerH = H - 2 * pad;
   const max = Math.max(...values, 1);
+  // Styled hover tooltip (matches the Recharts TOOLTIP_BOX look) instead of
+  // the browser's native <title> bubble. Position tracks the cursor within
+  // the wrapper div; hidden zone index = null.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ i: number; px: number; py: number } | null>(null);
   const cells = values.map((v, i) => {
     const col = Math.floor(i / 3); // 0 = own defensive end
     const row = i % 3;
@@ -2265,27 +2317,54 @@ function HeatPitch({ label, values, total, color }: {
       opacity: v > 0 ? 0.12 + 0.68 * (v / max) : 0,
     };
   });
+  const onMove = (i: number) => (e: React.MouseEvent) => {
+    const box = wrapRef.current?.getBoundingClientRect();
+    if (!box) return;
+    setHover({ i, px: e.clientX - box.left, py: e.clientY - box.top });
+  };
   return (
     <div className="w-full">
       <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />{label}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 300 }}>
-        <rect x={pad} y={pad} width={innerW} height={innerH} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
-        {cells.map((c, i) => (
-          <rect key={i} x={c.x} y={c.y} width={innerW / 6} height={innerH / 3} fill={color} opacity={c.opacity}>
-            <title>{`${c.pct.toFixed(1)}% of ${label}'s possession`}</title>
-          </rect>
-        ))}
-        {/* pitch markings on top of the heat cells */}
-        <rect x={pad} y={pad} width={innerW} height={innerH} fill="none" stroke={line} rx={6} />
-        <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
-        <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
-        <rect x={pad} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        <rect x={W - pad - innerW * 0.16} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        <text x={pad + 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))">defending</text>
-        <text x={W - pad - 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))" textAnchor="end">attacking</text>
-      </svg>
+      <div ref={wrapRef} className="relative" onMouseLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 300 }}>
+          <rect x={pad} y={pad} width={innerW} height={innerH} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
+          {cells.map((c, i) => (
+            <rect
+              key={i}
+              x={c.x} y={c.y} width={innerW / 6} height={innerH / 3}
+              fill={color} opacity={hover?.i === i ? Math.min(1, c.opacity + 0.15) : c.opacity}
+              onMouseMove={onMove(i)}
+            />
+          ))}
+          {/* pitch markings on top of the heat cells (ignore the mouse so cells get hover) */}
+          <g pointerEvents="none">
+            <rect x={pad} y={pad} width={innerW} height={innerH} fill="none" stroke={line} rx={6} />
+            <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
+            <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
+            <rect x={pad} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
+            <rect x={W - pad - innerW * 0.16} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
+            <text x={pad + 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))">defending</text>
+            <text x={W - pad - 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))" textAnchor="end">attacking</text>
+          </g>
+        </svg>
+        {hover && (
+          <div
+            className="pointer-events-none absolute z-10"
+            style={{
+              ...TOOLTIP_BOX,
+              left: hover.px + 12,
+              top: hover.py + 12,
+              transform: hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : undefined,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span className="font-medium" style={{ color }}>{cells[hover.i].pct.toFixed(1)}%</span>
+            <span className="text-muted-foreground"> of {label}'s possession</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

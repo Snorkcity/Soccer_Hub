@@ -3463,6 +3463,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
 
+  /entry/veo-refetch:
+    post:
+      operationId: veoRefetchMatch
+      tags: [veo]
+      summary: Clear and re-download stats for a single Veo game (e.g. after fixing team directions in Veo)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoRefetchInput" }
+      responses:
+        "200":
+          description: Refetch succeeded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
+
   /entry/veo-remove:
     post:
       operationId: veoRemoveMatch
@@ -3543,6 +3560,7 @@ components:
         hasMomentum: { type: boolean }
         synced: { type: boolean }
         syncedAt: { type: string, nullable: true }
+        pendingAnalytics: { type: boolean }
     VeoEvent:
       type: object
       required: [event_type, team, period_id, period_time_ms]
@@ -3699,6 +3717,7 @@ components:
         matchId: { type: integer, nullable: true }
         synced: { type: boolean }
         removed: { type: boolean }
+        pendingAnalytics: { type: boolean }
     HubMatchOption:
       type: object
       required: [id, matchId, opponent, teamId, seasonId]
@@ -3738,6 +3757,12 @@ components:
         leagueId: { type: integer }
         veoId: { type: integer }
         matchId: { type: integer, nullable: true }
+    VeoRefetchInput:
+      type: object
+      required: [leagueId, veoId]
+      properties:
+        leagueId: { type: integer }
+        veoId: { type: integer }
     VeoRemoveInput:
       type: object
       required: [leagueId, veoId, removed]

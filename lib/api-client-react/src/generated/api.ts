@@ -258,6 +258,7 @@ import type {
   VeoAutoLinkResult,
   VeoLinksResponse,
   VeoMatchDetail,
+  VeoRefetchInput,
   VeoRemoveInput,
   VeoReportStats,
   VeoSetLinkInput,
@@ -12963,6 +12964,72 @@ export const useVeoSetLink = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVeoSetLinkMutationOptions(options));
+    }
+
+export const getVeoRefetchMatchUrl = () => {
+
+
+
+
+  return `/api/entry/veo-refetch`
+}
+
+/**
+ * @summary Clear and re-download stats for a single Veo game (e.g. after fixing team directions in Veo)
+ */
+export const veoRefetchMatch = async (veoRefetchInput: VeoRefetchInput, options?: RequestInit): Promise<VeoSetLinkResult> => {
+
+  return customFetch<VeoSetLinkResult>(getVeoRefetchMatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoRefetchInput)
+  }
+);}
+
+
+
+
+export const getVeoRefetchMatchMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoRefetchMatch>>, TError,{data: BodyType<VeoRefetchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoRefetchMatch>>, TError,{data: BodyType<VeoRefetchInput>}, TContext> => {
+
+const mutationKey = ['veoRefetchMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoRefetchMatch>>, {data: BodyType<VeoRefetchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoRefetchMatch(data,requestOptions)
+        }
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoRefetchMatchMutationResult = NonNullable<Awaited<ReturnType<typeof veoRefetchMatch>>>
+    export type VeoRefetchMatchMutationBody = BodyType<VeoRefetchInput>
+    export type VeoRefetchMatchMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clear and re-download stats for a single Veo game (e.g. after fixing team directions in Veo)
+ */
+export const useVeoRefetchMatch = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoRefetchMatch>>, TError,{data: BodyType<VeoRefetchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoRefetchMatch>>,
+        TError,
+        {data: BodyType<VeoRefetchInput>},
+        TContext
+      > => {
+      return useMutation(getVeoRefetchMatchMutationOptions(options));
     }
 
 export const getVeoRemoveMatchUrl = () => {
