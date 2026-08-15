@@ -201,7 +201,9 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         eq(veoMatchesTable.leagueId, leagueId),
         sql`${veoMatchesTable.events} IS NOT NULL`,
         // COALESCE: rows written before the pending flag existed count as pending.
-        sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
+        // Third branch: rows synced before 5-min heat windows existed — refetch
+        // so the time-scrubbing possession heat map works on old matches too.
+        sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true') OR (${veoMatchesTable.passDetails}->>'available' = 'true' AND NOT jsonb_exists(${veoMatchesTable.passDetails}, 'heatWindows')))`,
       ),
     );
   let passFetched = 0;

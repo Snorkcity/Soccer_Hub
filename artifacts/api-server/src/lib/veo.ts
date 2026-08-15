@@ -289,8 +289,18 @@ export interface VeoPassDetailPeriod {
   possessionLocationsGrid?: Record<string, { type?: string; values?: number[] }>;
 }
 
+// Fine-grained possession-grid slice for the time-scrubbing heat map: each
+// period timeframe chopped into 5-minute video-time windows, each carrying the
+// 18-zone possession grid keyed by pitch side (L/R, same convention as the
+// per-period items — map to us/them via the period's own_side).
+export interface VeoHeatWindow {
+  start: number; // video-time seconds
+  end: number;
+  grid?: Record<string, { type?: string; values?: number[] }>;
+}
+
 export type VeoPassDetails =
-  | { available: true; checkedAt: string; items: VeoPassDetailPeriod[] }
+  | { available: true; checkedAt: string; items: VeoPassDetailPeriod[]; heatWindows?: VeoHeatWindow[] }
   // `pending: true` = transient (pipeline still running / temporary error) — the
   // sync backfill re-checks these on every manual sync. `pending: false` is a
   // terminal "this recording will never have match-details" marker.
@@ -327,7 +337,43 @@ export async function getPassDetails(creds: VeoCredentials, matchId: string): Pr
   const res = await veoFetchAbsolute(creds, `${RAS_BASE}/recordings/${matchId}/match-details?${filters}`);
   if (!res.ok) return { available: false, pending: true, checkedAt, status: { ...status, httpStatus: res.status } };
   const items = (await res.json()) as VeoPassDetailPeriod[];
-  return { available: true, checkedAt, items };
+
+  // Second pass: 5-minute slices for the time-scrubbing possession heat map.
+  // RAS accepts arbitrary filters, so one extra request fetches every slice.
+  // Failure here is soft — the coarse per-period data above is still returned,
+  // and the sync backfill re-fetches rows missing heatWindows.
+  let heatWindows: VeoHeatWindow[] | undefined;
+  try {
+    const SLICE = 300; // seconds
+    const slices: [number, number][] = [];
+    for (const p of periods) {
+      if (!Array.isArray(p.timeframe) || p.timeframe.length !== 2) continue;
+      const [ps, pe] = p.timeframe;
+      for (let t = ps; t < pe; t += SLICE) {
+        // Merge a short tail (<60s) into the previous slice.
+        if (pe - t < 60 && slices.length > 0 && slices[slices.length - 1][1] === t) {
+          slices[slices.length - 1][1] = pe;
+        } else {
+          slices.push([t, Math.min(t + SLICE, pe)]);
+        }
+      }
+    }
+    if (slices.length > 0) {
+      const sliceQuery = slices.map(([a, b]) => `filters=${a},${b}`).join("&");
+      const sliceRes = await veoFetchAbsolute(creds, `${RAS_BASE}/recordings/${matchId}/match-details?${sliceQuery}`);
+      if (sliceRes.ok) {
+        const sliceItems = (await sliceRes.json()) as VeoPassDetailPeriod[];
+        heatWindows = sliceItems.map((it) => ({
+          start: it.start,
+          end: it.end,
+          grid: it.possessionLocationsGrid,
+        }));
+      }
+    }
+  } catch {
+    heatWindows = undefined;
+  }
+  return { available: true, checkedAt, items, ...(heatWindows ? { heatWindows } : {}) };
 }
 
 // Pull the opponent CLUB out of a Veo recording title. Handles both classic

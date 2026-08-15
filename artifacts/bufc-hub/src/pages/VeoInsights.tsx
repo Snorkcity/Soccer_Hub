@@ -27,6 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
@@ -1293,6 +1294,80 @@ function MatchView({ match, events, passing }: {
     return { us, them, usTot, themTot };
   }, [match.passDetails, match.periods]);
 
+  // 5-minute heat windows (synced separately by the server) mapped onto match
+  // minutes, so the heat map can be scrubbed to any time window. Windows keep
+  // per-team-relative grids; own_side of the containing period picks us/them.
+  const heatWins = useMemo(() => {
+    const pd = match.passDetails as { available?: boolean; heatWindows?: Array<{
+      start: number; end: number; grid?: Record<string, { type?: string; values?: number[] }>;
+    }> } | null | undefined;
+    if (pd?.available !== true || !Array.isArray(pd.heatWindows) || pd.heatWindows.length === 0) return null;
+    const periodRows = Array.isArray(match.periods)
+      ? (match.periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[])
+      : [];
+    const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
+    const wins: { fromMin: number; toMin: number; us: number[] | null; them: number[] | null }[] = [];
+    for (const w of pd.heatWindows) {
+      const idx = periodRows.findIndex(
+        (p) => Array.isArray(p.timeframe) && w.start >= p.timeframe[0] && w.end <= p.timeframe[1],
+      );
+      if (idx < 0) continue;
+      const ownSide = periodRows[idx]?.own_side ?? "right";
+      const ownLR = ownSide === "left" ? "L" : "R";
+      const oppLR = ownSide === "left" ? "R" : "L";
+      const offset = durMin.slice(0, idx).reduce((a, b) => a + b, 0);
+      const grab = (key: string) => {
+        const g = w.grid?.[key];
+        return g?.type === "18_zone_system" && Array.isArray(g.values) && g.values.length === 18 ? g.values : null;
+      };
+      wins.push({
+        fromMin: offset + (w.start - periodRows[idx].timeframe![0]) / 60,
+        toMin: offset + (w.end - periodRows[idx].timeframe![0]) / 60,
+        us: grab(ownLR),
+        them: grab(oppLR),
+      });
+    }
+    if (wins.length === 0) return null;
+    wins.sort((a, b) => a.fromMin - b.fromMin);
+    return { wins, maxMin: Math.ceil(wins[wins.length - 1].toMin) };
+  }, [match.passDetails, match.periods]);
+
+  // null = full match. Reset whenever the selected match changes; the clamp
+  // below also guards the first render after switching to a shorter match
+  // (before the effect fires) so Radix never sees out-of-range thumbs.
+  const [heatRange, setHeatRange] = useState<[number, number] | null>(null);
+  useEffect(() => { setHeatRange(null); }, [match.title, match.startsAt]);
+  const heatRangeClamped = useMemo<[number, number] | null>(() => {
+    if (!heatWins || !heatRange) return null;
+    const a = Math.max(0, Math.min(heatRange[0], heatWins.maxMin));
+    const b = Math.max(0, Math.min(heatRange[1], heatWins.maxMin));
+    if (b - a <= 0) return null; // degenerate after clamping → full match
+    if (a === 0 && b === heatWins.maxMin) return null; // full range = full match
+    return [a, b];
+  }, [heatWins, heatRange]);
+
+  const heatSel = useMemo(() => {
+    if (!heatWins || !heatRangeClamped) return null;
+    const [a, b] = heatRangeClamped;
+    const us = Array.from({ length: 18 }, () => 0);
+    const them = Array.from({ length: 18 }, () => 0);
+    for (const w of heatWins.wins) {
+      // Weight each slice by how much of it falls inside the selection —
+      // period boundaries rarely land on whole 5-minute marks (29.5-min
+      // halves exist), so partial slices must not count in full.
+      const overlap = Math.min(w.toMin, b) - Math.max(w.fromMin, a);
+      if (overlap <= 0) continue;
+      const frac = Math.min(1, overlap / Math.max(w.toMin - w.fromMin, 0.001));
+      w.us?.forEach((v, i) => { us[i] += (Number(v) || 0) * frac; });
+      w.them?.forEach((v, i) => { them[i] += (Number(v) || 0) * frac; });
+    }
+    return {
+      us, them,
+      usTot: us.reduce((x, y) => x + y, 0),
+      themTot: them.reduce((x, y) => x + y, 0),
+    };
+  }, [heatWins, heatRangeClamped]);
+
   // Possession & passing (Veo RAS analytics) for this match, when available.
   const passStats = useMemo(() => {
     if (!passing) return null;
@@ -1364,8 +1439,8 @@ function MatchView({ match, events, passing }: {
   // our share of the weighted threat events (shots, goals, corners, frees…)
   // inside a 15-minute window centred on that point — the window smooths out
   // bins that happen to have no events. Stored as tilt−50 so the midline is an
-  // even game. A dashed per-half step line adds pass TERRITORY when RAS pass
-  // locations exist: our share of all final-third passes that half.
+  // even game. A dashed per-half step line adds TERRITORY when RAS possession
+  // thirds exist: our share of the attacking-third possession time that half.
   const tiltLine = useMemo(() => {
     const minuteOf = makeMinuteOf(match.periods);
     const evs = events
@@ -1373,11 +1448,14 @@ function MatchView({ match, events, passing }: {
       .filter((e) => e.w > 0);
     if (evs.length === 0) return null;
 
-    // Per-half pass-territory tilt from RAS pass locations (no timestamps on
-    // passes — only per-half buckets — so it renders as flat half segments).
+    // Per-half territory tilt from RAS possession-by-thirds (the raw pass
+    // "locations" turned out not to be pitch positions, so we use each side's
+    // attacking-third possession seconds instead). Renders as flat half
+    // segments — the thirds data is only bucketed per half.
     const halfTilt: { from: number; to: number; tilt: number }[] = [];
     const pd = match.passDetails as { available?: boolean; items?: Array<{
-      start: number; end: number; passLocations?: Record<string, { x: number; y: number }[]>;
+      start: number; end: number;
+      possessionLocations?: Record<string, { defensive?: number; middle?: number; attacking?: number }>;
     }> } | null | undefined;
     const periodRows = Array.isArray(match.periods)
       ? (match.periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
@@ -1392,20 +1470,11 @@ function MatchView({ match, events, passing }: {
         const idx = periodRows.findIndex((p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end);
         if (idx < 0) return;
         const ownSide = periodRows[idx]?.own_side ?? "right";
-        const flip = ownSide === "right"; // same convention as the maps: we attack right
         const ownLR = ownSide === "left" ? "L" : "R";
         const oppLR = ownSide === "left" ? "R" : "L";
-        const fin = (pts: { x: number }[] | undefined, ours: boolean) => {
-          let n = 0;
-          for (const pt of pts ?? []) {
-            const x = flip ? 1 - pt.x : pt.x;
-            // Our final third is the right end; theirs the left.
-            if (ours ? x >= 2 / 3 : x <= 1 / 3) n++;
-          }
-          return n;
-        };
-        const usFin = fin(item.passLocations?.[ownLR], true);
-        const themFin = fin(item.passLocations?.[oppLR], false);
+        // Attacking-third possession seconds — per-team relative, no flip needed.
+        const usFin = Number(item.possessionLocations?.[ownLR]?.attacking) || 0;
+        const themFin = Number(item.possessionLocations?.[oppLR]?.attacking) || 0;
         if (usFin + themFin === 0) return;
         const from = durMin.slice(0, idx).reduce((a, b) => a + b, 0);
         halfTilt.push({ from, to: from + durMin[idx], tilt: (usFin / (usFin + themFin)) * 100 });
@@ -1683,11 +1752,42 @@ function MatchView({ match, events, passing }: {
                 <CardDescription>
                   Where each side spent its time on the ball, from Veo's 18-zone possession tracking — both maps read left to right as
                   defending end → attacking end. Darker = more possession time there. Hover a zone for its share.
+                  {heatWins ? " Drag the slider handles to focus on any part of the match." : ""}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <HeatPitch label="Belconnen" values={possHeat.us} total={possHeat.usTot} color={C_US} />
-                <HeatPitch label={opp} values={possHeat.them} total={possHeat.themTot} color={C_THEM} />
+                {heatWins && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {heatRangeClamped ? `${heatRangeClamped[0]}′ – ${heatRangeClamped[1]}′` : `Full match (0′ – ${heatWins.maxMin}′)`}
+                      </span>
+                      {heatRangeClamped && (
+                        <button className="underline hover:text-foreground" onClick={() => setHeatRange(null)}>
+                          Reset to full match
+                        </button>
+                      )}
+                    </div>
+                    <Slider
+                      min={0}
+                      max={heatWins.maxMin}
+                      step={5}
+                      minStepsBetweenThumbs={1}
+                      value={heatRangeClamped ?? [0, heatWins.maxMin]}
+                      onValueChange={(v) => setHeatRange([v[0], v[1]])}
+                    />
+                  </div>
+                )}
+                {heatSel && heatSel.usTot === 0 && heatSel.themTot === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    No possession recorded in this window — likely half-time. Widen the selection.
+                  </p>
+                ) : (
+                  <>
+                    <HeatPitch label="Belconnen" values={(heatSel ?? possHeat).us} total={(heatSel ?? possHeat).usTot} color={C_US} />
+                    <HeatPitch label={opp} values={(heatSel ?? possHeat).them} total={(heatSel ?? possHeat).themTot} color={C_THEM} />
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1743,7 +1843,7 @@ function MatchView({ match, events, passing }: {
             <CardDescription>
               Our share of the threat (shots, corners, frees — same weights as the momentum chart) sampled every 5 minutes over a rolling 15-minute window.
               Midline is an even game; above it we were on top, below it {opp} were.
-              {tiltLine.hasPass && <> The dashed line adds pass territory — our share of all final-third passes, per half (Veo only gives pass locations by half, not by minute).</>}
+              {tiltLine.hasPass && <> The dashed line adds territory — our share of the time either side spent with the ball in their attacking third, per half (Veo buckets that by half, not by minute).</>}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1765,7 +1865,7 @@ function MatchView({ match, events, passing }: {
                         )}
                         <div className="flex justify-between gap-6"><span className="text-muted-foreground">Threat events</span><span>{row.evUs} us · {row.evThem} them</span></div>
                         {row.passDiff != null && (
-                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Pass territory (half)</span><span>{(row.passDiff + 50).toFixed(0)}% us</span></div>
+                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Territory (half)</span><span>{(row.passDiff + 50).toFixed(0)}% us</span></div>
                         )}
                       </div>
                     );
@@ -1775,7 +1875,7 @@ function MatchView({ match, events, passing }: {
                 <ReferenceLine x={tiltLine.halfAt} stroke="hsl(var(--border))" strokeDasharray="4 4" label={{ value: "HT", fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "top" }} />
                 <Line dataKey="tiltDiff" name="Field tilt" stroke={C_US} strokeWidth={2.5} dot={{ r: 2.5, fill: C_US, strokeWidth: 0 }} connectNulls />
                 {tiltLine.hasPass && (
-                  <Line type="stepAfter" dataKey="passDiff" name="Pass territory" stroke="hsl(var(--foreground))" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls={false} />
+                  <Line type="stepAfter" dataKey="passDiff" name="Territory" stroke="hsl(var(--foreground))" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls={false} />
                 )}
               </ComposedChart>
             </ResponsiveContainer>
