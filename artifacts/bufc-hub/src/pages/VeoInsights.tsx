@@ -992,7 +992,8 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
             />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* One chart per row — full width keeps every opponent label visible. */}
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Possession share per match</CardTitle>
@@ -1005,7 +1006,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                     <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                     {tooltip}
                     <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
@@ -1032,7 +1033,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                     <YAxis {...AXIS} />
                     {tooltip}
                     {legend}
@@ -1053,7 +1054,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                     <YAxis {...AXIS} allowDecimals={false} />
                     {tooltip}
                     {legend}
@@ -1076,7 +1077,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                     <YAxis {...AXIS} allowDecimals={false} />
                     {tooltip}
                     {legend}
@@ -1100,7 +1101,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                     <YAxis {...AXIS} allowDecimals={false} />
                     {tooltip}
                     {legend}
@@ -1124,7 +1125,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={passRowsWithRolling} stackOffset="expand" margin={{ left: -10, right: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="opp" {...AXIS} interval={passRowsWithRolling.length > 24 ? Math.ceil(passRowsWithRolling.length / 24) - 1 : 0} angle={-35} textAnchor="end" height={70} />
+                  <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
                   <YAxis {...AXIS} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
                   {tooltip}
                   {legend}
@@ -1252,42 +1253,45 @@ function MatchView({ match, events, passing }: {
 }) {
   const opp = opponentOf(match);
 
-  // Pass-location dot map: extract oriented {x,y} points from the stored RAS
-  // passDetails, applying the same own_side flip as the shot map so Belconnen
-  // always attacks right.  L/R are pitch sides; ownLR = "L" when own_side ===
-  // "left" (mirrors Veo's client).
-  const passLocPts = useMemo(() => {
+  // Possession heat map from the RAS 18-zone grid. Veo's raw "passLocations"
+  // points turned out NOT to be pitch positions (they form the same centred
+  // blob for every team in every match — pass geometry, not location), so the
+  // zone grid is the real positional data. Layout, verified against the
+  // per-third possession totals: 18 values = 6 lengthwise columns of 3
+  // cross-pitch cells, ordered from the team's OWN defensive end to its
+  // attacking end (per-team relative — no own_side flip needed, just mirror
+  // the opponent when rendering).
+  const possHeat = useMemo(() => {
     const pd = match.passDetails as { available?: boolean; items?: Array<{
       start: number; end: number;
-      passLocations?: Record<string, { x: number; y: number }[]>;
+      possessionLocationsGrid?: Record<string, { type?: string; values?: number[] }>;
     }> } | null | undefined;
     if (!pd || pd.available !== true || !Array.isArray(pd.items)) return null;
     const periodRows = Array.isArray(match.periods)
       ? (match.periods as { timeframe?: [number, number]; own_side?: string }[])
       : [];
-    const us: { x: number; y: number }[] = [];
-    const them: { x: number; y: number }[] = [];
+    const us = Array.from({ length: 18 }, () => 0);
+    const them = Array.from({ length: 18 }, () => 0);
     for (const item of pd.items) {
       const period = periodRows.find(
         (p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end,
       );
-      // own_side = the end our GOAL is at; we attack the opposite end.
-      // Rotate 180° when own_side === "right" so we always attack right.
       const ownSide = period?.own_side ?? "right";
-      const flip = ownSide === "right";
       const ownLR = ownSide === "left" ? "L" : "R";
       const oppLR = ownSide === "left" ? "R" : "L";
-      const orientPt = (pt: { x: number; y: number }) =>
-        flip ? { x: 1 - pt.x, y: 1 - pt.y } : { x: pt.x, y: pt.y };
-      for (const pt of item.passLocations?.[ownLR] ?? []) us.push(orientPt(pt));
-      for (const pt of item.passLocations?.[oppLR] ?? []) them.push(orientPt(pt));
+      const grab = (key: string, into: number[]) => {
+        const g = item.possessionLocationsGrid?.[key];
+        if (g?.type !== "18_zone_system" || !Array.isArray(g.values) || g.values.length !== 18) return;
+        g.values.forEach((v, i) => { into[i] += Number(v) || 0; });
+      };
+      grab(ownLR, us);
+      grab(oppLR, them);
     }
-    if (us.length === 0 && them.length === 0) return null;
-    return { us, them };
+    const usTot = us.reduce((a, b) => a + b, 0);
+    const themTot = them.reduce((a, b) => a + b, 0);
+    if (usTot === 0 && themTot === 0) return null;
+    return { us, them, usTot, themTot };
   }, [match.passDetails, match.periods]);
-
-  const [passMapShowUs, setPassMapShowUs] = useState(true);
-  const [passMapShowThem, setPassMapShowThem] = useState(false);
 
   // Possession & passing (Veo RAS analytics) for this match, when available.
   const passStats = useMemo(() => {
@@ -1672,34 +1676,18 @@ function MatchView({ match, events, passing }: {
             </Card>
           </div>
 
-          {passLocPts && (
+          {possHeat && (
             <Card>
               <CardHeader>
-                <CardTitle>Pass location map</CardTitle>
+                <CardTitle>Possession heat map</CardTitle>
                 <CardDescription>
-                  Every recorded completed-pass location — we attack right ({passLocPts.us.length} passes), {opp} attack left ({passLocPts.them.length} passes).
-                  Dense clusters reveal where each side builds play.
+                  Where each side spent its time on the ball, from Veo's 18-zone possession tracking — both maps read left to right as
+                  defending end → attacking end. Darker = more possession time there. Hover a zone for its share.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={passMapShowUs ? "default" : "outline"} size="sm"
-                    onClick={() => setPassMapShowUs((v) => !v)}
-                  >
-                    Belconnen
-                  </Button>
-                  <Button
-                    variant={passMapShowThem ? "default" : "outline"} size="sm"
-                    onClick={() => setPassMapShowThem((v) => !v)}
-                  >
-                    {opp}
-                  </Button>
-                </div>
-                <PassMap
-                  us={passMapShowUs ? passLocPts.us : []}
-                  them={passMapShowThem ? passLocPts.them : []}
-                />
+              <CardContent className="space-y-4">
+                <HeatPitch label="Belconnen" values={possHeat.us} total={possHeat.usTot} color={C_US} />
+                <HeatPitch label={opp} values={possHeat.them} total={possHeat.themTot} color={C_THEM} />
               </CardContent>
             </Card>
           )}
@@ -1946,41 +1934,48 @@ function ShotMap({ shots }: { shots: { x: number; y: number; own: boolean; goal:
   );
 }
 
-// Pass-location dot map: same pitch outline as ShotMap; each pass is a small
-// semi-transparent dot (Belconnen in blue, opponent in red).  Overlapping dots
-// form a natural density gradient — denser areas = more passing activity.
-function PassMap({ us, them }: { us: { x: number; y: number }[]; them: { x: number; y: number }[] }) {
+// Possession heat pitch: 6 lengthwise columns × 3 cross-pitch cells from Veo's
+// 18-zone grid. Values are PER-TEAM RELATIVE, ordered from the team's own
+// defensive end (index 0) to its attacking end — so with both maps labelled
+// defending-left / attacking-right, columns draw directly for either team.
+function HeatPitch({ label, values, total, color }: {
+  label: string; values: number[]; total: number; color: string;
+}) {
   const W = 900, H = 560, pad = 12;
-  const px = (x: number) => pad + x * (W - 2 * pad);
-  const py = (y: number) => pad + y * (H - 2 * pad);
   const line = "hsl(var(--border))";
-  if (us.length === 0 && them.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-8 text-center">
-        Select Belconnen or the opponent above to show their passes.
-      </p>
-    );
-  }
+  const innerW = W - 2 * pad, innerH = H - 2 * pad;
+  const max = Math.max(...values, 1);
+  const cells = values.map((v, i) => {
+    const col = Math.floor(i / 3); // 0 = own defensive end
+    const row = i % 3;
+    return {
+      x: pad + (col / 6) * innerW,
+      y: pad + (row / 3) * innerH,
+      v,
+      pct: total > 0 ? (v / total) * 100 : 0,
+      opacity: v > 0 ? 0.12 + 0.68 * (v / max) : 0,
+    };
+  });
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 420 }}>
-        {/* pitch markings */}
-        <rect x={pad} y={pad} width={W - 2 * pad} height={H - 2 * pad} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
+    <div className="w-full">
+      <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+        <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />{label}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 300 }}>
+        <rect x={pad} y={pad} width={innerW} height={innerH} fill="hsl(var(--muted)/0.25)" stroke={line} rx={6} />
+        {cells.map((c, i) => (
+          <rect key={i} x={c.x} y={c.y} width={innerW / 6} height={innerH / 3} fill={color} opacity={c.opacity}>
+            <title>{`${c.pct.toFixed(1)}% of ${label}'s possession`}</title>
+          </rect>
+        ))}
+        {/* pitch markings on top of the heat cells */}
+        <rect x={pad} y={pad} width={innerW} height={innerH} fill="none" stroke={line} rx={6} />
         <line x1={W / 2} y1={pad} x2={W / 2} y2={H - pad} stroke={line} />
         <circle cx={W / 2} cy={H / 2} r={64} fill="none" stroke={line} />
-        {/* penalty boxes */}
-        <rect x={pad} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        <rect x={W - pad - (W - 2 * pad) * 0.16} y={H * 0.22} width={(W - 2 * pad) * 0.16} height={H * 0.56} fill="none" stroke={line} />
-        {/* goal mouths */}
-        <rect x={pad} y={H * 0.39} width={(W - 2 * pad) * 0.055} height={H * 0.22} fill="none" stroke={line} opacity={0.5} />
-        <rect x={W - pad - (W - 2 * pad) * 0.055} y={H * 0.39} width={(W - 2 * pad) * 0.055} height={H * 0.22} fill="none" stroke={line} opacity={0.5} />
-        {/* opponent dots drawn first so Belconnen dots sit on top */}
-        {them.map((p, i) => (
-          <circle key={`t${i}`} cx={px(p.x)} cy={py(p.y)} r={3.5} fill={C_THEM} opacity={0.35} />
-        ))}
-        {us.map((p, i) => (
-          <circle key={`u${i}`} cx={px(p.x)} cy={py(p.y)} r={3.5} fill={C_US} opacity={0.35} />
-        ))}
+        <rect x={pad} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
+        <rect x={W - pad - innerW * 0.16} y={H * 0.22} width={innerW * 0.16} height={H * 0.56} fill="none" stroke={line} />
+        <text x={pad + 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))">defending</text>
+        <text x={W - pad - 8} y={H - pad - 10} fontSize={20} fill="hsl(var(--muted-foreground))" textAnchor="end">attacking</text>
       </svg>
     </div>
   );
