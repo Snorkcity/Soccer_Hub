@@ -2301,7 +2301,7 @@ function ShotMap({ shots, opp }: { shots: { x: number; y: number; own: boolean; 
           {shots.map((s, i) => (
             <g key={i}>
               {/* invisible larger hit area so small dots are easy to hover */}
-              <circle cx={px(s.x)} cy={py(s.y)} r={14} fill="transparent" onMouseMove={onMove(i)} />
+              <circle cx={px(s.x)} cy={py(s.y)} r={14} fill="transparent" onMouseMove={onMove(i)} onMouseLeave={() => setHover(null)} />
               <circle cx={px(s.x)} cy={py(s.y)} r={s.goal ? 9 : 6}
                 fill={s.goal ? (s.own ? C_US : C_THEM) : "transparent"}
                 stroke={s.own ? C_US : C_THEM} strokeWidth={hover?.i === i ? 3 : 2} opacity={hover?.i === i ? 1 : 0.9}
@@ -2316,7 +2316,10 @@ function ShotMap({ shots, opp }: { shots: { x: number; y: number; own: boolean; 
               ...TOOLTIP_BOX,
               left: hover.px + 12,
               top: hover.py + 12,
-              transform: hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : undefined,
+              transform: [
+                hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : "",
+                hover.py > (wrapRef.current?.clientHeight ?? 0) * 0.7 ? "translateY(calc(-100% - 24px))" : "",
+              ].join(" ").trim() || undefined,
               whiteSpace: "nowrap",
             }}
           >
@@ -2378,7 +2381,7 @@ function HeatPitch({ label, values, total, color }: {
               key={i}
               x={c.x} y={c.y} width={innerW / 6} height={innerH / 3}
               fill={color} opacity={hover?.i === i ? Math.min(1, c.opacity + 0.15) : c.opacity}
-              onMouseMove={onMove(i)}
+              onMouseMove={onMove(i)} onMouseLeave={() => setHover(null)}
             />
           ))}
           {/* pitch markings on top of the heat cells (ignore the mouse so cells get hover) */}
@@ -2399,7 +2402,10 @@ function HeatPitch({ label, values, total, color }: {
               ...TOOLTIP_BOX,
               left: hover.px + 12,
               top: hover.py + 12,
-              transform: hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : undefined,
+              transform: [
+                hover.px > (wrapRef.current?.clientWidth ?? 0) * 0.7 ? "translateX(calc(-100% - 24px))" : "",
+                hover.py > (wrapRef.current?.clientHeight ?? 0) * 0.7 ? "translateY(calc(-100% - 24px))" : "",
+              ].join(" ").trim() || undefined,
               whiteSpace: "nowrap",
             }}
           >
