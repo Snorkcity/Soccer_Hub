@@ -5023,7 +5023,35 @@ export const GetVeoReportStatsResponse = zod.object({
   "min": zod.number(),
   "us": zod.number(),
   "them": zod.number()
-})).optional()
+})).optional(),
+  "findings": zod.array(zod.object({
+  "tone": zod.enum(['good', 'watch', 'info']),
+  "text": zod.string()
+})).optional(),
+  "timeline": zod.array(zod.object({
+  "min": zod.number(),
+  "type": zod.enum(['goal', 'shot', 'corner']),
+  "us": zod.boolean()
+})).optional(),
+  "tilt": zod.array(zod.object({
+  "min": zod.number(),
+  "tiltDiff": zod.number().nullish(),
+  "passDiff": zod.number().nullish()
+})).optional(),
+  "tiltHalfAt": zod.number().nullish(),
+  "tiltMaxMin": zod.number().nullish(),
+  "radar": zod.array(zod.object({
+  "metric": zod.string(),
+  "us": zod.number(),
+  "them": zod.number(),
+  "rawUs": zod.string(),
+  "rawThem": zod.string()
+})).optional(),
+  "possession": zod.object({
+  "usPct": zod.number(),
+  "usMin": zod.number(),
+  "themMin": zod.number()
+}).optional()
 })
 
 

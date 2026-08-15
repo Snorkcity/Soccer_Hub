@@ -12,7 +12,8 @@ import {
   createMatchReport, deleteMatchReport,
   useListMatchReportCoachEmails, getListMatchReportCoachEmailsQueryKey,
   saveMatchReportCoachEmails, sendMatchReportEmail,
-  type MatchReportResponse, type SavedMatchReport,
+  useGetVeoReportStats, getGetVeoReportStatsQueryKey,
+  type MatchReportResponse, type SavedMatchReport, type VeoReportStats,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +72,13 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
   const roundOf = (matchId: string, opponent: string, date?: string | null) =>
     `${matchId.split("-")[0]} v ${opponent}${date ? ` · ${date}` : ""}`;
 
+  // Veo match intelligence for the selected match — fetched here (not inside
+  // the panel) so a save can freeze it into the report snapshot.
+  const veoParams = { leagueId: activeLeagueId ?? 0, matchRowId: selectedId ?? 0 };
+  const { data: liveVeo } = useGetVeoReportStats(veoParams, {
+    query: { enabled: activeLeagueId != null && selectedId != null, queryKey: getGetVeoReportStatsQueryKey(veoParams) },
+  });
+
   // The frozen model a save/deck/email works from.
   const liveModel: FootballMatchReportModel | null = useMemo(() => {
     if (!liveReport || !selectedMatch) return null;
@@ -82,8 +90,9 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
       opponent: selectedMatch.opponent,
       matchDate: selectedMatch.matchDate ?? null,
       generatedOn: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }),
+      veo: liveVeo?.linked ? liveVeo : undefined,
     };
-  }, [liveReport, selectedMatch]);
+  }, [liveReport, selectedMatch, liveVeo]);
 
   // Saved reports (league-private, like the GPS ones)
   const queryClient = useQueryClient();
@@ -269,10 +278,15 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
             </div>
           )}
 
-          {/* ── Veo video stats (only when this match has a linked recording) ─ */}
-          {!viewingSaved && selectedId != null && activeLeagueId != null && selectedMatch && (
-            <VeoReportPanel leagueId={activeLeagueId} matchRowId={selectedId} opponent={selectedMatch.opponent} />
-          )}
+          {/* ── Veo match intelligence (when this match has a linked recording).
+                 Saved reports render their frozen snapshot; live reports fetch. ─ */}
+          {viewingSaved
+            ? model?.veo != null && (
+                <VeoReportPanel leagueId={activeLeagueId ?? 0} matchRowId={0} opponent={model.opponent} preloaded={model.veo} />
+              )
+            : selectedId != null && activeLeagueId != null && selectedMatch && (
+                <VeoReportPanel leagueId={activeLeagueId} matchRowId={selectedId} opponent={selectedMatch.opponent} preloaded={liveVeo?.linked ? liveVeo : undefined} />
+              )}
 
           {/* ── GPS + previous meetings ────────────────────────────────────── */}
           {(report.gps || report.previousMeetings.length > 0) && (

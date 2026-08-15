@@ -914,6 +914,242 @@ interface VeoEventLite {
   period_time_ms?: number;
 }
 
+// ── Match intelligence for the Football Match Report ────────────────────────
+// SIEM-style layering, in coach language: correlated key findings on top,
+// a unified moment timeline underneath, and a field-tilt line for drill-down.
+// All sentences follow the Goal Analysis house style: hedged, plain, and
+// concerns ("watch") always compete with positives for the top slots.
+interface Finding { kind: string; tone: "good" | "watch" | "info"; weight: number; text: string }
+
+function computeMatchIntel(
+  events: unknown[],
+  periods: unknown,
+  passDetails: unknown,
+  opp: string,
+) {
+  const evts = (Array.isArray(events) ? events : []) as (VeoEventLite & { x?: number; z?: number })[];
+  const isOwn = (e: VeoEventLite) => e.team === "Own";
+  const periodRows = Array.isArray(periods)
+    ? (periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
+  const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
+  const offsets: number[] = [0];
+  for (let i = 0; i < durMin.length; i++) offsets.push(offsets[i] + durMin[i]);
+  const minuteOf = (e: VeoEventLite) => {
+    const pid = Number(e.period_id) || 1;
+    const off = offsets[pid - 1] ?? (pid - 1) * 45;
+    return off + (Number(e.period_time_ms) || 0) / 60000;
+  };
+  const halfAt = durMin.length > 0 ? durMin[0] : 45;
+  const playedMin = durMin.reduce((a, b) => a + b, 0);
+
+  // Unified moment timeline (goals, shots, corners) on the match clock.
+  const timeline = evts
+    .filter((e) => e.event_type === "FootballGoal" || e.event_type === "FootballShot" || e.event_type === "FootballCornerKick")
+    .map((e) => ({
+      min: Number(minuteOf(e).toFixed(2)),
+      type: e.event_type === "FootballGoal" ? "goal" as const : e.event_type === "FootballShot" ? "shot" as const : "corner" as const,
+      us: isOwn(e),
+    }))
+    .sort((a, b) => a.min - b.min);
+
+  // Weighted threat events for tilt/shares.
+  const wEvts = evts
+    .map((e) => ({ min: minuteOf(e), w: MOMENTUM_WEIGHT[e.event_type ?? ""] ?? 0, own: isOwn(e) }))
+    .filter((e) => e.w > 0);
+  const maxEventMin = wEvts.length ? Math.max(...wEvts.map((e) => e.min)) : 0;
+  const maxMin = periodRows.length > 0 ? Math.max(playedMin, maxEventMin) : Math.max(90, maxEventMin);
+
+  // Per-half territory from RAS possession-by-thirds when available.
+  const halfTilt: { from: number; to: number; tilt: number }[] = [];
+  let possSecUs = 0, possSecThem = 0;
+  const pd = passDetails as { available?: boolean; items?: Array<{
+    start: number; end: number;
+    possessionLocations?: Record<string, { defensive?: number; middle?: number; attacking?: number }>;
+  }> } | null | undefined;
+  if (pd?.available === true && Array.isArray(pd.items)) {
+    for (const item of pd.items) {
+      const idx = periodRows.findIndex((p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end);
+      if (idx < 0) continue;
+      const ownSide = periodRows[idx]?.own_side ?? "right";
+      const ownLR = ownSide === "left" ? "L" : "R";
+      const oppLR = ownSide === "left" ? "R" : "L";
+      const sum = (t?: { defensive?: number; middle?: number; attacking?: number }) =>
+        (Number(t?.defensive) || 0) + (Number(t?.middle) || 0) + (Number(t?.attacking) || 0);
+      possSecUs += sum(item.possessionLocations?.[ownLR]);
+      possSecThem += sum(item.possessionLocations?.[oppLR]);
+      const usFin = Number(item.possessionLocations?.[ownLR]?.attacking) || 0;
+      const themFin = Number(item.possessionLocations?.[oppLR]?.attacking) || 0;
+      if (usFin + themFin === 0) continue;
+      const from = durMin.slice(0, idx).reduce((a, b) => a + b, 0);
+      halfTilt.push({ from, to: from + durMin[idx], tilt: (usFin / (usFin + themFin)) * 100 });
+    }
+  }
+  // NOTE: possessionLocations values are NOT reliable seconds (raw sums come
+  // out several times longer than the match) — only the RATIO is trustworthy.
+  // Express the split as minutes of actual played time for readability.
+  const possession = possSecUs + possSecThem > 0
+    ? (() => {
+        const shareUs = possSecUs / (possSecUs + possSecThem);
+        const base = playedMin > 0 ? playedMin : 90;
+        return {
+          usPct: Number((shareUs * 100).toFixed(1)),
+          usMin: Number((base * shareUs).toFixed(1)),
+          themMin: Number((base * (1 - shareUs)).toFixed(1)),
+        };
+      })()
+    : null;
+
+  // Rolling field-tilt line (15-min window centred every 5 minutes, tilt−50).
+  const HALF_WINDOW = 7.5;
+  const tilt: { min: number; tiltDiff: number | null; passDiff: number | null }[] = [];
+  if (wEvts.length > 0) {
+    for (let t = 0; t <= Math.ceil(maxMin / 5) * 5; t += 5) {
+      let us = 0, them = 0;
+      for (const e of wEvts) {
+        if (e.min < t - HALF_WINDOW || e.min >= t + HALF_WINDOW) continue;
+        if (e.own) us += e.w; else them += e.w;
+      }
+      const tot = us + them;
+      const seg = halfTilt.find((h, i) => t >= h.from && (i === halfTilt.length - 1 ? t <= h.to : t < h.to));
+      tilt.push({
+        min: t,
+        tiltDiff: tot > 0 ? Number(((us / tot) * 100 - 50).toFixed(1)) : null,
+        passDiff: seg ? Number((seg.tilt - 50).toFixed(1)) : null,
+      });
+    }
+  }
+
+  // Shares for findings.
+  const share = (from: number, to: number) => {
+    let us = 0, them = 0;
+    for (const e of wEvts) if (e.min >= from && e.min < to) (e.own ? us += e.w : them += e.w);
+    const tot = us + them;
+    return tot > 0 ? (us / tot) * 100 : null;
+  };
+  const count = (type: string, own: boolean) =>
+    evts.filter((e) => e.event_type === type && isOwn(e) === own).length;
+  const shotsUs = count("FootballShot", true) + count("FootballGoal", true);
+  const shotsThem = count("FootballShot", false) + count("FootballGoal", false);
+  const cornersUs = count("FootballCornerKick", true);
+  const cornersThem = count("FootballCornerKick", false);
+  const goalsList = evts
+    .filter((e) => e.event_type === "FootballGoal")
+    .map((e) => ({ min: minuteOf(e), us: isOwn(e) }))
+    .sort((a, b) => a.min - b.min);
+
+  // Radar shares (drill-down spokes).
+  const radar: { metric: string; us: number; them: number; rawUs: string; rawThem: string }[] = [];
+  const addRadar = (metric: string, u: number, t: number, fmtU: string, fmtT: string) => {
+    if (u + t <= 0) return;
+    radar.push({
+      metric,
+      us: Number(((u / (u + t)) * 100).toFixed(1)),
+      them: Number(((t / (u + t)) * 100).toFixed(1)),
+      rawUs: fmtU, rawThem: fmtT,
+    });
+  };
+  addRadar("Shots", shotsUs, shotsThem, String(shotsUs), String(shotsThem));
+  addRadar("Corners", cornersUs, cornersThem, String(cornersUs), String(cornersThem));
+  let wUs = 0, wThem = 0;
+  for (const e of wEvts) (e.own ? wUs += e.w : wThem += e.w);
+  addRadar("Field tilt", wUs, wThem,
+    `${wUs + wThem > 0 ? Math.round((wUs / (wUs + wThem)) * 100) : 50}%`,
+    `${wUs + wThem > 0 ? Math.round((wThem / (wUs + wThem)) * 100) : 50}%`);
+  if (possession) addRadar("Possession", possSecUs, possSecThem, `${possession.usMin.toFixed(1)} min`, `${possession.themMin.toFixed(1)} min`);
+
+  // ── Key findings: weighted candidate pool, concerns always in the mix ─────
+  const findings: Finding[] = [];
+  const pct = (n: number) => `${Math.round(n)}%`;
+
+  // Shot dominance / deficit.
+  if (shotsUs + shotsThem >= 8) {
+    const s = (shotsUs / (shotsUs + shotsThem)) * 100;
+    if (s >= 65) findings.push({ kind: "shots", tone: "good", weight: 3, text: `We had ${shotsUs} of the ${shotsUs + shotsThem} shots (${pct(s)}) — the video suggests we controlled the chance creation.` });
+    else if (s <= 35) findings.push({ kind: "shots", tone: "watch", weight: 4, text: `${opp} out-shot us ${shotsThem}–${shotsUs} — worth checking on the video how their chances kept building.` });
+  }
+
+  // Goals with / against the run of play (15 min before the goal).
+  for (const g of goalsList) {
+    const before = share(Math.max(0, g.min - 15), g.min);
+    if (before == null) continue;
+    const m = Math.floor(g.min);
+    if (!g.us && before >= 62) {
+      findings.push({ kind: `run-${m}`, tone: "watch", weight: 5, text: `Their goal around ${m}' came against the run of play — we'd created most of the threat in the quarter-hour before it. Worth a look at what changed in that moment.` });
+    } else if (g.us && before <= 38) {
+      findings.push({ kind: `run-${m}`, tone: "info", weight: 3, text: `Our goal around ${m}' came somewhat against the run of play — a reminder the scoreline and the performance can tell different stories.` });
+    }
+  }
+
+  // Half-to-half swing.
+  const h1 = share(0, halfAt), h2 = share(halfAt, maxMin + 0.001);
+  if (h1 != null && h2 != null) {
+    const diff = h2 - h1;
+    if (diff <= -20) findings.push({ kind: "halves", tone: "watch", weight: 4, text: `Our share of the threat dropped from ${pct(h1)} before the break to ${pct(h2)} after — the second half is worth a review.` });
+    else if (diff >= 20) findings.push({ kind: "halves", tone: "good", weight: 3, text: `Our share of the threat rose from ${pct(h1)} to ${pct(h2)} after the break — whatever changed at half-time looks to have worked.` });
+  }
+
+  // Start and finish of the game.
+  const first15 = share(0, 15);
+  if (first15 != null) {
+    if (first15 >= 70) findings.push({ kind: "start", tone: "good", weight: 2, text: `Fast start — roughly ${pct(first15)} of the early threat was ours in the first 15 minutes.` });
+    else if (first15 <= 30) findings.push({ kind: "start", tone: "watch", weight: 3, text: `Slow start — ${opp} had most of the threat in the first 15 minutes; worth checking how we settled.` });
+  }
+  const lastFrom = Math.max(0, maxMin - 15);
+  const last15 = share(lastFrom, maxMin + 0.001);
+  if (last15 != null) {
+    if (last15 >= 70) findings.push({ kind: "finish", tone: "good", weight: 2, text: `We finished on top — most of the late threat (${pct(last15)}) was ours in the closing 15 minutes.` });
+    else if (last15 <= 30) findings.push({ kind: "finish", tone: "watch", weight: 3, text: `${opp} finished the stronger — most of the late threat was theirs; game management in the closing stages is worth a look.` });
+  }
+
+  // Shot bursts (3+ shots by one side inside 10 minutes) that didn't pay.
+  const burst = (own: boolean) => {
+    const mins = timeline.filter((t) => t.type !== "corner" && t.us === own).map((t) => t.min);
+    for (let i = 0; i + 2 < mins.length; i++) {
+      const a = mins[i], b = mins[i + 2];
+      if (b - a <= 10) {
+        const goalIn = goalsList.some((g) => g.us === own && g.min >= a && g.min <= b + 2);
+        if (!goalIn) return { from: Math.floor(a), to: Math.ceil(b), n: mins.filter((m) => m >= a && m <= b).length };
+      }
+    }
+    return null;
+  };
+  const ourBurst = burst(true);
+  if (ourBurst) findings.push({ kind: "burst-us", tone: "info", weight: 2, text: `${ourBurst.n} shots between ${ourBurst.from}'–${ourBurst.to}' without a goal — a spell of real pressure that didn't pay; the final pass and set-piece detail from that period may be worth a look.` });
+  const theirBurst = burst(false);
+  if (theirBurst) findings.push({ kind: "burst-them", tone: "watch", weight: 4, text: `${opp} had ${theirBurst.n} shots between ${theirBurst.from}'–${theirBurst.to}' — we rode out a dangerous spell; checking how it started could be useful.` });
+
+  // Possession without penetration (needs RAS possession).
+  if (possession && shotsUs + shotsThem >= 8) {
+    const shotShare = (shotsUs / (shotsUs + shotsThem)) * 100;
+    if (possession.usPct >= 58 && shotShare <= 45) {
+      findings.push({ kind: "poss", tone: "watch", weight: 4, text: `Plenty of ball (${pct(possession.usPct)} possession) but fewer of the shots (${pct(shotShare)}) — this looks like possession without penetration; the final third is worth a review.` });
+    } else if (possession.usPct <= 42 && shotShare >= 55) {
+      findings.push({ kind: "poss", tone: "good", weight: 3, text: `Less of the ball (${pct(possession.usPct)}) but more of the shots (${pct(shotShare)}) — the video suggests we were efficient with our possession.` });
+    }
+  }
+
+  // Corner pressure.
+  if (cornersThem >= 7 && cornersThem >= cornersUs * 2) {
+    findings.push({ kind: "corners", tone: "watch", weight: 3, text: `${opp} won ${cornersThem} corners to our ${cornersUs} — sustained territory against us; the defending of the deliveries is worth checking.` });
+  } else if (cornersUs >= 7 && cornersUs >= cornersThem * 2) {
+    findings.push({ kind: "corners", tone: "info", weight: 2, text: `${cornersUs} corners to their ${cornersThem} — plenty of set-piece territory; whether the deliveries found our targets is worth a look.` });
+  }
+
+  // Dedupe by kind (already unique), sort: weight desc, concerns win ties.
+  findings.sort((a, b) => b.weight - a.weight || (a.tone === "watch" ? -1 : 1) - (b.tone === "watch" ? -1 : 1));
+  const top = findings.slice(0, 5).map(({ tone, text }) => ({ tone, text }));
+
+  return {
+    findings: top,
+    timeline,
+    tilt,
+    tiltHalfAt: tilt.length > 0 ? halfAt : null,
+    tiltMaxMin: tilt.length > 0 ? tilt[tilt.length - 1].min : null,
+    radar,
+    possession,
+  };
+}
+
 function computeReportStats(events: unknown[], periods: unknown) {
   const evts = (Array.isArray(events) ? events : []) as VeoEventLite[];
   const isOwn = (e: VeoEventLite) => e.team === "Own";
@@ -963,15 +1199,19 @@ router.get("/veo/report-stats", async (req, res) => {
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
+      passDetails: veoMatchesTable.passDetails,
+      opponent: matchesTable.opponent,
     })
     .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
     .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchRowId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .limit(1);
   const row = rows[0];
   if (!row || !Array.isArray(row.events) || row.events.length === 0) return res.json({ linked: false });
 
   const { shots, momentum } = computeReportStats(row.events, row.periods);
-  return res.json({ linked: true, veoId: row.id, startsAt: row.startsAt, shots, momentum });
+  const intel = computeMatchIntel(row.events, row.periods, row.passDetails, row.opponent ?? "the opposition");
+  return res.json({ linked: true, veoId: row.id, startsAt: row.startsAt, shots, momentum, ...intel });
 });
 
 export default router;

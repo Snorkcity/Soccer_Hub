@@ -3811,6 +3811,58 @@ components:
         momentum:
           type: array
           items: { $ref: "#/components/schemas/VeoMomentumBin" }
+        # ── Match intelligence (all optional for saved-jsonb back-compat) ──
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/VeoReportFinding" }
+        timeline:
+          type: array
+          items: { $ref: "#/components/schemas/VeoReportMoment" }
+        tilt:
+          type: array
+          items: { $ref: "#/components/schemas/VeoReportTiltPoint" }
+        tiltHalfAt: { type: number, nullable: true }
+        tiltMaxMin: { type: number, nullable: true }
+        radar:
+          type: array
+          items: { $ref: "#/components/schemas/VeoReportRadarRow" }
+        possession: { $ref: "#/components/schemas/VeoReportPossession" }
+    VeoReportFinding:
+      type: object
+      required: [tone, text]
+      properties:
+        tone: { type: string, enum: [good, watch, info] }
+        text: { type: string }
+    VeoReportMoment:
+      type: object
+      required: [min, type, us]
+      properties:
+        min: { type: number }
+        type: { type: string, enum: [goal, shot, corner] }
+        us: { type: boolean }
+    VeoReportTiltPoint:
+      type: object
+      required: [min]
+      properties:
+        min: { type: number }
+        tiltDiff: { type: number, nullable: true }
+        passDiff: { type: number, nullable: true }
+    VeoReportRadarRow:
+      type: object
+      required: [metric, us, them, rawUs, rawThem]
+      properties:
+        metric: { type: string }
+        us: { type: number }
+        them: { type: number }
+        rawUs: { type: string }
+        rawThem: { type: string }
+    VeoReportPossession:
+      type: object
+      required: [usPct, usMin, themMin]
+      properties:
+        usPct: { type: number }
+        usMin: { type: number }
+        themMin: { type: number }
     HealthStatus:
       type: object
       properties:

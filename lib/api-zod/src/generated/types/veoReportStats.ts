@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VeoMomentumBin } from './veoMomentumBin';
+import type { VeoReportFinding } from './veoReportFinding';
+import type { VeoReportMoment } from './veoReportMoment';
+import type { VeoReportPossession } from './veoReportPossession';
+import type { VeoReportRadarRow } from './veoReportRadarRow';
+import type { VeoReportTiltPoint } from './veoReportTiltPoint';
 import type { VeoShotTotals } from './veoShotTotals';
 
 export interface VeoReportStats {
@@ -14,4 +19,11 @@ export interface VeoReportStats {
   startsAt?: string | null;
   shots?: VeoShotTotals;
   momentum?: VeoMomentumBin[];
+  findings?: VeoReportFinding[];
+  timeline?: VeoReportMoment[];
+  tilt?: VeoReportTiltPoint[];
+  tiltHalfAt?: number | null;
+  tiltMaxMin?: number | null;
+  radar?: VeoReportRadarRow[];
+  possession?: VeoReportPossession;
 }

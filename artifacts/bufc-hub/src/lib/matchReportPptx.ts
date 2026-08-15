@@ -14,6 +14,8 @@ export interface FootballMatchReportModel {
   generatedOn: string;        // "3 August 2026"
   /** Set for the opponent scouting version — the league club the report is about. */
   subjectClub?: string;
+  /** Veo match intelligence snapshot (optional — only when a recording is linked). */
+  veo?: import("@workspace/api-client-react").VeoReportStats;
 }
 
 // ── Brand (identical to teamGpsMatchReport.ts) ───────────────────────────────
@@ -274,6 +276,40 @@ export async function generateFootballMatchReport(
     const bar = dna.dayInsights?.length ? dna.dayInsights.slice(0, 2).join("  •  ")
       : dna.tacticalRead?.length ? dna.tacticalRead.join("  ") : dna.comments.slice(0, 2).join("  •  ");
     if (bar) addInsightBar(s, bar);
+    addFooter(s);
+  }
+
+  // ── What the video says (Veo match intelligence) ───────────────────────────
+  if (model.veo?.linked && (model.veo.findings?.length || model.veo.radar?.length)) {
+    const v = model.veo;
+    const s = pptx.addSlide();
+    s.background = { color: BG };
+    addHeader(s, "What the video says (Veo)", "Key findings from the linked recording, then our share of each battle.");
+    let y = 1.7;
+    for (const f of (v.findings ?? []).slice(0, 5)) {
+      s.addText([
+        { text: f.tone === "good" ? "▲  " : f.tone === "watch" ? "▼  " : "•  ",
+          options: { bold: true, color: f.tone === "good" ? GOOD : f.tone === "watch" ? ORANGE : SKY } },
+        { text: f.text, options: { color: INK } },
+      ] as never, { x: 0.75, y, w: 11.8, h: 0.62, fontSize: 13, lineSpacing: 17, valign: "top" });
+      y += 0.68;
+    }
+    // Match shape share bars as simple text rows.
+    const rows = v.radar ?? [];
+    if (rows.length) {
+      y = Math.max(y + 0.25, 4.4);
+      s.addText("MATCH SHAPE — OUR SHARE OF EACH BATTLE", { x: 0.75, y, w: 11.8, h: 0.32, fontSize: 11, bold: true, color: SKY, charSpacing: 3 });
+      y += 0.42;
+      for (const r of rows.slice(0, 4)) {
+        const barW = 6.4, barX = 3.4;
+        s.addText(r.metric, { x: 0.75, y, w: 2.5, h: 0.3, fontSize: 12, color: GREY, valign: "middle" });
+        s.addShape("roundRect", { x: barX, y: y + 0.05, w: barW, h: 0.2, fill: { color: "3A5B74" }, rectRadius: 0.04 });
+        s.addShape("roundRect", { x: barX, y: y + 0.05, w: Math.max(0.12, barW * (r.us / 100)), h: 0.2, fill: { color: SKY }, rectRadius: 0.04 });
+        s.addText(r.rawUs, { x: barX - 0.95, y, w: 0.85, h: 0.3, fontSize: 12, bold: true, color: SKY, align: "right", valign: "middle" });
+        s.addText(r.rawThem, { x: barX + barW + 0.1, y, w: 1.4, h: 0.3, fontSize: 12, bold: true, color: ORANGE, valign: "middle" });
+        y += 0.4;
+      }
+    }
     addFooter(s);
   }
 

@@ -164,6 +164,7 @@ export interface VeoScoreMismatch {
   hubFor: number;
   hubAgainst: number;
 }
+
 export interface VeoLinkRow {
   id: number;
   veoMatchId: string;
@@ -233,12 +234,68 @@ export interface VeoMomentumBin {
   them: number;
 }
 
+export type VeoReportFindingTone = typeof VeoReportFindingTone[keyof typeof VeoReportFindingTone];
+
+
+export const VeoReportFindingTone = {
+  good: 'good',
+  watch: 'watch',
+  info: 'info',
+} as const;
+
+export interface VeoReportFinding {
+  tone: VeoReportFindingTone;
+  text: string;
+}
+
+export type VeoReportMomentType = typeof VeoReportMomentType[keyof typeof VeoReportMomentType];
+
+
+export const VeoReportMomentType = {
+  goal: 'goal',
+  shot: 'shot',
+  corner: 'corner',
+} as const;
+
+export interface VeoReportMoment {
+  min: number;
+  type: VeoReportMomentType;
+  us: boolean;
+}
+
+export interface VeoReportTiltPoint {
+  min: number;
+  tiltDiff?: number | null;
+  passDiff?: number | null;
+}
+
+export interface VeoReportRadarRow {
+  metric: string;
+  us: number;
+  them: number;
+  rawUs: string;
+  rawThem: string;
+}
+
+export interface VeoReportPossession {
+  usPct: number;
+  usMin: number;
+  themMin: number;
+}
+
 export interface VeoReportStats {
   linked: boolean;
   veoId?: number | null;
   startsAt?: string | null;
   shots?: VeoShotTotals;
   momentum?: VeoMomentumBin[];
+  findings?: VeoReportFinding[];
+  timeline?: VeoReportMoment[];
+  tilt?: VeoReportTiltPoint[];
+  tiltHalfAt?: number | null;
+  tiltMaxMin?: number | null;
+  radar?: VeoReportRadarRow[];
+  possession?: VeoReportPossession;
 }
 
 export interface HealthStatus {
@@ -4128,3 +4185,4 @@ export type GetVeoReportStatsParams = {
 leagueId: number;
 matchRowId: number;
 };
+
