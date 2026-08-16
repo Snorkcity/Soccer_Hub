@@ -232,6 +232,14 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
   // NULL). Analytics backfill (RAS pipeline) is decoupled: it may stay pending
   // across many syncs while Veo processes the recording server-side. The client
   // loops until `done`, then shows the `analyticsPending` advisory separately.
+  // Push the basic metrics of any linked game into the Data Entry fields
+  // (fills blanks only — hand-typed numbers survive a routine sync).
+  try {
+    await backfillMatchStatsFromVeo(leagueId);
+  } catch (e) {
+    logger.warn({ err: e, leagueId }, "veo: match-stat backfill failed (sync itself succeeded)");
+  }
+
   const remaining = Math.max(0, pending.length - fetched);
   return {
     league: mapping.name,
@@ -699,6 +707,78 @@ router.get("/veo/links", async (req, res) => {
   return res.json({ links, hubMatches });
 });
 
+// ── Match-stat backfill from Veo ─────────────────────────────────────────────
+// The five Data Entry metric fields (possession %, our/their shots, our/their
+// passes) fill automatically from a linked recording, so manual entry becomes
+// the backup for games without video. Normal syncs and link passes only fill
+// fields that are still empty (a hand-typed number is never silently replaced);
+// the deliberate per-game "Re-fetch stats" overwrites all five from Veo.
+export async function backfillMatchStatsFromVeo(
+  leagueId: number,
+  opts: { overwrite?: boolean; veoRowId?: number } = {},
+): Promise<number> {
+  const conds = [
+    eq(veoMatchesTable.leagueId, leagueId),
+    sql`${veoMatchesTable.matchId} IS NOT NULL`,
+    sql`${veoMatchesTable.events} IS NOT NULL`,
+    sql`${veoMatchesTable.removedAt} IS NULL`,
+  ];
+  if (opts.veoRowId != null) conds.push(eq(veoMatchesTable.id, opts.veoRowId));
+  const rows = await db
+    .select({
+      matchId: veoMatchesTable.matchId,
+      events: veoMatchesTable.events,
+      periods: veoMatchesTable.periods,
+      passDetails: veoMatchesTable.passDetails,
+    })
+    .from(veoMatchesTable)
+    .where(and(...conds));
+
+  let updated = 0;
+  for (const r of rows) {
+    if (r.matchId == null) continue;
+    const evts = Array.isArray(r.events) ? (r.events as { event_type?: string; team?: string }[]) : [];
+    let shotsUs = 0;
+    let shotsThem = 0;
+    for (const e of evts) {
+      if (e?.event_type !== "FootballShot" && e?.event_type !== "FootballGoal") continue;
+      if (e.team === "Own") shotsUs++; else shotsThem++;
+    }
+    const pd = summarisePassDetails(r.passDetails, r.periods);
+    const possTot = pd ? pd.possessionSecUs + pd.possessionSecThem : 0;
+    // A non-empty events payload makes the shot counts meaningful (0 included);
+    // passes/possession only when the RAS analytics actually produced numbers.
+    const fresh: { shots: number | null; oppShots: number | null; passes: number | null; oppPasses: number | null; possession: string | null } = {
+      shots: evts.length > 0 ? shotsUs : null,
+      oppShots: evts.length > 0 ? shotsThem : null,
+      passes: pd && pd.passesUs + pd.passesThem > 0 ? pd.passesUs : null,
+      oppPasses: pd && pd.passesUs + pd.passesThem > 0 ? pd.passesThem : null,
+      possession: possTot > 0 && pd ? ((pd.possessionSecUs / possTot) * 100).toFixed(1) : null,
+    };
+    const cur = await db
+      .select({
+        possession: matchesTable.possession,
+        shots: matchesTable.shots,
+        oppShots: matchesTable.oppShots,
+        passes: matchesTable.passes,
+        oppPasses: matchesTable.oppPasses,
+      })
+      .from(matchesTable)
+      .where(eq(matchesTable.id, r.matchId))
+      .limit(1);
+    if (cur.length === 0) continue;
+    const set: Record<string, unknown> = {};
+    for (const k of ["shots", "oppShots", "passes", "oppPasses", "possession"] as const) {
+      if (fresh[k] != null && (opts.overwrite || cur[0][k] == null)) set[k] = fresh[k];
+    }
+    if (Object.keys(set).length === 0) continue;
+    await db.update(matchesTable).set(set).where(eq(matchesTable.id, r.matchId));
+    updated++;
+  }
+  if (updated > 0) logger.info({ leagueId, updated, overwrite: !!opts.overwrite }, "veo: backfilled match stats from video");
+  return updated;
+}
+
 // Auto-link pass for a league: fill match_id where it's confidently derivable;
 // never overwrites an existing link (manual fixes stay put). Shared by the
 // /entry/veo-auto-link route and the CLI runner.
@@ -759,6 +839,14 @@ export async function autoLinkVeoLeague(leagueId: number) {
   }
 
   logger.info({ leagueId, linked, ambiguous, unmatched }, "veo: auto-link pass");
+  // Newly linked games can now feed their basic metrics into the Data Entry fields.
+  if (linked > 0) {
+    try {
+      await backfillMatchStatsFromVeo(leagueId);
+    } catch (e) {
+      logger.warn({ err: e, leagueId }, "veo: match-stat backfill failed after auto-link");
+    }
+  }
   return { linked, ambiguous, unmatched };
 }
 
@@ -804,6 +892,13 @@ router.post("/entry/veo-link", async (req, res) => {
   }
 
   await db.update(veoMatchesTable).set({ matchId }).where(eq(veoMatchesTable.id, veoId));
+  if (matchId != null) {
+    try {
+      await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId });
+    } catch (e) {
+      logger.warn({ err: e, veoId }, "veo: match-stat backfill failed after manual link");
+    }
+  }
   return res.json({ ok: true });
 });
 
@@ -866,6 +961,13 @@ router.post("/entry/veo-refetch", async (req, res) => {
         syncedAt: nowIso,
       })
       .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
+    // A Re-fetch is a deliberate "trust the video again" — overwrite the
+    // Data Entry metric fields for this game with the fresh Veo numbers.
+    try {
+      await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId, overwrite: true });
+    } catch (e2) {
+      logger.warn({ err: e2, veoId }, "veo: match-stat backfill failed after refetch");
+    }
     return res.json({ ok: true });
   } catch (e) {
     logger.error({ err: e, veoMatchId }, "veo: refetch payload failed");
