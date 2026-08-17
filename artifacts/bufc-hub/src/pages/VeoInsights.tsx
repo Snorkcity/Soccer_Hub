@@ -25,6 +25,8 @@ import {
   type VeoLinkRow,
   type HubMatchOption,
   type VeoScoreMismatch,
+  useGetClubs,
+  getGetClubsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -128,8 +130,9 @@ function opponentOf(m: { opponent?: string | null; title?: string | null; hubOpp
 // Clickable opponent legend (same pattern as Season Stats): toggle a club off
 // to drop its games from every season chart — handy for judging the numbers
 // against just the stronger teams.
-function OppToggleLegend({ opponents, hidden, onToggle }: {
+function OppToggleLegend({ opponents, hidden, onToggle, colorFor }: {
   opponents: string[]; hidden: Set<string>; onToggle: (opp: string) => void;
+  colorFor?: (opp: string) => string | undefined;
 }) {
   if (opponents.length < 2) return null;
   return (
@@ -139,7 +142,7 @@ function OppToggleLegend({ opponents, hidden, onToggle }: {
         return (
           <button key={opp} type="button" onClick={() => onToggle(opp)} aria-pressed={!off}
             className="flex items-center gap-1.5" style={{ cursor: "pointer" }}>
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(var(--chart-1))", opacity: off ? 0.25 : 1 }} />
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorFor?.(opp) ?? "hsl(var(--chart-1))", opacity: off ? 0.25 : 1 }} />
             <span style={{
               color: off ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
               textDecoration: off ? "line-through" : "none",
@@ -643,6 +646,14 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     });
   }, [matches, year]);
 
+  // Club brand colours so the opponent legend dots match the other tabs.
+  const { data: clubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
+  const clubColorFor = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of clubs ?? []) map[c.name] = c.primaryColor;
+    return (opp: string) => map[opp];
+  }, [clubs]);
+
   // Clickable opponent legend: hide clubs to focus the season charts on the
   // games that matter (e.g. just the stronger teams).
   const [hiddenOpps, setHiddenOpps] = useState<Set<string>>(new Set());
@@ -980,7 +991,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
           </Select>
         </div>
       )}
-      <OppToggleLegend opponents={allOpponents} hidden={hiddenOpps} onToggle={toggleOpp} />
+      <OppToggleLegend opponents={allOpponents} hidden={hiddenOpps} onToggle={toggleOpp} colorFor={clubColorFor} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Games with Veo events" value={String(totals.games)} />
         <StatCard
@@ -1338,7 +1349,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
               Opponents
             </Button>
           </div>
-          <OppToggleLegend opponents={shotOpponents} hidden={hiddenMapOpps} onToggle={toggleIn(setHiddenMapOpps)} />
+          <OppToggleLegend opponents={shotOpponents} hidden={hiddenMapOpps} onToggle={toggleIn(setHiddenMapOpps)} colorFor={clubColorFor} />
           <ShotMap shots={seasonShots.pts} />
         </CardContent>
       </Card>
@@ -1353,7 +1364,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatUsOpps} onToggle={toggleIn(setHiddenThreatUsOpps)} />
+            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatUsOpps} onToggle={toggleIn(setHiddenThreatUsOpps)} colorFor={clubColorFor} />
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={threatUs} margin={{ left: -10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -1382,7 +1393,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatThemOpps} onToggle={toggleIn(setHiddenThreatThemOpps)} />
+            <OppToggleLegend opponents={shotOpponents} hidden={hiddenThreatThemOpps} onToggle={toggleIn(setHiddenThreatThemOpps)} colorFor={clubColorFor} />
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={threatThem} margin={{ left: -10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
