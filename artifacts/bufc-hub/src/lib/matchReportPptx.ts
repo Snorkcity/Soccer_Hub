@@ -39,12 +39,17 @@ type Cell = { text: string | Runs; options?: Record<string, unknown> };
 
 const ord = (n: number) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
 
+// Fetch pptxgenjs as soon as this module loads (the page preloads this module
+// on mount), so a deploy between page-load and the download click can't 404
+// the nested pptxgenjs chunk.
+const pptxgenjsPromise = import("pptxgenjs");
+
 export async function generateFootballMatchReport(
   model: FootballMatchReportModel,
   coachNote: string | undefined,
   output: "download" | "base64" = "download",
 ): Promise<{ fileName: string; base64?: string }> {
-  const { default: PptxGenJS } = await import("pptxgenjs");
+  const { default: PptxGenJS } = await pptxgenjsPromise;
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "WIDE", width: W, height: H });
   pptx.layout = "WIDE";
