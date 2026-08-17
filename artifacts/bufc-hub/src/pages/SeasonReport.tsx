@@ -60,11 +60,14 @@ function TipRow({ color, name, value }: { color?: string; name: string; value: R
 
 type TipPayload = Array<{ name?: unknown; value?: unknown; color?: string; payload?: any }>;
 
-// Same convention as the GPS match report: squad comes from the round suffix.
+// Same convention as the GPS Insights tab: squad comes from the round suffix,
+// normalised case-insensitively ("R3-Res" and "R2-res" are the same squad) so
+// upload-time typos can't split one squad into duplicate dropdown entries.
 function squadOf(round: string | null | undefined): string {
-  const m = round?.trim().match(/^R?\d+\s*(.*)$/);
-  const suffix = m?.[1]?.trim();
-  return suffix ? suffix : '1sts';
+  if (!round) return '1sts';
+  if (/-(res|r)$/i.test(round)) return 'Reserves';
+  if (/-1[78]s$/i.test(round)) return '17s / 18s';
+  return '1sts';
 }
 
 const fmt = (v: number | null | undefined, d = 0) => (v == null ? '—' : v.toFixed(d));
