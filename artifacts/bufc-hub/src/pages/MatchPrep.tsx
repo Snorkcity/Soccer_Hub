@@ -258,6 +258,13 @@ function loadDraft(): Draft {
 
 export default function MatchPrep() {
   const { toast } = useToast();
+
+  // Preload the deck-builder chunk while this page's bundle version still
+  // exists on the server — a deploy between page-load and the download click
+  // would otherwise 404 the lazy import until the coach refreshes.
+  useEffect(() => {
+    void import("@/lib/prematchPptx").catch(() => {});
+  }, []);
   const [d, setD] = useState<Draft>(loadDraft);
   const [drafting, setDrafting] = useState(false);
   const [draftingTalk, setDraftingTalk] = useState(false);

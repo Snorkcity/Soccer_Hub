@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import {
@@ -283,6 +283,14 @@ export default function WeekAheadCard() {
   );
   // Which saved row is currently building its PowerPoint (row spinner).
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  // Preload the deck-builder chunk while this page's bundle version still
+  // exists on the server. Without this, a deploy between page-load and the
+  // download click makes the lazy import 404 ("save works, download doesn't
+  // until I refresh"). Once loaded it lives in memory across deploys.
+  useEffect(() => {
+    void import("@/lib/weekAheadPptx").catch(() => {});
+  }, []);
 
   async function refreshList() {
     await queryClient.invalidateQueries({ queryKey: getListMatchPrepReportsQueryKey(leagueParams) });

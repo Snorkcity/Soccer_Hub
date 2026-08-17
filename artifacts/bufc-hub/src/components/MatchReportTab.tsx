@@ -147,6 +147,13 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
     }
   };
 
+  // Preload the deck-builder chunk while this page's bundle version still
+  // exists on the server — a deploy between page-load and the download click
+  // would otherwise 404 the lazy import until the coach refreshes.
+  useEffect(() => {
+    void import("@/lib/matchReportPptx").catch(() => {});
+  }, []);
+
   const [deckMsg, setDeckMsg] = useState<string | null>(null);
   const downloadDeck = async () => {
     if (!model) return;
