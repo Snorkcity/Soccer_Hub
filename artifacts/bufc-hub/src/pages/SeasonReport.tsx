@@ -187,7 +187,25 @@ export default function SeasonReport() {
         players: new Set(game.map(r => r.playerName)).size || new Set(src.map(r => r.playerName)).size,
       });
     }
-    return out.sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+    // GPS session dates are dd/mm/yyyy — a plain string sort scrambles the
+    // season, so parse them; fall back to round number (finals codes last).
+    const dateMs = (d: string | null): number | null => {
+      const m = d?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return null;
+      const t = Date.parse(`${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T12:00:00`);
+      return Number.isFinite(t) ? t : null;
+    };
+    const roundNum = (r: string): number => {
+      const m = r.match(/^R(\d+)/i);
+      return m ? Number(m[1]) : 999; // finals (GF/QF/FCF/CS...) after the rounds
+    };
+    return out.sort((a, b) => {
+      const da = dateMs(a.date); const db = dateMs(b.date);
+      if (da != null && db != null && da !== db) return da - db;
+      if (da != null && db == null) return -1;
+      if (da == null && db != null) return 1;
+      return roundNum(a.round) - roundNum(b.round) || a.round.localeCompare(b.round);
+    });
   }, [gpsRows, squad]);
 
   // Client-side physical reads in the same voice as the server insights.
