@@ -41,6 +41,32 @@ function parseMatchDate(raw: string | null | undefined): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+/**
+ * Pick the coach's reflection for the last game vs an opponent. Primary rule:
+ * a match reflection whose entry date sits within ±2 days of a RECORDED past
+ * fixture vs that opponent — text mentions are unreliable because a reflection
+ * often names NEXT week's opponent ("takeaways for the week ahead"), which used
+ * to hijack this slot. Fallback (no dated fixtures, or no dated reflection):
+ * opponent named in the title or the result line only — the two fields that
+ * talk about THIS game, not the week ahead.
+ */
+function findLastVsOppReflection<
+  R extends { kind: string; title?: string | null; entryDate?: string | null; content: Record<string, string> },
+>(sortedNewestFirst: R[], opponent: string, meetingTimes: number[]): R | undefined {
+  const DAY = 24 * 60 * 60 * 1000;
+  const matchRefs = sortedNewestFirst.filter((r) => r.kind === "match_reflection");
+  const byDate = matchRefs.find((r) => {
+    const t = parseEntryDate(r.entryDate);
+    return t != null && meetingTimes.some((m) => Math.abs(t - m) <= 2 * DAY);
+  });
+  if (byDate) return byDate;
+  const needle = opponent.trim().toLowerCase();
+  if (!needle) return undefined;
+  return matchRefs.find((r) =>
+    `${r.title ?? ""} ${r.content.result ?? ""}`.toLowerCase().includes(needle),
+  );
+}
+
 /** "Smith ×2, Brown — assists: Jones" for one game's scored goals. */
 function scorersLine(goals: OpponentProfileResponse["goals"], matchId: string): string {
   const scored = goals.filter((g) => g.matchId === matchId && g.side === "scored");
@@ -391,11 +417,10 @@ export default function WeekAheadCard() {
         .slice(0, 10);
       // Never send an empty review section — fall back to the latest few.
       const recent = windowed.length ? windowed : sorted.slice(0, 4);
-      const oppNeedle = weekOpp.toLowerCase();
-      const lastVsOpp = sorted.find(
-        (r) =>
-          r.kind === "match_reflection" &&
-          `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
+      const lastVsOpp = findLastVsOppReflection(
+        sorted,
+        weekOpp,
+        pastMeetings.map((m) => parseMatchDate(m.matchDate)),
       );
       // What we trained on in the ~10 days before the last meeting vs this
       // opponent — lets the brief connect "what we worked on then" to now.
@@ -466,22 +491,23 @@ export default function WeekAheadCard() {
     if (!opponent || teamId == null || seasonId == null) return;
     setDownloadingId(r.id);
     try {
-      const [theirs, ours] = await Promise.all([
+      const [theirs, ours, ourMatches] = await Promise.all([
         getOpponentProfile({ teamId, seasonId, club: opponent }),
         getOpponentProfile({ teamId, seasonId, club: "Belconnen" }),
+        listMatches({ teamId, seasonId }).catch(() => []),
       ]);
-      const oppNeedle = opponent.toLowerCase();
-      const lastVsOpp = [...(reflections ?? [])]
-        .sort(
-          (a, b) =>
-            (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
-            (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
-        )
-        .find(
-          (r) =>
-            r.kind === "match_reflection" &&
-            `${r.title ?? ""} ${Object.values(r.content).join(" ")}`.toLowerCase().includes(oppNeedle),
-        );
+      const oppLc = opponent.trim().toLowerCase();
+      const now = Date.now();
+      const meetingTimes = ourMatches
+        .filter((m) => (m.opponent ?? "").trim().toLowerCase() === oppLc)
+        .map((m) => parseMatchDate(m.matchDate))
+        .filter((t) => t > 0 && t <= now);
+      const sortedRefs = [...(reflections ?? [])].sort(
+        (a, b) =>
+          (parseEntryDate(b.entryDate) ?? new Date(b.createdAt).getTime()) -
+          (parseEntryDate(a.entryDate) ?? new Date(a.createdAt).getTime()),
+      );
+      const lastVsOpp = findLastVsOppReflection(sortedRefs, opponent, meetingTimes);
       const { buildWeekAheadPptx } = await import("@/lib/weekAheadPptx");
       const pptx = buildWeekAheadPptx({
         weekOf: data.weekOf || comingMonday(),
