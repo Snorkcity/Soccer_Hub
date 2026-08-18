@@ -50,14 +50,12 @@ Design generalisable: future clubs supply their own Veo login → same flow, per
 - Also present: `/videos/`, `/highlights/`, `/lineup/players/` (empty on test), `/feature-processing-status/`,
   `/bookmarks/`, `/roster/`.
 
-## Not yet found / TODO at build
-- Pass-heatmap-by-third + passes/possession locations + momentum-data + shotmap: analysisSlice thunks
-  (fetchPassesAndPossession → `match-details` [404'd here], fetchIntervalHeatmap, fetchShotmap,
-  fetchMatchMomentumData) — likely only on higher tracking tier (test match had has_tracking_data=false,
-  has_momentum_data=false). Capture live via headless-browser network sniff on a tracking-enabled match.
-- Discovery technique that worked: puppeteer-core (`lib/puppeteer/puppeteer-core.js`, NOT lib/esm/...) +
-  nix chromium at /nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.../bin/chromium; login form has
-  `input[name=username]`/`input[name=password]`; watch requests matching `svc.veo.co|/api/(app|v1)/`.
+## Browser discovery
+- `scripts/capture-veo-network.mjs` logs in through the real app and records the match page's requests.
+  Attach response/request capture only AFTER login — otherwise the auth form POST can put credentials in
+  diagnostic output. Keep captures temporary and delete them after extracting endpoint shapes.
+- Login form uses `input[name=username]` / `input[name=password]`; analytics drawer button has
+  `aria-label="bar chart 2"`. Analytics 2 chat has `aria-label="Chat with your match data"`.
 
 ## Build plan (agreed with coach)
 Sync button in Data Entry mirroring Dribl: default Firsts, dropdown arrow → Reserves → "Sync to Veo".
@@ -103,3 +101,47 @@ route via exported syncVeoLeagueOnce/autoLinkVeoLeague).
 Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".
 **Why:** the earlier per-match map flipped on "left" and was silently backwards; season-aggregate shot clustering (shots pile up at the attacked goal) proved the correct direction.
 **How to apply:** any new chart using Veo x/z coords must reuse this convention (season-shots endpoint + VeoInsights match view both do). Sanity-check orientation against aggregate clustering, never a single match.
+
+## Analytics 2 player data (FOUND Aug 2026)
+Analytics 2 is enabled in the account. Do not assume its public launch-date cutoff reflects API
+availability: read-only probes found physical rows on every recent recording checked, including matches
+from June 2026. Always probe the endpoint; do not discard old matches by date.
+
+- **Physical metrics:** `GET /api/mes/v2/{matchId}/physical-metrics`. Rows are split by `drill`
+  (period/segment) and carry `teamId`, `jerseyNumber`, `distance` (metres), `secondsPlayed`,
+  `maxSpeed`, `averageSpeed`, `maxAccel`, `maxDecel`, `sprints`, and `hsr` (high-intensity runs).
+- **Tracking:** `GET /api/mes/v2/{matchId}/player-tracking?start={seconds}` returns timestamp-keyed
+  compact arrays of tracked players; `.../player-tracking/jersey-numbers?periods=start,end...`
+  returns detected shirt numbers by left/right pitch side and period.
+- **Expanded events:** `GET /api/mes/v2/{matchId}/match-events` carries `eventType`, team, time,
+  coordinates, outcome and (when detected) `playerJersey`. Analytics 2 adds tackles, dribbles,
+  interceptions, loose-ball recoveries and saves to the earlier goal/shot/set-piece events.
+- **Preferred player-summary endpoint:** `POST /api/app/analysis/stats/` with
+  `{type:"cross_match", team_id, match_ids:[...], group_by:"player"}`. It returns one
+  `cross_match_player` per player/detected jersey with roster identity fields plus all event and physical
+  metrics already aggregated: goals, assists, involvements, shots/attempts/conversion, set pieces,
+  tackles, dribbles, interceptions, loose recoveries, saves, total/successful/unsuccessful passes,
+  pass success rate, distance, sprints, top/average speed, HIRs and seconds played.
+- **Identity caveat:** if the match lineup is incomplete, Veo deliberately returns `Jersey #X` rows
+  rather than dropping data. Map via Veo lineup/roster when present; otherwise preserve the jersey row
+  and let the coach resolve it. Never guess a player name from shirt number alone.
+
+**Why:** the existing sync predates Analytics 2 and does not collect these endpoints. The cross-match
+response is the safest first integration surface because it matches Veo's Player Stats Overview and
+avoids re-implementing period aggregation.
+
+**How to apply:** extend the manual Veo sync (never an automatic job) to persist raw Analytics 2 player
+summaries with their match and league scope. Keep raw detected jersey identity separate from Hub player
+identity so lineup corrections can remap without rewriting source data.
+
+## Coach Assist (Veo reference, not an API dependency)
+The match page exposes a Coach Assist chat with the prompt “Ask about this match, team or the club…” and
+starters for match summary, trends, training drills, scoring efficiency and game-plan analysis. It is
+beta and supports personalised voice/coach level.
+
+**Why:** this validates a strong Hub feature, but Veo's private chatbot transport is not a stable data
+contract and should not become a Hub dependency.
+
+**How to apply:** build match-aware Q&A through the Hub's existing Coach Assistant/OpenAI path, grounding
+it in synced Veo events, team stats, player summaries and Hub match context. Reuse Veo only as a raw-data
+source; do not proxy or imitate its private chat endpoint.
