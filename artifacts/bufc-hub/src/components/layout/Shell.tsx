@@ -214,10 +214,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         )}
-        <div className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl">
-            {children}
-          </div>
+        <div className="flex-1 overflow-auto p-4 md:p-8 flex flex-col">
+          {/* Hub pages go full-bleed (edge-to-edge hex canvas); everything
+              else stays in the usual centred column. */}
+          {location === "/" || location.startsWith("/hub/") ? (
+            <div className="flex flex-1 flex-col">{children}</div>
+          ) : (
+            <div className="mx-auto w-full max-w-7xl">{children}</div>
+          )}
         </div>
       </main>
     </div>

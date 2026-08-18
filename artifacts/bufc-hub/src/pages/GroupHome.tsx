@@ -20,7 +20,7 @@ export default function GroupHome() {
   const pages = group.pages.filter(pageVisible);
 
   return (
-    <div className="relative -m-4 md:-m-8 min-h-[calc(100%+2rem)] md:min-h-[calc(100%+4rem)] overflow-hidden">
+    <div className="relative -m-4 md:-m-8 flex-1 overflow-hidden">
       <HexPattern />
 
       <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col px-4 py-10 md:py-14 gap-8">
