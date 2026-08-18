@@ -9,6 +9,7 @@ import { LeagueProvider } from '@/contexts/LeagueContext';
 import { DevBadge } from '@/components/DevBadge';
 
 import Home from '@/pages/Home';
+import GroupHome from '@/pages/GroupHome';
 import SeasonStats from '@/pages/SeasonStats';
 import SeasonReport from '@/pages/SeasonReport';
 import GpsInsights from '@/pages/GpsInsights';
@@ -38,6 +39,7 @@ function Router() {
         <Shell>
           <Switch>
             <Route path="/" component={Home} />
+            <Route path="/hub/:groupId" component={GroupHome} />
             <Route path="/season-stats" component={SeasonStats} />
             <Route path="/season-report" component={SeasonReport} />
             <Route path="/gps" component={GpsInsights} />
