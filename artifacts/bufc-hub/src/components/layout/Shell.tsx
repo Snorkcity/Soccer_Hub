@@ -8,28 +8,57 @@ import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 // `module` gates a module-locked item to the ACTIVE league. `moduleAnywhere`
 // gates a paid add-on tool shown when the user has it in ANY league (the tools
 // aren't league-scoped). `superadmin` gates the Users page.
-const navItems: {
+type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   module?: string;
   moduleAnywhere?: string;
   superadmin?: boolean;
-}[] = [
-  { href: "/", label: "Hub", icon: Home },
-  { href: "/season-stats", label: "Season Stats", icon: BarChart3, module: "season-stats" },
-  { href: "/season-report", label: "Season Report", icon: TrendingUp2, module: "season-stats" },
-  { href: "/gps", label: "GPS Insights", icon: Navigation2, module: "gps" },
-  { href: "/veo", label: "Veo Insights", icon: Video, module: "veo" },
-  { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
-  { href: "/match-prep", label: "Match Prep", icon: Trophy, module: "match-prep" },
-  { href: "/reflections", label: "Reflections", icon: BookHeart, module: "reflections" },
-  { href: "/assistant", label: "Coach Assistant", icon: Bot, moduleAnywhere: "assistant" },
-  { href: "/sessions", label: "Session Planner", icon: ClipboardList, moduleAnywhere: "session-planner" },
-  { href: "/library", label: "Session Library", icon: BookOpen, moduleAnywhere: "session-planner" },
-  { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
-  { href: "/users", label: "Users", icon: Users, superadmin: true },
-  { href: "/account", label: "My Account", icon: UserRound },
+};
+
+// The sidebar tells the weekly coaching story: look at what happened
+// (Analyse), decide what to do about it (Prepare), capture what was learned
+// (Reflect). Admin lives quietly at the bottom. A section with no visible
+// items disappears entirely, so trimmed-down customer configs stay tidy.
+const navSections: { heading: string | null; items: NavItem[] }[] = [
+  {
+    heading: null,
+    items: [{ href: "/", label: "Hub", icon: Home }],
+  },
+  {
+    heading: "Analyse",
+    items: [
+      { href: "/season-stats", label: "Season Stats", icon: BarChart3, module: "season-stats" },
+      { href: "/veo", label: "Veo Insights", icon: Video, module: "veo" },
+      { href: "/gps", label: "GPS Insights", icon: Navigation2, module: "gps" },
+      { href: "/season-report", label: "Season Report", icon: TrendingUp2, module: "season-stats" },
+      { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
+    ],
+  },
+  {
+    heading: "Prepare",
+    items: [
+      { href: "/match-prep", label: "Match Prep", icon: Trophy, module: "match-prep" },
+      { href: "/sessions", label: "Session Planner", icon: ClipboardList, moduleAnywhere: "session-planner" },
+      { href: "/library", label: "Session Library", icon: BookOpen, moduleAnywhere: "session-planner" },
+    ],
+  },
+  {
+    heading: "Reflect",
+    items: [
+      { href: "/reflections", label: "Reflections", icon: BookHeart, module: "reflections" },
+      { href: "/assistant", label: "Coach Assistant", icon: Bot, moduleAnywhere: "assistant" },
+    ],
+  },
+  {
+    heading: "Admin",
+    items: [
+      { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
+      { href: "/users", label: "Users", icon: Users, superadmin: true },
+      { href: "/account", label: "My Account", icon: UserRound },
+    ],
+  },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -39,7 +68,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const activeLeagueName = leagueOptions.find(l => l.id === activeLeagueId)?.name ?? null;
   // Module items follow the ACTIVE league (picked on the Hub) — switching league
   // changes which pages appear. Fall back to any-league while it's still loading.
-  const visibleItems = navItems.filter((item) => {
+  const itemVisible = (item: NavItem) => {
     if (item.superadmin) return isSuperadmin;
     // Hide module items until the active league is known — briefly showing too
     // few is safer than flashing pages the user can't actually open.
@@ -48,7 +77,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
     }
     if (item.moduleAnywhere) return isSuperadmin || hasModuleAnywhere(item.moduleAnywhere);
     return true;
-  });
+  };
+  const visibleSections = navSections
+    .map((s) => ({ ...s, items: s.items.filter(itemVisible) }))
+    .filter((s) => s.items.length > 0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -56,7 +88,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col bg-background md:flex-row">
       {/* Sidebar */}
       <aside
-        className={`w-full shrink-0 border-b border-border bg-card md:border-b-0 md:border-r flex flex-col z-20 transition-[width] duration-200 ease-in-out ${
+        className={`w-full shrink-0 border-b border-border bg-card bg-gradient-to-b from-primary/[0.08] via-primary/[0.03] to-transparent md:border-b-0 md:border-r flex flex-col z-20 transition-[width] duration-200 ease-in-out ${
           collapsed ? "md:w-16" : "md:w-64"
         }`}
       >
@@ -100,28 +132,45 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
         )}
 
-        <nav className={`flex-1 overflow-auto p-3 md:p-4 space-y-1 ${mobileOpen ? "block" : "hidden md:block"}`}>
-          {visibleItems.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 rounded-md py-3 md:py-2.5 text-sm font-medium transition-colors ${
-                  collapsed ? "md:justify-center md:px-0 px-3" : "px-3"
-                } ${
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-                <span className={collapsed ? "md:hidden" : ""}>{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav className={`flex-1 overflow-auto p-3 md:p-4 ${mobileOpen ? "block" : "hidden md:block"}`}>
+          {visibleSections.map((section, si) => (
+            <div key={section.heading ?? "top"} className={si > 0 ? "mt-4" : ""}>
+              {section.heading && (
+                <p
+                  className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 ${
+                    collapsed ? "md:hidden" : ""
+                  }`}
+                >
+                  {section.heading}
+                </p>
+              )}
+              {/* Collapsed rail: a thin divider stands in for the heading. */}
+              {section.heading && collapsed && <div className="hidden md:block mx-3 mb-2 border-t border-border" />}
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = location === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={collapsed ? item.label : undefined}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-3 rounded-md py-3 md:py-2.5 text-sm font-medium transition-colors ${
+                        collapsed ? "md:justify-center md:px-0 px-3" : "px-3"
+                      } ${
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                      <span className={collapsed ? "md:hidden" : ""}>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Build stamp — quick "has my deploy landed?" check. Dev just says
