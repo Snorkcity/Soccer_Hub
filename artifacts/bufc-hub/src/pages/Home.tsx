@@ -219,7 +219,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="relative -m-4 md:-m-8 min-h-full overflow-hidden">
+    <div className="relative -m-4 md:-m-8 min-h-[calc(100%+2rem)] md:min-h-[calc(100%+4rem)] overflow-hidden">
       <HexPattern />
 
       <div className="relative z-10 flex flex-col items-center px-4 py-10 md:py-14 gap-10">
