@@ -11,6 +11,8 @@ import {
   getGetVeoSeasonShotsQueryKey,
   useGetVeoSeasonPassing,
   getGetVeoSeasonPassingQueryKey,
+  getGetVeoPlayerSeasonQueryKey,
+  getGetVeoPlayerMatchQueryKey,
   type VeoSeasonPassingMatch,
   useListVeoLinks,
   getListVeoLinksQueryKey,
@@ -42,6 +44,8 @@ import {
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { VeoSeasonPlayers } from "@/components/veo/VeoSeasonPlayers";
+import { VeoMatchPlayers } from "@/components/veo/VeoMatchPlayers";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -234,6 +238,7 @@ export default function VeoInsights() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [view, setView] = useState<"season" | "match">("season");
+  const [subView, setSubView] = useState<"team" | "players">("team");
 
   const listParams = { leagueId: activeLeagueId ?? 0 };
   const { data: listData, isLoading: listLoading } = useListVeoMatches(listParams, {
@@ -284,13 +289,18 @@ export default function VeoInsights() {
     try {
       for (let i = 0; i < 25; i++) {
         const r = await syncMut.mutateAsync({ data: { leagueId: activeLeagueId, batch: 20 } });
-        setSyncMsg(`Synced ${r.totalMatches - r.remaining}/${r.totalMatches} matches…`);
+        const playerReady = Math.max(0, r.totalMatches - r.playerRemaining - r.playerUnavailable);
+        setSyncMsg(
+          `Team data ${r.totalMatches - r.remaining}/${r.totalMatches} · player data ${playerReady}/${r.totalMatches}${r.playerUnavailable > 0 ? ` · ${r.playerUnavailable} unavailable` : ""}…`,
+        );
         if (r.done) {
-          if (r.analyticsPending > 0) {
-            const n = r.analyticsPending;
-            setSyncMsg(`Done — ${n} ${n === 1 ? "match" : "matches"} still processing on Veo — sync again later.`);
+          if (r.analyticsPending > 0 || r.playerUnavailable > 0) {
+            const notes: string[] = [];
+            if (r.analyticsPending > 0) notes.push(`${r.analyticsPending} passing ${r.analyticsPending === 1 ? "feed" : "feeds"} still processing`);
+            if (r.playerUnavailable > 0) notes.push(`${r.playerUnavailable} player ${r.playerUnavailable === 1 ? "dataset" : "datasets"} unavailable`);
+            setSyncMsg(`Done — ${notes.join(" · ")}.`);
           } else {
-            setSyncMsg(`Done — ${r.totalMatches} matches synced.`);
+            setSyncMsg(`Done — team and player data synced for ${r.totalMatches} matches.`);
           }
           break;
         }
@@ -299,6 +309,11 @@ export default function VeoInsights() {
       qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonShotsQueryKey(seasonParams) });
       qc.invalidateQueries({ queryKey: getGetVeoSeasonPassingQueryKey(seasonParams) });
+      qc.invalidateQueries({ queryKey: getGetVeoPlayerSeasonQueryKey(seasonParams) });
+      if (currentId != null) {
+        const playerMatchParams = { leagueId: activeLeagueId, veoId: currentId };
+        qc.invalidateQueries({ queryKey: getGetVeoPlayerMatchQueryKey(playerMatchParams) });
+      }
     } catch (e) {
       // Show the server's actual reason (e.g. Veo login failure) so repeated
       // failures are diagnosable instead of a generic "try again".
@@ -358,6 +373,21 @@ export default function VeoInsights() {
                 </button>
               ))}
             </div>
+
+            <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+              {(["team", "players"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setSubView(v)}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                    subView === v ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v === "team" ? "Team" : "Players"}
+                </button>
+              ))}
+            </div>
+
             {view === "match" && (
               <Select value={String(currentId ?? "")} onValueChange={(v) => setSelectedId(Number(v))}>
                 <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Pick a match" /></SelectTrigger>
@@ -381,27 +411,39 @@ export default function VeoInsights() {
           </div>
 
           {view === "season" ? (
-            seasonLoading || !seasonData ? (
-              <Card><CardContent className="py-16 text-center text-muted-foreground">Loading season…</CardContent></Card>
+            subView === "team" ? (
+              seasonLoading || !seasonData ? (
+                <Card><CardContent className="py-16 text-center text-muted-foreground">Loading season…</CardContent></Card>
+              ) : (
+                <SeasonView
+                  matches={seasonData.matches}
+                  shotMatches={seasonShotsData?.matches ?? []}
+                  passingMatches={seasonPassingData?.matches ?? []}
+                />
+              )
             ) : (
-              <SeasonView
-                matches={seasonData.matches}
-                shotMatches={seasonShotsData?.matches ?? []}
-                passingMatches={seasonPassingData?.matches ?? []}
-              />
+              <VeoSeasonPlayers leagueId={activeLeagueId!} />
             )
           ) : matchLoading || !match ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">Loading match…</CardContent></Card>
-          ) : events.length === 0 ? (
-            <Card><CardContent className="py-16 text-center text-muted-foreground">
-              This match has no event data in Veo.
-            </CardContent></Card>
+          ) : subView === "team" ? (
+            events.length === 0 ? (
+              <Card><CardContent className="py-16 text-center text-muted-foreground">
+                This match has no event data in Veo.
+              </CardContent></Card>
+            ) : (
+              <MatchView
+                match={match}
+                events={events}
+                passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
+              />
+            )
           ) : (
-            <MatchView
-              match={match}
-              events={events}
-              passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
-            />
+            currentId != null ? (
+              <VeoMatchPlayers leagueId={activeLeagueId!} veoId={currentId} />
+            ) : (
+              <Card><CardContent className="py-16 text-center text-muted-foreground">No match selected.</CardContent></Card>
+            )
           )}
         </>
       )}

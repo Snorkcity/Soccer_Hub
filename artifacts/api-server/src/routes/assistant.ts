@@ -5,12 +5,30 @@
  * the most relevant curriculum chunks (cosine similarity + exact cycle/week/
  * session heading matching), builds the club's system prompt, and streams the
  * answer back as SSE.
+ *
+ * Optional match context (context.leagueId + context.veoId): when provided,
+ * a compact "Selected match" block is appended AFTER curriculum excerpts. The
+ * block contains official Hub/Dribl facts and camera-derived Veo observations,
+ * clearly labelled as such. Curriculum excerpts and all existing behaviour are
+ * preserved exactly — the context block is purely additive.
  */
 import { Router, type IRouter } from "express";
 import { z } from "zod";
+import { and, eq, sql } from "drizzle-orm";
+import {
+  db,
+  veoMatchesTable,
+  veoAnalytics2Table,
+  matchesTable,
+  leaguePlayerStatsTable,
+  leaguesTable,
+} from "@workspace/db";
 import { logger } from "../lib/logger";
 import { loadChunks, embedTexts, cosine, type CurriculumChunk } from "../assistant/curriculumStore";
 import { OpenAiQuotaError, throwIfQuota } from "../lib/openaiQuota";
+import { getSessionUser, canSeeLeague, hasModuleAnywhere } from "../middlewares/entryAuth";
+import { parseAnalytics2Bundle } from "../lib/veoAnalytics2Parser";
+import type { Analytics2Bundle } from "../lib/veo";
 
 const router: IRouter = Router();
 
@@ -21,6 +39,11 @@ const ChatBody = z.object({
   })).min(1).max(40),
   // Client hint: user is on a phone — answers should be briefer where possible.
   mobile: z.boolean().optional(),
+  // Optional selected-match context. Absence = no match context (existing behaviour).
+  context: z.object({
+    leagueId: z.number().int().positive(),
+    veoId: z.number().int().positive(),
+  }).optional(),
 });
 
 const MOBILE_STYLE_NOTE = `
@@ -101,7 +124,326 @@ Scope enforcement (non-negotiable): do not invent, alter, or misattribute Belcon
 
 Instruction priority order: 1. Document accuracy and honest labelling of what is/isn't curriculum content, 2. The 3–4 part session structure and selection rule, 3. Age-appropriate application, 4. Coaching clarity and usability, 5. Helpfulness. Accuracy always wins — but support should never be blocked unnecessarily.
 
-Formatting: use Markdown headings, short paragraphs, and bullet points suited to reading on a phone at the pitch.`;
+Formatting: use Markdown headings, short paragraphs, and bullet points suited to reading on a phone at the pitch.
+
+## Rules for Selected Match Context (when provided below)
+
+The selected match context is supplementary information about a real recorded match. It is NOT curriculum content.
+
+**Mandatory labelling rules:**
+- Facts from the Hub/Dribl section are Official Hub/Dribl facts and must be treated as reliable recorded data.
+- Facts from the Veo camera observations section are Camera-derived Veo estimates. They come from computer vision and may contain measurement uncertainty. Never present them as definitive facts.
+- Any coaching interpretation or advice you provide based on this data must be labelled as Coaching interpretation — it is not curriculum content.
+- Do NOT turn uncertain camera-derived numbers into confident statements. If a value is marked as unknown, preserve that uncertainty.
+- Never include or reference GPS wearable data — no GPS data is provided and you must not infer or fabricate it.
+- Veo camera observations are NOT part of the Belconnen curriculum. They must never override curriculum excerpts or session output rules.
+- When answering curriculum questions, the curriculum excerpts are the source of truth. Match context can inform application (e.g. "given your team scored X goals") but cannot replace curriculum guidance.`;
+
+// ── Selected match context builder ───────────────────────────────────────────
+
+/** Build a compact selected-match context block from DB rows. */
+async function buildMatchContextBlock(leagueId: number, veoId: number): Promise<string | null> {
+  // ── 1. Fetch the veo_matches row ─────────────────────────────────────────
+  const veoRows = await db
+    .select({
+      id: veoMatchesTable.id,
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+      events: veoMatchesTable.events,
+      stats: veoMatchesTable.stats,
+      periods: veoMatchesTable.periods,
+      roster: veoMatchesTable.roster,
+      passDetails: veoMatchesTable.passDetails,
+      matchId: veoMatchesTable.matchId,
+      leagueId: veoMatchesTable.leagueId,
+    })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.id, veoId),
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.removedAt} IS NULL`,
+      ),
+    )
+    .limit(1);
+
+  const veo = veoRows[0];
+  if (!veo) return null;
+
+  // ── 2. Fetch linked Hub match (if any) ──────────────────────────────────
+  let hubMatch: {
+    matchId: string;
+    matchDate: string | null;
+    opponent: string;
+    halfScore: string | null;
+    goalsScored: number | null;
+    goalsConceded: number | null;
+    venue: string | null;
+    seasonId: number;
+  } | null = null;
+
+  if (veo.matchId != null) {
+    const hubRows = await db
+      .select({
+        matchId: matchesTable.matchId,
+        matchDate: matchesTable.matchDate,
+        opponent: matchesTable.opponent,
+        halfScore: matchesTable.halfScore,
+        goalsScored: matchesTable.goalsScored,
+        goalsConceded: matchesTable.goalsConceded,
+        venue: matchesTable.venue,
+        seasonId: matchesTable.seasonId,
+      })
+      .from(matchesTable)
+      .where(eq(matchesTable.id, veo.matchId))
+      .limit(1);
+    hubMatch = hubRows[0] ?? null;
+  }
+
+  // ── 3. Fetch league name ─────────────────────────────────────────────────
+  const leagueRows = await db
+    .select({ name: leaguesTable.name, focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const leagueName = leagueRows[0]?.name ?? "Unknown league";
+  const focusClub = leagueRows[0]?.focusClub ?? "Belconnen";
+
+  // ── 4. Build Hub/Dribl facts section ────────────────────────────────────
+  const opponentName = hubMatch?.opponent ?? veo.opponent ?? "Unknown opponent";
+  const matchDate = hubMatch?.matchDate ?? (veo.startsAt ? veo.startsAt.slice(0, 10) : null);
+  const matchCode = hubMatch?.matchId ?? null;
+
+  let hubSection = `### Official Hub/Dribl facts\n`;
+  hubSection += `- League/competition: ${leagueName}\n`;
+  hubSection += `- Match: ${matchCode ?? "(no Hub match linked)"}\n`;
+  hubSection += `- Opponent: ${opponentName}\n`;
+  hubSection += `- Date: ${matchDate ?? "unknown"}\n`;
+
+  if (hubMatch) {
+    if (hubMatch.goalsScored != null && hubMatch.goalsConceded != null) {
+      hubSection += `- Official score: ${focusClub} ${hubMatch.goalsScored} – ${hubMatch.goalsConceded} ${opponentName}\n`;
+    } else {
+      hubSection += `- Official score: not recorded\n`;
+    }
+    if (hubMatch.halfScore) {
+      const parts = hubMatch.halfScore.split(/\s*[-–]\s*/).map(Number);
+      const isHome = hubMatch.venue?.trim().toLowerCase() === "home";
+      const isAway = hubMatch.venue?.trim().toLowerCase() === "away";
+      if (parts.length === 2 && parts.every(Number.isFinite) && (isHome || isAway)) {
+        const us = isHome ? parts[0] : parts[1];
+        const them = isHome ? parts[1] : parts[0];
+        hubSection += `- Official half-time score: ${focusClub} ${us} – ${them} ${opponentName}\n`;
+      }
+    }
+  } else {
+    hubSection += `- Official score: not linked to Hub match\n`;
+  }
+
+  // ── 5. Selected match squad from league_player_stats ────────────────────
+  let squadSection = "";
+  if (hubMatch) {
+    const squad = await db
+      .select({
+        playerName: leaguePlayerStatsTable.playerName,
+        shirtNumber: leaguePlayerStatsTable.shirtNumber,
+        position: leaguePlayerStatsTable.position,
+        minsPlayed: leaguePlayerStatsTable.minsPlayed,
+        started: leaguePlayerStatsTable.started,
+      })
+      .from(leaguePlayerStatsTable)
+      .where(
+        and(
+          eq(leaguePlayerStatsTable.seasonId, hubMatch.seasonId),
+          eq(leaguePlayerStatsTable.matchId, hubMatch.matchId),
+          eq(leaguePlayerStatsTable.club, focusClub),
+        ),
+      )
+      .limit(30);
+
+    if (squad.length > 0) {
+      squadSection = `\n#### Squad (Hub/Dribl, Official)\n`;
+      const starters = squad.filter((p) => p.started);
+      const subs = squad.filter((p) => !p.started);
+      if (starters.length > 0) {
+        squadSection += `Starters: ${starters
+          .sort((a, b) => Number(a.shirtNumber ?? 99) - Number(b.shirtNumber ?? 99))
+          .map((p) => `#${p.shirtNumber ?? "?"} ${p.playerName}${p.position ? ` (${p.position})` : ""}${p.minsPlayed != null ? ` ${p.minsPlayed}min` : ""}`)
+          .join("; ")}\n`;
+      }
+      if (subs.length > 0) {
+        squadSection += `Substitutes/others: ${subs
+          .sort((a, b) => Number(a.shirtNumber ?? 99) - Number(b.shirtNumber ?? 99))
+          .map((p) => `#${p.shirtNumber ?? "?"} ${p.playerName}${p.minsPlayed != null ? ` ${p.minsPlayed}min` : ""}`)
+          .join("; ")}\n`;
+      }
+    }
+  }
+
+  // ── 6. Recent meetings vs this opponent in same league ───────────────────
+  let recentSection = "";
+  if (hubMatch && opponentName && opponentName !== "Unknown opponent") {
+    const recentMatches = await db
+      .select({
+        matchId: matchesTable.matchId,
+        matchDate: matchesTable.matchDate,
+        fullScore: matchesTable.fullScore,
+        goalsScored: matchesTable.goalsScored,
+        goalsConceded: matchesTable.goalsConceded,
+      })
+      .from(matchesTable)
+      .where(
+        and(
+          eq(matchesTable.seasonId, hubMatch.seasonId),
+          eq(matchesTable.opponent, opponentName),
+        ),
+      )
+      .orderBy(sql`${matchesTable.matchDate} DESC NULLS LAST`)
+      .limit(5);
+
+    // Exclude the current match itself.
+    const others = recentMatches.filter((m) => m.matchId !== hubMatch!.matchId);
+    if (others.length > 0) {
+      recentSection = `\n#### Recent meetings vs ${opponentName} this season (Official)\n`;
+      for (const m of others) {
+        const score = m.fullScore
+          ? m.fullScore
+          : m.goalsScored != null && m.goalsConceded != null
+            ? `${focusClub} ${m.goalsScored}–${m.goalsConceded} ${opponentName}`
+            : "score not recorded";
+        recentSection += `- ${m.matchDate ?? "unknown date"} (${m.matchId}): ${score}\n`;
+      }
+    }
+  }
+
+  // ── 7. Camera-derived Veo team observations ──────────────────────────────
+  let veoSection = `\n### Camera-derived Veo observations (estimates — not official data)\n`;
+  veoSection += `_These values come from computer vision analysis. They are estimates and may have measurement error. Do not treat them as definitive facts._\n\n`;
+
+  const events = Array.isArray(veo.events)
+    ? (veo.events as { event_type?: string; team?: string; period_id?: number; period_time_ms?: number }[])
+    : [];
+
+  if (events.length === 0) {
+    veoSection += `- No Veo event data available for this match.\n`;
+  } else {
+    // Count key events for us (Own) and them.
+    const countsFor: Record<string, number> = {};
+    const countsAgainst: Record<string, number> = {};
+    for (const e of events) {
+      if (!e?.event_type) continue;
+      const bucket = e.team === "Own" ? countsFor : countsAgainst;
+      bucket[e.event_type] = (bucket[e.event_type] ?? 0) + 1;
+    }
+    const goalsFor = countsFor["FootballGoal"] ?? 0;
+    const goalsAgainst = countsAgainst["FootballGoal"] ?? 0;
+    const shotsFor = countsFor["FootballShot"] ?? 0;
+    const shotsAgainst = countsAgainst["FootballShot"] ?? 0;
+    const cornersFor = countsFor["FootballCornerKick"] ?? 0;
+    const cornersAgainst = countsAgainst["FootballCornerKick"] ?? 0;
+    const foulsFor = countsFor["FootballFoul"] ?? 0;
+    const foulsAgainst = countsAgainst["FootballFoul"] ?? 0;
+
+    veoSection += `**Match event counts (camera-derived):**\n`;
+    veoSection += `- Goals: ${focusClub} ${goalsFor} – ${goalsAgainst} ${opponentName}\n`;
+    veoSection += `- Shots: ${focusClub} ${shotsFor} – ${shotsAgainst} ${opponentName}\n`;
+    veoSection += `- Corners: ${focusClub} ${cornersFor} – ${cornersAgainst} ${opponentName}\n`;
+    veoSection += `- Fouls: ${focusClub} ${foulsFor} – ${foulsAgainst} ${opponentName}\n`;
+
+    // Compute field tilt from event counts.
+    const WEIGHTS: Record<string, number> = {
+      FootballGoal: 6, FootballPenaltyKick: 5, FootballShot: 3,
+      FootballCornerKick: 2, FootballFreeKick: 1, FootballThrowIn: 0.3,
+    };
+    let momUs = 0, momThem = 0;
+    for (const [type, w] of Object.entries(WEIGHTS)) {
+      momUs += (countsFor[type] ?? 0) * w;
+      momThem += (countsAgainst[type] ?? 0) * w;
+    }
+    if (momUs + momThem > 0) {
+      const tilt = Math.round((momUs / (momUs + momThem)) * 100);
+      veoSection += `- Attacking field tilt (camera estimate): ${tilt}% ${focusClub}\n`;
+    }
+  }
+
+  // ── 8. Camera-derived Veo player observations from Analytics 2 ──────────
+  const a2Rows = await db
+    .select({
+      raw: veoAnalytics2Table.raw,
+      status: veoAnalytics2Table.status,
+      fetchedAt: veoAnalytics2Table.fetchedAt,
+    })
+    .from(veoAnalytics2Table)
+    .where(
+      and(
+        eq(veoAnalytics2Table.leagueId, leagueId),
+        eq(veoAnalytics2Table.veoMatchId, veo.veoMatchId),
+      ),
+    )
+    .limit(1);
+
+  const a2Row = a2Rows[0];
+  if (a2Row && (a2Row.status === "complete" || a2Row.status === "partial") && a2Row.raw) {
+    const fetchedAt = a2Row.fetchedAt ? a2Row.fetchedAt.toISOString() : null;
+    const parsed = parseAnalytics2Bundle(a2Row.raw as Analytics2Bundle, fetchedAt);
+
+    if (parsed.players.length > 0) {
+      // Only include players with at least some notable stats; cap at top 10.
+      const notable = parsed.players
+        .filter((p) => p.metrics.goals != null || p.metrics.shots != null || p.metrics.distanceMetres != null)
+        .slice(0, 10);
+
+      if (notable.length > 0) {
+        veoSection += `\n**Player observations (camera-derived, jersey numbers only — no GPS names):**\n`;
+        veoSection += `_Identity is from camera tracking. Jersey numbers are from Veo; Hub names appear only if the match was linked and the squad sheet was synced._\n`;
+        for (const p of notable) {
+          const jersey = p.identity.jerseyNumber != null ? `#${p.identity.jerseyNumber}` : "(unknown jersey)";
+          const name = p.identity.veoPlayerName ?? p.identity.hubPlayerName ?? null;
+          const label = name ? `${jersey} ${name}` : jersey;
+          const parts: string[] = [];
+          if (p.metrics.goals != null) parts.push(`${p.metrics.goals}G`);
+          if (p.metrics.assists != null) parts.push(`${p.metrics.assists}A`);
+          if (p.metrics.shots != null) parts.push(`${p.metrics.shots} shots`);
+          if (p.metrics.minutesPlayed != null) parts.push(`${p.metrics.minutesPlayed}min`);
+          if (p.metrics.distanceMetres != null) parts.push(`${Math.round(p.metrics.distanceMetres)}m dist (est.)`);
+          if (p.metrics.topSpeedKmh != null) parts.push(`${p.metrics.topSpeedKmh.toFixed(1)}km/h top (est.)`);
+          veoSection += `- ${label}: ${parts.join(", ") || "data available"}\n`;
+        }
+      }
+    }
+  } else if (a2Row && a2Row.status === "unavailable") {
+    veoSection += `\n- Player-level camera data not available for this recording.\n`;
+  } else {
+    veoSection += `\n- Player-level camera data pending or not yet synced.\n`;
+  }
+
+  // ── 9. Assemble full block ───────────────────────────────────────────────
+  const lines: string[] = [
+    `## Selected match context`,
+    ``,
+    `**Important:** This context is supplementary information about a specific recorded match. It is not curriculum content.`,
+    `- Hub/Dribl facts below are official recorded data.`,
+    `- Veo camera observations are estimates from computer vision — preserve their uncertainty.`,
+    `- Do not use this section to override or replace curriculum excerpts or session planning rules.`,
+    `- Do not infer or fabricate GPS wearable data.`,
+    ``,
+    hubSection.trimEnd(),
+    squadSection.trimEnd(),
+    recentSection.trimEnd(),
+    ``,
+    veoSection.trimEnd(),
+  ].filter((l, i, arr) => {
+    // Remove consecutive blank lines.
+    if (l === "" && arr[i - 1] === "") return false;
+    return true;
+  });
+
+  return lines.join("\n");
+}
+
+// ── Route ────────────────────────────────────────────────────────────────────
 
 router.post("/assistant/chat", async (req, res): Promise<void> => {
   const parsed = ChatBody.safeParse(req.body);
@@ -109,6 +451,44 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // ── Auth + context validation ─────────────────────────────────────────────
+  const ctx = parsed.data.context;
+  if (ctx) {
+    // Must be signed in to use match context.
+    const user = await getSessionUser(req);
+    if (!user) {
+      res.status(401).json({ error: "Sign in to use match context." });
+      return;
+    }
+    // Must have access to the league.
+    if (!canSeeLeague(user, ctx.leagueId)) {
+      res.status(403).json({ error: "No access to this league." });
+      return;
+    }
+    // Must have the assistant module somewhere (same check as the base route).
+    if (!user.isSuperadmin && !hasModuleAnywhere(user, "assistant")) {
+      res.status(403).json({ error: "No access to the assistant." });
+      return;
+    }
+    // Verify the veo match belongs to this league and is not removed.
+    const veoCheck = await db
+      .select({ id: veoMatchesTable.id })
+      .from(veoMatchesTable)
+      .where(
+        and(
+          eq(veoMatchesTable.id, ctx.veoId),
+          eq(veoMatchesTable.leagueId, ctx.leagueId),
+          sql`${veoMatchesTable.removedAt} IS NULL`,
+        ),
+      )
+      .limit(1);
+    if (!veoCheck[0]) {
+      res.status(400).json({ error: "Match not found in this league or has been removed." });
+      return;
+    }
+  }
+
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   if (!apiKey) {
@@ -157,10 +537,26 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       .map((c) => `### [${c.docTitle}] ${c.headingPath}\n${c.content}`)
       .join("\n\n---\n\n");
 
+    // Build optional selected-match context block.
+    let matchContextBlock = "";
+    if (ctx) {
+      const block = await buildMatchContextBlock(ctx.leagueId, ctx.veoId);
+      if (!block) {
+        throw new Error("Selected match context could not be built");
+      }
+      matchContextBlock = `\n\n---\n\n${block}`;
+      logger.info(
+        { leagueId: ctx.leagueId, veoId: ctx.veoId },
+        "assistant: match context included",
+      );
+    }
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
+
+    const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${matchContextBlock}`;
 
     const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
       method: "POST",
@@ -170,7 +566,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
         max_completion_tokens: 8192,
         stream: true,
         messages: [
-          { role: "system", content: `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}` },
+          { role: "system", content: systemContent },
           ...messages,
         ],
       }),

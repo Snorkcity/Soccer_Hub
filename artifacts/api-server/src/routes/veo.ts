@@ -8,24 +8,38 @@
 // sibling pattern and .agents/memory/veo-integration.md for the API map.
 import { Router, type IRouter } from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { db, veoMatchesTable, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
+import { createHash } from "node:crypto";
+import { db, veoMatchesTable, veoAnalytics2Table, leaguePlayerStatsTable, playerStatsTable, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
 import {
   defaultVeoCreds,
   listRecordings,
+  listTeams,
   getMatchDetail,
   getEvents,
   getStats,
   getPeriods,
   getRoster,
   getPassDetails,
+  getAnalytics2Bundle,
+  ANALYTICS2_SOURCE_VERSION,
   opponentFromVeoTitle,
   normalizeVeoClub,
   type VeoCredentials,
   type VeoPassDetails,
   type VeoPassDetailPeriod,
+  type Analytics2Bundle,
 } from "../lib/veo";
 import { logger } from "../lib/logger";
 import { getSessionUser, canSeeLeague } from "../middlewares/entryAuth";
+import { parseAnalytics2Bundle, aggregateSeason } from "../lib/veoAnalytics2Parser";
+import {
+  analytics2StatusFromBundle,
+  analytics2NeedsWork,
+  canonicalShirtNumber,
+  mergeAnalytics2Bundles,
+  mergeAnalytics2TerminalSources,
+} from "../lib/veoAnalytics2Store";
+import { GetVeoPlayerMatchQueryParams, GetVeoPlayerSeasonQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -36,6 +50,8 @@ interface LeagueVeo {
   name: string;
   veoClubSlug: string;
   veoTeamSlug: string;
+  // Focus club for identity matching (from leagues.focus_club; fallback "Belconnen").
+  focusClub: string;
 }
 
 async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
@@ -45,13 +61,20 @@ async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
       name: leaguesTable.name,
       veoClubSlug: leaguesTable.veoClubSlug,
       veoTeamSlug: leaguesTable.veoTeamSlug,
+      focusClub: leaguesTable.focusClub,
     })
     .from(leaguesTable)
     .where(eq(leaguesTable.id, leagueId))
     .limit(1);
   const r = rows[0];
   if (!r || !r.veoClubSlug || !r.veoTeamSlug) return null;
-  return { id: r.id, name: r.name, veoClubSlug: r.veoClubSlug, veoTeamSlug: r.veoTeamSlug };
+  return {
+    id: r.id,
+    name: r.name,
+    veoClubSlug: r.veoClubSlug,
+    veoTeamSlug: r.veoTeamSlug,
+    focusClub: r.focusClub ?? "Belconnen",
+  };
 }
 
 // Small concurrency helper so we don't fire 80 requests at once.
@@ -69,7 +92,8 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
 }
 
 // One sync pass for a league: upsert recording metadata, fetch heavy payloads
-// for up to `batch` unfetched matches, then backfill pass/possession analytics.
+// for up to `batch` unfetched matches, then backfill pass/possession analytics,
+// then backfill Analytics 2 player data.
 // Shared by the /entry/veo-sync route and the CLI runner (scripts/veo-sync-cli).
 type VeoSyncError = { error: string; status: number };
 type VeoSyncResult = {
@@ -78,6 +102,12 @@ type VeoSyncResult = {
   fetched: number;
   remaining: number;
   analyticsPending: number;
+  // Analytics 2 (camera-derived player data) queue counts.
+  playerFetched: number;
+  playerRemaining: number;
+  playerPending: number;
+  playerUnavailable: number;
+  // done: true only when BOTH core events queue AND Analytics 2 queue are empty.
   done: boolean;
 };
 
@@ -228,16 +258,227 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
     );
   const analyticsPending = Number(stillPendingRows[0]?.count ?? 0);
 
-  // `remaining` and `done` track only the core events-payload queue (events IS
-  // NULL). Analytics backfill (RAS pipeline) is decoupled: it may stay pending
-  // across many syncs while Veo processes the recording server-side. The client
-  // loops until `done`, then shows the `analyticsPending` advisory separately.
   // Push the basic metrics of any linked game into the Data Entry fields
   // (fills blanks only — hand-typed numbers survive a routine sync).
   try {
     await backfillMatchStatsFromVeo(leagueId);
   } catch (e) {
     logger.warn({ err: e, leagueId }, "veo: match-stat backfill failed (sync itself succeeded)");
+  }
+
+  // ── Analytics 2 backfill ──────────────────────────────────────────────────
+  // Bounded low-concurrency backfill of Analytics 2 player data across ALL
+  // existing non-removed recordings, independent of core events status.
+  // Criteria for a row to be retried:
+  //   - No row yet in veo_analytics2 (missing)
+  //   - Row exists but status in (pending, partial, error)  → retry
+  //   - Row exists with status=complete but source_version != current → re-fetch
+  //   - Row exists with status=unavailable → no-op (terminal)
+  //   - Row exists with status=complete + current version → no-op
+  //
+  // Transient failures must NOT overwrite an existing good raw bundle: we only
+  // update raw/fetched_at when the new fetch has at least one success source.
+  //
+  // Resolve the Veo team UUID (not slug) once per sync — needed for the
+  // cross-match POST body. Uses the first team matching the configured slug.
+  let veoTeamId: string | null = null;
+  try {
+    const teams = await listTeams(creds, mapping.veoClubSlug);
+    const matched = teams.find((t) => t.slug === mapping.veoTeamSlug);
+    veoTeamId = matched?.id ?? null;
+    if (!veoTeamId) logger.warn({ leagueId, slug: mapping.veoTeamSlug }, "veo analytics2: team id not found from slug");
+  } catch (e) {
+    logger.warn({ err: e, leagueId }, "veo analytics2: listTeams failed; skipping Analytics 2 backfill");
+  }
+
+  let playerFetched = 0;
+  let playerPending = 0;
+  let playerUnavailable = 0;
+  let playerRemaining = 0;
+
+  // Gather all non-removed veo match ids for this league.
+  const allMatchRows = await db
+    .select({ veoMatchId: veoMatchesTable.veoMatchId })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`));
+
+  if (veoTeamId && allMatchRows.length > 0) {
+    // Load existing analytics2 rows to determine which need work.
+    const existingA2 = await db
+      .select({
+        veoMatchId: veoAnalytics2Table.veoMatchId,
+        status: veoAnalytics2Table.status,
+        sourceVersion: veoAnalytics2Table.sourceVersion,
+        raw: veoAnalytics2Table.raw,
+        terminalSources: veoAnalytics2Table.terminalSources,
+      })
+      .from(veoAnalytics2Table)
+      .where(eq(veoAnalytics2Table.leagueId, leagueId));
+
+    const a2ByMatchId = new Map(existingA2.map((r) => [r.veoMatchId, r]));
+
+    const needsWork = allMatchRows.filter(({ veoMatchId }) => {
+      const a2 = a2ByMatchId.get(veoMatchId);
+      if (!a2) return true; // missing
+      if (a2.sourceVersion !== ANALYTICS2_SOURCE_VERSION) return true; // version-stale, including old unavailable rows
+      return analytics2NeedsWork(a2.raw, a2.terminalSources);
+    });
+
+    // Count pending/unavailable for the response metrics (before slicing).
+    for (const { veoMatchId } of allMatchRows) {
+      const a2 = a2ByMatchId.get(veoMatchId);
+      if (
+        !a2 ||
+        a2.sourceVersion !== ANALYTICS2_SOURCE_VERSION ||
+        analytics2NeedsWork(a2.raw, a2.terminalSources)
+      ) playerPending++;
+      if (a2?.status === "unavailable") playerUnavailable++;
+    }
+
+    const toFetchA2 = needsWork.slice(0, batch);
+    const nowTs = new Date();
+
+    await mapPool(toFetchA2, 3, async ({ veoMatchId }) => {
+      try {
+        const result = await getAnalytics2Bundle(creds, veoMatchId, veoTeamId!);
+        const hasNewData = Object.keys(result.bundle).length > 0;
+        const existing = a2ByMatchId.get(veoMatchId);
+        const hasExistingRaw = Boolean(existing?.raw && Object.keys(existing.raw).length > 0);
+        const sameVersion = existing?.sourceVersion === ANALYTICS2_SOURCE_VERSION;
+        const attemptTerminalSources = mergeAnalytics2TerminalSources(
+          null,
+          result.bundle,
+          result.sourceErrors,
+        );
+        const attemptNeedsWork = analytics2NeedsWork(result.bundle, attemptTerminalSources);
+
+        // Same-version retries update each successful source independently while
+        // preserving every previously successful source that failed this time.
+        // When the source version changes, keep the old complete/partial bundle
+        // visible until a complete bundle for the new version is available.
+        const canPromoteNewVersion = !attemptNeedsWork;
+        const shouldAdoptAttempt = sameVersion || !hasExistingRaw || canPromoteNewVersion;
+        const shouldWriteRaw = hasNewData && shouldAdoptAttempt;
+        const mergedRaw = shouldAdoptAttempt
+          ? mergeAnalytics2Bundles(sameVersion ? existing?.raw : null, result.bundle)
+          : existing?.raw ?? null;
+        const terminalSources = shouldAdoptAttempt
+          ? mergeAnalytics2TerminalSources(
+              sameVersion ? existing?.terminalSources : null,
+              result.bundle,
+              result.sourceErrors,
+            )
+          : existing?.terminalSources ?? [];
+        const effectiveStatus = analytics2StatusFromBundle(
+          mergedRaw,
+          terminalSources,
+          hasExistingRaw && (existing?.status === "complete" || existing?.status === "partial")
+            ? existing.status
+            : result.status,
+        );
+        const effectiveVersion =
+          !sameVersion && hasExistingRaw && !canPromoteNewVersion
+            ? existing?.sourceVersion ?? null
+            : ANALYTICS2_SOURCE_VERSION;
+        const mergedHash = mergedRaw
+          ? createHash("sha256").update(JSON.stringify(mergedRaw)).digest("hex")
+          : null;
+
+        const upsertValues = {
+          leagueId,
+          veoMatchId,
+          teamId: veoTeamId!,
+          status: effectiveStatus,
+          sourceVersion: effectiveVersion,
+          terminalSources,
+          checkedAt: nowTs,
+          lastError: result.sourceErrors.length > 0
+            ? result.sourceErrors.map((e) => `${e.source}: ${e.error}`).join("; ")
+            : null,
+          ...(shouldWriteRaw
+            ? {
+                raw: mergedRaw,
+                payloadHash: mergedHash,
+                fetchedAt: nowTs,
+              }
+            : existing
+              ? {} // keep existing raw/fetchedAt on complete failure
+              : { raw: null, payloadHash: null, fetchedAt: null }),
+        };
+
+        await db
+          .insert(veoAnalytics2Table)
+          .values(upsertValues)
+          .onConflictDoUpdate({
+            target: [veoAnalytics2Table.leagueId, veoAnalytics2Table.veoMatchId],
+            set: {
+              teamId: veoTeamId!,
+              status: effectiveStatus,
+              sourceVersion: effectiveVersion,
+              terminalSources,
+              checkedAt: nowTs,
+              lastError: upsertValues.lastError,
+              ...(shouldWriteRaw
+                ? {
+                    raw: mergedRaw,
+                    payloadHash: mergedHash,
+                    fetchedAt: nowTs,
+                  }
+                : {}),
+            },
+          });
+
+        playerFetched++;
+        logger.debug(
+          { leagueId, veoMatchId, attemptStatus: result.status, storedStatus: effectiveStatus },
+          "veo analytics2: bundle stored",
+        );
+      } catch (e) {
+        logger.warn({ err: e, veoMatchId }, "veo analytics2: bundle fetch failed; will retry next sync");
+      }
+    });
+  }
+
+  // Recount against both status and source version after backfill. A complete
+  // old-version row remains usable as last-good data, but it is still actionable
+  // work and must not make the client report the upgrade as finished.
+  const finalA2Rows = await db
+    .select({
+      veoMatchId: veoAnalytics2Table.veoMatchId,
+      status: veoAnalytics2Table.status,
+      sourceVersion: veoAnalytics2Table.sourceVersion,
+      raw: veoAnalytics2Table.raw,
+      terminalSources: veoAnalytics2Table.terminalSources,
+    })
+    .from(veoAnalytics2Table)
+    .where(eq(veoAnalytics2Table.leagueId, leagueId));
+
+  const finalA2ByMatchId = new Map(finalA2Rows.map((row) => [row.veoMatchId, row]));
+  const totalNonRemoved = allMatchRows.length;
+  let a2Complete = 0;
+  let a2Unavailable = 0;
+  for (const { veoMatchId } of allMatchRows) {
+    const row = finalA2ByMatchId.get(veoMatchId);
+    if (row?.sourceVersion !== ANALYTICS2_SOURCE_VERSION) continue;
+    if (analytics2NeedsWork(row.raw, row.terminalSources)) continue;
+    if (row.status === "unavailable") a2Unavailable++;
+    else a2Complete++;
+  }
+
+  // playerUnavailable: terminal rows — no longer actionable.
+  // playerRemaining: rows that still need work (total minus complete minus
+  //   unavailable). Unavailable rows do NOT count against done — they are
+  //   terminal and the client should not loop waiting for them.
+  // playerPending: same as playerRemaining (work left to do).
+  playerUnavailable = a2Unavailable;
+  playerRemaining = Math.max(0, totalNonRemoved - a2Complete - a2Unavailable);
+  playerPending = playerRemaining;
+
+  // When team UUID resolution fails we have no A2 data at all; treat all
+  // non-removed matches as remaining so done never returns true prematurely.
+  if (!veoTeamId) {
+    playerRemaining = totalNonRemoved;
+    playerPending = totalNonRemoved;
   }
 
   const remaining = Math.max(0, pending.length - fetched);
@@ -247,9 +488,13 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
     fetched,
     remaining,
     analyticsPending,
-    // Only "done" when the core events queue is empty AND nothing failed this
-    // pass — failed matches stay pending and should be retried, not dropped.
-    done: remaining === 0 && failed === 0,
+    playerFetched,
+    playerRemaining,
+    playerPending,
+    playerUnavailable,
+    // done: true when BOTH core events queue AND Analytics 2 queue are empty.
+    // Unavailable rows are terminal and do not block done.
+    done: remaining === 0 && failed === 0 && playerRemaining === 0,
   };
 }
 
@@ -1287,6 +1532,298 @@ function computeReportStats(events: unknown[], periods: unknown) {
 
   return { shots: { us: shotsUs, them: shotsThem }, momentum };
 }
+
+// ── Analytics 2 identity helpers ─────────────────────────────────────────────
+// Match jersey number → Hub player via league_player_stats for a given match.
+// Returns the exact match-scoped display name plus a durable official player ID
+// when player_stats can identify one unique person. Never uses GPS identities.
+// Uses leagues.focus_club to scope to the right club; documented here per spec.
+async function resolveHubIdentity(
+  leagueId: number,
+  veoMatchId: string,
+  jerseyNumber: number | null,
+  focusClub: string,
+): Promise<{ hubPlayerId: number | null; hubPlayerName: string | null; identityStatus: "resolved" | "unresolved" | "ambiguous" }> {
+  if (jerseyNumber == null) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
+
+  // Find the veo_matches row to get the linked matches.id (→ matchId + seasonId).
+  const veoRow = await db
+    .select({
+      matchId: veoMatchesTable.matchId,
+    })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.veoMatchId, veoMatchId)))
+    .limit(1);
+
+  const hubMatchId = veoRow[0]?.matchId;
+  if (hubMatchId == null) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
+
+  // Resolve matches.match_id + season_id from the linked matches row.
+  const matchRow = await db
+    .select({ matchId: matchesTable.matchId, seasonId: matchesTable.seasonId })
+    .from(matchesTable)
+    .where(eq(matchesTable.id, hubMatchId))
+    .limit(1);
+
+  if (!matchRow[0]) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
+  const { matchId: hubMatchCode, seasonId } = matchRow[0];
+
+  // Join league_player_stats with exact seasonId+matchId+club+shirtNumber.
+  // club = leagues.focus_club (shared response convention — documented here).
+  const candidates = await db
+    .select({
+      playerName: leaguePlayerStatsTable.playerName,
+      shirtNumber: leaguePlayerStatsTable.shirtNumber,
+    })
+    .from(leaguePlayerStatsTable)
+    .where(
+      and(
+        eq(leaguePlayerStatsTable.seasonId, seasonId),
+        eq(leaguePlayerStatsTable.matchId, hubMatchCode),
+        eq(leaguePlayerStatsTable.club, focusClub),
+      ),
+    );
+
+  const targetShirt = canonicalShirtNumber(jerseyNumber);
+  const uniqueCandidates = new Map<string, string>();
+  for (const candidate of candidates) {
+    if (canonicalShirtNumber(candidate.shirtNumber) !== targetShirt) continue;
+    const displayName = candidate.playerName.trim();
+    if (!displayName) continue;
+    uniqueCandidates.set(displayName.toLowerCase().replace(/\s+/g, " "), displayName);
+  }
+  if (uniqueCandidates.size === 1) {
+    const hubPlayerName = [...uniqueCandidates.values()][0];
+    const durableRows = await db
+      .select({ playerId: playerStatsTable.playerId })
+      .from(playerStatsTable)
+      .where(
+        and(
+          eq(playerStatsTable.matchId, hubMatchId),
+          eq(playerStatsTable.club, focusClub),
+          eq(playerStatsTable.playerName, hubPlayerName),
+        ),
+      );
+    const durableIds = new Set(durableRows.map((row) => row.playerId));
+    return {
+      hubPlayerId: durableIds.size === 1 ? [...durableIds][0] : null,
+      hubPlayerName,
+      identityStatus: "resolved",
+    };
+  }
+  if (uniqueCandidates.size > 1) {
+    return { hubPlayerId: null, hubPlayerName: null, identityStatus: "ambiguous" };
+  }
+  return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
+}
+
+// GET /veo/player-match?leagueId=&veoId= — Analytics 2 player metrics for one match.
+// veoId = veo_matches.id (the DB row id, not the Veo UUID).
+// Enforce league access via central middleware check + row leagueId check.
+router.get("/veo/player-match", async (req, res): Promise<void> => {
+  const queryParse = GetVeoPlayerMatchQueryParams.safeParse(req.query);
+  if (!queryParse.success) {
+    res.status(400).json({ error: queryParse.error.message });
+    return;
+  }
+  const { leagueId, veoId } = queryParse.data;
+
+  // League access check.
+  const user = await getSessionUser(req);
+  if (!user) { res.status(401).json({ error: "Not signed in" }); return; }
+  if (!canSeeLeague(user, leagueId)) { res.status(403).json({ error: "Access denied" }); return; }
+
+  // Fetch veo_matches row (authoritative leagueId row-check).
+  const veoMatchRow = await db
+    .select({
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+    })
+    .from(veoMatchesTable)
+    .where(
+      and(
+        eq(veoMatchesTable.id, veoId),
+        eq(veoMatchesTable.leagueId, leagueId),
+        sql`${veoMatchesTable.removedAt} IS NULL`,
+      ),
+    )
+    .limit(1);
+
+  if (!veoMatchRow[0]) { res.status(404).json({ error: "Veo match not found in this league" }); return; }
+  const { veoMatchId, title, opponent, startsAt } = veoMatchRow[0];
+
+  // Fetch Analytics 2 row.
+  const a2Rows = await db
+    .select()
+    .from(veoAnalytics2Table)
+    .where(and(eq(veoAnalytics2Table.leagueId, leagueId), eq(veoAnalytics2Table.veoMatchId, veoMatchId)))
+    .limit(1);
+
+  const a2Row = a2Rows[0];
+  if (!a2Row?.raw) {
+    res.json({
+      veoId,
+      veoMatchId,
+      title,
+      opponent,
+      startsAt,
+      status: a2Row?.status ?? "pending",
+      players: [],
+      coverage: { hasCrossMatch: false, hasPhysicalMetrics: false, hasMesEvents: false, hasJerseyNumbers: false, fetchedAt: null },
+    });
+    return;
+  }
+
+  // Resolve focus club for identity enrichment.
+  const leagueRow = await db
+    .select({ focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const focusClub = leagueRow[0]?.focusClub ?? "Belconnen";
+
+  const parsed = parseAnalytics2Bundle(
+    a2Row.raw as Analytics2Bundle | null,
+    a2Row.fetchedAt?.toISOString() ?? null,
+  );
+
+  // Enrich each player with Hub identity.
+  const enrichedPlayers = await Promise.all(
+    parsed.players.map(async (p) => {
+      const { hubPlayerId, hubPlayerName, identityStatus } = await resolveHubIdentity(
+        leagueId, veoMatchId, p.identity.jerseyNumber, focusClub,
+      );
+      return {
+        ...p,
+        identity: { ...p.identity, hubPlayerId, hubPlayerName, identityStatus },
+      };
+    }),
+  );
+
+  res.json({
+    veoId,
+    veoMatchId,
+    title,
+    opponent,
+    startsAt,
+    status: a2Row.status,
+    players: enrichedPlayers,
+    coverage: parsed.coverage,
+  });
+});
+
+// GET /veo/player-season?leagueId= — Analytics 2 season aggregates across all
+// synced recordings with available Analytics 2 data.
+// Identity enrichment is applied PER MATCH PLAYER before aggregation so that
+// the season grouping key correctly uses Hub identity from each match's data.
+router.get("/veo/player-season", async (req, res): Promise<void> => {
+  const queryParse = GetVeoPlayerSeasonQueryParams.safeParse(req.query);
+  if (!queryParse.success) {
+    res.status(400).json({ error: queryParse.error.message });
+    return;
+  }
+  const { leagueId } = queryParse.data;
+
+  const user = await getSessionUser(req);
+  if (!user) { res.status(401).json({ error: "Not signed in" }); return; }
+  if (!canSeeLeague(user, leagueId)) { res.status(403).json({ error: "Access denied" }); return; }
+
+  // Resolve focus club.
+  const leagueRow = await db
+    .select({ focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const focusClub = leagueRow[0]?.focusClub ?? "Belconnen";
+
+  // Fetch all non-removed veo_matches with their Analytics 2 bundles.
+  const matchRows = await db
+    .select({
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+    })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
+    .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
+
+  const a2Rows = await db
+    .select({
+      veoMatchId: veoAnalytics2Table.veoMatchId,
+      status: veoAnalytics2Table.status,
+      raw: veoAnalytics2Table.raw,
+      fetchedAt: veoAnalytics2Table.fetchedAt,
+    })
+    .from(veoAnalytics2Table)
+    .where(eq(veoAnalytics2Table.leagueId, leagueId));
+
+  const a2ByMatch = new Map(a2Rows.map((r) => [r.veoMatchId, r]));
+
+  // Parse bundles and enrich EACH match's players with Hub identity BEFORE
+  // aggregation. This is critical: aggregation grouping key uses resolved Hub
+  // identity, so enrichment must happen per-match, not per aggregated row.
+  const matchRecords = await Promise.all(
+    matchRows.map(async (m) => {
+      const a2 = a2ByMatch.get(m.veoMatchId);
+      const available = a2?.status === "complete" || a2?.status === "partial";
+
+      if (!available) {
+        return {
+          veoMatchId: m.veoMatchId,
+          opponent: m.opponent,
+          startsAt: m.startsAt,
+          title: m.title,
+          players: [],
+          available: false,
+        };
+      }
+
+      const parsed = parseAnalytics2Bundle(
+        a2!.raw as Analytics2Bundle | null,
+        a2!.fetchedAt?.toISOString() ?? null,
+      );
+
+      // Enrich each player with Hub identity for this specific match.
+      const enrichedPlayers = await Promise.all(
+        parsed.players.map(async (p) => {
+          const { hubPlayerId, hubPlayerName, identityStatus } = await resolveHubIdentity(
+            leagueId, m.veoMatchId, p.identity.jerseyNumber, focusClub,
+          );
+          return {
+            ...p,
+            identity: { ...p.identity, hubPlayerId, hubPlayerName, identityStatus },
+          };
+        }),
+      );
+
+      return {
+        veoMatchId: m.veoMatchId,
+        opponent: m.opponent,
+        startsAt: m.startsAt,
+        title: m.title,
+        players: enrichedPlayers,
+        available: true,
+      };
+    }),
+  );
+
+  // Aggregate across matches (players are already enriched).
+  const aggregated = aggregateSeason(matchRecords);
+
+  // Coverage summary: how many matches have Analytics 2 data.
+  const coverageCount = matchRecords.filter((m) => m.available).length;
+  const totalCount = matchRecords.length;
+
+  res.json({
+    leagueId,
+    coverageCount,
+    totalCount,
+    players: aggregated,
+  });
+});
 
 // GET /veo/report-stats?leagueId=&matchRowId= — { linked:false } when no link.
 router.get("/veo/report-stats", async (req, res) => {

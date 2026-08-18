@@ -145,6 +145,53 @@ async function login(creds: VeoCredentials): Promise<string> {
   return tok.access_token;
 }
 
+async function apiPost<T>(creds: VeoCredentials, path: string, body: unknown): Promise<T> {
+  const token = await login(creds);
+  const res = await fetch(`${APP_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    tokenCache.delete(creds.email);
+    const fresh = await login(creds);
+    const retry = await fetch(`${APP_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${fresh}`,
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!retry.ok) throw new Error(`Veo POST ${path} → ${retry.status}`);
+    return (await retry.json()) as T;
+  }
+  if (!res.ok) throw new Error(`Veo POST ${path} → ${res.status}`);
+  return (await res.json()) as T;
+}
+
+// Fetch an absolute URL against the MES (physical metrics) service.
+// Uses the same bearer token. Returns raw Response.
+async function mesFetch(creds: VeoCredentials, url: string): Promise<Response> {
+  const token = await login(creds);
+  const res = await fetch(url, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+  });
+  if (res.status === 401) {
+    tokenCache.delete(creds.email);
+    const fresh = await login(creds);
+    return fetch(url, {
+      headers: { authorization: `Bearer ${fresh}`, accept: "application/json" },
+    });
+  }
+  return res;
+}
+
 async function apiGet<T>(creds: VeoCredentials, path: string): Promise<T> {
   const token = await login(creds);
   const res = await fetch(`${APP_BASE}${path}`, {
@@ -416,6 +463,257 @@ export function opponentFromVeoTitle(title: string | null | undefined): string |
 // Raw GET against the Veo app API (for exploratory scripts / future endpoints).
 export function veoApiGet<T = unknown>(creds: VeoCredentials, path: string): Promise<T> {
   return apiGet<T>(creds, path);
+}
+
+// ── Analytics 2 (camera-derived player data) ─────────────────────────────────
+// MES base: physical metrics + player tracking + expanded events.
+// IMPORTANT: Analytics 2 is camera-derived — must NEVER touch GPS tables/routes.
+const MES_BASE = "https://app.veo.co/api/mes/v2";
+
+// Current bundle version — bump when the set of sources changes so stale rows
+// are detected and re-fetched by the backfill pass.
+export const ANALYTICS2_SOURCE_VERSION = "1";
+
+// ── Exact response shapes from live Veo API probes (Aug 2026) ─────────────────
+
+// POST /analysis/stats/ → { items: CrossMatchPlayerRow[] }
+// Each row is one player/jersey; stats[] items are beta-shaped {type,value,unit}.
+export interface CrossMatchStatEntry {
+  type: string;
+  value: number | null;
+  unit: string | null;
+}
+export interface CrossMatchPlayerRow {
+  // Roster identity — live API fields confirmed Aug 2026. No player_name field.
+  // known_name is the display name (may be absent for unlinked jerseys).
+  player_id?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  known_name?: string | null;
+  jersey_number?: number | null;
+  // Stats array — each entry is one metric.
+  stats?: CrossMatchStatEntry[];
+  // Extra beta fields may appear; preserve them.
+  [key: string]: unknown;
+}
+export interface CrossMatchPlayerResponse {
+  items?: CrossMatchPlayerRow[];
+  [key: string]: unknown;
+}
+
+// GET /mes/v2/{matchId}/physical-metrics → PhysicalMetricRow[]
+// (array at top level, not wrapped)
+export interface PhysicalMetricRow {
+  id?: string | null;
+  matchId?: string | null;
+  teamId?: string | null;
+  // Numeric jersey number in physical metrics (differs from MES events which use string).
+  jerseyNumber?: number | null;
+  // drill identifies the period/segment (e.g. "1st half", "2nd half", "full match").
+  drill?: string | null;
+  distance?: number | null;       // metres
+  secondsPlayed?: number | null;
+  maxSpeed?: number | null;       // km/h
+  averageSpeed?: number | null;   // km/h
+  maxAccel?: number | null;
+  maxDecel?: number | null;
+  sprints?: number | null;
+  hsr?: number | null;            // high-speed runs
+  [key: string]: unknown;
+}
+
+// GET /mes/v2/{matchId}/match-events → { events: MesEventRow[] }
+// team field can be "Own", "Opponent", "Opp", or any future value — always
+// handle defensively. isOwnTeam() normalises all of these.
+export interface MesEventRow {
+  id?: string | null;
+  matchId?: string | null;
+  team?: string | null;          // "Own" | "Opponent" | "Opp" | unknown
+  eventType?: string | null;
+  videoTimeMs?: number | null;
+  periodId?: number | null;
+  periodTimeMs?: number | null;
+  outcome?: string | null;
+  x?: number | null;
+  z?: number | null;
+  attributes?: unknown;
+  modifiedAt?: string | null;
+  createdAt?: string | null;
+  playerJersey?: string | null;  // string in MES events (may be "7", "07", etc.)
+  [key: string]: unknown;
+}
+export interface MesMatchEventsResponse {
+  events?: MesEventRow[];
+  [key: string]: unknown;
+}
+
+// Normalise MES/app team strings to a boolean own-team flag.
+// Veo uses "Own" in /matches/{id}/events/ and variations in MES endpoints;
+// handle all known variants defensively so future renames don't silently flip.
+export function isOwnTeam(team: string | null | undefined): boolean {
+  if (!team) return false;
+  const t = team.trim().toLowerCase();
+  // "Own" is the canonical app-API value; "Opponent"/"Opp" mean opposition.
+  // Anything else (empty, unknown future values) is treated as NOT own-team.
+  return t === "own";
+}
+
+// The bundle stored in veo_analytics2.raw: one key per source.
+export interface Analytics2Bundle {
+  crossMatchPlayer?: CrossMatchPlayerResponse;
+  physicalMetrics?: PhysicalMetricRow[];
+  matchEvents?: MesMatchEventsResponse;
+  jerseyNumbers?: unknown;
+}
+
+// Per-source error details returned from getAnalytics2Bundle.
+export interface Analytics2SourceError {
+  source: keyof Analytics2Bundle;
+  error: string;
+  terminal: boolean;
+}
+
+// Result of a bundle fetch attempt — always returns what succeeded.
+export interface Analytics2FetchResult {
+  bundle: Analytics2Bundle;
+  sourceErrors: Analytics2SourceError[];
+  // partial: at least one source succeeded and at least one failed
+  status: "complete" | "partial" | "unavailable" | "error";
+}
+
+// Fetch the Analytics 2 bundle for a single match. All sources are tried
+// independently; partial results are returned rather than throwing.
+// teamId must be the Veo team UUID (not slug), resolved once per sync via
+// listTeams. jerseyNumbers requires period timeframes from the match's periods
+// endpoint. Never fetches frame-level player-tracking.
+export async function getAnalytics2Bundle(
+  creds: VeoCredentials,
+  matchId: string,
+  teamId: string,
+): Promise<Analytics2FetchResult> {
+  const bundle: Analytics2Bundle = {};
+  const sourceErrors: Analytics2SourceError[] = [];
+
+  // 1. Cross-match player summary: POST /analysis/stats/
+  //    Returns { items: CrossMatchPlayerRow[] } — one row per detected player/jersey.
+  try {
+    const crossResult = await apiPost<CrossMatchPlayerResponse>(creds, "/analysis/stats/", {
+      type: "cross_match",
+      team_id: teamId,
+      match_ids: [matchId],
+      group_by: "player",
+    });
+    bundle.crossMatchPlayer = crossResult;
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    sourceErrors.push({ source: "crossMatchPlayer", error, terminal: /\b404\b/.test(error) });
+    logger.warn({ err: e, matchId }, "veo analytics2: crossMatchPlayer fetch failed");
+  }
+
+  // 2. Physical metrics: GET /mes/v2/{matchId}/physical-metrics
+  //    Returns a top-level array (not wrapped): PhysicalMetricRow[].
+  //    Keys: id,matchId,teamId,jerseyNumber(number),drill,distance,secondsPlayed,
+  //          maxSpeed,averageSpeed,maxAccel,maxDecel,sprints,hsr.
+  try {
+    const physRes = await mesFetch(creds, `${MES_BASE}/${matchId}/physical-metrics`);
+    if (physRes.ok) {
+      const raw = await physRes.json();
+      // Normalise: accept both top-level array and a wrapped shape for resilience.
+      bundle.physicalMetrics = Array.isArray(raw) ? raw : (raw as { data?: unknown[] }).data ?? [];
+    } else if (physRes.status === 404) {
+      // 404 is terminal for this match — not retryable
+      sourceErrors.push({ source: "physicalMetrics", error: `HTTP 404`, terminal: true });
+    } else {
+      throw new Error(`HTTP ${physRes.status}`);
+    }
+  } catch (e) {
+    sourceErrors.push({ source: "physicalMetrics", error: e instanceof Error ? e.message : String(e), terminal: false });
+    logger.warn({ err: e, matchId }, "veo analytics2: physicalMetrics fetch failed");
+  }
+
+  // 3. Expanded match events: GET /mes/v2/{matchId}/match-events
+  //    Returns { events: MesEventRow[] }.
+  //    Keys: id,matchId,team,eventType,videoTimeMs,periodId,periodTimeMs,
+  //          outcome,x,z,attributes,modifiedAt,createdAt,playerJersey(string).
+  //    team = "Own" | "Opponent" — use isOwnTeam() to normalise.
+  try {
+    const evtRes = await mesFetch(creds, `${MES_BASE}/${matchId}/match-events`);
+    if (evtRes.ok) {
+      bundle.matchEvents = (await evtRes.json()) as MesMatchEventsResponse;
+    } else if (evtRes.status === 404) {
+      sourceErrors.push({ source: "matchEvents", error: `HTTP 404`, terminal: true });
+    } else {
+      throw new Error(`HTTP ${evtRes.status}`);
+    }
+  } catch (e) {
+    sourceErrors.push({ source: "matchEvents", error: e instanceof Error ? e.message : String(e), terminal: false });
+    logger.warn({ err: e, matchId }, "veo analytics2: matchEvents fetch failed");
+  }
+
+  // 4. Jersey numbers by period: GET /mes/v2/{matchId}/player-tracking/jersey-numbers
+  //    Requires period timeframe pairs (start,end seconds) from /matches/{matchId}/periods/.
+  //    Never fetches frame-level tracking (/player-tracking?start=...).
+  //
+  //    If the periods endpoint returns no valid timeframes yet (recording not fully
+  //    processed), this counts as a pending error so the row stays in a retryable
+  //    state — we never mark the bundle complete without at least attempting jersey
+  //    numbers when periods are expected to exist.
+  try {
+    const periods = await apiGet<Array<{ timeframe?: [number, number] }>>(creds, `/matches/${matchId}/periods/`);
+    const validPeriods = periods.filter((p) => Array.isArray(p.timeframe) && p.timeframe.length === 2);
+    if (validPeriods.length > 0) {
+      // Each period becomes a repeated `periods=start,end` param.
+      const periodsParam = validPeriods.map((p) => `periods=${p.timeframe![0]},${p.timeframe![1]}`).join("&");
+      const jnRes = await mesFetch(
+        creds,
+        `${MES_BASE}/${matchId}/player-tracking/jersey-numbers?${periodsParam}`,
+      );
+      if (jnRes.ok) {
+        bundle.jerseyNumbers = await jnRes.json();
+      } else if (jnRes.status === 404) {
+        // 404 from jersey-numbers is terminal for this source (camera tracking
+        // not available for this match), but other sources may have succeeded.
+        sourceErrors.push({ source: "jerseyNumbers", error: `HTTP 404`, terminal: true });
+      } else {
+        throw new Error(`HTTP ${jnRes.status}`);
+      }
+    } else if (Array.isArray(periods) && periods.length > 0) {
+      // Periods exist but none have valid timeframes yet → recording still
+      // processing. Record a transient error so this row stays partial/error
+      // and is retried next sync rather than silently becoming "complete".
+      sourceErrors.push({ source: "jerseyNumbers", error: "periods exist but no valid timeframes yet", terminal: false });
+      logger.debug({ matchId }, "veo analytics2: periods missing timeframes; will retry");
+    } else {
+      // No periods means this recording has no usable timeframe for shirt
+      // tracking. Other player sources can still make the bundle useful.
+      sourceErrors.push({ source: "jerseyNumbers", error: "no periods available", terminal: true });
+    }
+  } catch (e) {
+    sourceErrors.push({ source: "jerseyNumbers", error: e instanceof Error ? e.message : String(e), terminal: false });
+    logger.warn({ err: e, matchId }, "veo analytics2: jerseyNumbers fetch failed");
+  }
+
+  const successCount = [bundle.crossMatchPlayer, bundle.physicalMetrics, bundle.matchEvents, bundle.jerseyNumbers]
+    .filter((v) => v !== undefined).length;
+  const errorCount = sourceErrors.length;
+
+  let status: Analytics2FetchResult["status"];
+  if (successCount === 0) {
+    // All sources failed: terminal only if every failure was a 404 (content
+    // genuinely absent), otherwise transient error (should retry).
+    status = errorCount > 0 && sourceErrors.every((e) => e.terminal)
+      ? "unavailable"
+      : "error";
+  } else if (errorCount > 0) {
+    // At least one source succeeded and at least one failed → partial.
+    // The 404s here are source-level (e.g. jersey tracking unavailable) but
+    // other sources have data, so this is NOT terminal.
+    status = "partial";
+  } else {
+    status = "complete";
+  }
+
+  return { bundle, sourceErrors, status };
 }
 
 // Default credentials from environment secrets.

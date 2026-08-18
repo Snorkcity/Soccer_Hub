@@ -517,6 +517,34 @@ export async function runStartupMigrations(): Promise<void> {
   await syncJournalEntries();
   await backfillSavedNames();
 
+  // ── Analytics 2 (camera-derived Veo player data, 2026-08) ─────────────────
+  // Separate table — never touches GPS tables or routes. One row per
+  // league + Veo match UUID. Idempotent: IF NOT EXISTS + conditional index.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS veo_analytics2 (
+      id              serial PRIMARY KEY,
+      league_id       integer NOT NULL REFERENCES leagues(id),
+      veo_match_id    text    NOT NULL,
+      team_id         text,
+      status          text    NOT NULL DEFAULT 'pending',
+      source_version  text,
+      raw             jsonb,
+      terminal_sources jsonb NOT NULL DEFAULT '[]'::jsonb,
+      payload_hash    text,
+      checked_at      timestamptz,
+      fetched_at      timestamptz,
+      last_error      text
+    )
+  `);
+  await db.execute(sql`
+    ALTER TABLE veo_analytics2
+      ADD COLUMN IF NOT EXISTS terminal_sources jsonb NOT NULL DEFAULT '[]'::jsonb
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS veo_analytics2_league_match_idx
+      ON veo_analytics2 (league_id, veo_match_id)
+  `);
+
   logger.info("Startup migrations applied");
 }
 

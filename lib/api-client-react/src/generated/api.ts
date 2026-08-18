@@ -109,6 +109,8 @@ import type {
   GetTeamFormParams,
   GetUnitBreakdownParams,
   GetVeoMatchParams,
+  GetVeoPlayerMatchParams,
+  GetVeoPlayerSeasonParams,
   GetVeoReportStatsParams,
   GetVeoSeason200,
   GetVeoSeasonParams,
@@ -258,6 +260,8 @@ import type {
   VeoAutoLinkResult,
   VeoLinksResponse,
   VeoMatchDetail,
+  VeoPlayerMatchResponse,
+  VeoPlayerSeasonResponse,
   VeoRefetchInput,
   VeoRemoveInput,
   VeoReportStats,
@@ -13107,6 +13111,174 @@ export const useVeoRemoveMatch = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getVeoRemoveMatchMutationOptions(options));
     }
+
+export const getGetVeoPlayerMatchUrl = (params: GetVeoPlayerMatchParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/player-match?${stringifiedParams}` : `/api/veo/player-match`
+}
+
+/**
+ * @summary Analytics 2 player metrics for one Veo match (camera-derived, not GPS)
+ */
+export const getVeoPlayerMatch = async (params: GetVeoPlayerMatchParams, options?: RequestInit): Promise<VeoPlayerMatchResponse> => {
+
+  return customFetch<VeoPlayerMatchResponse>(getGetVeoPlayerMatchUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoPlayerMatchQueryKey = (params?: GetVeoPlayerMatchParams,) => {
+    return [
+    `/api/veo/player-match`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoPlayerMatchQueryOptions = <TData = Awaited<ReturnType<typeof getVeoPlayerMatch>>, TError = ErrorType<void>>(params: GetVeoPlayerMatchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoPlayerMatchQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoPlayerMatch>>> = ({ signal }) => getVeoPlayerMatch(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerMatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoPlayerMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoPlayerMatch>>>
+export type GetVeoPlayerMatchQueryError = ErrorType<void>
+
+
+/**
+ * @summary Analytics 2 player metrics for one Veo match (camera-derived, not GPS)
+ */
+
+export function useGetVeoPlayerMatch<TData = Awaited<ReturnType<typeof getVeoPlayerMatch>>, TError = ErrorType<void>>(
+ params: GetVeoPlayerMatchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerMatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoPlayerMatchQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVeoPlayerSeasonUrl = (params: GetVeoPlayerSeasonParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/player-season?${stringifiedParams}` : `/api/veo/player-season`
+}
+
+/**
+ * @summary Analytics 2 season aggregates across all synced recordings (camera-derived, not GPS)
+ */
+export const getVeoPlayerSeason = async (params: GetVeoPlayerSeasonParams, options?: RequestInit): Promise<VeoPlayerSeasonResponse> => {
+
+  return customFetch<VeoPlayerSeasonResponse>(getGetVeoPlayerSeasonUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoPlayerSeasonQueryKey = (params?: GetVeoPlayerSeasonParams,) => {
+    return [
+    `/api/veo/player-season`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoPlayerSeasonQueryOptions = <TData = Awaited<ReturnType<typeof getVeoPlayerSeason>>, TError = ErrorType<void>>(params: GetVeoPlayerSeasonParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerSeason>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoPlayerSeasonQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoPlayerSeason>>> = ({ signal }) => getVeoPlayerSeason(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerSeason>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoPlayerSeasonQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoPlayerSeason>>>
+export type GetVeoPlayerSeasonQueryError = ErrorType<void>
+
+
+/**
+ * @summary Analytics 2 season aggregates across all synced recordings (camera-derived, not GPS)
+ */
+
+export function useGetVeoPlayerSeason<TData = Awaited<ReturnType<typeof getVeoPlayerSeason>>, TError = ErrorType<void>>(
+ params: GetVeoPlayerSeasonParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoPlayerSeason>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoPlayerSeasonQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVeoReportStatsUrl = (params: GetVeoReportStatsParams,) => {
   const normalizedParams = new URLSearchParams();

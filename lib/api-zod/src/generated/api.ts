@@ -4725,6 +4725,10 @@ export const VeoSyncResponse = zod.object({
   "fetched": zod.number(),
   "remaining": zod.number(),
   "analyticsPending": zod.number(),
+  "playerFetched": zod.number(),
+  "playerRemaining": zod.number(),
+  "playerPending": zod.number(),
+  "playerUnavailable": zod.number(),
   "done": zod.boolean()
 })
 
@@ -5000,6 +5004,185 @@ export const VeoRemoveMatchBody = zod.object({
 
 export const VeoRemoveMatchResponse = zod.object({
   "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Analytics 2 player metrics for one Veo match (camera-derived, not GPS)
+ */
+export const GetVeoPlayerMatchQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "veoId": zod.coerce.number().describe('veo_matches.id (DB row id, not Veo UUID)')
+})
+
+export const GetVeoPlayerMatchResponse = zod.object({
+  "veoId": zod.number(),
+  "veoMatchId": zod.string(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "status": zod.enum(['complete', 'partial', 'pending', 'unavailable', 'error']),
+  "players": zod.array(zod.object({
+  "identityKey": zod.string(),
+  "identity": zod.object({
+  "veoPlayerId": zod.string().nullish(),
+  "jerseyNumber": zod.number().nullish(),
+  "veoPlayerName": zod.string().nullish(),
+  "hubPlayerId": zod.number().nullish(),
+  "hubPlayerName": zod.string().nullish(),
+  "identityStatus": zod.enum(['resolved', 'unresolved', 'ambiguous'])
+}),
+  "metrics": zod.object({
+  "matches": zod.number().nullish(),
+  "starts": zod.number().nullish(),
+  "minutesPlayed": zod.number().nullish(),
+  "secondsPlayed": zod.number().nullish(),
+  "distanceMetres": zod.number().nullish(),
+  "avgSpeedKmh": zod.number().nullish(),
+  "topSpeedKmh": zod.number().nullish(),
+  "sprints": zod.number().nullish(),
+  "hir": zod.number().nullish(),
+  "goals": zod.number().nullish(),
+  "assists": zod.number().nullish(),
+  "involvements": zod.number().nullish(),
+  "shots": zod.number().nullish(),
+  "attempts": zod.number().nullish(),
+  "conversion": zod.number().nullish(),
+  "passes": zod.number().nullish(),
+  "passesSuccessful": zod.number().nullish(),
+  "passesUnsuccessful": zod.number().nullish(),
+  "passSuccess": zod.number().nullish(),
+  "tackles": zod.number().nullish(),
+  "dribbles": zod.number().nullish(),
+  "interceptions": zod.number().nullish(),
+  "looseRecoveries": zod.number().nullish(),
+  "saves": zod.number().nullish(),
+  "corners": zod.number().nullish(),
+  "freeKicks": zod.number().nullish(),
+  "throwIns": zod.number().nullish(),
+  "fouls": zod.number().nullish(),
+  "penalties": zod.number().nullish(),
+  "goalKicks": zod.number().nullish()
+}).describe('Stable camera-derived player metrics. null = not available (never zero-filled).'),
+  "unknownMetrics": zod.record(zod.string(), zod.unknown()).describe('Beta fields from Veo not yet mapped to stable metrics'),
+  "eventTimeline": zod.array(zod.object({
+  "eventType": zod.string(),
+  "videoTimeMs": zod.number().nullish(),
+  "periodId": zod.number().nullish(),
+  "periodTimeMs": zod.number().nullish(),
+  "outcome": zod.string().nullish(),
+  "x": zod.number().nullish(),
+  "z": zod.number().nullish(),
+  "jerseyNumber": zod.string().nullish(),
+  "isOwn": zod.boolean()
+}))
+})),
+  "coverage": zod.object({
+  "hasCrossMatch": zod.boolean(),
+  "hasPhysicalMetrics": zod.boolean(),
+  "hasMesEvents": zod.boolean(),
+  "hasJerseyNumbers": zod.boolean(),
+  "fetchedAt": zod.string().nullish()
+})
+})
+
+
+/**
+ * @summary Analytics 2 season aggregates across all synced recordings (camera-derived, not GPS)
+ */
+export const GetVeoPlayerSeasonQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoPlayerSeasonResponse = zod.object({
+  "leagueId": zod.number(),
+  "coverageCount": zod.number(),
+  "totalCount": zod.number(),
+  "players": zod.array(zod.object({
+  "identityKey": zod.string(),
+  "identity": zod.object({
+  "veoPlayerId": zod.string().nullish(),
+  "jerseyNumber": zod.number().nullish(),
+  "veoPlayerName": zod.string().nullish(),
+  "hubPlayerId": zod.number().nullish(),
+  "hubPlayerName": zod.string().nullish(),
+  "identityStatus": zod.enum(['resolved', 'unresolved', 'ambiguous'])
+}),
+  "totals": zod.object({
+  "matches": zod.number().nullish(),
+  "starts": zod.number().nullish(),
+  "minutesPlayed": zod.number().nullish(),
+  "secondsPlayed": zod.number().nullish(),
+  "distanceMetres": zod.number().nullish(),
+  "avgSpeedKmh": zod.number().nullish(),
+  "topSpeedKmh": zod.number().nullish(),
+  "sprints": zod.number().nullish(),
+  "hir": zod.number().nullish(),
+  "goals": zod.number().nullish(),
+  "assists": zod.number().nullish(),
+  "involvements": zod.number().nullish(),
+  "shots": zod.number().nullish(),
+  "attempts": zod.number().nullish(),
+  "conversion": zod.number().nullish(),
+  "passes": zod.number().nullish(),
+  "passesSuccessful": zod.number().nullish(),
+  "passesUnsuccessful": zod.number().nullish(),
+  "passSuccess": zod.number().nullish(),
+  "tackles": zod.number().nullish(),
+  "dribbles": zod.number().nullish(),
+  "interceptions": zod.number().nullish(),
+  "looseRecoveries": zod.number().nullish(),
+  "saves": zod.number().nullish(),
+  "corners": zod.number().nullish(),
+  "freeKicks": zod.number().nullish(),
+  "throwIns": zod.number().nullish(),
+  "fouls": zod.number().nullish(),
+  "penalties": zod.number().nullish(),
+  "goalKicks": zod.number().nullish()
+}).describe('Stable camera-derived player metrics. null = not available (never zero-filled).'),
+  "per90": zod.record(zod.string(), zod.number().nullable()).describe('Per-90-minute rates for counting stats; null where denominator is missing'),
+  "matchBreakdowns": zod.array(zod.object({
+  "veoMatchId": zod.string(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "title": zod.string().nullish(),
+  "metrics": zod.object({
+  "matches": zod.number().nullish(),
+  "starts": zod.number().nullish(),
+  "minutesPlayed": zod.number().nullish(),
+  "secondsPlayed": zod.number().nullish(),
+  "distanceMetres": zod.number().nullish(),
+  "avgSpeedKmh": zod.number().nullish(),
+  "topSpeedKmh": zod.number().nullish(),
+  "sprints": zod.number().nullish(),
+  "hir": zod.number().nullish(),
+  "goals": zod.number().nullish(),
+  "assists": zod.number().nullish(),
+  "involvements": zod.number().nullish(),
+  "shots": zod.number().nullish(),
+  "attempts": zod.number().nullish(),
+  "conversion": zod.number().nullish(),
+  "passes": zod.number().nullish(),
+  "passesSuccessful": zod.number().nullish(),
+  "passesUnsuccessful": zod.number().nullish(),
+  "passSuccess": zod.number().nullish(),
+  "tackles": zod.number().nullish(),
+  "dribbles": zod.number().nullish(),
+  "interceptions": zod.number().nullish(),
+  "looseRecoveries": zod.number().nullish(),
+  "saves": zod.number().nullish(),
+  "corners": zod.number().nullish(),
+  "freeKicks": zod.number().nullish(),
+  "throwIns": zod.number().nullish(),
+  "fouls": zod.number().nullish(),
+  "penalties": zod.number().nullish(),
+  "goalKicks": zod.number().nullish()
+}).describe('Stable camera-derived player metrics. null = not available (never zero-filled).'),
+  "available": zod.boolean(),
+  "jerseyNumber": zod.number().nullish()
+})),
+  "matchCount": zod.number()
+}))
 })
 
 

@@ -16,7 +16,203 @@ export interface VeoSyncResult {
   fetched: number;
   remaining: number;
   analyticsPending: number;
+  playerFetched: number;
+  playerRemaining: number;
+  playerPending: number;
+  playerUnavailable: number;
   done: boolean;
+}
+
+/**
+ * Stable camera-derived player metrics. null = not available (never zero-filled).
+ */
+export interface VeoPlayerStableMetrics {
+  /** @nullable */
+  matches?: number | null;
+  /** @nullable */
+  starts?: number | null;
+  /** @nullable */
+  minutesPlayed?: number | null;
+  /** @nullable */
+  secondsPlayed?: number | null;
+  /** @nullable */
+  distanceMetres?: number | null;
+  /** @nullable */
+  avgSpeedKmh?: number | null;
+  /** @nullable */
+  topSpeedKmh?: number | null;
+  /** @nullable */
+  sprints?: number | null;
+  /** @nullable */
+  hir?: number | null;
+  /** @nullable */
+  goals?: number | null;
+  /** @nullable */
+  assists?: number | null;
+  /** @nullable */
+  involvements?: number | null;
+  /** @nullable */
+  shots?: number | null;
+  /** @nullable */
+  attempts?: number | null;
+  /** @nullable */
+  conversion?: number | null;
+  /** @nullable */
+  passes?: number | null;
+  /** @nullable */
+  passesSuccessful?: number | null;
+  /** @nullable */
+  passesUnsuccessful?: number | null;
+  /** @nullable */
+  passSuccess?: number | null;
+  /** @nullable */
+  tackles?: number | null;
+  /** @nullable */
+  dribbles?: number | null;
+  /** @nullable */
+  interceptions?: number | null;
+  /** @nullable */
+  looseRecoveries?: number | null;
+  /** @nullable */
+  saves?: number | null;
+  /** @nullable */
+  corners?: number | null;
+  /** @nullable */
+  freeKicks?: number | null;
+  /** @nullable */
+  throwIns?: number | null;
+  /** @nullable */
+  fouls?: number | null;
+  /** @nullable */
+  penalties?: number | null;
+  /** @nullable */
+  goalKicks?: number | null;
+}
+
+export type VeoPlayerIdentityIdentityStatus = typeof VeoPlayerIdentityIdentityStatus[keyof typeof VeoPlayerIdentityIdentityStatus];
+
+
+export const VeoPlayerIdentityIdentityStatus = {
+  resolved: 'resolved',
+  unresolved: 'unresolved',
+  ambiguous: 'ambiguous',
+} as const;
+
+export interface VeoPlayerIdentity {
+  /** @nullable */
+  veoPlayerId?: string | null;
+  /** @nullable */
+  jerseyNumber?: number | null;
+  /** @nullable */
+  veoPlayerName?: string | null;
+  /** @nullable */
+  hubPlayerId?: number | null;
+  /** @nullable */
+  hubPlayerName?: string | null;
+  identityStatus: VeoPlayerIdentityIdentityStatus;
+}
+
+export interface VeoEventTimelineEntry {
+  eventType: string;
+  /** @nullable */
+  videoTimeMs?: number | null;
+  /** @nullable */
+  periodId?: number | null;
+  /** @nullable */
+  periodTimeMs?: number | null;
+  /** @nullable */
+  outcome?: string | null;
+  /** @nullable */
+  x?: number | null;
+  /** @nullable */
+  z?: number | null;
+  /** @nullable */
+  jerseyNumber?: string | null;
+  isOwn: boolean;
+}
+
+export interface VeoSourceCoverage {
+  hasCrossMatch: boolean;
+  hasPhysicalMetrics: boolean;
+  hasMesEvents: boolean;
+  hasJerseyNumbers: boolean;
+  /** @nullable */
+  fetchedAt?: string | null;
+}
+
+/**
+ * Beta fields from Veo not yet mapped to stable metrics
+ */
+export type VeoPlayerRecordUnknownMetrics = { [key: string]: unknown };
+
+export interface VeoPlayerRecord {
+  identityKey: string;
+  identity: VeoPlayerIdentity;
+  metrics: VeoPlayerStableMetrics;
+  /** Beta fields from Veo not yet mapped to stable metrics */
+  unknownMetrics: VeoPlayerRecordUnknownMetrics;
+  eventTimeline: VeoEventTimelineEntry[];
+}
+
+export type VeoPlayerMatchResponseStatus = typeof VeoPlayerMatchResponseStatus[keyof typeof VeoPlayerMatchResponseStatus];
+
+
+export const VeoPlayerMatchResponseStatus = {
+  complete: 'complete',
+  partial: 'partial',
+  pending: 'pending',
+  unavailable: 'unavailable',
+  error: 'error',
+} as const;
+
+export interface VeoPlayerMatchResponse {
+  veoId: number;
+  veoMatchId: string;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  startsAt?: string | null;
+  status: VeoPlayerMatchResponseStatus;
+  players: VeoPlayerRecord[];
+  coverage: VeoSourceCoverage;
+}
+
+export interface VeoPlayerMatchBreakdown {
+  veoMatchId: string;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  title?: string | null;
+  metrics: VeoPlayerStableMetrics;
+  available: boolean;
+  /** @nullable */
+  jerseyNumber?: number | null;
+}
+
+/**
+ * Per-90-minute rates for counting stats; null where denominator is missing
+ */
+export type VeoSeasonPlayerRowPer90 = {[key: string]: number | null};
+
+export interface VeoSeasonPlayerRow {
+  identityKey: string;
+  identity: VeoPlayerIdentity;
+  totals: VeoPlayerStableMetrics;
+  /** Per-90-minute rates for counting stats; null where denominator is missing */
+  per90: VeoSeasonPlayerRowPer90;
+  matchBreakdowns: VeoPlayerMatchBreakdown[];
+  matchCount: number;
+}
+
+export interface VeoPlayerSeasonResponse {
+  leagueId: number;
+  coverageCount: number;
+  totalCount: number;
+  players: VeoSeasonPlayerRow[];
 }
 
 export interface VeoLeague {
@@ -4178,6 +4374,18 @@ leagueId: number;
 };
 
 export type ListVeoLinksParams = {
+leagueId: number;
+};
+
+export type GetVeoPlayerMatchParams = {
+leagueId: number;
+/**
+ * veo_matches.id (DB row id, not Veo UUID)
+ */
+veoId: number;
+};
+
+export type GetVeoPlayerSeasonParams = {
 leagueId: number;
 };
 

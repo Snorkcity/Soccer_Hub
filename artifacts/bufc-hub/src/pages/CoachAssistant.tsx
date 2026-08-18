@@ -1,9 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Loader2, Mic, RotateCcw, Send, User } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Bot, Loader2, Mic, RotateCcw, Send, User, Video, X, ChevronDown } from "lucide-react";
+import {
+  useListVeoLeagues,
+  getListVeoLeaguesQueryKey,
+  useListVeoMatches,
+  getListVeoMatchesQueryKey,
+  type VeoMatchSummary,
+} from "@workspace/api-client-react";
+import { useActiveLeague } from "@/contexts/LeagueContext";
+import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { NoAccess } from "@/components/NoAccess";
 
 // Web Speech API (Chrome/Android); typed loosely because lib.dom omits it.
 type SpeechRec = {
@@ -29,15 +41,43 @@ interface Msg {
   sources?: string[];
 }
 
-const SUGGESTIONS = [
+interface MatchContext {
+  leagueId: number;
+  veoId: number;
+  label: string;   // display label built from match data
+  opponent: string | null;
+}
+
+const SUGGESTIONS_DEFAULT = [
   "Give me U13 Cycle 2, week 1, session 1",
   "How should I run a U11 pre-match warm-up?",
-  "Explain Drive–Draw–Play in simple terms",
+  "Explain Drive-Draw-Play in simple terms",
   "What are the U14 phase outcomes?",
 ];
 
-import { useLeagueModules } from "@/hooks/useLeagueModules";
-import { NoAccess } from "@/components/NoAccess";
+function suggestionsForMatch(opponent: string | null): string[] {
+  const opp = opponent ?? "the opponent";
+  return [
+    `What session would you recommend before a game against ${opp}?`,
+    `Help me give a pre-match talk focusing on our attacking shape`,
+    `What are good training cues for managing possession in tight spaces?`,
+    `How do I apply Drive-Draw-Play against a defensive opponent?`,
+  ];
+}
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function matchLabel(m: VeoMatchSummary): string {
+  const opp = m.hubOpponent ?? m.opponent ?? "Unknown";
+  const date = fmtDate(m.startsAt);
+  const code = m.matchCode ? `${m.matchCode} · ` : "";
+  return `${code}${opp}${date ? ` · ${date}` : ""}`;
+}
 
 // Coach Assistant is a paid add-on: shown only with the "assistant" module in some league.
 export default function CoachAssistant() {
@@ -48,6 +88,18 @@ export default function CoachAssistant() {
 }
 
 function CoachAssistantInner() {
+  const [, setLocation] = useLocation();
+
+  // ── Parse optional query params: ?leagueId=X&veoId=Y ────────────────────
+  const searchParams = useMemo(() => {
+    if (typeof window === "undefined") return new URLSearchParams();
+    return new URLSearchParams(window.location.search);
+  }, []);
+  const qpLeagueId = Number(searchParams.get("leagueId") ?? "");
+  const qpVeoId = Number(searchParams.get("veoId") ?? "");
+  const hasQp = Number.isFinite(qpLeagueId) && qpLeagueId > 0 && Number.isFinite(qpVeoId) && qpVeoId > 0;
+
+  // ── Conversation state ───────────────────────────────────────────────────
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -62,6 +114,73 @@ function CoachAssistantInner() {
     Boolean((window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition ??
       (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition),
   );
+
+  // ── Match context state ──────────────────────────────────────────────────
+  const [matchContext, setMatchContext] = useState<MatchContext | null>(null);
+
+  // ── League / match selector state ────────────────────────────────────────
+  const { activeLeagueId } = useActiveLeague();
+  useLeagueModules(); // access check handled by parent CoachAssistant wrapper
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [selectorLeagueId, setSelectorLeagueId] = useState<number | null>(null);
+
+  // Fetch leagues with Veo.
+  const { data: veoLeaguesData } = useListVeoLeagues({
+    query: { queryKey: getListVeoLeaguesQueryKey() },
+  });
+  const veoLeagues = veoLeaguesData?.leagues ?? [];
+
+  // Filter to leagues the user has access to (canSeeLeague is server-side;
+  // client-side: user has this league in their grants — already filtered by the
+  // /veo/leagues endpoint which canSeeLeague-filters).
+  // selectorLeagueId defaults to activeLeagueId if it has Veo.
+  const effectiveSelectorLeagueId = selectorLeagueId ??
+    (veoLeagues.some((l) => l.id === activeLeagueId) ? activeLeagueId : (veoLeagues[0]?.id ?? null));
+
+  // Track whether we've resolved query-param context (must be before matchListEnabled).
+  const [qpResolved, setQpResolved] = useState(false);
+
+  const matchListParams = { leagueId: effectiveSelectorLeagueId ?? 0 };
+  // Fetch when selector is open OR when resolving query params (hasQp + not yet resolved).
+  const matchListEnabled = effectiveSelectorLeagueId != null && (selectorOpen || (hasQp && !qpResolved));
+  const { data: matchListData, isLoading: matchListLoading } = useListVeoMatches(matchListParams, {
+    query: {
+      enabled: matchListEnabled,
+      queryKey: getListVeoMatchesQueryKey(matchListParams),
+    },
+  });
+  const availableMatches: VeoMatchSummary[] = (matchListData?.matches ?? []).filter((m) => m.synced);
+
+  // ── Resolve match context from query params (on mount / param change) ────
+  useEffect(() => {
+    if (!hasQp) return;
+    // Set the selector league so match list is fetched for this league.
+    setSelectorLeagueId(qpLeagueId);
+  }, [hasQp, qpLeagueId]);
+
+  // Once we have match list data and query params, resolve the context.
+  useEffect(() => {
+    if (!hasQp || qpResolved) return;
+    if (matchListData && effectiveSelectorLeagueId === qpLeagueId) {
+      const found = availableMatches.find((m) => m.id === qpVeoId);
+      if (found) {
+        const opp = found.hubOpponent ?? found.opponent ?? null;
+        setMatchContext({
+          leagueId: qpLeagueId,
+          veoId: qpVeoId,
+          label: matchLabel(found),
+          opponent: opp,
+        });
+        setQpResolved(true);
+        // Clear query params from URL without reload.
+        setLocation("/assistant", { replace: true });
+      } else if (!matchListLoading) {
+        // Match not found in this league — clear params.
+        setQpResolved(true);
+        setLocation("/assistant", { replace: true });
+      }
+    }
+  }, [hasQp, qpResolved, matchListData, matchListLoading, effectiveSelectorLeagueId, qpLeagueId, qpVeoId, availableMatches, setLocation]);
 
   function toggleMic() {
     if (listening) {
@@ -99,7 +218,6 @@ function CoachAssistantInner() {
     const content = (text ?? input).trim();
     if (!content || busy) return;
     setInput("");
-    // Shrink the input pill back to one line after sending.
     if (inputRef.current) inputRef.current.style.height = "auto";
     setError(null);
     const history = [...messages, { role: "user" as const, content }];
@@ -109,15 +227,17 @@ function CoachAssistantInner() {
     const ac = new AbortController();
     abortRef.current = ac;
     try {
+      const body: Record<string, unknown> = {
+        messages: history.slice(-16).map(({ role, content: c }) => ({ role, content: c })),
+        mobile: window.matchMedia("(max-width: 767px)").matches,
+      };
+      if (matchContext) {
+        body.context = { leagueId: matchContext.leagueId, veoId: matchContext.veoId };
+      }
       const res = await fetch("/api/assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Send trimmed history — the assistant is stateless server-side.
-          messages: history.slice(-16).map(({ role, content: c }) => ({ role, content: c })),
-          // Phone-sized screens get briefer answers (session detail is never cut).
-          mobile: window.matchMedia("(max-width: 767px)").matches,
-        }),
+        body: JSON.stringify(body),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {
@@ -170,8 +290,24 @@ function CoachAssistantInner() {
     }
   }
 
+  const suggestions = matchContext ? suggestionsForMatch(matchContext.opponent) : SUGGESTIONS_DEFAULT;
+
+  function handleSelectMatch(veoId: number) {
+    const found = availableMatches.find((m) => m.id === veoId);
+    if (!found || effectiveSelectorLeagueId == null) return;
+    const opp = found.hubOpponent ?? found.opponent ?? null;
+    setMatchContext({
+      leagueId: effectiveSelectorLeagueId,
+      veoId,
+      label: matchLabel(found),
+      opponent: opp,
+    });
+    setSelectorOpen(false);
+  }
+
   return (
     <div className="p-4 md:p-6 flex flex-col max-w-4xl mx-auto h-[calc(100dvh-1rem)] md:h-[calc(100dvh-2rem)]">
+      {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -188,15 +324,115 @@ function CoachAssistantInner() {
         )}
       </div>
 
+      {/* Match context panel */}
+      <div className="mt-3 space-y-2">
+        {matchContext ? (
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm">
+            <Video className="h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <span className="font-medium">Match context: </span>
+              <span className="text-muted-foreground truncate">{matchContext.label}</span>
+              <span className="ml-2 text-xs text-muted-foreground">(camera data + Hub facts included in all messages)</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setMatchContext(null)}
+              title="Remove match context"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : null}
+
+        {/* Match selector toggle */}
+        {veoLeagues.length > 0 && (
+          <div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+              onClick={() => setSelectorOpen((o) => !o)}
+            >
+              <Video className="h-3.5 w-3.5" />
+              {matchContext ? "Change match context" : "Add match context from Veo"}
+              <ChevronDown className={`h-3 w-3 transition-transform ${selectorOpen ? "rotate-180" : ""}`} />
+            </Button>
+            {selectorOpen && (
+              <Card className="mt-2">
+                <CardHeader className="pb-2 pt-3 px-3">
+                  <CardTitle className="text-sm font-medium">Select a recorded match</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 pb-3 space-y-2">
+                  {veoLeagues.length > 1 && (
+                    <Select
+                      value={String(effectiveSelectorLeagueId ?? "")}
+                      onValueChange={(v) => setSelectorLeagueId(Number(v))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Pick a squad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {veoLeagues.map((l) => (
+                          <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {matchListLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading matches...
+                    </div>
+                  ) : availableMatches.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-1">No synced matches for this squad.</p>
+                  ) : (
+                    <Select
+                      value={matchContext && matchContext.leagueId === effectiveSelectorLeagueId ? String(matchContext.veoId) : ""}
+                      onValueChange={(v) => handleSelectMatch(Number(v))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Pick a match..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableMatches.map((m) => (
+                          <SelectItem key={m.id} value={String(m.id)}>
+                            {matchLabel(m)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {matchContext && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground h-7 px-2"
+                      onClick={() => { setMatchContext(null); setSelectorOpen(false); }}
+                    >
+                      <X className="h-3 w-3 mr-1" /> Clear context
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Message list */}
       <div className="flex-1 overflow-y-auto mt-4 space-y-3 pr-1">
         {messages.length === 0 && (
           <Card>
             <CardContent className="p-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Ask for a session ("U13 Cycle 2, week 1, session 1"), matchday guidance, or a framework explained. Try one of these:
+                {matchContext
+                  ? `Match context selected: ${matchContext.label}. The assistant will include Veo camera observations and Hub match data in its answers. Curriculum guidance always takes priority.`
+                  : 'Ask for a session ("U13 Cycle 2, week 1, session 1"), matchday guidance, or a framework explained. Try one of these:'}
               </p>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <Button key={s} variant="outline" size="sm" className="text-xs" onClick={() => void send(s)}>
                     {s}
                   </Button>
@@ -246,8 +482,7 @@ function CoachAssistantInner() {
         <div ref={bottomRef} />
       </div>
 
-      {/* ChatGPT-style pill input: one rounded container, auto-growing text,
-          round buttons inside. text-base stops iOS zooming in on focus. */}
+      {/* ChatGPT-style pill input */}
       <div className="mt-3 flex items-end gap-1.5 rounded-3xl border bg-background px-3 py-1.5 focus-within:ring-1 focus-within:ring-ring">
         <Textarea
           ref={inputRef}
@@ -256,7 +491,6 @@ function CoachAssistantInner() {
           placeholder={listening ? "Listening — tap the mic when done..." : "Ask the assistant..."}
           onChange={(e) => {
             setInput(e.target.value);
-            // Grow with the text, up to ~5 lines.
             const el = e.target;
             el.style.height = "auto";
             el.style.height = `${Math.min(el.scrollHeight, 128)}px`;

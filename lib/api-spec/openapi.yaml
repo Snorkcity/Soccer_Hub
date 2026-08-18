@@ -3497,6 +3497,55 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
 
+  /veo/player-match:
+    get:
+      operationId: getVeoPlayerMatch
+      tags: [veo]
+      summary: Analytics 2 player metrics for one Veo match (camera-derived, not GPS)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: veoId
+          in: query
+          required: true
+          description: veo_matches.id (DB row id, not Veo UUID)
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Analytics 2 player data for one match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoPlayerMatchResponse" }
+        "401":
+          description: Not signed in
+        "403":
+          description: Access denied
+        "404":
+          description: Match not found
+
+  /veo/player-season:
+    get:
+      operationId: getVeoPlayerSeason
+      tags: [veo]
+      summary: Analytics 2 season aggregates across all synced recordings (camera-derived, not GPS)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Season-aggregated Analytics 2 player data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoPlayerSeasonResponse" }
+        "401":
+          description: Not signed in
+        "403":
+          description: Access denied
+
   /veo/report-stats:
     get:
       operationId: getVeoReportStats
@@ -3528,14 +3577,164 @@ components:
         batch: { type: integer }
     VeoSyncResult:
       type: object
-      required: [league, totalMatches, fetched, remaining, analyticsPending, done]
+      required: [league, totalMatches, fetched, remaining, analyticsPending, playerFetched, playerRemaining, playerPending, playerUnavailable, done]
       properties:
         league: { type: string }
         totalMatches: { type: integer }
         fetched: { type: integer }
         remaining: { type: integer }
         analyticsPending: { type: integer }
+        # Analytics 2 (camera-derived player data) queue counts
+        playerFetched: { type: integer }
+        playerRemaining: { type: integer }
+        playerPending: { type: integer }
+        playerUnavailable: { type: integer }
         done: { type: boolean }
+
+    # ── Analytics 2 schemas (camera-derived, never GPS) ─────────────────────
+
+    VeoPlayerStableMetrics:
+      type: object
+      description: Stable camera-derived player metrics. null = not available (never zero-filled).
+      properties:
+        matches:            { type: ["integer", "null"] }
+        starts:             { type: ["integer", "null"] }
+        minutesPlayed:      { type: ["integer", "null"] }
+        secondsPlayed:      { type: ["number", "null"] }
+        distanceMetres:     { type: ["number", "null"] }
+        avgSpeedKmh:        { type: ["number", "null"] }
+        topSpeedKmh:        { type: ["number", "null"] }
+        sprints:            { type: ["integer", "null"] }
+        hir:                { type: ["integer", "null"] }
+        goals:              { type: ["integer", "null"] }
+        assists:            { type: ["integer", "null"] }
+        involvements:       { type: ["integer", "null"] }
+        shots:              { type: ["integer", "null"] }
+        attempts:           { type: ["integer", "null"] }
+        conversion:         { type: ["number", "null"] }
+        passes:             { type: ["integer", "null"] }
+        passesSuccessful:   { type: ["integer", "null"] }
+        passesUnsuccessful: { type: ["integer", "null"] }
+        passSuccess:        { type: ["number", "null"] }
+        tackles:            { type: ["integer", "null"] }
+        dribbles:           { type: ["integer", "null"] }
+        interceptions:      { type: ["integer", "null"] }
+        looseRecoveries:    { type: ["integer", "null"] }
+        saves:              { type: ["integer", "null"] }
+        corners:            { type: ["integer", "null"] }
+        freeKicks:          { type: ["integer", "null"] }
+        throwIns:           { type: ["integer", "null"] }
+        fouls:              { type: ["integer", "null"] }
+        penalties:          { type: ["integer", "null"] }
+        goalKicks:          { type: ["integer", "null"] }
+
+    VeoPlayerIdentity:
+      type: object
+      required: [identityStatus]
+      properties:
+        veoPlayerId:     { type: ["string", "null"] }
+        jerseyNumber:    { type: ["integer", "null"] }
+        veoPlayerName:   { type: ["string", "null"] }
+        hubPlayerId:     { type: ["integer", "null"] }
+        hubPlayerName:   { type: ["string", "null"] }
+        identityStatus:
+          type: string
+          enum: [resolved, unresolved, ambiguous]
+
+    VeoEventTimelineEntry:
+      type: object
+      required: [eventType, isOwn]
+      properties:
+        eventType:    { type: string }
+        videoTimeMs:  { type: ["number", "null"] }
+        periodId:     { type: ["integer", "null"] }
+        periodTimeMs: { type: ["number", "null"] }
+        outcome:      { type: ["string", "null"] }
+        x:            { type: ["number", "null"] }
+        z:            { type: ["number", "null"] }
+        jerseyNumber: { type: ["string", "null"] }
+        isOwn:        { type: boolean }
+
+    VeoSourceCoverage:
+      type: object
+      required: [hasCrossMatch, hasPhysicalMetrics, hasMesEvents, hasJerseyNumbers]
+      properties:
+        hasCrossMatch:       { type: boolean }
+        hasPhysicalMetrics:  { type: boolean }
+        hasMesEvents:        { type: boolean }
+        hasJerseyNumbers:    { type: boolean }
+        fetchedAt:           { type: ["string", "null"] }
+
+    VeoPlayerRecord:
+      type: object
+      required: [identityKey, identity, metrics, unknownMetrics, eventTimeline]
+      properties:
+        identityKey:    { type: string }
+        identity:       { $ref: "#/components/schemas/VeoPlayerIdentity" }
+        metrics:        { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
+        unknownMetrics:
+          type: object
+          additionalProperties: true
+          description: Beta fields from Veo not yet mapped to stable metrics
+        eventTimeline:
+          type: array
+          items: { $ref: "#/components/schemas/VeoEventTimelineEntry" }
+
+    VeoPlayerMatchResponse:
+      type: object
+      required: [veoId, veoMatchId, status, players, coverage]
+      properties:
+        veoId:       { type: integer }
+        veoMatchId:  { type: string }
+        title:       { type: ["string", "null"] }
+        opponent:    { type: ["string", "null"] }
+        startsAt:    { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [complete, partial, pending, unavailable, error]
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/VeoPlayerRecord" }
+        coverage: { $ref: "#/components/schemas/VeoSourceCoverage" }
+
+    VeoPlayerMatchBreakdown:
+      type: object
+      required: [veoMatchId, available, metrics]
+      properties:
+        veoMatchId:    { type: string }
+        opponent:      { type: ["string", "null"] }
+        startsAt:      { type: ["string", "null"] }
+        title:         { type: ["string", "null"] }
+        metrics:       { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
+        available:     { type: boolean }
+        jerseyNumber:  { type: ["integer", "null"] }
+
+    VeoSeasonPlayerRow:
+      type: object
+      required: [identityKey, identity, totals, per90, matchBreakdowns, matchCount]
+      properties:
+        identityKey: { type: string }
+        identity:    { $ref: "#/components/schemas/VeoPlayerIdentity" }
+        totals:      { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
+        per90:
+          type: object
+          additionalProperties: { type: ["number", "null"] }
+          description: Per-90-minute rates for counting stats; null where denominator is missing
+        matchBreakdowns:
+          type: array
+          items: { $ref: "#/components/schemas/VeoPlayerMatchBreakdown" }
+        matchCount: { type: integer }
+
+    VeoPlayerSeasonResponse:
+      type: object
+      required: [leagueId, coverageCount, totalCount, players]
+      properties:
+        leagueId:      { type: integer }
+        coverageCount: { type: integer }
+        totalCount:    { type: integer }
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/VeoSeasonPlayerRow" }
     VeoLeague:
       type: object
       required: [id, name]

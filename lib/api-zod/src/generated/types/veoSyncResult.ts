@@ -12,5 +12,9 @@ export interface VeoSyncResult {
   fetched: number;
   remaining: number;
   analyticsPending: number;
+  playerFetched: number;
+  playerRemaining: number;
+  playerPending: number;
+  playerUnavailable: number;
   done: boolean;
 }
