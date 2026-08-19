@@ -7,6 +7,7 @@ description: gitPush can silently fail; how to verify a deploy actually landed o
   **Why:** cost an entire confused debugging round with the coach ("prod isn't the same as dev").
   **How to apply:** after every push meant for prod, run `git fetch -q && git log --oneline -1 origin/main` and confirm it matches local HEAD. If behind, push again.
 - gitPush can also commit only SOME modified files (once committed just the memory docs and left code edits uncommitted-but-modified). Also check `git status -s` is clean after pushing. Manual `git push` fails (no auth token in shell) — only the gitPush callback can push.
+- In sessions where the gitPush callback is unavailable, use the added GitHub connector's Git Database API as the fallback: require remote HEAD to equal the local parent, build blobs/tree, and refuse to update the ref unless the generated tree matches the local tree. GitHub may normalize commit metadata and return a different commit SHA despite an identical tree; fetch and align local HEAD only after proving the trees match.
 - To confirm prod is serving new frontend code: `curl -s https://app.gameinsights.com.au/` → get `assets/index-*.js` hash. Feature code may live in a lazy chunk (e.g. `assets/playerGpsReport-*.js`, other *Pptx chunks) — grep the chunk, not index.js, for a distinctive new string.
 - Railway "REMOVED" deployment history entries are normal (old deploys retired when a new one activates), not failures.
 
