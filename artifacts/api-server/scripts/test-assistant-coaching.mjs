@@ -18,8 +18,11 @@ try {
   });
 
   const {
+    ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS,
+    assessAssistantFullSessionPerformance,
     assistantPageInstruction,
     assistantTurnInstruction,
+    assistantTurnLimits,
     detectAssistantTurnMode,
     recentResultLines,
     resolveAssistantOpponent,
@@ -125,6 +128,40 @@ try {
     "an explicit evidence question can access the permission-scoped context",
   );
 
+  assert.deepEqual(
+    assistantTurnLimits("full-session"),
+    { contextCharBudget: 24_000, contextChunkLimit: 6, maxCompletionTokens: 6_000 },
+    "a confirmed expansion uses the focused retrieval and completion limits",
+  );
+  assert.deepEqual(
+    assistantTurnLimits("exact-session"),
+    { contextCharBudget: 60_000, contextChunkLimit: 14, maxCompletionTokens: 8_192 },
+    "the exact curriculum-session path keeps its original limits",
+  );
+  assert.deepEqual(
+    ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS,
+    { retrievalMs: 6_000, firstTokenMs: 8_000, totalMs: 25_000 },
+    "a confirmed expansion has explicit retrieval, first-token, and end-to-end targets",
+  );
+  assert.deepEqual(
+    assessAssistantFullSessionPerformance({
+      retrievalMs: 6_000,
+      firstTokenMs: 8_000,
+      totalMs: 25_000,
+    }),
+    { retrieval: true, firstToken: true, total: true, all: true },
+    "the performance boundary remains acceptable",
+  );
+  assert.deepEqual(
+    assessAssistantFullSessionPerformance({
+      retrievalMs: 6_001,
+      firstTokenMs: 8_001,
+      totalMs: 25_001,
+    }),
+    { retrieval: false, firstToken: false, total: false, all: false },
+    "a regression beyond any performance target is reported",
+  );
+
   const recommendationInstruction = assistantTurnInstruction(
     "recommendation",
     "Canberra Croatia",
@@ -197,6 +234,26 @@ try {
     assistantRoute,
     /ctx && shouldLoadCoachingEvidence\s*\?\s*buildAssistantCoachingContext/,
     "private coaching evidence is not loaded for unrelated curriculum turns",
+  );
+  assert.match(
+    assistantRoute,
+    /Promise\.all\(\[[\s\S]*buildMatchContextBlock/,
+    "selected-match context loads alongside retrieval rather than serially after it",
+  );
+  assert.match(
+    assistantRoute,
+    /assistant: full-session expansion timing/,
+    "full-session expansions emit retrieval, first-token, and stream timing",
+  );
+  assert.match(
+    assistantRoute,
+    /Content preservation rule \(critical\):[\s\S]*retain ALL its detail/,
+    "focused expansion limits cannot weaken the selected-practice detail rule",
+  );
+  assert.match(
+    assistantRoute,
+    /An exact curriculum reference[\s\S]*should be delivered in full/,
+    "the exact curriculum-session path remains explicitly complete",
   );
   assert.match(
     contextBuilder,

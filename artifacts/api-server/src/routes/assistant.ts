@@ -38,8 +38,11 @@ import {
 import type { Analytics2Bundle } from "../lib/veo";
 import {
   ASSISTANT_PAGE_KEYS,
+  ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS,
+  assessAssistantFullSessionPerformance,
   assistantPageInstruction,
   assistantTurnInstruction,
+  assistantTurnLimits,
   detectAssistantTurnMode,
   shouldLoadAssistantCoachingEvidence,
 } from "../lib/assistantConversation";
@@ -736,6 +739,7 @@ router.get("/assistant/matches", async (req, res): Promise<void> => {
 });
 
 router.post("/assistant/chat", async (req, res): Promise<void> => {
+  const requestStartedAt = performance.now();
   const parsed = ChatBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -840,6 +844,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     return;
   }
 
+  const retrievalStartedAt = performance.now();
   try {
     const chunks = await loadChunks();
     const embedded = chunks.filter((c) => c.embedding);
@@ -852,8 +857,10 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const exact = findExactSessions(queryText, ages, chunks);
     const turnMode = detectAssistantTurnMode(lastUser, exact.length > 0, previousAssistant);
     const shouldLoadCoachingEvidence = shouldLoadAssistantCoachingEvidence(turnMode, queryText);
+    const isConfirmedFullSession = turnMode === "full-session";
+    const turnLimits = assistantTurnLimits(turnMode);
 
-    const [[qVec], coachingContext] = await Promise.all([
+    const [[qVec], coachingContext, selectedMatchContext] = await Promise.all([
       embedTexts([queryText.slice(0, 8000)]),
       ctx && shouldLoadCoachingEvidence
         ? buildAssistantCoachingContext({
@@ -865,6 +872,12 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
           includeReflections,
         })
         : Promise.resolve(null),
+      ctx && (ctx.veoId != null || ctx.matchRowId != null)
+        ? buildMatchContextBlock(ctx.leagueId, {
+          veoId: ctx.veoId,
+          matchRowId: ctx.matchRowId,
+        })
+        : Promise.resolve(""),
     ]);
     const scored = embedded
       .map((c) => {
@@ -877,9 +890,9 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     // Build context: exact session matches first, then top similarity hits.
     const picked: CurriculumChunk[] = [...exact];
     const seen = new Set(picked.map((c) => c.id));
-    let budget = 60000 - picked.reduce((n, c) => n + c.content.length, 0);
+    let budget = turnLimits.contextCharBudget - picked.reduce((n, c) => n + c.content.length, 0);
     for (const { c } of scored) {
-      if (picked.length >= 14 || budget <= 0) break;
+      if (picked.length >= turnLimits.contextChunkLimit || budget <= 0) break;
       if (seen.has(c.id)) continue;
       seen.add(c.id);
       picked.push(c);
@@ -894,19 +907,16 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     // receives the weekly evidence pack above without pretending a match was selected.
     let matchContextBlock = "";
     if (ctx && (ctx.veoId != null || ctx.matchRowId != null)) {
-      const block = await buildMatchContextBlock(ctx.leagueId, {
-        veoId: ctx.veoId,
-        matchRowId: ctx.matchRowId,
-      });
-      if (!block) {
+      if (!selectedMatchContext) {
         throw new Error("Selected match context could not be built");
       }
-      matchContextBlock = `\n\n---\n\n${block}`;
+      matchContextBlock = `\n\n---\n\n${selectedMatchContext}`;
       logger.info(
         { leagueId: ctx.leagueId, veoId: ctx.veoId, matchRowId: ctx.matchRowId },
         "assistant: match context included",
       );
     }
+    const retrievalMs = Math.round(performance.now() - retrievalStartedAt);
 
     const turnNote = assistantTurnInstruction(
       turnMode,
@@ -936,12 +946,13 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const pageNote = assistantPageInstruction(ctx?.page);
     const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n${turnNote}${pageNote ? `\n\n${pageNote}` : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${weeklyContextBlock}${matchContextBlock}`;
 
+    const modelStartedAt = performance.now();
     const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "gpt-5.6-terra",
-        max_completion_tokens: 8192,
+        max_completion_tokens: turnLimits.maxCompletionTokens,
         stream: true,
         messages: [
           { role: "system", content: systemContent },
@@ -961,6 +972,8 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const reader = aiRes.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
+    let firstTokenMs: number | null = null;
+    let modelFirstTokenMs: number | null = null;
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -973,9 +986,41 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
         try {
           const json = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
           const content = json.choices?.[0]?.delta?.content;
-          if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          if (content) {
+            if (firstTokenMs == null) {
+              const firstTokenAt = performance.now();
+              firstTokenMs = Math.round(firstTokenAt - requestStartedAt);
+              modelFirstTokenMs = Math.round(firstTokenAt - modelStartedAt);
+            }
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
         } catch { /* partial frame — ignored */ }
       }
+    }
+    if (isConfirmedFullSession) {
+      const completedAt = performance.now();
+      const fullStreamMs = Math.round(completedAt - modelStartedAt);
+      const totalMs = Math.round(completedAt - requestStartedAt);
+      const withinTarget = assessAssistantFullSessionPerformance({
+        retrievalMs,
+        firstTokenMs,
+        totalMs,
+      });
+      req.log.info(
+        {
+          turnMode,
+          retrievalMs,
+          firstTokenMs,
+          modelFirstTokenMs,
+          fullStreamMs,
+          totalMs,
+          contextChars: context.length,
+          contextChunks: picked.length,
+          targets: ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS,
+          withinTarget,
+        },
+        "assistant: full-session expansion timing",
+      );
     }
     res.write(`data: ${JSON.stringify({ done: true, sources: picked.slice(0, 8).map((c) => c.headingPath) })}\n\n`);
     res.end();

@@ -58,6 +58,65 @@ export function assistantPageInstruction(page: AssistantPageKey | undefined): st
 The user is currently viewing ${ASSISTANT_PAGE_LABELS[page]}. Assume their question relates to this screen and its active filters or selected match unless they clearly say otherwise. Use the screen as conversational orientation only: cite values only when they are present in the verified Hub/Veo context below, and never invent data merely because the screen normally contains it.`;
 }
 
+export interface AssistantTurnLimits {
+  contextCharBudget: number;
+  contextChunkLimit: number;
+  maxCompletionTokens: number;
+}
+
+const STANDARD_ASSISTANT_TURN_LIMITS: AssistantTurnLimits = {
+  contextCharBudget: 60_000,
+  contextChunkLimit: 14,
+  maxCompletionTokens: 8_192,
+};
+
+const CONFIRMED_FULL_SESSION_LIMITS: AssistantTurnLimits = {
+  contextCharBudget: 24_000,
+  contextChunkLimit: 6,
+  maxCompletionTokens: 6_000,
+};
+
+/**
+ * A short confirmation carries the previous question forward, so it needs a
+ * focused evidence set rather than the broad exploration budget. Exact named
+ * curriculum sessions deliberately keep the original limits.
+ */
+export function assistantTurnLimits(mode: AssistantTurnMode): AssistantTurnLimits {
+  return mode === "full-session"
+    ? CONFIRMED_FULL_SESSION_LIMITS
+    : STANDARD_ASSISTANT_TURN_LIMITS;
+}
+
+export const ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS = {
+  retrievalMs: 6_000,
+  firstTokenMs: 8_000,
+  totalMs: 25_000,
+} as const;
+
+export interface AssistantFullSessionTimings {
+  retrievalMs: number;
+  // End-to-end from request arrival, not merely from the upstream model call.
+  firstTokenMs: number | null;
+  totalMs: number;
+}
+
+export function assessAssistantFullSessionPerformance(
+  timings: AssistantFullSessionTimings,
+): {
+  retrieval: boolean;
+  firstToken: boolean;
+  total: boolean;
+  all: boolean;
+} {
+  const result = {
+    retrieval: timings.retrievalMs <= ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS.retrievalMs,
+    firstToken: timings.firstTokenMs != null
+      && timings.firstTokenMs <= ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS.firstTokenMs,
+    total: timings.totalMs <= ASSISTANT_FULL_SESSION_PERFORMANCE_TARGETS.totalMs,
+  };
+  return { ...result, all: result.retrieval && result.firstToken && result.total };
+}
+
 const GENERIC_CLUB_WORDS = new Set([
   "canberra",
   "city",
