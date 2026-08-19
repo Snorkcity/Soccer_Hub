@@ -324,7 +324,11 @@ try {
     "Recorded-data questions do not require a curriculum match",
   );
   assert.equal(
-    requiresAssistantCurriculum("general", "What was the score against Canberra Croatia?"),
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score against Canberra Croatia?",
+      "Canberra Croatia",
+    ),
     false,
     "A strict scoreline question remains eligible for verified Hub evidence only",
   );
@@ -350,6 +354,30 @@ try {
     ),
     true,
     "A factual clause cannot smuggle an unsupported coaching request past the gate",
+  );
+  assert.equal(
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score, and give us a way to win next week?",
+    ),
+    true,
+    "A factual clause cannot smuggle a strategy request past the strict allowlist",
+  );
+  assert.equal(
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score? Give us an option to win next week.",
+    ),
+    true,
+    "Multiple sentences cannot use the factual-only exception",
+  );
+  assert.equal(
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score give us a way to win next week?",
+    ),
+    true,
+    "Unknown outcome language fails closed even without punctuation or a conjunction",
   );
   assert.equal(
     assessAssistantCurriculumCoverage({
@@ -394,6 +422,16 @@ try {
   assert.equal(
     assessAssistantCurriculumCoverage({
       ...coverageBase,
+      mode: "general",
+      text: "What was the score, and give us a way to win next week?",
+      candidates: [candidate(0.58, "The recorded match score was 2-1.")],
+    }).reason,
+    "needs-topic",
+    "A hybrid factual-and-strategy request asks for a curriculum topic before model completion",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
       mode: "recommendation",
       text: "Recommend a session to improve our pressing",
       candidates: [candidate(0.66, "Pressing: the first defender applies immediate pressure.")],
@@ -433,7 +471,7 @@ try {
       assistantSrc.indexOf("const aiRes = await fetch"),
     "The fail-closed coverage return occurs before the model completion call",
   );
-  console.log("✅ Curriculum coverage gate assertions: 13/13 passed");
+  console.log("✅ Curriculum coverage gate assertions: 17/17 passed");
 
   // ── 3. Superadmin guard source-level assertion ───────────────────────────
 

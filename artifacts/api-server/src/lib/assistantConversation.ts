@@ -27,14 +27,55 @@ const FACTUAL_QUESTION_SHAPE_PATTERN =
   /^(?:how (?:many|much)|what (?:did|does|has|have|is|are|was|were)|who (?:has|had|scored|assisted|played|started)|which|show(?: me)?|list|compare|rank|summari(?:s|z)e|give me (?:the )?(?:data|evidence|numbers|results|stats|statistics))\b/;
 const VERIFIED_EVIDENCE_TERM_PATTERN =
   /\b(appearance|appearances|assist|assisted|assists|average|conceded|data|deck|decks|distance|draw|drawn|evidence|form|goal|goals|hub|journal|journals|loss|losses|match|matches|minute|minutes|note|notes|pass|passes|passing|percentage|percent|played|possession|rank|ranking|recorded|reflection|reflections|report|reports|result|results|score|scored|scoreline|scorelines|shot|shots|sprint|sprints|start|started|starts|stat|statistics|stats|total|trend|trends|veo|win|wins|xg)\b/;
-const COACHING_APPLICATION_PATTERN =
-  /\b(?:can|could|should|would) (?:i|we)|\bhow (?:can|could|do|should|would)\b|\bwhat should\b|\bwho should\b|\b(?:coach|create|defend|design|drill|explain|game plan|half time|halftime|improve|mark|match plan|play|practice|prepare|press|prevent|recommend|session|stop|suggest|tactic|team talk|theme|train|warm up|work on)\b/;
+const FACTUAL_QUERY_ALLOWED_WORDS = new Set([
+  "about", "after", "against", "all", "an", "any", "appearance", "appearances",
+  "are", "assist", "assisted", "assists", "at", "average", "averages", "away",
+  "before", "below", "between", "by", "compare", "concede", "conceded", "current",
+  "data", "deck", "decks", "did", "distance", "do", "does", "draw", "drawn",
+  "during", "each", "evidence", "first", "for", "form", "from", "game", "games",
+  "give", "goals", "had", "has", "have", "home", "how", "hub", "in", "is",
+  "journal", "journals", "last", "latest", "least", "list", "loss", "losses",
+  "lowest", "many", "match", "matches", "me", "minute", "minutes", "more", "most",
+  "much", "my", "note", "notes", "numbers", "of", "on", "opponent", "opponents",
+  "our", "over", "pass", "passes", "passing", "per", "percentage", "percent",
+  "played", "possession", "previous", "rank", "ranking", "recent", "recorded",
+  "reflection", "reflections", "report", "reports", "result", "results", "round",
+  "rounds", "say", "score", "scored", "scoreline", "scorelines", "season", "seasons",
+  "shot", "shots", "show", "since", "sprint", "sprints", "start", "started", "starts",
+  "stat", "statistics", "stats", "summarise", "summarize", "team", "teams", "the",
+  "their", "this", "to", "top", "total", "trend", "trends", "under", "us", "v",
+  "veo", "versus", "was", "we", "week", "weeks", "were", "what", "which", "who",
+  "wins", "with", "xg",
+]);
 
-function isVerifiedFactualEvidenceOnly(text: string): boolean {
-  const normalised = normaliseWords(text);
-  return FACTUAL_QUESTION_SHAPE_PATTERN.test(normalised)
-    && VERIFIED_EVIDENCE_TERM_PATTERN.test(normalised)
-    && !COACHING_APPLICATION_PATTERN.test(normalised);
+function isVerifiedFactualEvidenceOnly(
+  text: string,
+  opponent?: string | null,
+): boolean {
+  const trimmed = text.trim();
+  const withoutTrailingPunctuation = trimmed.replace(/[?!.]+$/, "");
+  if (
+    withoutTrailingPunctuation.length === 0
+    || withoutTrailingPunctuation.length > 240
+    || /[,;:!?\n]/.test(withoutTrailingPunctuation)
+    || /\b(?:also|and|but|plus|then)\b/i.test(withoutTrailingPunctuation)
+  ) {
+    return false;
+  }
+
+  const normalised = normaliseWords(withoutTrailingPunctuation);
+  if (
+    !FACTUAL_QUESTION_SHAPE_PATTERN.test(normalised)
+    || !VERIFIED_EVIDENCE_TERM_PATTERN.test(normalised)
+  ) {
+    return false;
+  }
+
+  const allowedWords = new Set(FACTUAL_QUERY_ALLOWED_WORDS);
+  for (const word of curriculumWords(opponent ?? "")) allowedWords.add(word);
+  return normalised
+    .split(" ")
+    .every((word) => allowedWords.has(word) || /^\d+$/.test(word) || /^u(?:11|12|13|14|15|16)$/.test(word));
 }
 
 /**
@@ -44,22 +85,26 @@ function isVerifiedFactualEvidenceOnly(text: string): boolean {
 export function requiresAssistantCurriculum(
   mode: AssistantTurnMode,
   text: string,
+  opponent?: string | null,
 ): boolean {
   if (mode !== "general") return true;
-  return !isVerifiedFactualEvidenceOnly(text);
+  return !isVerifiedFactualEvidenceOnly(text, opponent);
 }
 
 const CURRICULUM_QUERY_STOP_WORDS = new Set([
   "about", "adult", "adults", "after", "against", "all", "also", "and", "another",
   "approved", "around", "based", "before", "belco", "belconnen", "best", "build",
   "can", "coach", "coaching", "complete", "content", "create", "current", "curriculum",
-  "design", "detailed", "do", "does", "drill", "football", "for", "from", "full",
-  "game", "give", "help", "how", "improve", "into", "match", "me", "my", "new",
-  "not", "official", "one", "only", "our", "plan", "player", "players", "please",
+  "design", "detailed", "did", "do", "does", "drill", "football", "for", "from", "full",
+  "are", "game", "give", "had", "has", "have", "help", "how", "improve", "into",
+  "is", "match", "me", "my", "new",
+  "next", "not", "official", "one", "only", "our", "plan", "player", "players", "please",
   "practice", "practices", "pre", "prepare", "recommend", "run", "senior", "seniors",
-  "session", "sessions", "should", "show", "suggest", "team", "theme", "themes",
+  "score", "scored", "scoring", "session", "sessions", "should", "show", "suggest",
+  "team", "the", "theme", "themes",
   "this", "through", "time", "talk", "training", "up", "use", "versus", "want",
-  "warm", "week", "what", "when", "which", "with", "would", "write", "yet",
+  "warm", "was", "way", "ways", "week", "were", "what", "when", "which", "win",
+  "winning", "wins", "with", "would", "write", "yet", "us",
 ]);
 
 function stemCurriculumWord(word: string): string {
@@ -112,7 +157,7 @@ export function assessAssistantCurriculumCoverage(args: {
   exactMatchFound: boolean;
   hasCoachingEvidence: boolean;
 }): AssistantCurriculumCoverage {
-  if (!requiresAssistantCurriculum(args.mode, args.text)) {
+  if (!requiresAssistantCurriculum(args.mode, args.text, args.opponent)) {
     return {
       supported: true,
       reason: "not-required",
@@ -423,6 +468,8 @@ export function detectAssistantTurnMode(
     /\bwhat should we (work on|focus on|train)\b/,
     /\bprepare for\b/,
     /\bbased on\b.*\b(form|results|reflections|last game|recent games)\b/,
+    /\b(?:give|show|tell) (?:me|us)\b.*\b(?:approach|idea|option|strategy|way)\b.*\b(?:beat|improve|succeed|win)\b/,
+    /\bwhat\b.*\b(?:approach|strategy|way)\b.*\b(?:beat|improve|succeed|win)\b/,
   ];
   if (recommendationPatterns.some((pattern) => pattern.test(user))) return "recommendation";
 

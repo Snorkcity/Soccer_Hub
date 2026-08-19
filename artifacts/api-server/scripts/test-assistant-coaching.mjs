@@ -85,6 +85,14 @@ try {
     "evidence-led coaching questions stay conversational",
   );
   assert.equal(
+    detectAssistantTurnMode(
+      "What was the score, and give us a way to win next week?",
+      false,
+    ),
+    "recommendation",
+    "hybrid outcome-and-strategy wording is classified as a coaching recommendation",
+  );
+  assert.equal(
     detectAssistantTurnMode("Build me a full training session for that theme", false),
     "full-session",
     "an explicit build request unlocks full session detail",
