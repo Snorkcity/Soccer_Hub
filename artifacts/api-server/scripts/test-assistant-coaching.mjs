@@ -93,6 +93,14 @@ try {
     "hybrid outcome-and-strategy wording is classified as a coaching recommendation",
   );
   assert.equal(
+    detectAssistantTurnMode(
+      "What was the score show us how we win next week",
+      false,
+    ),
+    "recommendation",
+    "unpunctuated hybrid strategy wording is classified as a coaching recommendation",
+  );
+  assert.equal(
     detectAssistantTurnMode("Build me a full training session for that theme", false),
     "full-session",
     "an explicit build request unlocks full session detail",

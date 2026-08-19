@@ -46,6 +46,7 @@ import {
   assistantTurnLimits,
   assessAssistantCurriculumCoverage,
   detectAssistantTurnMode,
+  isSoleExactSessionRequest,
   shouldLoadAssistantCoachingEvidence,
 } from "../lib/assistantConversation";
 import { buildAssistantCoachingContext } from "./journalInterview";
@@ -975,7 +976,12 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     }
 
     const ages = detectAges(queryText);
-    const exact = findExactSessions(queryText, ages, chunks);
+    const currentAges = detectAges(lastUser);
+    const currentExactCandidates = findExactSessions(lastUser, currentAges, chunks);
+    const exact =
+      currentExactCandidates.length === 1 && isSoleExactSessionRequest(lastUser)
+        ? currentExactCandidates
+        : [];
     const turnMode = detectAssistantTurnMode(lastUser, exact.length > 0, previousAssistant);
     const shouldLoadCoachingEvidence = shouldLoadAssistantCoachingEvidence(turnMode, queryText);
     const isConfirmedFullSession = turnMode === "full-session";
@@ -1036,6 +1042,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const coverage = assessAssistantCurriculumCoverage({
       mode: turnMode,
       text: queryText,
+      currentTurnText: lastUser,
       opponent: coachingContext?.opponent ?? selectedOpponent,
       candidates: scored.slice(0, 20).map(({ c, rawScore }) => ({
         score: rawScore,
@@ -1066,6 +1073,19 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       );
       return;
     }
+    req.log.info(
+      {
+        turnMode,
+        coverageReason: coverage.reason,
+        exactChunkCount: exact.length,
+        coachPackWarmUpCount: coachPackWarmUps.length,
+        currentTurnIsSoleExactSession: isSoleExactSessionRequest(lastUser),
+        hasCoachingEvidence: coachingContext != null || Boolean(selectedMatchContext),
+        subjectTerms: coverage.subjectTerms,
+        matchedTerms: coverage.matchedTerms,
+      },
+      "assistant: curriculum coverage gate allowed model completion",
+    );
 
     // Build context: exact session matches first, then top similarity hits.
     const picked: CurriculumChunk[] = [...exact];

@@ -108,6 +108,23 @@ async function login(email, password) {
   return setCookie.split(";")[0];
 }
 
+async function assertAssistantBlockedWithoutCompletion(cookie, messages, expectedText, label) {
+  const { response, data } = await request("/api/assistant/chat", {
+    cookie,
+    method: "POST",
+    body: { messages },
+  });
+  assert.equal(response.status, 200, `${label}: Assistant request failed`);
+  const raw = data?.raw ?? "";
+  assert.ok(raw.includes(expectedText), `${label}: Expected static curriculum response`);
+  assert.equal(
+    raw.split('data: {"content":').length - 1,
+    1,
+    `${label}: Response streamed model completion tokens instead of one static event`,
+  );
+  assert.ok(raw.includes('"sources":[]'), `${label}: Static response did not end without model sources`);
+}
+
 const runId = `${Date.now()}-${process.pid}`;
 const title = `Curriculum API Regression ${runId}`;
 const userEmail = `curriculum-api-${runId}@gameinsights.com.au`;
@@ -118,6 +135,41 @@ let temporaryUserId = null;
 
 try {
   adminCookie = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  await assertAssistantBlockedWithoutCompletion(
+    adminCookie,
+    [{ role: "user", content: "U13 Cycle 2 week 1 session 1 and design a beach football warm up" }],
+    "curriculum does not cover this topic yet",
+    "Compound exact-session request",
+  );
+  await assertAssistantBlockedWithoutCompletion(
+    adminCookie,
+    [
+      { role: "user", content: "Show U13 Cycle 2 week 1 session 1" },
+      { role: "assistant", content: "Here is the approved session." },
+      { role: "user", content: "What was the score show us how we win next week" },
+    ],
+    "Which age group or approved curriculum topic do you want me to use?",
+    "Prior exact-session request",
+  );
+  await assertAssistantBlockedWithoutCompletion(
+    adminCookie,
+    [{ role: "user", content: "Show me passing" }],
+    "Which age group or approved curriculum topic do you want me to use?",
+    "Ambiguous bare topic",
+  );
+  await assertAssistantBlockedWithoutCompletion(
+    adminCookie,
+    [{ role: "user", content: "Pick a U13 pre-match warm-up and design a beach football warm-up" }],
+    "curriculum does not cover this topic yet",
+    "Mixed canonical and unsupported warm-up",
+  );
+  await assertAssistantBlockedWithoutCompletion(
+    adminCookie,
+    [{ role: "user", content: "Pick a U13 pre-match warm-up and show us how to win next week" }],
+    "curriculum does not cover this topic yet",
+    "Mixed canonical warm-up and strategy",
+  );
 
   const initial = await request("/api/curriculum-documents", { cookie: adminCookie });
   assert.equal(initial.response.status, 200);
@@ -244,7 +296,7 @@ try {
   assert.equal(finalList.data.length, baseline.length, "Deleting the temporary document affected another document");
   assert.ok(finalList.data.every((item) => item.title !== title));
 
-  console.log("Curriculum API regression passed: bootstrap, permissions, version fallback, publish, re-index, delete");
+  console.log("Curriculum API regression passed: Assistant route gate, bootstrap, permissions, version fallback, publish, re-index, delete");
 } finally {
   if (adminCookie && temporaryDocumentId) {
     await request(`/api/curriculum-documents/${temporaryDocumentId}`, {

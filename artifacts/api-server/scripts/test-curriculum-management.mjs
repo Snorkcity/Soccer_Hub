@@ -47,6 +47,8 @@ try {
   );
   const {
     assessAssistantCurriculumCoverage,
+    isSoleExactSessionRequest,
+    isSolePreMatchWarmUpRequest,
     requiresAssistantCurriculum,
   } = await import(`${pathToFileURL(storeOutput).href}?v=${Date.now()}`);
 
@@ -380,6 +382,51 @@ try {
     "Unknown outcome language fails closed even without punctuation or a conjunction",
   );
   assert.equal(
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score show us how we win next week",
+    ),
+    true,
+    "A secondary command made only from otherwise factual words fails closed",
+  );
+  assert.equal(
+    requiresAssistantCurriculum("general", "Show me passing"),
+    true,
+    "An ambiguous bare coaching topic is not treated as a verified-data request",
+  );
+  assert.equal(
+    requiresAssistantCurriculum("general", "Show me passing stats"),
+    false,
+    "An explicit statistics request remains eligible for verified Hub evidence only",
+  );
+  assert.equal(
+    isSoleExactSessionRequest("Give me U13 Cycle 2 week 1 session 1"),
+    true,
+    "A sole exact-session navigation request is recognized",
+  );
+  assert.equal(
+    isSoleExactSessionRequest(
+      "U13 Cycle 2 week 1 session 1 show us how we win next week",
+    ),
+    false,
+    "An exact-session reference cannot authorize a compound coaching request",
+  );
+  assert.equal(
+    isSolePreMatchWarmUpRequest(
+      "Pick a U13 pre-match warm-up against Canberra Croatia",
+      "Canberra Croatia",
+    ),
+    true,
+    "A sole age-specific canonical warm-up request is recognized",
+  );
+  assert.equal(
+    isSolePreMatchWarmUpRequest(
+      "Pick a U13 pre-match warm-up and design a beach football warm-up",
+    ),
+    false,
+    "A canonical warm-up reference cannot authorize a second coaching request",
+  );
+  assert.equal(
     assessAssistantCurriculumCoverage({
       ...coverageBase,
       mode: "full-session",
@@ -432,6 +479,75 @@ try {
   assert.equal(
     assessAssistantCurriculumCoverage({
       ...coverageBase,
+      mode: "general",
+      text: "What was the score show us how we win next week",
+      candidates: [candidate(0.58, "The recorded match score was 2-1.")],
+    }).supported,
+    false,
+    "An unpunctuated hybrid request cannot reach model completion",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "exact-session",
+      text: "Show U13 Cycle 2 week 1 session 1\nWhat was the score show us how we win next week",
+      currentTurnText: "What was the score show us how we win next week",
+      exactMatchFound: true,
+      candidates: [candidate(0.72, "An approved U13 cycle session.")],
+    }).supported,
+    false,
+    "A prior exact-session reference cannot authorize an unrelated current coaching turn",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "exact-session",
+      text: "U13 Cycle 2 week 1 session 1 and design a beach football warm up",
+      currentTurnText: "U13 Cycle 2 week 1 session 1 and design a beach football warm up",
+      exactMatchFound: true,
+      candidates: [candidate(0.72, "An approved U13 session.")],
+    }).supported,
+    false,
+    "A compound exact-session and unsupported coaching request cannot use the exact bypass",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "general",
+      text: "Show me passing",
+      currentTurnText: "Show me passing",
+      candidates: [candidate(0.81, "Passing principles from the approved framework.")],
+    }).reason,
+    "needs-topic",
+    "A bare ambiguous topic asks for clarification instead of calling model completion",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "pre-match-warm-up",
+      text: "Pick a U13 pre-match warm-up and design a beach football warm-up",
+      currentTurnText: "Pick a U13 pre-match warm-up and design a beach football warm-up",
+      exactMatchFound: true,
+      candidates: [candidate(0.84, "The approved U13 Coach Pack pre-match warm-up.")],
+    }).supported,
+    false,
+    "A mixed canonical and unsupported warm-up request cannot use the canonical bypass",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "pre-match-warm-up",
+      text: "Pick a U13 pre-match warm-up and show us how to win next week",
+      currentTurnText: "Pick a U13 pre-match warm-up and show us how to win next week",
+      exactMatchFound: true,
+      candidates: [candidate(0.84, "The approved U13 Coach Pack pre-match warm-up.")],
+    }).supported,
+    false,
+    "A mixed canonical warm-up and strategy request cannot use the canonical bypass",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
       mode: "recommendation",
       text: "Recommend a session to improve our pressing",
       candidates: [candidate(0.66, "Pressing: the first defender applies immediate pressure.")],
@@ -471,7 +587,7 @@ try {
       assistantSrc.indexOf("const aiRes = await fetch"),
     "The fail-closed coverage return occurs before the model completion call",
   );
-  console.log("✅ Curriculum coverage gate assertions: 17/17 passed");
+  console.log("✅ Curriculum coverage gate assertions: 30/30 passed");
 
   // ── 3. Superadmin guard source-level assertion ───────────────────────────
 

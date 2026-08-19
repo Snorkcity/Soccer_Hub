@@ -23,30 +23,82 @@ export interface AssistantCurriculumCoverage {
   matchedTerms: string[];
 }
 
-const FACTUAL_QUESTION_SHAPE_PATTERN =
-  /^(?:how (?:many|much)|what (?:did|does|has|have|is|are|was|were)|who (?:has|had|scored|assisted|played|started)|which|show(?: me)?|list|compare|rank|summari(?:s|z)e|give me (?:the )?(?:data|evidence|numbers|results|stats|statistics))\b/;
-const VERIFIED_EVIDENCE_TERM_PATTERN =
-  /\b(appearance|appearances|assist|assisted|assists|average|conceded|data|deck|decks|distance|draw|drawn|evidence|form|goal|goals|hub|journal|journals|loss|losses|match|matches|minute|minutes|note|notes|pass|passes|passing|percentage|percent|played|possession|rank|ranking|recorded|reflection|reflections|report|reports|result|results|score|scored|scoreline|scorelines|shot|shots|sprint|sprints|start|started|starts|stat|statistics|stats|total|trend|trends|veo|win|wins|xg)\b/;
-const FACTUAL_QUERY_ALLOWED_WORDS = new Set([
-  "about", "after", "against", "all", "an", "any", "appearance", "appearances",
-  "are", "assist", "assisted", "assists", "at", "average", "averages", "away",
-  "before", "below", "between", "by", "compare", "concede", "conceded", "current",
-  "data", "deck", "decks", "did", "distance", "do", "does", "draw", "drawn",
-  "during", "each", "evidence", "first", "for", "form", "from", "game", "games",
-  "give", "goals", "had", "has", "have", "home", "how", "hub", "in", "is",
-  "journal", "journals", "last", "latest", "least", "list", "loss", "losses",
-  "lowest", "many", "match", "matches", "me", "minute", "minutes", "more", "most",
-  "much", "my", "note", "notes", "numbers", "of", "on", "opponent", "opponents",
-  "our", "over", "pass", "passes", "passing", "per", "percentage", "percent",
-  "played", "possession", "previous", "rank", "ranking", "recent", "recorded",
-  "reflection", "reflections", "report", "reports", "result", "results", "round",
-  "rounds", "say", "score", "scored", "scoreline", "scorelines", "season", "seasons",
-  "shot", "shots", "show", "since", "sprint", "sprints", "start", "started", "starts",
-  "stat", "statistics", "stats", "summarise", "summarize", "team", "teams", "the",
-  "their", "this", "to", "top", "total", "trend", "trends", "under", "us", "v",
-  "veo", "versus", "was", "we", "week", "weeks", "were", "what", "which", "who",
-  "wins", "with", "xg",
-]);
+const FACTUAL_METRIC_PATTERN =
+  "(?:appearance|appearances|assist|assists|average|averages|data|distance|draw|draws|evidence|form|goal|goals|loss|losses|match|matches|minute|minutes|pass|passes|passing|percentage|percent|possession|rank|ranking|report|reports|result|results|score|scoreline|scorelines|shot|shots|sprint|sprints|start|starts|stat|statistics|stats|total|trend|trends|win|wins|xg)";
+const FACTUAL_TIME_UNIT_PATTERN =
+  "(?:game|games|match|matches|round|rounds|season|seasons|week|weeks)";
+const FACTUAL_ACTION_PATTERN =
+  "(?:assist|assisted|concede|conceded|draw|drawn|have|make|made|play|played|record|recorded|score|scored|start|started|win|won)";
+const PRIVATE_EVIDENCE_SOURCE_PATTERN =
+  "(?:deck|decks|evidence|hub|journal|journals|note|notes|reflection|reflections|report|reports|veo)";
+
+function escapeAssistantRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function isSoleExactSessionRequest(text: string): boolean {
+  const trimmed = text.trim();
+  const withoutTrailingPunctuation = trimmed.replace(/[?!.]+$/, "");
+  if (
+    withoutTrailingPunctuation.length === 0
+    || /[,;:!?\n]/.test(withoutTrailingPunctuation)
+    || /\b(?:also|and|but|plus|then)\b/i.test(withoutTrailingPunctuation)
+  ) {
+    return false;
+  }
+
+  let normalised = normaliseWords(withoutTrailingPunctuation);
+  if (
+    !/\bcycle \d+\b/.test(normalised)
+    || !/\bweek \d+\b/.test(normalised)
+    || !/\bsession \d+\b/.test(normalised)
+  ) {
+    return false;
+  }
+
+  normalised = normalised
+    .replace(/\bu(?:11|12|13|14|15|16)\b/g, " ")
+    .replace(/\bunder (?:11|12|13|14|15|16)\b/g, " ")
+    .replace(/\b(?:11|12|13|14|15|16)s\b/g, " ")
+    .replace(/\bcycle \d+\b/g, " ")
+    .replace(/\bweek \d+\b/g, " ")
+    .replace(/\bsession \d+\b/g, " ")
+    .replace(/\b(?:find|for|from|get|give|load|me|open|plan|plans|please|pull|show|the)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalised.length === 0;
+}
+
+export function isSolePreMatchWarmUpRequest(
+  text: string,
+  opponent?: string | null,
+): boolean {
+  const trimmed = text.trim();
+  const withoutTrailingPunctuation = trimmed.replace(/[?!.]+$/, "");
+  if (
+    withoutTrailingPunctuation.length === 0
+    || /[,;:!?\n]/.test(withoutTrailingPunctuation)
+    || /\b(?:also|and|but|plus|then)\b/i.test(withoutTrailingPunctuation)
+  ) {
+    return false;
+  }
+
+  const normalised = normaliseWords(withoutTrailingPunctuation);
+  const age = "(?:u(?:11|12|13|14|15|16)|under (?:11|12|13|14|15|16)|(?:11|12|13|14|15|16)s)";
+  const warmUp = "(?:(?:pre match|prematch) warm up)";
+  const core = `(?:${age} (?:coach pack )?${warmUp}|${warmUp}(?: for)? ${age})`;
+  const prefix = "(?:(?:find|give me|load|pick|show me|what is) (?:a |the )?)?";
+  const normalisedOpponent = normaliseWords(opponent ?? "");
+  const opponentSuffix = normalisedOpponent
+    ? `(?: (?:against|v|versus) ${escapeAssistantRegex(normalisedOpponent)})?`
+    : "";
+  return new RegExp(`^(?:please )?${prefix}${core}${opponentSuffix}(?: please)?$`).test(normalised);
+}
+
+function isAmbiguousBareTopicRequest(text: string): boolean {
+  const normalised = normaliseWords(text);
+  return /^(?:show me|tell me about) [a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)?$/.test(normalised);
+}
 
 function isVerifiedFactualEvidenceOnly(
   text: string,
@@ -64,18 +116,49 @@ function isVerifiedFactualEvidenceOnly(
   }
 
   const normalised = normaliseWords(withoutTrailingPunctuation);
-  if (
-    !FACTUAL_QUESTION_SHAPE_PATTERN.test(normalised)
-    || !VERIFIED_EVIDENCE_TERM_PATTERN.test(normalised)
-  ) {
-    return false;
+  const contexts = [
+    `(?:last|latest|previous|recent|this|current) ${FACTUAL_TIME_UNIT_PATTERN}`,
+    `(?:in|during|over|from|for|at|on) (?:the )?(?:(?:last|latest|previous|recent|this|current) )?(?:\\d+ )?${FACTUAL_TIME_UNIT_PATTERN}`,
+    "at home",
+    "away",
+  ];
+  const normalisedOpponent = normaliseWords(opponent ?? "");
+  if (normalisedOpponent) {
+    contexts.push(`(?:against|versus|v) ${escapeAssistantRegex(normalisedOpponent)}`);
   }
+  const optionalContext = `(?: (?:${contexts.join("|")}))?`;
+  const metricPhrase =
+    `(?:the |our |their |my )?(?:(?:average|current|latest|top|total) )?${FACTUAL_METRIC_PATTERN}(?: (?:average|percentage|percent|rank|ranking|total|trend))?`;
 
-  const allowedWords = new Set(FACTUAL_QUERY_ALLOWED_WORDS);
-  for (const word of curriculumWords(opponent ?? "")) allowedWords.add(word);
-  return normalised
-    .split(" ")
-    .every((word) => allowedWords.has(word) || /^\d+$/.test(word) || /^u(?:11|12|13|14|15|16)$/.test(word));
+  const strictFactualPatterns = [
+    new RegExp(
+      `^how (?:many|much) ${FACTUAL_METRIC_PATTERN}(?: (?:did|do|does) (?:we|they|our team|their team) ${FACTUAL_ACTION_PATTERN})?${optionalContext}$`,
+    ),
+    new RegExp(`^what (?:is|are|was|were) ${metricPhrase}${optionalContext}$`),
+    new RegExp(
+      `^what (?:did|does) (?:my |our |the )?(?:(?:last|latest|recent) )?${PRIVATE_EVIDENCE_SOURCE_PATTERN} (?:mention|record|say|show)(?: about (?:the )?(?:(?:last|latest|previous|recent|this) )?(?:form|game|match|performance|results|round|score|season|training))?$`,
+    ),
+    new RegExp(
+      `^what (?:has|have) (?:my |our |the )?(?:(?:last|latest|recent) )?${PRIVATE_EVIDENCE_SOURCE_PATTERN} (?:mentioned|recorded|said|shown)(?: about (?:the )?(?:(?:last|latest|previous|recent|this) )?(?:form|game|match|performance|results|round|score|season|training))?$`,
+    ),
+    new RegExp(
+      `^who (?:has|had) (?:the )?(?:most|least|highest|lowest) ${FACTUAL_METRIC_PATTERN}${optionalContext}$`,
+    ),
+    new RegExp(
+      `^who (?:assisted|played|scored|started)(?: (?:the )?(?:most|least|highest|lowest) ${FACTUAL_METRIC_PATTERN})?${optionalContext}$`,
+    ),
+    new RegExp(
+      `^(?:show me|list|summari(?:s|z)e) (?:the )?(?:data|evidence|numbers|results|stats|statistics)(?: (?:about|for) ${metricPhrase})?${optionalContext}$`,
+    ),
+    new RegExp(
+      `^show me ${metricPhrase} (?:data|numbers|stats|statistics|percentage|percent|trend)${optionalContext}$`,
+    ),
+    new RegExp(
+      `^give me (?:the )?(?:data|evidence|numbers|results|stats|statistics)${optionalContext}$`,
+    ),
+  ];
+
+  return strictFactualPatterns.some((pattern) => pattern.test(normalised));
 }
 
 /**
@@ -152,12 +235,14 @@ function curriculumSubjectTerms(text: string, opponent?: string | null): string[
 export function assessAssistantCurriculumCoverage(args: {
   mode: AssistantTurnMode;
   text: string;
+  currentTurnText?: string;
   opponent?: string | null;
   candidates: AssistantCurriculumCandidate[];
   exactMatchFound: boolean;
   hasCoachingEvidence: boolean;
 }): AssistantCurriculumCoverage {
-  if (!requiresAssistantCurriculum(args.mode, args.text, args.opponent)) {
+  const authorizationText = args.currentTurnText ?? args.text;
+  if (!requiresAssistantCurriculum(args.mode, authorizationText, args.opponent)) {
     return {
       supported: true,
       reason: "not-required",
@@ -166,7 +251,28 @@ export function assessAssistantCurriculumCoverage(args: {
       matchedTerms: [],
     };
   }
-  if (args.exactMatchFound) {
+  if (
+    args.mode === "general"
+    && isAmbiguousBareTopicRequest(authorizationText)
+  ) {
+    return {
+      supported: false,
+      reason: "needs-topic",
+      topScore: args.candidates[0]?.score ?? null,
+      subjectTerms: [],
+      matchedTerms: [],
+    };
+  }
+  if (
+    args.exactMatchFound
+    && (
+      (
+        args.mode === "pre-match-warm-up"
+        && isSolePreMatchWarmUpRequest(authorizationText, args.opponent)
+      )
+      || isSoleExactSessionRequest(authorizationText)
+    )
+  ) {
     return {
       supported: true,
       reason: "exact",
@@ -177,7 +283,7 @@ export function assessAssistantCurriculumCoverage(args: {
   }
 
   const topScore = args.candidates[0]?.score ?? null;
-  const subjectTerms = curriculumSubjectTerms(args.text, args.opponent);
+  const subjectTerms = curriculumSubjectTerms(authorizationText, args.opponent);
   if (subjectTerms.length === 0) {
     const contextCanChooseTheme =
       args.hasCoachingEvidence
@@ -470,6 +576,7 @@ export function detectAssistantTurnMode(
     /\bbased on\b.*\b(form|results|reflections|last game|recent games)\b/,
     /\b(?:give|show|tell) (?:me|us)\b.*\b(?:approach|idea|option|strategy|way)\b.*\b(?:beat|improve|succeed|win)\b/,
     /\bwhat\b.*\b(?:approach|strategy|way)\b.*\b(?:beat|improve|succeed|win)\b/,
+    /\bshow (?:me|us)\b.*\bhow\b.*\b(?:beat|improve|succeed|win)\b/,
   ];
   if (recommendationPatterns.some((pattern) => pattern.test(user))) return "recommendation";
 

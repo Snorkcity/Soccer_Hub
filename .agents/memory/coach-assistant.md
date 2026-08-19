@@ -14,6 +14,12 @@ description: RAG chat over the 14-doc Belconnen development curriculum (U11–16
 
 **How to apply:** weak retrieval must return an explicit curriculum-gap response before generating coaching content. Prefer a conservative refusal or one focused clarification over improvisation, and make the missing topic visible so a superadmin can improve the approved documents.
 
+**Current-turn authorization boundary:** conversation history may improve retrieval, but only the coach's current message may authorize model completion. Prior curriculum references must never carry approval into an unrelated follow-up.
+
+**Why:** an earlier exact session or canonical warm-up can otherwise contribute matching vocabulary that makes a later unsupported coaching request look covered.
+
+**How to apply:** factual-only exceptions must use narrow complete-request forms. Exact sessions and canonical warm-ups may bypass similarity coverage only when they are the sole current-turn request; mixed, compound, and ambiguous wording must fail closed or ask one static clarification before completion.
+
 **Recommendation-first rule:** broad opponent/preparation questions must start with one training theme, a short evidence-led rationale, and an offer to expand. Only an exact curriculum reference or an explicit build/show/run follow-up unlocks the full 3–4-part session.
 
 **Why:** live coach testing showed that immediately dumping a complete session made the Assistant feel like a document search tool and hid whether results, opponent form, reflections, reports, and Veo trends had actually shaped the recommendation.
