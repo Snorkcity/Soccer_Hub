@@ -335,6 +335,26 @@ try {
     "ambiguous warm-up requests ask for an age group instead of choosing a routine",
   );
   assert.match(
+    contextBuilder,
+    /focusClubForLeagueRequest\(req, leagueId\)[\s\S]*previousDecksVsOpponentText\(leagueId, opponent, focusClub\)[\s\S]*mondayBriefTextForOpponent\(leagueId, opponent, focusClub\)/,
+    "pre-match talk resolves the authenticated club and passes it to every saved-prep lookup",
+  );
+  assert.match(
+    contextBuilder,
+    /eq\(matchPrepReportsTable\.club, club\)[\s\S]*eq\(matchPrepReportsTable\.kind, "friday"\)[\s\S]*eq\(matchPrepReportsTable\.club, club\)[\s\S]*eq\(matchPrepReportsTable\.kind, "monday"\)/,
+    "Friday decks and Monday briefs are both filtered by exact club ownership",
+  );
+  assert.match(
+    contextBuilder,
+    /hasModule\(user, leagueId, "veo"\)[\s\S]*focusClub\.toLowerCase\(\) === defaultClub\.toLowerCase\(\)[\s\S]*leagueId != null && includeVeo/,
+    "pre-match talk includes legacy Veo evidence only for the authorised league focus club",
+  );
+  assert.match(
+    assistantRoute,
+    /includeVeo = includeVeo && legacyMatchContextOwned/,
+    "the persistent Assistant excludes legacy Veo evidence for other clubs in the same league",
+  );
+  assert.match(
     assistantRoute,
     /ctx && shouldLoadCoachingEvidence\s*\?\s*buildAssistantCoachingContext/,
     "private coaching evidence is not loaded for unrelated curriculum turns",

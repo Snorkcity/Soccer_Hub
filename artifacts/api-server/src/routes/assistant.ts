@@ -867,6 +867,10 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       .limit(1);
     const defaultClub = leagueScope?.focusClub?.trim() || "Belconnen";
     const legacyMatchContextOwned = focusClub.toLowerCase() === defaultClub.toLowerCase();
+    // Legacy Veo rows are owned by the league's configured focus club. A
+    // second club in the same league may use the Assistant, but cannot receive
+    // that focus club's private Veo evidence.
+    includeVeo = includeVeo && legacyMatchContextOwned;
     if ((ctx.veoId != null || ctx.matchRowId != null) && !includeMatchReports) {
       res.status(403).json({ error: "No access to selected-match evidence for this league." });
       return;

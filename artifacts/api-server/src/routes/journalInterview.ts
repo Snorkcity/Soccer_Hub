@@ -26,7 +26,8 @@ import {
   seasonsTable,
   veoMatchesTable,
 } from "@workspace/db";
-import { focusClubForSeason } from "../lib/focusClub";
+import { focusClubForLeagueRequest, focusClubForSeason } from "../lib/focusClub";
+import { canSeeLeague, getSessionUser, hasModule } from "../middlewares/entryAuth";
 import { summarisePassDetails } from "./veo";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, type IntelGoal } from "../lib/goalIntel";
@@ -432,19 +433,49 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       leagueId = season.leagueId;
     }
 
+    const user = await getSessionUser(req);
+    if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+    let focusClub: string | null = null;
+    let includeVeo = false;
+    if (leagueId != null) {
+      if (
+        !user.isSuperadmin
+        && (!canSeeLeague(user, leagueId) || !hasModule(user, leagueId, "match-prep"))
+      ) {
+        return res.status(403).json({ error: "No Match Prep access for this league" });
+      }
+      focusClub = await focusClubForLeagueRequest(req, leagueId);
+      const [leagueScope] = await db
+        .select({ focusClub: leaguesTable.focusClub })
+        .from(leaguesTable)
+        .where(eq(leaguesTable.id, leagueId))
+        .limit(1);
+      const defaultClub = leagueScope?.focusClub?.trim() || "Belconnen";
+      includeVeo =
+        (user.isSuperadmin || hasModule(user, leagueId, "veo"))
+        && focusClub.toLowerCase() === defaultClub.toLowerCase();
+    }
+
     const [lastMeeting, prevVsOpponent, mondayBrief, scoutText, ourPassing, oppPassing] = await Promise.all([
-      seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
-      leagueId != null
-        ? previousDecksVsOpponentText(leagueId, opponent).catch(() => null)
+      seasonId != null && focusClub
+        ? lastMeetingFacts(seasonId, opponent, focusClub).catch(() => [])
+        : Promise.resolve([]),
+      leagueId != null && focusClub
+        ? previousDecksVsOpponentText(leagueId, opponent, focusClub).catch(() => null)
         : Promise.resolve(null),
-      leagueId != null
-        ? mondayBriefTextForOpponent(leagueId, opponent).catch(() => null)
+      leagueId != null && focusClub
+        ? mondayBriefTextForOpponent(leagueId, opponent, focusClub).catch(() => null)
         : Promise.resolve(null),
       seasonId != null
         ? opponentScoutFingerprint(seasonId, opponent).catch(() => null)
         : Promise.resolve(null),
-      leagueId != null ? recentPassingContext(leagueId).catch(() => null) : Promise.resolve(null),
-      leagueId != null ? opponentPassingContext(leagueId, opponent).catch(() => null) : Promise.resolve(null),
+      leagueId != null && includeVeo
+        ? recentPassingContext(leagueId).catch(() => null)
+        : Promise.resolve(null),
+      leagueId != null && includeVeo
+        ? opponentPassingContext(leagueId, opponent).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     const sections = [
@@ -474,7 +505,7 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
         messages: [
           {
             role: "system",
-            content: `You are the head coach of Belconnen United (NPLW football) drafting the short talking points for the pre-match team talk. This week's opponent: ${opponent}.
+            content: `You are the head coach of ${focusClub ?? "the requesting club"} drafting the short talking points for the pre-match team talk. This week's opponent: ${opponent}.
 Coaching identity: controlled positional play (Guardiola-style) — passionate but calm, very detail-specific. We control tempo, keep the ball, create through patience and positioning.
 Return JSON: {"lines": string[]} — 5 to 8 talking points, one line each.
 - Direct address to the players, spoken not written ("Their goals come from the right — show them onto the left back.").
@@ -505,15 +536,20 @@ Return JSON: {"lines": string[]} — 5 to 8 talking points, one line each.
 });
 
 /** Condensed text from our saved Friday decks vs the SAME opponent (most recent first, up to 2). */
-async function previousDecksVsOpponentText(
+export async function previousDecksVsOpponentText(
   leagueId: number,
   opponent: string,
+  club: string,
 ): Promise<string | null> {
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
     .where(
-      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "friday")),
+      and(
+        eq(matchPrepReportsTable.leagueId, leagueId),
+        eq(matchPrepReportsTable.club, club),
+        eq(matchPrepReportsTable.kind, "friday"),
+      ),
     );
   const opp = opponent.trim().toLowerCase();
   const now = Date.now();
@@ -556,10 +592,10 @@ async function previousDecksVsOpponentText(
 }
 
 /** Pointer/review lines from the latest saved Monday brief for this opponent. */
-async function mondayBriefTextForOpponent(
+export async function mondayBriefTextForOpponent(
   leagueId: number,
   opponent: string,
-  club?: string,
+  club: string,
 ): Promise<string | null> {
   const rows = await db
     .select()
@@ -567,8 +603,8 @@ async function mondayBriefTextForOpponent(
     .where(
       and(
         eq(matchPrepReportsTable.leagueId, leagueId),
+        eq(matchPrepReportsTable.club, club),
         eq(matchPrepReportsTable.kind, "monday"),
-        ...(club ? [eq(matchPrepReportsTable.club, club)] : []),
       ),
     );
   const opp = opponent.trim().toLowerCase();
