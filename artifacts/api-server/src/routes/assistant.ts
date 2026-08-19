@@ -28,6 +28,10 @@ import { loadChunks, embedTexts, cosine, type CurriculumChunk } from "../assista
 import { OpenAiQuotaError, throwIfQuota } from "../lib/openaiQuota";
 import { getSessionUser, canSeeLeague, hasModuleAnywhere } from "../middlewares/entryAuth";
 import { parseAnalytics2Bundle } from "../lib/veoAnalytics2Parser";
+import {
+  enrichAnalytics2PlayerIdentities,
+  loadAnalytics2MatchIdentityContext,
+} from "../lib/veoAnalytics2Identity";
 import type { Analytics2Bundle } from "../lib/veo";
 
 const router: IRouter = Router();
@@ -374,6 +378,7 @@ async function buildMatchContextBlock(leagueId: number, veoId: number): Promise<
       raw: veoAnalytics2Table.raw,
       status: veoAnalytics2Table.status,
       fetchedAt: veoAnalytics2Table.fetchedAt,
+      teamId: veoAnalytics2Table.teamId,
     })
     .from(veoAnalytics2Table)
     .where(
@@ -387,11 +392,26 @@ async function buildMatchContextBlock(leagueId: number, veoId: number): Promise<
   const a2Row = a2Rows[0];
   if (a2Row && (a2Row.status === "complete" || a2Row.status === "partial") && a2Row.raw) {
     const fetchedAt = a2Row.fetchedAt ? a2Row.fetchedAt.toISOString() : null;
-    const parsed = parseAnalytics2Bundle(a2Row.raw as Analytics2Bundle, fetchedAt);
+    const identityContext = await loadAnalytics2MatchIdentityContext({
+      leagueId,
+      veoMatchId: veo.veoMatchId,
+      focusClub,
+      focusTeamId: a2Row.teamId,
+      fallbackOpponent: veo.opponent,
+    });
+    const parsed = parseAnalytics2Bundle(
+      a2Row.raw as Analytics2Bundle,
+      fetchedAt,
+      identityContext.parserContext,
+    );
+    const enrichedPlayers = enrichAnalytics2PlayerIdentities(
+      parsed.players,
+      identityContext,
+    );
 
-    if (parsed.players.length > 0) {
+    if (enrichedPlayers.length > 0) {
       // Only include players with at least some notable stats; cap at top 10.
-      const notable = parsed.players
+      const notable = enrichedPlayers
         .filter((p) => p.metrics.goals != null || p.metrics.shots != null || p.metrics.distanceMetres != null)
         .slice(0, 10);
 
@@ -399,9 +419,10 @@ async function buildMatchContextBlock(leagueId: number, veoId: number): Promise<
         veoSection += `\n**Player observations (camera-derived, jersey numbers only — no GPS names):**\n`;
         veoSection += `_Identity is from camera tracking. Jersey numbers are from Veo; Hub names appear only if the match was linked and the squad sheet was synced._\n`;
         for (const p of notable) {
+          const team = p.team.teamName ?? "Unassigned team";
           const jersey = p.identity.jerseyNumber != null ? `#${p.identity.jerseyNumber}` : "(unknown jersey)";
           const name = p.identity.veoPlayerName ?? p.identity.hubPlayerName ?? null;
-          const label = name ? `${jersey} ${name}` : jersey;
+          const label = name ? `${team} — ${jersey} ${name}` : `${team} — ${jersey}`;
           const parts: string[] = [];
           if (p.metrics.goals != null) parts.push(`${p.metrics.goals}G`);
           if (p.metrics.assists != null) parts.push(`${p.metrics.assists}A`);

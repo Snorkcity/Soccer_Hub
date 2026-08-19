@@ -91,6 +91,10 @@ try {
       veoPlayerId: "test-player", jerseyNumber: 7, veoPlayerName: "Test Player",
       hubPlayerName: null, identityStatus: "unresolved",
     },
+    team: {
+      side: "own", teamName: "Belconnen", sourceTeamId: "focus-team",
+      attributionStatus: "source", attributionReason: "veo_team_id",
+    },
     totals: metrics({ matches: 2, minutesPlayed: 90, secondsPlayed: 5400, distanceMetres: 9000, goals: 3 }),
     per90: { distanceMetres: 9000, goals: 3 },
     matchCount: 2,
@@ -98,11 +102,19 @@ try {
       {
         veoMatchId: "one", opponent: "Opponent A", startsAt: "2026-05-01T02:00:00.000Z",
         title: "Round 1", available: true, jerseyNumber: 7,
+        team: {
+          side: "own", teamName: "Belconnen", sourceTeamId: "focus-team",
+          attributionStatus: "source", attributionReason: "veo_team_id",
+        },
         metrics: metrics({ minutesPlayed: 60, secondsPlayed: 3600, distanceMetres: 6000, goals: 1, avgSpeedKmh: 10, topSpeedKmh: 20 }),
       },
       {
         veoMatchId: "two", opponent: "Opponent B", startsAt: "2026-05-08T02:00:00.000Z",
         title: "Round 2", available: true, jerseyNumber: 7,
+        team: {
+          side: "own", teamName: "Belconnen", sourceTeamId: "focus-team",
+          attributionStatus: "source", attributionReason: "veo_team_id",
+        },
         metrics: metrics({ minutesPlayed: 30, secondsPlayed: 1800, distanceMetres: 3000, goals: 2, avgSpeedKmh: 8, topSpeedKmh: 18 }),
       },
     ],
@@ -158,7 +170,12 @@ try {
       ],
     },
     jerseyNumbers: null,
-  }, "2026-08-19T00:00:00.000Z");
+  }, "2026-08-19T00:00:00.000Z", {
+    focusTeamId: "focus-team",
+    focusTeamName: "Belconnen",
+    opponentTeamName: "Olympic",
+    officialShirtSides: { "7": "own", "8": "own", "10": "own" },
+  });
 
   assert.equal(partialParsed.coverage.hasCrossMatch, false);
   assert.equal(partialParsed.coverage.hasPhysicalMetrics, true);
@@ -166,9 +183,9 @@ try {
   assert.equal(partialParsed.coverage.hasJerseyNumbers, true);
   assert.deepEqual(
     partialParsed.players.map((player) => player.identity.jerseyNumber).sort((a, b) => a - b),
-    [7, 8, 10],
+    [7, 8, 9, 10],
   );
-  const jersey7 = partialParsed.players.find((player) => player.identity.jerseyNumber === 7);
+  const jersey7 = partialParsed.players.find((player) => player.identity.jerseyNumber === 7 && player.team.side === "own");
   assert.equal(jersey7.metrics.distanceMetres, null);
   assert.equal(jersey7.metrics.sprints, null);
   assert.equal(jersey7.metrics.hir, null);
@@ -182,10 +199,88 @@ try {
   assert.equal(jersey8.metrics.hir, 0);
   const jersey10 = partialParsed.players.find((player) => player.identity.jerseyNumber === 10);
   assert.equal(jersey10.eventTimeline.length, 1);
-  assert.equal(partialParsed.players.some((player) => player.identity.jerseyNumber === 9), false);
+  const jersey9 = partialParsed.players.find((player) => player.identity.jerseyNumber === 9);
+  assert.equal(jersey9.team.side, "opponent");
+  assert.equal(jersey9.eventTimeline.length, 1);
+  assert.equal(jersey9.eventTimeline[0].isOwn, false);
 
-  const parsedPlayer = (hubPlayerId, jerseyNumber, distanceMetres) => ({
-    identityKey: `jersey:${jerseyNumber}`,
+  const separatedTeams = parseAnalytics2Bundle({
+    crossMatchPlayer: {
+      items: [{
+        player_id: "belco-seven",
+        known_name: "Belco Seven",
+        jersey_number: 7,
+        team_id: "focus-team",
+        stats: [{ type: "football_passes_total", value: 12 }],
+      }],
+    },
+    physicalMetrics: [
+      {
+        jerseyNumber: 7, teamId: "focus-team", drill: "full match",
+        distance: 1000, secondsPlayed: 900,
+      },
+      {
+        jerseyNumber: 7, teamId: "opponent-team", drill: "full match",
+        distance: 2000, secondsPlayed: 1200,
+      },
+      {
+        jerseyNumber: 12, teamId: "00000000-0000-0000-0000-000000000000",
+        drill: "full match", distance: 1200, secondsPlayed: 600,
+      },
+      {
+        jerseyNumber: 13, drill: "full match",
+        distance: 1300, secondsPlayed: 600,
+      },
+      {
+        jerseyNumber: 15, teamId: "FOCUS-TEAM", drill: "full match",
+        distance: 1500, secondsPlayed: 600,
+      },
+      {
+        jerseyNumber: 14, drill: "full match",
+        distance: 1400, secondsPlayed: 600,
+      },
+    ],
+    matchEvents: {
+      events: [
+        { team: "Own", playerJersey: "7", eventType: "pass", videoTimeMs: 1000 },
+        { team: "Opponent", playerJersey: "7", eventType: "shot", videoTimeMs: 2000 },
+      ],
+    },
+  }, "2026-08-19T00:00:00.000Z", {
+    focusTeamId: "focus-team",
+    focusTeamName: "Belconnen",
+    opponentTeamName: "Olympic",
+    officialShirtSides: { "12": "opponent", "13": "own" },
+  });
+
+  const belcoSeven = separatedTeams.players.find(
+    (player) => player.identity.jerseyNumber === 7 && player.team.side === "own",
+  );
+  const opponentSeven = separatedTeams.players.find(
+    (player) => player.identity.jerseyNumber === 7 && player.team.side === "opponent",
+  );
+  assert.equal(belcoSeven.metrics.distanceMetres, 1000);
+  assert.equal(belcoSeven.metrics.passes, 12);
+  assert.equal(belcoSeven.eventTimeline.length, 1);
+  assert.equal(opponentSeven.metrics.distanceMetres, 2000);
+  assert.equal(opponentSeven.metrics.passes, null);
+  assert.equal(opponentSeven.eventTimeline.length, 1);
+  assert.equal(opponentSeven.team.sourceTeamId, "opponent-team");
+  const nilIdTwelve = separatedTeams.players.find((player) => player.identity.jerseyNumber === 12);
+  assert.equal(nilIdTwelve.team.side, "opponent");
+  assert.equal(nilIdTwelve.team.attributionStatus, "official_squad");
+  const uniqueOwnThirteen = separatedTeams.players.find((player) => player.identity.jerseyNumber === 13);
+  assert.equal(uniqueOwnThirteen.team.side, "own");
+  assert.equal(uniqueOwnThirteen.team.attributionStatus, "official_squad");
+  const caseNormalisedFifteen = separatedTeams.players.find((player) => player.identity.jerseyNumber === 15);
+  assert.equal(caseNormalisedFifteen.team.side, "own");
+  assert.equal(caseNormalisedFifteen.team.sourceTeamId, "focus-team");
+  const ambiguousFourteen = separatedTeams.players.find((player) => player.identity.jerseyNumber === 14);
+  assert.equal(ambiguousFourteen.team.side, "unassigned");
+  assert.equal(ambiguousFourteen.team.attributionStatus, "unassigned");
+
+  const parsedPlayer = (hubPlayerId, jerseyNumber, distanceMetres, side = "own") => ({
+    identityKey: `${side}:jersey:${jerseyNumber}`,
     identity: {
       veoPlayerId: null,
       jerseyNumber,
@@ -193,6 +288,13 @@ try {
       hubPlayerId,
       hubPlayerName: "Same Name",
       identityStatus: "resolved",
+    },
+    team: {
+      side,
+      teamName: side === "own" ? "Belconnen" : side === "opponent" ? "Olympic" : null,
+      sourceTeamId: side === "own" ? "focus-team" : side === "opponent" ? "opponent-team" : null,
+      attributionStatus: side === "unassigned" ? "unassigned" : "source",
+      attributionReason: side === "unassigned" ? "missing_or_conflicting" : "veo_team_id",
     },
     metrics: metrics({ distanceMetres }),
     unknownMetrics: {},
@@ -209,7 +311,7 @@ try {
     },
   ]);
   assert.equal(sameNameRows.length, 2);
-  assert.deepEqual(sameNameRows.map((row) => row.identityKey).sort(), ["hub:101", "hub:202"]);
+  assert.deepEqual(sameNameRows.map((row) => row.identityKey).sort(), ["own:hub:101", "own:hub:202"]);
 
   const noDurableIdRows = aggregateSeason([
     {
@@ -224,8 +326,60 @@ try {
   assert.equal(noDurableIdRows.length, 2);
   assert.deepEqual(
     noDurableIdRows.map((row) => row.identityKey).sort(),
-    ["match:no-id-one:jersey:7", "match:no-id-two:jersey:7"],
+    ["own:match:no-id-one:jersey:7", "own:match:no-id-two:jersey:7"],
   );
+
+  const sameShirtDifferentTeams = aggregateSeason([
+    {
+      veoMatchId: "side-collision", opponent: "Olympic", startsAt: null, title: null,
+      available: true,
+      players: [
+        parsedPlayer(101, 7, 1000, "own"),
+        parsedPlayer(null, 7, 2000, "opponent"),
+      ],
+    },
+  ]);
+  assert.equal(sameShirtDifferentTeams.length, 2);
+  assert.deepEqual(
+    sameShirtDifferentTeams.map((row) => row.team.side).sort(),
+    ["opponent", "own"],
+  );
+
+  const unassignedAcrossMatches = aggregateSeason([
+    {
+      veoMatchId: "unknown-side-one", opponent: "Opponent A", startsAt: null, title: null,
+      available: true, players: [parsedPlayer(null, 14, 1000, "unassigned")],
+    },
+    {
+      veoMatchId: "unknown-side-two", opponent: "Opponent B", startsAt: null, title: null,
+      available: true, players: [parsedPlayer(null, 14, 2000, "unassigned")],
+    },
+  ]);
+  assert.equal(unassignedAcrossMatches.length, 2);
+
+  const nameOnlyOpponent = (matchId) => ({
+    ...parsedPlayer(null, 5, 1000, "opponent"),
+    identity: {
+      ...parsedPlayer(null, 5, 1000, "opponent").identity,
+      veoPlayerId: "same-opponent-veo-player",
+    },
+    team: {
+      ...parsedPlayer(null, 5, 1000, "opponent").team,
+      sourceTeamId: null,
+    },
+    identityKey: `opponent:match-opponent:player:same-opponent-veo-player:${matchId}`,
+  });
+  const nameOnlyOpponentAcrossMatches = aggregateSeason([
+    {
+      veoMatchId: "name-only-opponent-one", opponent: "Olympic", startsAt: null, title: null,
+      available: true, players: [nameOnlyOpponent("one")],
+    },
+    {
+      veoMatchId: "name-only-opponent-two", opponent: "Olympic", startsAt: null, title: null,
+      available: true, players: [nameOnlyOpponent("two")],
+    },
+  ]);
+  assert.equal(nameOnlyOpponentAcrossMatches.length, 2);
 
   console.log("Veo Analytics 2 storage, parser, identity, and season-filter tests passed");
 } finally {

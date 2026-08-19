@@ -5032,6 +5032,13 @@ export const GetVeoPlayerMatchResponse = zod.object({
   "hubPlayerName": zod.string().nullish(),
   "identityStatus": zod.enum(['resolved', 'unresolved', 'ambiguous'])
 }),
+  "team": zod.object({
+  "side": zod.enum(['own', 'opponent', 'unassigned']),
+  "teamName": zod.string().nullable(),
+  "sourceTeamId": zod.string().nullable(),
+  "attributionStatus": zod.enum(['source', 'official_squad', 'unassigned']),
+  "attributionReason": zod.enum(['veo_team_id', 'scoped_team_request', 'veo_event_label', 'unique_official_shirt', 'missing_or_conflicting'])
+}),
   "metrics": zod.object({
   "matches": zod.number().nullish(),
   "starts": zod.number().nullish(),
@@ -5083,7 +5090,14 @@ export const GetVeoPlayerMatchResponse = zod.object({
   "hasMesEvents": zod.boolean(),
   "hasJerseyNumbers": zod.boolean(),
   "fetchedAt": zod.string().nullish()
-})
+}),
+  "focusTeamName": zod.string().optional(),
+  "opponentTeamName": zod.string().nullish(),
+  "teamCounts": zod.object({
+  "own": zod.number(),
+  "opponent": zod.number(),
+  "unassigned": zod.number()
+}).optional()
 })
 
 
@@ -5107,6 +5121,13 @@ export const GetVeoPlayerSeasonResponse = zod.object({
   "hubPlayerId": zod.number().nullish(),
   "hubPlayerName": zod.string().nullish(),
   "identityStatus": zod.enum(['resolved', 'unresolved', 'ambiguous'])
+}),
+  "team": zod.object({
+  "side": zod.enum(['own', 'opponent', 'unassigned']),
+  "teamName": zod.string().nullable(),
+  "sourceTeamId": zod.string().nullable(),
+  "attributionStatus": zod.enum(['source', 'official_squad', 'unassigned']),
+  "attributionReason": zod.enum(['veo_team_id', 'scoped_team_request', 'veo_event_label', 'unique_official_shirt', 'missing_or_conflicting'])
 }),
   "totals": zod.object({
   "matches": zod.number().nullish(),
@@ -5179,10 +5200,23 @@ export const GetVeoPlayerSeasonResponse = zod.object({
   "goalKicks": zod.number().nullish()
 }).describe('Stable camera-derived player metrics. null = not available (never zero-filled).'),
   "available": zod.boolean(),
-  "jerseyNumber": zod.number().nullish()
+  "jerseyNumber": zod.number().nullish(),
+  "team": zod.object({
+  "side": zod.enum(['own', 'opponent', 'unassigned']),
+  "teamName": zod.string().nullable(),
+  "sourceTeamId": zod.string().nullable(),
+  "attributionStatus": zod.enum(['source', 'official_squad', 'unassigned']),
+  "attributionReason": zod.enum(['veo_team_id', 'scoped_team_request', 'veo_event_label', 'unique_official_shirt', 'missing_or_conflicting'])
+})
 })),
   "matchCount": zod.number()
-}))
+})),
+  "focusTeamName": zod.string().optional(),
+  "teamCounts": zod.object({
+  "own": zod.number(),
+  "opponent": zod.number(),
+  "unassigned": zod.number()
+}).optional()
 })
 
 

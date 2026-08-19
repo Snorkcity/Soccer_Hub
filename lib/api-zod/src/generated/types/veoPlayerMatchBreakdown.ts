@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VeoPlayerStableMetrics } from './veoPlayerStableMetrics';
+import type { VeoPlayerTeam } from './veoPlayerTeam';
 
 export interface VeoPlayerMatchBreakdown {
   veoMatchId: string;
@@ -19,4 +20,5 @@ export interface VeoPlayerMatchBreakdown {
   available: boolean;
   /** @nullable */
   jerseyNumber?: number | null;
+  team: VeoPlayerTeam;
 }

@@ -134,6 +134,19 @@ avoids re-implementing period aggregation.
 summaries with their match and league scope. Keep raw detected jersey identity separate from Hub player
 identity so lineup corrections can remap without rewriting source data.
 
+## Analytics 2 team ownership safety
+Attribute every player-source contribution to own, opponent, or unassigned before combining metrics.
+Veo team IDs and MES Own/Opponent labels are strongest; an absent/zero physical team ID may fall back
+only when its canonical shirt belongs to exactly one official club squad in that linked fixture. A shirt
+found on both squads stays unassigned. Never use names, fuzzy matching, GPS identities, or aliases.
+
+**Why:** physical rows are often missing a usable team ID, both clubs commonly reuse shirt numbers, and
+the all-zero UUID is a missing-value sentinel. Combining by shirt first silently mixes opposing players.
+
+**How to apply:** include side/team scope in every match and season key. Own rows may use durable Hub
+identity; opponent rows may aggregate across matches only with both a stable Veo player ID and a real
+source team ID. Name-only opponent rows and every unassigned row must remain match-scoped.
+
 ## Coach Assist (Veo reference, not an API dependency)
 The match page exposes a Coach Assist chat with the prompt “Ask about this match, team or the club…” and
 starters for match summary, trends, training drills, scoring efficiency and game-plan analysis. It is

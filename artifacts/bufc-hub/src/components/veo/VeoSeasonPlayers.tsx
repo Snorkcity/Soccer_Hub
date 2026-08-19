@@ -4,6 +4,7 @@ import {
   getGetVeoPlayerSeasonQueryKey,
   type VeoSeasonPlayerRow,
   type VeoPlayerIdentity,
+  type VeoPlayerTeam,
   type VeoPlayerStableMetrics
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/core";
@@ -14,8 +15,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { AlertCircle, CalendarDays, Info, Search, SlidersHorizontal, User, ChevronRight, Hash } from "lucide-react";
 import { scopeSeasonPlayers } from "@/lib/veoSeasonMetrics";
+import { teamLabel, VeoPlayerTeamBadge } from "./VeoPlayerTeamBadge";
 
 type MetricGroup = "Summary" | "Physical" | "Attacking" | "Possession";
+type TeamFilter = "all" | VeoPlayerTeam["side"];
 
 const METRIC_GROUPS: Record<MetricGroup, (keyof VeoPlayerStableMetrics)[]> = {
   "Summary": ["matches", "starts", "minutesPlayed", "distanceMetres", "topSpeedKmh", "goals", "assists"],
@@ -42,30 +45,36 @@ function formatMetric(val: number | null | undefined, key: string, isPer90 = fal
   return isPer90 && val > 0 && val < 10 && val % 1 !== 0 ? val.toFixed(1) : Math.round(val).toString();
 }
 
-function IdentityBadge({ identity }: { identity: VeoPlayerIdentity }) {
+function IdentityBadge({ identity, team }: { identity: VeoPlayerIdentity; team: VeoPlayerTeam }) {
   if (identity.identityStatus === "resolved") {
     return (
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="font-medium text-foreground truncate">
-          {identity.hubPlayerName || identity.veoPlayerName}
-        </span>
-        {identity.jerseyNumber != null && (
-          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-            <Hash className="h-2.5 w-2.5" />
-            {identity.jerseyNumber}
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="font-medium text-foreground truncate">
+            {identity.hubPlayerName || identity.veoPlayerName}
           </span>
-        )}
+          {identity.jerseyNumber != null && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+              <Hash className="h-2.5 w-2.5" />
+              {identity.jerseyNumber}
+            </span>
+          )}
+        </div>
+        <VeoPlayerTeamBadge team={team} compact />
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <span className="font-medium text-muted-foreground italic truncate">
-        {identity.veoPlayerName || `Jersey #${identity.jerseyNumber ?? "?"}`}
-      </span>
-      <span className="text-[9px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0" title={identity.identityStatus === "ambiguous" ? "Multiple players share this jersey number in Dribl" : "Not matched to a Hub player"}>
-        {identity.identityStatus === "ambiguous" ? "Ambiguous" : identity.veoPlayerName ? "Veo lineup" : "Unresolved"}
-      </span>
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="font-medium text-muted-foreground italic truncate">
+          {identity.veoPlayerName || `Jersey #${identity.jerseyNumber ?? "?"}`}
+        </span>
+        <span className="text-[9px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0" title={identity.identityStatus === "ambiguous" ? "Multiple players share this jersey number in Dribl" : "Not matched to a Hub player"}>
+          {identity.identityStatus === "ambiguous" ? "Ambiguous" : identity.veoPlayerName ? "Veo lineup" : "Unresolved"}
+        </span>
+      </div>
+      <VeoPlayerTeamBadge team={team} compact />
     </div>
   );
 }
@@ -76,6 +85,7 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
   const [search, setSearch] = useState("");
   const [minMatches, setMinMatches] = useState(1);
   const [opponent, setOpponent] = useState("all");
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedPlayerKey, setSelectedPlayerKey] = useState<string | null>(null);
@@ -91,10 +101,16 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
   });
 
   const players = data?.players || [];
+  const teamFilteredPlayers = useMemo(
+    () => teamFilter === "all"
+      ? players
+      : players.filter((player) => player.team.side === teamFilter),
+    [players, teamFilter],
+  );
   
   const scopedPlayers = useMemo(() => {
-    return scopeSeasonPlayers(players, { opponent, fromDate, toDate });
-  }, [players, opponent, fromDate, toDate]);
+    return scopeSeasonPlayers(teamFilteredPlayers, { opponent, fromDate, toDate });
+  }, [teamFilteredPlayers, opponent, fromDate, toDate]);
 
   const filteredPlayers = useMemo(() => {
     let p = scopedPlayers;
@@ -106,7 +122,8 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
       p = p.filter(r => 
         (r.identity.hubPlayerName?.toLowerCase().includes(s)) ||
         (r.identity.veoPlayerName?.toLowerCase().includes(s)) ||
-        (r.identity.jerseyNumber?.toString().includes(s))
+        (r.identity.jerseyNumber?.toString().includes(s)) ||
+        teamLabel(r.team).toLowerCase().includes(s)
       );
     }
     
@@ -135,9 +152,25 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
     [players],
   );
   const columns = METRIC_GROUPS[metricGroup];
+  const teamCounts = useMemo(
+    () => players.reduce<Record<VeoPlayerTeam["side"], number>>(
+      (counts, player) => {
+        counts[player.team.side]++;
+        return counts;
+      },
+      { own: 0, opponent: 0, unassigned: 0 },
+    ),
+    [players],
+  );
   const selectedPlayer = selectedPlayerKey
     ? filteredPlayers.find((player) => player.identityKey === selectedPlayerKey) ?? null
     : null;
+  const selectedMatchBreakdowns = selectedPlayer?.matchBreakdowns.map((match) => ({
+    ...match,
+    displayOpponent: selectedPlayer.team.side === "opponent"
+      ? data?.focusTeamName || "Our team"
+      : match.opponent,
+  })) ?? [];
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -219,6 +252,29 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter players by team">
+          {([
+            ["all", "All players", players.length],
+            ["own", data?.focusTeamName || "Our team", teamCounts.own],
+            ["opponent", "Opponents", teamCounts.opponent],
+            ["unassigned", "Unassigned", teamCounts.unassigned],
+          ] as const).map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTeamFilter(value)}
+              aria-pressed={teamFilter === value}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                teamFilter === value
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label} <span className="tabular-nums opacity-75">{count}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
           <Select value={opponent} onValueChange={setOpponent}>
             <SelectTrigger className="bg-background">
@@ -266,7 +322,7 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
 
       <div className="flex items-center gap-2 p-2.5 bg-muted/50 rounded-md text-xs text-muted-foreground">
         <Info className="h-4 w-4 shrink-0 text-primary" />
-        Camera-derived estimate (Veo Analytics 2) — not wearable GPS. Names are only enriched by an exact shirt match in that match's official squad.
+        Camera-derived estimate (Veo Analytics 2) — not wearable GPS. Team badges are assigned before aggregation; unassigned rows never enter a team total.
       </div>
 
       <div className="rounded-md border overflow-hidden bg-card">
@@ -307,7 +363,7 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
                   >
                     <td className="py-2 px-3 sticky left-0 z-10 bg-background group-hover:bg-muted/30 transition-colors shadow-[1px_0_0_hsl(var(--border))]">
                       <div className="flex items-center justify-between gap-4">
-                        <IdentityBadge identity={row.identity} />
+                        <IdentityBadge identity={row.identity} team={row.team} />
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
@@ -346,7 +402,10 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
                   )}
                 </SheetTitle>
                 <SheetDescription>
-                  Season Trends • {selectedPlayer.matchCount} Matches • {selectedPlayer.totals.minutesPlayed || 0} Minutes
+                  <span className="flex flex-col items-start gap-2">
+                    <VeoPlayerTeamBadge team={selectedPlayer.team} />
+                    <span>Season Trends • {selectedPlayer.matchCount} Matches • {selectedPlayer.totals.minutesPlayed || 0} Minutes</span>
+                  </span>
                 </SheetDescription>
               </SheetHeader>
               
@@ -371,10 +430,10 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
                   </h4>
                   <div className="h-[200px] border rounded-md bg-card p-3">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={selectedPlayer.matchBreakdowns.filter(m => m.metrics.distanceMetres != null)}>
+                      <BarChart data={selectedMatchBreakdowns.filter(m => m.metrics.distanceMetres != null)}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                         <XAxis 
-                          dataKey="opponent" 
+                          dataKey="displayOpponent"
                           tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                           tickFormatter={(val) => val?.substring(0, 8) + (val?.length > 8 ? "..." : "") || "Opp"}
                           axisLine={false}
@@ -394,7 +453,7 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover border shadow-md rounded p-2 text-xs">
-                                <div className="font-semibold mb-1">{data.opponent || "Unknown Opponent"}</div>
+                                <div className="font-semibold mb-1">{data.displayOpponent || "Unknown Opponent"}</div>
                                 <div className="text-muted-foreground mb-2">{data.startsAt ? new Date(data.startsAt).toLocaleDateString() : ""}</div>
                                 <div>Distance: {((data.metrics.distanceMetres || 0) / 1000).toFixed(2)} km</div>
                                 <div>Minutes: {data.metrics.minutesPlayed || 0}</div>
@@ -415,10 +474,10 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold">Match Log</h4>
                   <div className="border rounded-md divide-y overflow-hidden text-sm">
-                    {selectedPlayer.matchBreakdowns.map((m, i) => (
+                    {selectedMatchBreakdowns.map((m, i) => (
                       <div key={i} className="flex items-center justify-between p-2.5 bg-card hover:bg-muted/30 transition-colors">
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{m.opponent || m.title || "Match"}</div>
+                          <div className="font-medium truncate">{m.displayOpponent || m.title || "Match"}</div>
                           <div className="text-xs text-muted-foreground">{m.startsAt ? new Date(m.startsAt).toLocaleDateString() : ""}</div>
                         </div>
                         <div className="text-right shrink-0 ml-4">

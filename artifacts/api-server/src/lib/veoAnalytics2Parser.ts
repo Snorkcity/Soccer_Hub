@@ -11,8 +11,10 @@
 //    summary drill exists use it alone; otherwise sum period drills.
 //  - Player identity: known_name preferred; then "first_name last_name"; no
 //    player_name field exists in the live API.
-//  - Season aggregation groups by durable official Hub player ID when available,
-//    then stable Veo player ID, then per-match-scoped
+//  - Team attribution happens before any metrics are combined. The same shirt
+//    on opposite teams is always represented by separate player records.
+//  - Season aggregation groups within team by durable official Hub player ID
+//    when available, then stable Veo player ID, then per-match-scoped
 //    ("match:<veoMatchId>:jersey:<n>"). Jersey-only rows are NEVER merged
 //    across matches unless they resolve to the same unique Hub player. Identity
 //    enrichment happens PER MATCH PLAYER before aggregation.
@@ -67,6 +69,32 @@ export interface PlayerIdentityInfo {
   identityStatus: "resolved" | "unresolved" | "ambiguous";
 }
 
+export type PlayerTeamSide = "own" | "opponent" | "unassigned";
+export type PlayerTeamAttributionStatus = "source" | "official_squad" | "unassigned";
+export type PlayerTeamAttributionReason =
+  | "veo_team_id"
+  | "scoped_team_request"
+  | "veo_event_label"
+  | "unique_official_shirt"
+  | "missing_or_conflicting";
+
+export interface PlayerTeamInfo {
+  side: PlayerTeamSide;
+  teamName: string | null;
+  sourceTeamId: string | null;
+  attributionStatus: PlayerTeamAttributionStatus;
+  attributionReason: PlayerTeamAttributionReason;
+}
+
+export interface Analytics2TeamContext {
+  focusTeamId: string | null;
+  focusTeamName: string;
+  opponentTeamName: string | null;
+  // Shirt assignments are only supplied when one official club owns that shirt
+  // number in the linked match squad. Shared/ambiguous shirts are omitted.
+  officialShirtSides?: Record<string, "own" | "opponent">;
+}
+
 // ── MES event timeline entry ──────────────────────────────────────────────────
 export interface EventTimelineEntry {
   eventType: string;
@@ -94,6 +122,7 @@ export interface ParsedPlayer {
   // identityKey before Hub enrichment (used internally; aggregation uses post-enrichment key).
   identityKey: string;
   identity: PlayerIdentityInfo;
+  team: PlayerTeamInfo;
   metrics: PlayerStableMetrics;
   unknownMetrics: Record<string, unknown>;
   eventTimeline: EventTimelineEntry[];
@@ -187,8 +216,148 @@ function safeJerseyNumber(v: unknown): number | null {
   return jersey != null && Number.isInteger(jersey) && jersey >= 0 ? jersey : null;
 }
 
-function isOwnTeam(team: string | null | undefined): boolean {
-  return team?.trim().toLowerCase() === "own";
+const NIL_TEAM_ID = "00000000-0000-0000-0000-000000000000";
+
+function normaliseTeamId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const teamId = value.trim().toLowerCase();
+  return teamId && teamId !== NIL_TEAM_ID ? teamId : null;
+}
+
+function officialShirtSide(
+  jerseyNumber: number | null,
+  context: Analytics2TeamContext,
+): "own" | "opponent" | null {
+  if (jerseyNumber == null) return null;
+  return context.officialShirtSides?.[String(jerseyNumber)] ?? null;
+}
+
+function teamInfo(
+  side: PlayerTeamSide,
+  context: Analytics2TeamContext,
+  sourceTeamId: string | null,
+  attributionStatus: PlayerTeamAttributionStatus,
+  attributionReason: PlayerTeamAttributionReason,
+): PlayerTeamInfo {
+  return {
+    side,
+    teamName: side === "own"
+      ? context.focusTeamName
+      : side === "opponent"
+        ? context.opponentTeamName
+        : null,
+    sourceTeamId,
+    attributionStatus,
+    attributionReason,
+  };
+}
+
+function unassignedTeam(context: Analytics2TeamContext): PlayerTeamInfo {
+  return teamInfo("unassigned", context, null, "unassigned", "missing_or_conflicting");
+}
+
+function teamFromOfficialShirt(
+  jerseyNumber: number | null,
+  context: Analytics2TeamContext,
+  inferredOpponentTeamId: string | null,
+): PlayerTeamInfo {
+  const side = officialShirtSide(jerseyNumber, context);
+  if (!side) return unassignedTeam(context);
+  return teamInfo(
+    side,
+    context,
+    side === "own" ? normaliseTeamId(context.focusTeamId) : inferredOpponentTeamId,
+    "official_squad",
+    "unique_official_shirt",
+  );
+}
+
+function teamFromCrossRow(
+  row: CrossMatchPlayerRow,
+  context: Analytics2TeamContext,
+): PlayerTeamInfo {
+  const sourceTeamId = normaliseTeamId(row.team_id);
+  const focusTeamId = normaliseTeamId(context.focusTeamId);
+  if (sourceTeamId && focusTeamId) {
+    return teamInfo(
+      sourceTeamId === focusTeamId ? "own" : "opponent",
+      context,
+      sourceTeamId,
+      "source",
+      "veo_team_id",
+    );
+  }
+  // This endpoint is requested with the configured focus team ID, so a row
+  // without its own team_id still has authoritative request scope.
+  return teamInfo(
+    "own",
+    context,
+    focusTeamId,
+    "source",
+    "scoped_team_request",
+  );
+}
+
+function teamFromPhysicalRow(
+  row: PhysicalMetricRow,
+  context: Analytics2TeamContext,
+  inferredOpponentTeamId: string | null,
+): PlayerTeamInfo {
+  const sourceTeamId = normaliseTeamId(row.teamId);
+  const focusTeamId = normaliseTeamId(context.focusTeamId);
+  if (sourceTeamId && focusTeamId) {
+    return teamInfo(
+      sourceTeamId === focusTeamId ? "own" : "opponent",
+      context,
+      sourceTeamId,
+      "source",
+      "veo_team_id",
+    );
+  }
+  return teamFromOfficialShirt(
+    safeJerseyNumber(row.jerseyNumber),
+    context,
+    inferredOpponentTeamId,
+  );
+}
+
+function teamFromEvent(
+  event: MesEventRow,
+  context: Analytics2TeamContext,
+  inferredOpponentTeamId: string | null,
+): PlayerTeamInfo {
+  const label = event.team?.trim().toLowerCase();
+  if (label === "own") {
+    return teamInfo(
+      "own",
+      context,
+      normaliseTeamId(context.focusTeamId),
+      "source",
+      "veo_event_label",
+    );
+  }
+  if (label === "opponent" || label === "opp") {
+    return teamInfo(
+      "opponent",
+      context,
+      inferredOpponentTeamId,
+      "source",
+      "veo_event_label",
+    );
+  }
+  return teamFromOfficialShirt(
+    safeJerseyNumber(event.playerJersey),
+    context,
+    inferredOpponentTeamId,
+  );
+}
+
+function teamBucket(team: PlayerTeamInfo): string {
+  if (team.side === "own") return "own";
+  if (team.side === "opponent") {
+    return `opponent:${team.sourceTeamId ?? "match-opponent"}`;
+  }
+  return `unassigned:${team.sourceTeamId ?? "unknown"}`;
 }
 
 // Build veoPlayerName from live API identity fields.
@@ -348,7 +517,6 @@ function buildEventTimeline(
   return events
     .filter((e) => {
       if (!e.playerJersey) return false;
-      if (!isOwnTeam(e.team)) return false;
       // Normalise: "07" vs "7" — compare as numbers.
       return safeJerseyNumber(e.playerJersey) === jerseyNumber;
     })
@@ -361,7 +529,7 @@ function buildEventTimeline(
       x: safeNum(e.x),
       z: safeNum(e.z),
       jerseyNumber: String(jerseyNumber),
-      isOwn: isOwnTeam(e.team),
+      isOwn: e.team?.trim().toLowerCase() === "own",
     }))
     .sort((a, b) => (a.videoTimeMs ?? 0) - (b.videoTimeMs ?? 0));
 }
@@ -372,7 +540,13 @@ function buildEventTimeline(
 export function parseAnalytics2Bundle(
   bundle: Analytics2Bundle | null | undefined,
   fetchedAt: string | null,
+  teamContext?: Analytics2TeamContext,
 ): ParsedAnalytics2Match {
+  const context: Analytics2TeamContext = teamContext ?? {
+    focusTeamId: null,
+    focusTeamName: "Our team",
+    opponentTeamName: "Opponent",
+  };
   const coverage: SourceCoverage = {
     hasCrossMatch: false,
     hasPhysicalMetrics: false,
@@ -400,50 +574,129 @@ export function parseAnalytics2Bundle(
 
   if (bundle.jerseyNumbers !== undefined) coverage.hasJerseyNumbers = true;
 
-  // Cross-match is the richest identity source, but each Analytics 2 source is
-  // independent. Seed additional unresolved jersey candidates from physical
-  // rows and own-team MES events so useful partial data is never hidden.
-  const candidates: Array<{ row: CrossMatchPlayerRow | null; jerseyNumber: number | null; fallbackIdx: number }> =
-    crossItems.map((row, rowIdx) => ({
-      row,
-      jerseyNumber: safeJerseyNumber(row.jersey_number),
-      fallbackIdx: rowIdx,
-    }));
-  const representedJerseys = new Set(
-    candidates
-      .map((candidate) => candidate.jerseyNumber)
-      .filter((jersey): jersey is number => jersey != null),
-  );
-  const sourceJerseys = [
-    ...physRows.map((row) => safeJerseyNumber(row.jerseyNumber)),
-    ...mesEvents
-      .filter((event) => isOwnTeam(event.team))
-      .map((event) => safeJerseyNumber(event.playerJersey)),
-  ];
-  for (const jerseyNumber of sourceJerseys) {
-    if (jerseyNumber == null || representedJerseys.has(jerseyNumber)) continue;
-    representedJerseys.add(jerseyNumber);
-    candidates.push({ row: null, jerseyNumber, fallbackIdx: candidates.length });
+  const opponentTeamIds = new Set<string>();
+  for (const row of physRows) {
+    const sourceTeamId = normaliseTeamId(row.teamId);
+    const focusTeamId = normaliseTeamId(context.focusTeamId);
+    if (sourceTeamId && focusTeamId && sourceTeamId !== focusTeamId) {
+      opponentTeamIds.add(sourceTeamId);
+    }
+  }
+  for (const row of crossItems) {
+    const sourceTeamId = normaliseTeamId(row.team_id);
+    const focusTeamId = normaliseTeamId(context.focusTeamId);
+    if (sourceTeamId && focusTeamId && sourceTeamId !== focusTeamId) {
+      opponentTeamIds.add(sourceTeamId);
+    }
+  }
+  const inferredOpponentTeamId = opponentTeamIds.size === 1
+    ? [...opponentTeamIds][0]
+    : null;
+
+  interface Candidate {
+    row: CrossMatchPlayerRow | null;
+    jerseyNumber: number | null;
+    fallbackIdx: number;
+    team: PlayerTeamInfo;
+    physicalRows: PhysicalMetricRow[];
+    events: MesEventRow[];
   }
 
-  const players: ParsedPlayer[] = candidates.map(({ row, jerseyNumber, fallbackIdx }) => {
+  const candidates = new Map<string, Candidate>();
+  let fallbackIdx = 0;
+  const addCandidate = (
+    team: PlayerTeamInfo,
+    jerseyNumber: number | null,
+    row: CrossMatchPlayerRow | null,
+    physicalRow?: PhysicalMetricRow,
+    event?: MesEventRow,
+  ): void => {
+    const identityPart = jerseyNumber != null
+      ? `jersey:${jerseyNumber}`
+      : row?.player_id
+        ? `player:${row.player_id}`
+        : `idx:${fallbackIdx}`;
+    const key = `${teamBucket(team)}:${identityPart}`;
+    const existing = candidates.get(key);
+    if (existing) {
+      if (!existing.row && row) existing.row = row;
+      if (physicalRow) existing.physicalRows.push(physicalRow);
+      if (event) existing.events.push(event);
+      const existingRank = existing.team.attributionStatus === "source"
+        ? 2
+        : existing.team.attributionStatus === "official_squad"
+          ? 1
+          : 0;
+      const nextRank = team.attributionStatus === "source"
+        ? 2
+        : team.attributionStatus === "official_squad"
+          ? 1
+          : 0;
+      if (
+        nextRank > existingRank ||
+        (!existing.team.sourceTeamId && team.sourceTeamId)
+      ) {
+        existing.team = team;
+      }
+      return;
+    }
+    candidates.set(key, {
+      row,
+      jerseyNumber,
+      fallbackIdx,
+      team,
+      physicalRows: physicalRow ? [physicalRow] : [],
+      events: event ? [event] : [],
+    });
+    fallbackIdx++;
+  };
+
+  for (const row of crossItems) {
+    addCandidate(
+      teamFromCrossRow(row, context),
+      safeJerseyNumber(row.jersey_number),
+      row,
+    );
+  }
+  for (const row of physRows) {
+    const jerseyNumber = safeJerseyNumber(row.jerseyNumber);
+    if (jerseyNumber == null) continue;
+    addCandidate(
+      teamFromPhysicalRow(row, context, inferredOpponentTeamId),
+      jerseyNumber,
+      null,
+      row,
+    );
+  }
+  for (const event of mesEvents) {
+    const jerseyNumber = safeJerseyNumber(event.playerJersey);
+    if (jerseyNumber == null) continue;
+    addCandidate(
+      teamFromEvent(event, context, inferredOpponentTeamId),
+      jerseyNumber,
+      null,
+      undefined,
+      event,
+    );
+  }
+
+  const players: ParsedPlayer[] = [...candidates.values()].map((candidate) => {
+    const { row, jerseyNumber, team } = candidate;
     const veoPlayerId = typeof row?.player_id === "string" && row.player_id ? row.player_id : null;
     const veoPlayerName = row ? buildVeoPlayerName(row) : null;
 
-    // Within-match identity key: prefer stable player_id; else jersey number;
-    // else deterministic positional index (no Math.random).
-    const identityKey = veoPlayerId != null
+    const identityKey = `${teamBucket(team)}:${veoPlayerId != null
       ? `player:${veoPlayerId}`
       : jerseyNumber != null
         ? `jersey:${jerseyNumber}`
-        : `unknown:${fallbackIdx}`;
+        : `unknown:${candidate.fallbackIdx}`}`;
 
     // Parse stats from the cross-match player row.
     const { metrics: crossMetrics, unknownMetrics: crossUnknown } = parseCrossMatchStats(row?.stats);
 
     // Parse physical metrics for this jersey (zero-valid).
     const { metrics: physMetrics, unknownMetrics: physUnknown } = jerseyNumber != null
-      ? aggregatePhysicalMetrics(physRows, jerseyNumber)
+      ? aggregatePhysicalMetrics(candidate.physicalRows, jerseyNumber)
       : { metrics: {}, unknownMetrics: {} };
 
     // Merge: physical metrics are the base; cross-match stats win on overlap
@@ -463,7 +716,7 @@ export function parseAnalytics2Bundle(
 
     const unknownMetrics = { ...physUnknown, ...crossUnknown, ...rowUnknown };
 
-    const eventTimeline = buildEventTimeline(mesEvents, jerseyNumber);
+    const eventTimeline = buildEventTimeline(candidate.events, jerseyNumber);
 
     return {
       identityKey,
@@ -475,6 +728,7 @@ export function parseAnalytics2Bundle(
         hubPlayerName: null,
         identityStatus: "unresolved" as const,
       },
+      team,
       metrics: merged,
       unknownMetrics,
       eventTimeline,
@@ -496,6 +750,7 @@ export function parseAnalytics2Bundle(
 export interface SeasonPlayerRow {
   identityKey: string;
   identity: PlayerIdentityInfo;
+  team: PlayerTeamInfo;
   totals: PlayerStableMetrics;
   per90: Partial<Record<keyof PlayerStableMetrics, number | null>>;
   matchBreakdowns: Array<{
@@ -506,6 +761,7 @@ export interface SeasonPlayerRow {
     metrics: PlayerStableMetrics;
     available: boolean;
     jerseyNumber: number | null;
+    team: PlayerTeamInfo;
   }>;
   matchCount: number;
 }
@@ -534,18 +790,26 @@ function seasonKey(
   veoMatchId: string,
   rowIdx: number,
 ): string {
-  if (player.identity.hubPlayerId != null) {
-    return `hub:${player.identity.hubPlayerId}`;
+  const teamScope = player.team.side === "own"
+    ? "own"
+    : player.team.side === "opponent"
+      ? `opponent:${player.team.sourceTeamId ?? player.team.teamName ?? "match-opponent"}`
+      : "unassigned";
+  const hasDurableTeamScope =
+    player.team.side === "own" ||
+    (player.team.side === "opponent" && player.team.sourceTeamId != null);
+  if (hasDurableTeamScope && player.identity.hubPlayerId != null) {
+    return `${teamScope}:hub:${player.identity.hubPlayerId}`;
   }
-  if (player.identity.veoPlayerId) {
-    return `veo:${player.identity.veoPlayerId}`;
+  if (hasDurableTeamScope && player.identity.veoPlayerId) {
+    return `${teamScope}:veo:${player.identity.veoPlayerId}`;
   }
   // No durable ID: remain match-scoped even if a shirt resolved to a display
   // name. Display names are not unique across a season.
   if (player.identity.jerseyNumber != null) {
-    return `match:${veoMatchId}:jersey:${player.identity.jerseyNumber}`;
+    return `${teamScope}:match:${veoMatchId}:jersey:${player.identity.jerseyNumber}`;
   }
-  return `match:${veoMatchId}:idx:${rowIdx}`;
+  return `${teamScope}:match:${veoMatchId}:idx:${rowIdx}`;
 }
 
 export function aggregateSeason(
@@ -561,6 +825,7 @@ export function aggregateSeason(
 ): SeasonPlayerRow[] {
   const byKey = new Map<string, {
     identity: PlayerIdentityInfo;
+    team: PlayerTeamInfo;
     matchData: Array<{
       veoMatchId: string;
       opponent: string | null;
@@ -569,6 +834,7 @@ export function aggregateSeason(
       metrics: PlayerStableMetrics;
       available: boolean;
       jerseyNumber: number | null;
+      team: PlayerTeamInfo;
     }>;
   }>();
 
@@ -583,6 +849,7 @@ export function aggregateSeason(
         metrics: player.metrics,
         available: match.available,
         jerseyNumber: player.identity.jerseyNumber,
+        team: player.team,
       };
       const existing = byKey.get(key);
       if (existing) {
@@ -597,6 +864,7 @@ export function aggregateSeason(
       } else {
         byKey.set(key, {
           identity: player.identity,
+          team: player.team,
           matchData: [breakdown],
         });
       }
@@ -668,6 +936,7 @@ export function aggregateSeason(
     result.push({
       identityKey,
       identity: data.identity,
+      team: data.team,
       totals,
       per90,
       matchBreakdowns: data.matchData,

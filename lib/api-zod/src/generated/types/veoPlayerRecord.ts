@@ -9,10 +9,12 @@ import type { VeoEventTimelineEntry } from './veoEventTimelineEntry';
 import type { VeoPlayerIdentity } from './veoPlayerIdentity';
 import type { VeoPlayerRecordUnknownMetrics } from './veoPlayerRecordUnknownMetrics';
 import type { VeoPlayerStableMetrics } from './veoPlayerStableMetrics';
+import type { VeoPlayerTeam } from './veoPlayerTeam';
 
 export interface VeoPlayerRecord {
   identityKey: string;
   identity: VeoPlayerIdentity;
+  team: VeoPlayerTeam;
   metrics: VeoPlayerStableMetrics;
   /** Beta fields from Veo not yet mapped to stable metrics */
   unknownMetrics: VeoPlayerRecordUnknownMetrics;

@@ -9,7 +9,7 @@
 import { Router, type IRouter } from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { db, veoMatchesTable, veoAnalytics2Table, leaguePlayerStatsTable, playerStatsTable, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
+import { db, veoMatchesTable, veoAnalytics2Table, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
 import {
   defaultVeoCreds,
   listRecordings,
@@ -35,10 +35,14 @@ import { parseAnalytics2Bundle, aggregateSeason } from "../lib/veoAnalytics2Pars
 import {
   analytics2StatusFromBundle,
   analytics2NeedsWork,
-  canonicalShirtNumber,
   mergeAnalytics2Bundles,
   mergeAnalytics2TerminalSources,
 } from "../lib/veoAnalytics2Store";
+import {
+  countPlayersByTeam,
+  enrichAnalytics2PlayerIdentities,
+  loadAnalytics2MatchIdentityContext,
+} from "../lib/veoAnalytics2Identity";
 import { GetVeoPlayerMatchQueryParams, GetVeoPlayerSeasonQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -1533,90 +1537,6 @@ function computeReportStats(events: unknown[], periods: unknown) {
   return { shots: { us: shotsUs, them: shotsThem }, momentum };
 }
 
-// ── Analytics 2 identity helpers ─────────────────────────────────────────────
-// Match jersey number → Hub player via league_player_stats for a given match.
-// Returns the exact match-scoped display name plus a durable official player ID
-// when player_stats can identify one unique person. Never uses GPS identities.
-// Uses leagues.focus_club to scope to the right club; documented here per spec.
-async function resolveHubIdentity(
-  leagueId: number,
-  veoMatchId: string,
-  jerseyNumber: number | null,
-  focusClub: string,
-): Promise<{ hubPlayerId: number | null; hubPlayerName: string | null; identityStatus: "resolved" | "unresolved" | "ambiguous" }> {
-  if (jerseyNumber == null) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
-
-  // Find the veo_matches row to get the linked matches.id (→ matchId + seasonId).
-  const veoRow = await db
-    .select({
-      matchId: veoMatchesTable.matchId,
-    })
-    .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.veoMatchId, veoMatchId)))
-    .limit(1);
-
-  const hubMatchId = veoRow[0]?.matchId;
-  if (hubMatchId == null) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
-
-  // Resolve matches.match_id + season_id from the linked matches row.
-  const matchRow = await db
-    .select({ matchId: matchesTable.matchId, seasonId: matchesTable.seasonId })
-    .from(matchesTable)
-    .where(eq(matchesTable.id, hubMatchId))
-    .limit(1);
-
-  if (!matchRow[0]) return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
-  const { matchId: hubMatchCode, seasonId } = matchRow[0];
-
-  // Join league_player_stats with exact seasonId+matchId+club+shirtNumber.
-  // club = leagues.focus_club (shared response convention — documented here).
-  const candidates = await db
-    .select({
-      playerName: leaguePlayerStatsTable.playerName,
-      shirtNumber: leaguePlayerStatsTable.shirtNumber,
-    })
-    .from(leaguePlayerStatsTable)
-    .where(
-      and(
-        eq(leaguePlayerStatsTable.seasonId, seasonId),
-        eq(leaguePlayerStatsTable.matchId, hubMatchCode),
-        eq(leaguePlayerStatsTable.club, focusClub),
-      ),
-    );
-
-  const targetShirt = canonicalShirtNumber(jerseyNumber);
-  const uniqueCandidates = new Map<string, string>();
-  for (const candidate of candidates) {
-    if (canonicalShirtNumber(candidate.shirtNumber) !== targetShirt) continue;
-    const displayName = candidate.playerName.trim();
-    if (!displayName) continue;
-    uniqueCandidates.set(displayName.toLowerCase().replace(/\s+/g, " "), displayName);
-  }
-  if (uniqueCandidates.size === 1) {
-    const hubPlayerName = [...uniqueCandidates.values()][0];
-    const durableRows = await db
-      .select({ playerId: playerStatsTable.playerId })
-      .from(playerStatsTable)
-      .where(
-        and(
-          eq(playerStatsTable.matchId, hubMatchId),
-          eq(playerStatsTable.club, focusClub),
-          eq(playerStatsTable.playerName, hubPlayerName),
-        ),
-      );
-    const durableIds = new Set(durableRows.map((row) => row.playerId));
-    return {
-      hubPlayerId: durableIds.size === 1 ? [...durableIds][0] : null,
-      hubPlayerName,
-      identityStatus: "resolved",
-    };
-  }
-  if (uniqueCandidates.size > 1) {
-    return { hubPlayerId: null, hubPlayerName: null, identityStatus: "ambiguous" };
-  }
-  return { hubPlayerId: null, hubPlayerName: null, identityStatus: "unresolved" };
-}
-
 // GET /veo/player-match?leagueId=&veoId= — Analytics 2 player metrics for one match.
 // veoId = veo_matches.id (the DB row id, not the Veo UUID).
 // Enforce league access via central middleware check + row leagueId check.
@@ -1683,23 +1603,22 @@ router.get("/veo/player-match", async (req, res): Promise<void> => {
     .where(eq(leaguesTable.id, leagueId))
     .limit(1);
   const focusClub = leagueRow[0]?.focusClub ?? "Belconnen";
+  const identityContext = await loadAnalytics2MatchIdentityContext({
+    leagueId,
+    veoMatchId,
+    focusClub,
+    focusTeamId: a2Row.teamId,
+    fallbackOpponent: opponent,
+  });
 
   const parsed = parseAnalytics2Bundle(
     a2Row.raw as Analytics2Bundle | null,
     a2Row.fetchedAt?.toISOString() ?? null,
+    identityContext.parserContext,
   );
-
-  // Enrich each player with Hub identity.
-  const enrichedPlayers = await Promise.all(
-    parsed.players.map(async (p) => {
-      const { hubPlayerId, hubPlayerName, identityStatus } = await resolveHubIdentity(
-        leagueId, veoMatchId, p.identity.jerseyNumber, focusClub,
-      );
-      return {
-        ...p,
-        identity: { ...p.identity, hubPlayerId, hubPlayerName, identityStatus },
-      };
-    }),
+  const enrichedPlayers = enrichAnalytics2PlayerIdentities(
+    parsed.players,
+    identityContext,
   );
 
   res.json({
@@ -1711,6 +1630,9 @@ router.get("/veo/player-match", async (req, res): Promise<void> => {
     status: a2Row.status,
     players: enrichedPlayers,
     coverage: parsed.coverage,
+    focusTeamName: identityContext.parserContext.focusTeamName,
+    opponentTeamName: identityContext.parserContext.opponentTeamName,
+    teamCounts: countPlayersByTeam(enrichedPlayers),
   });
 });
 
@@ -1756,6 +1678,7 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
       status: veoAnalytics2Table.status,
       raw: veoAnalytics2Table.raw,
       fetchedAt: veoAnalytics2Table.fetchedAt,
+      teamId: veoAnalytics2Table.teamId,
     })
     .from(veoAnalytics2Table)
     .where(eq(veoAnalytics2Table.leagueId, leagueId));
@@ -1781,27 +1704,27 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
         };
       }
 
+      const identityContext = await loadAnalytics2MatchIdentityContext({
+        leagueId,
+        veoMatchId: m.veoMatchId,
+        focusClub,
+        focusTeamId: a2!.teamId,
+        fallbackOpponent: m.opponent,
+      });
       const parsed = parseAnalytics2Bundle(
         a2!.raw as Analytics2Bundle | null,
         a2!.fetchedAt?.toISOString() ?? null,
+        identityContext.parserContext,
       );
 
-      // Enrich each player with Hub identity for this specific match.
-      const enrichedPlayers = await Promise.all(
-        parsed.players.map(async (p) => {
-          const { hubPlayerId, hubPlayerName, identityStatus } = await resolveHubIdentity(
-            leagueId, m.veoMatchId, p.identity.jerseyNumber, focusClub,
-          );
-          return {
-            ...p,
-            identity: { ...p.identity, hubPlayerId, hubPlayerName, identityStatus },
-          };
-        }),
+      const enrichedPlayers = enrichAnalytics2PlayerIdentities(
+        parsed.players,
+        identityContext,
       );
 
       return {
         veoMatchId: m.veoMatchId,
-        opponent: m.opponent,
+        opponent: identityContext.parserContext.opponentTeamName ?? m.opponent,
         startsAt: m.startsAt,
         title: m.title,
         players: enrichedPlayers,
@@ -1816,12 +1739,15 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
   // Coverage summary: how many matches have Analytics 2 data.
   const coverageCount = matchRecords.filter((m) => m.available).length;
   const totalCount = matchRecords.length;
+  const allPlayers = matchRecords.flatMap((match) => match.players);
 
   res.json({
     leagueId,
     coverageCount,
     totalCount,
     players: aggregated,
+    focusTeamName: focusClub,
+    teamCounts: countPlayersByTeam(allPlayers),
   });
 });
 

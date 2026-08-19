@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoPlayerTeamCounts } from './veoPlayerTeamCounts';
 import type { VeoSeasonPlayerRow } from './veoSeasonPlayerRow';
 
 export interface VeoPlayerSeasonResponse {
@@ -12,4 +13,6 @@ export interface VeoPlayerSeasonResponse {
   coverageCount: number;
   totalCount: number;
   players: VeoSeasonPlayerRow[];
+  focusTeamName?: string;
+  teamCounts?: VeoPlayerTeamCounts;
 }

@@ -4,6 +4,7 @@ import {
   getGetVeoPlayerMatchQueryKey,
   type VeoPlayerRecord,
   type VeoPlayerIdentity,
+  type VeoPlayerTeam,
   type VeoPlayerStableMetrics,
   type VeoEventTimelineEntry
 } from "@workspace/api-client-react";
@@ -13,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { AlertCircle, Info, Search, User, ChevronRight, Hash, MessageSquareText, Activity, Clock } from "lucide-react";
+import { teamLabel, VeoPlayerTeamBadge } from "./VeoPlayerTeamBadge";
 
 type MetricGroup = "Summary" | "Physical" | "Attacking" | "Possession";
+type TeamFilter = "all" | VeoPlayerTeam["side"];
 
 const METRIC_GROUPS: Record<MetricGroup, (keyof VeoPlayerStableMetrics)[]> = {
   "Summary": ["minutesPlayed", "distanceMetres", "topSpeedKmh", "goals", "assists", "passes"],
@@ -40,30 +43,36 @@ function formatMetric(val: number | null | undefined, key: string): string {
   return val.toString();
 }
 
-function IdentityBadge({ identity }: { identity: VeoPlayerIdentity }) {
+function IdentityBadge({ identity, team }: { identity: VeoPlayerIdentity; team: VeoPlayerTeam }) {
   if (identity.identityStatus === "resolved") {
     return (
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="font-medium text-foreground truncate">
-          {identity.hubPlayerName || identity.veoPlayerName}
-        </span>
-        {identity.jerseyNumber != null && (
-          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-            <Hash className="h-2.5 w-2.5" />
-            {identity.jerseyNumber}
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="font-medium text-foreground truncate">
+            {identity.hubPlayerName || identity.veoPlayerName}
           </span>
-        )}
+          {identity.jerseyNumber != null && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+              <Hash className="h-2.5 w-2.5" />
+              {identity.jerseyNumber}
+            </span>
+          )}
+        </div>
+        <VeoPlayerTeamBadge team={team} compact />
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <span className="font-medium text-muted-foreground italic truncate">
-        {identity.veoPlayerName || `Jersey #${identity.jerseyNumber ?? "?"}`}
-      </span>
-      <span className="text-[9px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0">
-        {identity.identityStatus === "ambiguous" ? "Ambiguous" : identity.veoPlayerName ? "Veo lineup" : "Unresolved"}
-      </span>
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="font-medium text-muted-foreground italic truncate">
+          {identity.veoPlayerName || `Jersey #${identity.jerseyNumber ?? "?"}`}
+        </span>
+        <span className="text-[9px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0">
+          {identity.identityStatus === "ambiguous" ? "Ambiguous" : identity.veoPlayerName ? "Veo lineup" : "Unresolved"}
+        </span>
+      </div>
+      <VeoPlayerTeamBadge team={team} compact />
     </div>
   );
 }
@@ -155,6 +164,7 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
   const [metricGroup, setMetricGroup] = useState<MetricGroup>("Summary");
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState("all");
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<VeoPlayerRecord | null>(null);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
@@ -171,12 +181,16 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
   
   const filteredPlayers = useMemo(() => {
     let p = players;
+    if (teamFilter !== "all") {
+      p = p.filter(r => r.team.side === teamFilter);
+    }
     if (search.trim()) {
       const s = search.toLowerCase();
       p = p.filter(r => 
         (r.identity.hubPlayerName?.toLowerCase().includes(s)) ||
         (r.identity.veoPlayerName?.toLowerCase().includes(s)) ||
-        (r.identity.jerseyNumber?.toString().includes(s))
+        (r.identity.jerseyNumber?.toString().includes(s)) ||
+        teamLabel(r.team).toLowerCase().includes(s)
       );
     }
     if (eventType !== "all") {
@@ -195,11 +209,21 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
     }
     
     return p;
-  }, [players, search, eventType, sortField, sortAsc]);
+  }, [players, search, eventType, sortField, sortAsc, teamFilter]);
 
   const columns = METRIC_GROUPS[metricGroup];
   const eventTypes = useMemo(
     () => Array.from(new Set(players.flatMap(p => p.eventTimeline.map(e => e.eventType)))).sort(),
+    [players],
+  );
+  const teamCounts = useMemo(
+    () => players.reduce<Record<VeoPlayerTeam["side"], number>>(
+      (counts, player) => {
+        counts[player.team.side]++;
+        return counts;
+      },
+      { own: 0, opponent: 0, unassigned: 0 },
+    ),
     [players],
   );
 
@@ -298,6 +322,29 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter players by team">
+        {([
+          ["all", "All players", players.length],
+          ["own", data?.focusTeamName || "Our team", teamCounts.own],
+          ["opponent", data?.opponentTeamName || "Opponent", teamCounts.opponent],
+          ["unassigned", "Unassigned", teamCounts.unassigned],
+        ] as const).map(([value, label, count]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTeamFilter(value)}
+            aria-pressed={teamFilter === value}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+              teamFilter === value
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label} <span className="tabular-nums opacity-75">{count}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-1.5 text-[11px]">
         {[
           ["Player summary", data?.coverage.hasCrossMatch],
@@ -313,7 +360,7 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
 
       <div className="flex items-center gap-2 p-2.5 bg-muted/50 rounded-md text-xs text-muted-foreground">
         <Info className="h-4 w-4 shrink-0 text-primary" />
-        Camera-derived estimate (Veo Analytics 2) — not wearable GPS.
+        Camera-derived estimate (Veo Analytics 2) — not wearable GPS. Unassigned rows stay separate because no safe team match was available.
       </div>
 
       <div className="rounded-md border overflow-hidden bg-card">
@@ -354,7 +401,7 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
                   >
                     <td className="py-2 px-3 sticky left-0 z-10 bg-background group-hover:bg-muted/30 transition-colors shadow-[1px_0_0_hsl(var(--border))]">
                       <div className="flex items-center justify-between gap-4">
-                        <IdentityBadge identity={row.identity} />
+                        <IdentityBadge identity={row.identity} team={row.team} />
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
@@ -385,7 +432,10 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
                   )}
                 </SheetTitle>
                 <SheetDescription>
-                  Match Performance
+                  <span className="flex flex-col items-start gap-2">
+                    <VeoPlayerTeamBadge team={selectedPlayer.team} />
+                    <span>Match Performance</span>
+                  </span>
                 </SheetDescription>
               </SheetHeader>
               

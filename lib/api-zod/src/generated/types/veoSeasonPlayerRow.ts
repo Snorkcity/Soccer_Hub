@@ -8,11 +8,13 @@
 import type { VeoPlayerIdentity } from './veoPlayerIdentity';
 import type { VeoPlayerMatchBreakdown } from './veoPlayerMatchBreakdown';
 import type { VeoPlayerStableMetrics } from './veoPlayerStableMetrics';
+import type { VeoPlayerTeam } from './veoPlayerTeam';
 import type { VeoSeasonPlayerRowPer90 } from './veoSeasonPlayerRowPer90';
 
 export interface VeoSeasonPlayerRow {
   identityKey: string;
   identity: VeoPlayerIdentity;
+  team: VeoPlayerTeam;
   totals: VeoPlayerStableMetrics;
   /** Per-90-minute rates for counting stats; null where denominator is missing */
   per90: VeoSeasonPlayerRowPer90;

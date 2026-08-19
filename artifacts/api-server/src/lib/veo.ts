@@ -491,6 +491,7 @@ export interface CrossMatchPlayerRow {
   last_name?: string | null;
   known_name?: string | null;
   jersey_number?: number | null;
+  team_id?: string | null;
   // Stats array — each entry is one metric.
   stats?: CrossMatchStatEntry[];
   // Extra beta fields may appear; preserve them.

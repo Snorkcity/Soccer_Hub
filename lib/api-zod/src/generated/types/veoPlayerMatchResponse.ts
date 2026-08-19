@@ -7,6 +7,7 @@
  */
 import type { VeoPlayerMatchResponseStatus } from './veoPlayerMatchResponseStatus';
 import type { VeoPlayerRecord } from './veoPlayerRecord';
+import type { VeoPlayerTeamCounts } from './veoPlayerTeamCounts';
 import type { VeoSourceCoverage } from './veoSourceCoverage';
 
 export interface VeoPlayerMatchResponse {
@@ -21,4 +22,8 @@ export interface VeoPlayerMatchResponse {
   status: VeoPlayerMatchResponseStatus;
   players: VeoPlayerRecord[];
   coverage: VeoSourceCoverage;
+  focusTeamName?: string;
+  /** @nullable */
+  opponentTeamName?: string | null;
+  teamCounts?: VeoPlayerTeamCounts;
 }

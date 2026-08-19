@@ -3628,6 +3628,30 @@ components:
         penalties:          { type: ["integer", "null"] }
         goalKicks:          { type: ["integer", "null"] }
 
+    VeoPlayerTeam:
+      type: object
+      required: [side, teamName, sourceTeamId, attributionStatus, attributionReason]
+      properties:
+        side:
+          type: string
+          enum: [own, opponent, unassigned]
+        teamName: { type: ["string", "null"] }
+        sourceTeamId: { type: ["string", "null"] }
+        attributionStatus:
+          type: string
+          enum: [source, official_squad, unassigned]
+        attributionReason:
+          type: string
+          enum: [veo_team_id, scoped_team_request, veo_event_label, unique_official_shirt, missing_or_conflicting]
+
+    VeoPlayerTeamCounts:
+      type: object
+      required: [own, opponent, unassigned]
+      properties:
+        own: { type: integer }
+        opponent: { type: integer }
+        unassigned: { type: integer }
+
     VeoPlayerIdentity:
       type: object
       required: [identityStatus]
@@ -3667,10 +3691,11 @@ components:
 
     VeoPlayerRecord:
       type: object
-      required: [identityKey, identity, metrics, unknownMetrics, eventTimeline]
+      required: [identityKey, identity, team, metrics, unknownMetrics, eventTimeline]
       properties:
         identityKey:    { type: string }
         identity:       { $ref: "#/components/schemas/VeoPlayerIdentity" }
+        team:           { $ref: "#/components/schemas/VeoPlayerTeam" }
         metrics:        { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
         unknownMetrics:
           type: object
@@ -3696,10 +3721,13 @@ components:
           type: array
           items: { $ref: "#/components/schemas/VeoPlayerRecord" }
         coverage: { $ref: "#/components/schemas/VeoSourceCoverage" }
+        focusTeamName: { type: string }
+        opponentTeamName: { type: ["string", "null"] }
+        teamCounts: { $ref: "#/components/schemas/VeoPlayerTeamCounts" }
 
     VeoPlayerMatchBreakdown:
       type: object
-      required: [veoMatchId, available, metrics]
+      required: [veoMatchId, available, metrics, team]
       properties:
         veoMatchId:    { type: string }
         opponent:      { type: ["string", "null"] }
@@ -3708,13 +3736,15 @@ components:
         metrics:       { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
         available:     { type: boolean }
         jerseyNumber:  { type: ["integer", "null"] }
+        team:          { $ref: "#/components/schemas/VeoPlayerTeam" }
 
     VeoSeasonPlayerRow:
       type: object
-      required: [identityKey, identity, totals, per90, matchBreakdowns, matchCount]
+      required: [identityKey, identity, team, totals, per90, matchBreakdowns, matchCount]
       properties:
         identityKey: { type: string }
         identity:    { $ref: "#/components/schemas/VeoPlayerIdentity" }
+        team:        { $ref: "#/components/schemas/VeoPlayerTeam" }
         totals:      { $ref: "#/components/schemas/VeoPlayerStableMetrics" }
         per90:
           type: object
@@ -3735,6 +3765,8 @@ components:
         players:
           type: array
           items: { $ref: "#/components/schemas/VeoSeasonPlayerRow" }
+        focusTeamName: { type: string }
+        teamCounts: { $ref: "#/components/schemas/VeoPlayerTeamCounts" }
     VeoLeague:
       type: object
       required: [id, name]

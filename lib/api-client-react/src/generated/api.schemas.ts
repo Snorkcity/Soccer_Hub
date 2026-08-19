@@ -89,6 +89,51 @@ export interface VeoPlayerStableMetrics {
   goalKicks?: number | null;
 }
 
+export type VeoPlayerTeamSide = typeof VeoPlayerTeamSide[keyof typeof VeoPlayerTeamSide];
+
+
+export const VeoPlayerTeamSide = {
+  own: 'own',
+  opponent: 'opponent',
+  unassigned: 'unassigned',
+} as const;
+
+export type VeoPlayerTeamAttributionStatus = typeof VeoPlayerTeamAttributionStatus[keyof typeof VeoPlayerTeamAttributionStatus];
+
+
+export const VeoPlayerTeamAttributionStatus = {
+  source: 'source',
+  official_squad: 'official_squad',
+  unassigned: 'unassigned',
+} as const;
+
+export type VeoPlayerTeamAttributionReason = typeof VeoPlayerTeamAttributionReason[keyof typeof VeoPlayerTeamAttributionReason];
+
+
+export const VeoPlayerTeamAttributionReason = {
+  veo_team_id: 'veo_team_id',
+  scoped_team_request: 'scoped_team_request',
+  veo_event_label: 'veo_event_label',
+  unique_official_shirt: 'unique_official_shirt',
+  missing_or_conflicting: 'missing_or_conflicting',
+} as const;
+
+export interface VeoPlayerTeam {
+  side: VeoPlayerTeamSide;
+  /** @nullable */
+  teamName: string | null;
+  /** @nullable */
+  sourceTeamId: string | null;
+  attributionStatus: VeoPlayerTeamAttributionStatus;
+  attributionReason: VeoPlayerTeamAttributionReason;
+}
+
+export interface VeoPlayerTeamCounts {
+  own: number;
+  opponent: number;
+  unassigned: number;
+}
+
 export type VeoPlayerIdentityIdentityStatus = typeof VeoPlayerIdentityIdentityStatus[keyof typeof VeoPlayerIdentityIdentityStatus];
 
 
@@ -148,6 +193,7 @@ export type VeoPlayerRecordUnknownMetrics = { [key: string]: unknown };
 export interface VeoPlayerRecord {
   identityKey: string;
   identity: VeoPlayerIdentity;
+  team: VeoPlayerTeam;
   metrics: VeoPlayerStableMetrics;
   /** Beta fields from Veo not yet mapped to stable metrics */
   unknownMetrics: VeoPlayerRecordUnknownMetrics;
@@ -177,6 +223,10 @@ export interface VeoPlayerMatchResponse {
   status: VeoPlayerMatchResponseStatus;
   players: VeoPlayerRecord[];
   coverage: VeoSourceCoverage;
+  focusTeamName?: string;
+  /** @nullable */
+  opponentTeamName?: string | null;
+  teamCounts?: VeoPlayerTeamCounts;
 }
 
 export interface VeoPlayerMatchBreakdown {
@@ -191,6 +241,7 @@ export interface VeoPlayerMatchBreakdown {
   available: boolean;
   /** @nullable */
   jerseyNumber?: number | null;
+  team: VeoPlayerTeam;
 }
 
 /**
@@ -201,6 +252,7 @@ export type VeoSeasonPlayerRowPer90 = {[key: string]: number | null};
 export interface VeoSeasonPlayerRow {
   identityKey: string;
   identity: VeoPlayerIdentity;
+  team: VeoPlayerTeam;
   totals: VeoPlayerStableMetrics;
   /** Per-90-minute rates for counting stats; null where denominator is missing */
   per90: VeoSeasonPlayerRowPer90;
@@ -213,6 +265,8 @@ export interface VeoPlayerSeasonResponse {
   coverageCount: number;
   totalCount: number;
   players: VeoSeasonPlayerRow[];
+  focusTeamName?: string;
+  teamCounts?: VeoPlayerTeamCounts;
 }
 
 export interface VeoLeague {
