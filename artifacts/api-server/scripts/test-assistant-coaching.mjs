@@ -115,6 +115,33 @@ try {
     "an affirmative follow-up to the offer unlocks full session detail",
   );
   assert.equal(
+    detectAssistantTurnMode(
+      "Build it",
+      false,
+      "Would you like me to turn that into the full session?",
+    ),
+    "full-session",
+    "an explicit build follow-up to the offer unlocks full session detail",
+  );
+  assert.equal(
+    detectAssistantTurnMode(
+      "Show it",
+      false,
+      "Would you like me to turn that into the full session?",
+    ),
+    "full-session",
+    "an explicit show follow-up to the offer unlocks full session detail",
+  );
+  assert.equal(
+    detectAssistantTurnMode(
+      "Build it around beach football",
+      false,
+      "Would you like me to turn that into the full session?",
+    ),
+    "general",
+    "a modified build request is not treated as a narrow continuation",
+  );
+  assert.equal(
     detectAssistantTurnMode("Give me U13 Cycle 2, week 1, session 1", true),
     "exact-session",
     "an exact curriculum reference keeps the existing complete-session path",

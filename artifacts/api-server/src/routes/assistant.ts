@@ -46,6 +46,7 @@ import {
   assistantTurnLimits,
   assessAssistantCurriculumCoverage,
   detectAssistantTurnMode,
+  isSessionExpansionFollowUp,
   isSoleExactSessionRequest,
   shouldLoadAssistantCoachingEvidence,
 } from "../lib/assistantConversation";
@@ -843,6 +844,10 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     if (previousUser && previousAssistant) break;
   }
   const queryText = previousUser ? `${previousUser}\n${lastUser}` : lastUser;
+  const continuationTopicText =
+    previousUser && isSessionExpansionFollowUp(lastUser, previousAssistant)
+      ? previousUser
+      : null;
 
   const ctx = parsed.data.context;
   let selectedOpponent: string | null = null;
@@ -1043,6 +1048,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       mode: turnMode,
       text: queryText,
       currentTurnText: lastUser,
+      continuationTopicText,
       opponent: coachingContext?.opponent ?? selectedOpponent,
       candidates: scored.slice(0, 20).map(({ c, rawScore }) => ({
         score: rawScore,

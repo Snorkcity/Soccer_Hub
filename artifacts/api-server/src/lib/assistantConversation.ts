@@ -236,6 +236,7 @@ export function assessAssistantCurriculumCoverage(args: {
   mode: AssistantTurnMode;
   text: string;
   currentTurnText?: string;
+  continuationTopicText?: string | null;
   opponent?: string | null;
   candidates: AssistantCurriculumCandidate[];
   exactMatchFound: boolean;
@@ -283,13 +284,25 @@ export function assessAssistantCurriculumCoverage(args: {
   }
 
   const topScore = args.candidates[0]?.score ?? null;
-  const subjectTerms = curriculumSubjectTerms(authorizationText, args.opponent);
+  const continuationTopicText =
+    args.mode === "full-session"
+    && isSessionExpansionReply(authorizationText)
+    && args.continuationTopicText?.trim()
+    && requiresAssistantCurriculum("general", args.continuationTopicText, args.opponent)
+    && !isAmbiguousBareTopicRequest(args.continuationTopicText)
+      ? args.continuationTopicText
+      : null;
+  const subjectTerms = curriculumSubjectTerms(
+    continuationTopicText ?? authorizationText,
+    args.opponent,
+  );
   if (subjectTerms.length === 0) {
     const contextCanChooseTheme =
       args.hasCoachingEvidence
       && (args.mode === "recommendation"
         || args.mode === "match-plan"
-        || args.mode === "half-time-talk")
+        || args.mode === "half-time-talk"
+        || (args.mode === "full-session" && continuationTopicText != null))
       && topScore != null
       && topScore >= 0.48;
     return {
@@ -527,6 +540,21 @@ export function resolveAssistantOpponent(
  * session is reserved for an exact curriculum reference or an explicit build/
  * run request, including a short affirmative reply to the Assistant's offer.
  */
+function isSessionExpansionReply(text: string): boolean {
+  const user = normaliseWords(text);
+  return /^(?:yes|yes please|yep|yeah|please|do it|go ahead|sounds good|lets do it|(?:build|show|run) (?:it|that|the session|the full session)|turn (?:it|that) into (?:a )?(?:full )?session)$/.test(user);
+}
+
+export function isSessionExpansionFollowUp(
+  lastUserMessage: string,
+  previousAssistantMessage: string,
+): boolean {
+  if (!isSessionExpansionReply(lastUserMessage)) return false;
+  const previous = normaliseWords(previousAssistantMessage);
+  return /\b(want|would you like|shall i|can i)\b.*\b(full|complete|detailed|build|session)\b/.test(previous)
+    || /\bturn (this|that|it) into\b.*\bsession\b/.test(previous);
+}
+
 export function detectAssistantTurnMode(
   lastUserMessage: string,
   exactSessionFound: boolean,
@@ -536,11 +564,7 @@ export function detectAssistantTurnMode(
 
   const user = normaliseWords(lastUserMessage);
   const previous = normaliseWords(previousAssistantMessage);
-  const isAffirmative = /^(yes|yes please|yep|yeah|please|do it|go ahead|sounds good|lets do it)$/.test(user);
-  const previousOfferedSession =
-    /\b(want|would you like|shall i|can i)\b.*\b(full|complete|detailed|build|session)\b/.test(previous)
-    || /\bturn (this|that|it) into\b.*\bsession\b/.test(previous);
-  if (isAffirmative && previousOfferedSession) return "full-session";
+  if (isSessionExpansionFollowUp(user, previous)) return "full-session";
 
   const previousAskedWarmUpAge = /\bwhich age group is this for\b/.test(previous);
   const userIdentifiedAge =

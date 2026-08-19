@@ -548,6 +548,42 @@ try {
   assert.equal(
     assessAssistantCurriculumCoverage({
       ...coverageBase,
+      mode: "full-session",
+      text: "Recommend a session to improve our pressing\nBuild it",
+      currentTurnText: "Build it",
+      continuationTopicText: "Recommend a session to improve our pressing",
+      candidates: [candidate(0.66, "Pressing: the first defender applies immediate pressure.")],
+    }).supported,
+    true,
+    "A strict build follow-up revalidates the prior approved topic without league context",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "full-session",
+      text: "Recommend a session to improve our pressing\nShow it",
+      currentTurnText: "Show it",
+      continuationTopicText: "Recommend a session to improve our pressing",
+      candidates: [candidate(0.66, "Pressing: the first defender applies immediate pressure.")],
+    }).supported,
+    true,
+    "A strict show follow-up revalidates the prior approved topic without league context",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "full-session",
+      text: "How can I play beach football?\nBuild it",
+      currentTurnText: "Build it",
+      continuationTopicText: "How can I play beach football?",
+      candidates: [candidate(0.56, "Use a ball in the approved first-defender practice.")],
+    }).supported,
+    false,
+    "A strict expansion reply cannot carry forward an unsupported prior topic",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
       mode: "recommendation",
       text: "Recommend a session to improve our pressing",
       candidates: [candidate(0.66, "Pressing: the first defender applies immediate pressure.")],
@@ -587,7 +623,7 @@ try {
       assistantSrc.indexOf("const aiRes = await fetch"),
     "The fail-closed coverage return occurs before the model completion call",
   );
-  console.log("✅ Curriculum coverage gate assertions: 30/30 passed");
+  console.log("✅ Curriculum coverage gate assertions: 33/33 passed");
 
   // ── 3. Superadmin guard source-level assertion ───────────────────────────
 

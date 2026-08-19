@@ -44,7 +44,7 @@
 - [Saved-name standard](saved-name-standard.md) — all saved report/doc rows: bold "Type — R# v Opp", muted game date, smaller "saved d MMM"; standard for every new saving feature.
 - [One-off api-server scripts](esbuild-script-runner.md) — esbuild-bundle + node; needs NODE_ENV=production (pino-pretty transport breaks bundles) and explicit DATABASE_URL.
 - [Dev DB refresh from prod](dev-db-refresh.md) — scripts/refresh-dev-from-prod.sh copies data tables prod→dev; preserves users + league grants; `sessions` table = coaching plans, not logins.
-- [League-private coaching data](league-private-data.md) — match prep/reflections/GPS/testing rows carry league_id; lists require leagueId, id-routes use mayTouchLeagueRow; snapshot syncs must stamp it too.
+- [League-private coaching data](league-private-data.md) — isolate private coaching evidence by authenticated club and league; ownership is server-derived and cross-scope records appear absent.
 - [Dribl sync](dribl-sync.md) — mc-api.dribl.com blocks Node TLS (curl passes, shell out); matchcentre has HT score + goal scorer/minute; OG credit flips team.
 - [AI club setup & Wikipedia logos](club-setup-ai.md) — extract-clubs flow: LLM won't give logo URLs; Wikipedia pageimages needs pilicense=any and sequential calls (429s bursts).
 - [gitPush can silently no-op](gitpush-verify.md) — after every deploy push, verify with `git fetch && git log origin/main`; then confirm prod serves the change (report code lives in the lazy playerGpsReport chunk, not index.js).

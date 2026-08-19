@@ -14,11 +14,11 @@ description: RAG chat over the 14-doc Belconnen development curriculum (U11–16
 
 **How to apply:** weak retrieval must return an explicit curriculum-gap response before generating coaching content. Prefer a conservative refusal or one focused clarification over improvisation, and make the missing topic visible so a superadmin can improve the approved documents.
 
-**Current-turn authorization boundary:** conversation history may improve retrieval, but only the coach's current message may authorize model completion. Prior curriculum references must never carry approval into an unrelated follow-up.
+**Current-turn authorization boundary:** conversation history may improve retrieval, but it cannot carry blanket approval into a new coaching request. The current message controls the response mode and must remain narrowly classified.
 
-**Why:** an earlier exact session or canonical warm-up can otherwise contribute matching vocabulary that makes a later unsupported coaching request look covered.
+**Why:** an earlier exact session or canonical warm-up can otherwise contribute matching vocabulary that makes a later unsupported coaching request look covered, while ignoring history entirely breaks the invited recommendation-to-session flow.
 
-**How to apply:** factual-only exceptions must use narrow complete-request forms. Exact sessions and canonical warm-ups may bypass similarity coverage only when they are the sole current-turn request; mixed, compound, and ambiguous wording must fail closed or ask one static clarification before completion.
+**How to apply:** factual-only exceptions must use narrow complete-request forms. Exact sessions and canonical warm-ups may bypass similarity coverage only when they are the sole current-turn request. A strict build/show/run follow-up may reuse only the immediately preceding topic, and that topic must pass approved-curriculum coverage again; mixed or modified follow-ups fail closed.
 
 **Recommendation-first rule:** broad opponent/preparation questions must start with one training theme, a short evidence-led rationale, and an offer to expand. Only an exact curriculum reference or an explicit build/show/run follow-up unlocks the full 3–4-part session.
 
