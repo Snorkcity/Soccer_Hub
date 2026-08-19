@@ -53,3 +53,11 @@ integer `PlayerDnaMetrics`), plus `firstTouchYes` / `firstTouchTotal` for the se
   `assist === "OG"` and self-assist), mirroring ComboThreat. An assist on an own goal is nonsense and
   would inflate assists / assists-per-90 / topAssistPartner. **Why:** a own goal that counts *for*
   Belconnen enters `ourGoals` via `scorerTeam`, so scorer can legitimately be "OG" in the focus set.
+
+## Player selector values must be unique
+The player leaderboard can contain the same canonical player name under multiple historical player IDs
+(for example, minutes on one ID and imported goal attribution on another). DNA intentionally combines
+those rows by name, so its selector must deduplicate exact names before rendering options.
+
+**Why:** Radix Select does not tolerate duplicate option values cleanly; two `DC` options rendered the
+selected label as `DCDC`, even though no player or mapping was stored under that doubled name.

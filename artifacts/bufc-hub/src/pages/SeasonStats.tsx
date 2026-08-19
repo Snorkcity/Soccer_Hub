@@ -3582,6 +3582,10 @@ function PlayerDnaChart({
 }) {
   const src = lastN ? srcL3 : srcFull;
   const fill = colorMap[label] ?? "hsl(var(--primary))";
+  // A player's historical rows can carry more than one playerId while sharing
+  // the same canonical name. Radix requires unique Select values; duplicate
+  // options otherwise render both matching labels together (for example DC → DCDC).
+  const playerOptions = useMemo(() => Array.from(new Set(players)), [players]);
 
   const data = useMemo(() => {
     if (!src) return [];
@@ -3616,7 +3620,7 @@ function PlayerDnaChart({
           <Select value={player} onValueChange={onPlayer}>
             <SelectTrigger className="w-[180px] max-w-full h-8 text-xs"><SelectValue placeholder="Select player" /></SelectTrigger>
             <SelectContent>
-              {players.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              {playerOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
           <Last3Toggle active={lastN} onToggle={onLastN} />
