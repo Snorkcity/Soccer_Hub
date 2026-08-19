@@ -324,6 +324,34 @@ try {
     "Recorded-data questions do not require a curriculum match",
   );
   assert.equal(
+    requiresAssistantCurriculum("general", "What was the score against Canberra Croatia?"),
+    false,
+    "A strict scoreline question remains eligible for verified Hub evidence only",
+  );
+  assert.equal(
+    requiresAssistantCurriculum("general", "What did my reflections say about the last match?"),
+    false,
+    "A strict private-evidence question remains eligible for verified coaching records only",
+  );
+  assert.equal(
+    requiresAssistantCurriculum("general", "How can I play beach football?"),
+    true,
+    "Natural coaching language without legacy intent keywords fails closed",
+  );
+  assert.equal(
+    requiresAssistantCurriculum("general", "How do I stop runners at the near post?"),
+    true,
+    "A natural defensive how-to question requires approved curriculum",
+  );
+  assert.equal(
+    requiresAssistantCurriculum(
+      "general",
+      "What was the score, and how can we stop runners at the near post?",
+    ),
+    true,
+    "A factual clause cannot smuggle an unsupported coaching request past the gate",
+  );
+  assert.equal(
     assessAssistantCurriculumCoverage({
       ...coverageBase,
       mode: "full-session",
@@ -342,6 +370,26 @@ try {
     }).supported,
     false,
     "An uncovered drill request is rejected when the key action is absent",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "general",
+      text: "How can I play beach football?",
+      candidates: [candidate(0.56, "Use a ball in the approved first-defender practice.")],
+    }).supported,
+    false,
+    "A natural uncovered beach-football question cannot reach model completion",
+  );
+  assert.equal(
+    assessAssistantCurriculumCoverage({
+      ...coverageBase,
+      mode: "general",
+      text: "How do I stop runners at the near post?",
+      candidates: [candidate(0.54, "The first defender applies pressure to the player in possession.")],
+    }).supported,
+    false,
+    "A natural uncovered near-post question cannot reach model completion",
   );
   assert.equal(
     assessAssistantCurriculumCoverage({
@@ -380,7 +428,12 @@ try {
     assistantSrc.includes("curriculum coverage gate returned without model completion"),
     "Assistant route has a deterministic no-model weak-retrieval path",
   );
-  console.log("✅ Curriculum coverage gate assertions: 6/6 passed");
+  assert.ok(
+    assistantSrc.indexOf("if (!coverage.supported)") <
+      assistantSrc.indexOf("const aiRes = await fetch"),
+    "The fail-closed coverage return occurs before the model completion call",
+  );
+  console.log("✅ Curriculum coverage gate assertions: 13/13 passed");
 
   // ── 3. Superadmin guard source-level assertion ───────────────────────────
 

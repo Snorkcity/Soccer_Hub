@@ -23,12 +23,19 @@ export interface AssistantCurriculumCoverage {
   matchedTerms: string[];
 }
 
-const CURRICULUM_INTENT_PATTERN =
-  /\b(activation|coach(?:ing)?|create|design|drill|explain|formation|framework|full session|game plan|half time|halftime|how should|improve|match plan|practice|pre match|prematch|principle|progression|recommend|session|suggest|tactic|team talk|theme|warm up|work on)\b/;
-const FACTUAL_EVIDENCE_PATTERN =
-  /\b(average|data|how many|how much|most|percentage|percent|rank|recorded|result|score|stat|statistics|total|trend|what was|what were|who has|who had)\b/;
-const COACHING_ACTION_PATTERN =
-  /\b(coach|create|design|drill|explain|game plan|half time|halftime|how should|improve|match plan|practice|prepare|recommend|session|suggest|tactic|team talk|theme|warm up|work on)\b/;
+const FACTUAL_QUESTION_SHAPE_PATTERN =
+  /^(?:how (?:many|much)|what (?:did|does|has|have|is|are|was|were)|who (?:has|had|scored|assisted|played|started)|which|show(?: me)?|list|compare|rank|summari(?:s|z)e|give me (?:the )?(?:data|evidence|numbers|results|stats|statistics))\b/;
+const VERIFIED_EVIDENCE_TERM_PATTERN =
+  /\b(appearance|appearances|assist|assisted|assists|average|conceded|data|deck|decks|distance|draw|drawn|evidence|form|goal|goals|hub|journal|journals|loss|losses|match|matches|minute|minutes|note|notes|pass|passes|passing|percentage|percent|played|possession|rank|ranking|recorded|reflection|reflections|report|reports|result|results|score|scored|scoreline|scorelines|shot|shots|sprint|sprints|start|started|starts|stat|statistics|stats|total|trend|trends|veo|win|wins|xg)\b/;
+const COACHING_APPLICATION_PATTERN =
+  /\b(?:can|could|should|would) (?:i|we)|\bhow (?:can|could|do|should|would)\b|\bwhat should\b|\bwho should\b|\b(?:coach|create|defend|design|drill|explain|game plan|half time|halftime|improve|mark|match plan|play|practice|prepare|press|prevent|recommend|session|stop|suggest|tactic|team talk|theme|train|warm up|work on)\b/;
+
+function isVerifiedFactualEvidenceOnly(text: string): boolean {
+  const normalised = normaliseWords(text);
+  return FACTUAL_QUESTION_SHAPE_PATTERN.test(normalised)
+    && VERIFIED_EVIDENCE_TERM_PATTERN.test(normalised)
+    && !COACHING_APPLICATION_PATTERN.test(normalised);
+}
 
 /**
  * Recorded-data questions can be answered from verified Hub/Veo context alone.
@@ -39,11 +46,7 @@ export function requiresAssistantCurriculum(
   text: string,
 ): boolean {
   if (mode !== "general") return true;
-  const normalised = normaliseWords(text);
-  if (FACTUAL_EVIDENCE_PATTERN.test(normalised) && !COACHING_ACTION_PATTERN.test(normalised)) {
-    return false;
-  }
-  return CURRICULUM_INTENT_PATTERN.test(normalised);
+  return !isVerifiedFactualEvidenceOnly(text);
 }
 
 const CURRICULUM_QUERY_STOP_WORDS = new Set([
