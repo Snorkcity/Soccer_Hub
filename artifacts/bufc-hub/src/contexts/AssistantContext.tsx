@@ -42,19 +42,19 @@ export interface MatchContext {
 }
 
 export const SUGGESTIONS_DEFAULT = [
+  "What should we focus on in training this week based on our recent results and reflections?",
+  "Suggest a training theme, then let me decide if I want the full session",
   "Give me U13 Cycle 2, week 1, session 1",
-  "How should I run a U11 pre-match warm-up?",
   "Explain Drive-Draw-Play in simple terms",
-  "What are the U14 phase outcomes?",
 ];
 
 export function suggestionsForMatch(opponent: string | null): string[] {
   const opp = opponent ?? "the opponent";
   return [
-    `What session would you recommend before a game against ${opp}?`,
-    `Help me give a pre-match talk focusing on our attacking shape`,
-    `What are good training cues for managing possession in tight spaces?`,
-    `How do I apply Drive-Draw-Play against a defensive opponent?`,
+    `Based on our results, ${opp}'s form and my recent reflections, what should we focus on?`,
+    `What training theme would you recommend before we play ${opp}?`,
+    `What did the last meeting suggest we should sharpen against ${opp}?`,
+    `Give me a short recommendation first, then I'll ask for the full session`,
   ];
 }
 
@@ -308,11 +308,12 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         messages: history.slice(-16).map(({ role, content: c }) => ({ role, content: c })),
         mobile: window.matchMedia("(max-width: 767px)").matches,
       };
-      if (matchContext) {
+      const leagueContextId = matchContext?.leagueId ?? effectiveSelectorLeagueId;
+      if (leagueContextId != null) {
         body.context = {
-          leagueId: matchContext.leagueId,
-          ...(matchContext.matchRowId != null ? { matchRowId: matchContext.matchRowId } : {}),
-          ...(matchContext.veoId != null ? { veoId: matchContext.veoId } : {}),
+          leagueId: leagueContextId,
+          ...(matchContext?.matchRowId != null ? { matchRowId: matchContext.matchRowId } : {}),
+          ...(matchContext?.veoId != null ? { veoId: matchContext.veoId } : {}),
         };
       }
       const res = await fetch("/api/assistant/chat", {

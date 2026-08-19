@@ -13,12 +13,23 @@
  *  - /writeup  — full Q&A → journal field content in the coach's voice
  */
 import { Router, type IRouter } from "express";
-import { and, eq, sql } from "drizzle-orm";
-import { db, leagueMatchesTable, leagueGoalsTable, matchPrepReportsTable, seasonsTable, veoMatchesTable } from "@workspace/db";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import {
+  db,
+  journalEntriesTable,
+  leagueMatchesTable,
+  leagueGoalsTable,
+  leaguesTable,
+  matchPrepReportsTable,
+  matchReportsTable,
+  seasonsTable,
+  veoMatchesTable,
+} from "@workspace/db";
 import { focusClubForSeason } from "../lib/focusClub";
 import { summarisePassDetails } from "./veo";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, type IntelGoal } from "../lib/goalIntel";
+import { recentResultLines, resolveAssistantOpponent } from "../lib/assistantConversation";
 import {
   JournalInterviewSpeakBody,
   JournalInterviewTurnBody,
@@ -718,7 +729,7 @@ function confidenceLabel(n: number): string {
  * Summarise our own possession/passing trends from the last `lastN`
  * Veo-recorded games for a league, in the house hedged-voice style.
  */
-async function recentPassingContext(leagueId: number, lastN = 3): Promise<string | null> {
+export async function recentPassingContext(leagueId: number, lastN = 3): Promise<string | null> {
   const rows = await db
     .select({
       id: veoMatchesTable.id,
@@ -804,7 +815,7 @@ async function recentPassingContext(leagueId: number, lastN = 3): Promise<string
  * Passing/possession numbers from the most recent Veo-recorded meeting vs
  * this opponent, giving their side of the story.
  */
-async function opponentPassingContext(leagueId: number, opponent: string): Promise<string | null> {
+export async function opponentPassingContext(leagueId: number, opponent: string): Promise<string | null> {
   const oppLc = opponent.trim().toLowerCase();
   const rows = await db
     .select({
@@ -966,6 +977,292 @@ export async function previousDeckText(leagueId: number, opponent?: string): Pro
   ].filter(Boolean) as string[];
   if (parts.length <= 1) return null; // a deck with no written content isn't worth quoting
   return parts.join("\n").slice(0, 2000);
+}
+
+function assistantReflectionTime(entry: {
+  entryDate: string | null;
+  createdAt: Date;
+}): number {
+  const raw = entry.entryDate?.trim() ?? "";
+  const dmy = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(raw);
+  if (dmy) {
+    const parsed = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1])).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  const parsed = raw ? new Date(raw.replace(/\//g, "-")).getTime() : NaN;
+  return Number.isNaN(parsed) ? entry.createdAt.getTime() : parsed;
+}
+
+function compactAssistantEvidence(value: string, maxChars: number): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length <= maxChars ? compact : `${compact.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+async function recentAssistantReflections(
+  leagueId: number,
+  conversationText: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({
+      kind: journalEntriesTable.kind,
+      title: journalEntriesTable.title,
+      entryDate: journalEntriesTable.entryDate,
+      content: journalEntriesTable.content,
+      source: journalEntriesTable.source,
+      createdAt: journalEntriesTable.createdAt,
+    })
+    .from(journalEntriesTable)
+    .where(
+      and(
+        eq(journalEntriesTable.leagueId, leagueId),
+        isNull(journalEntriesTable.cycleId),
+        sql`${journalEntriesTable.kind} IN ('session_reflection', 'match_reflection')`,
+      ),
+    )
+    .orderBy(desc(journalEntriesTable.updatedAt))
+    .limit(20);
+  if (!rows.length) return null;
+
+  const sorted = [...rows].sort((a, b) => assistantReflectionTime(b) - assistantReflectionTime(a));
+  const threeWeeksAgo = Date.now() - 22 * 24 * 60 * 60 * 1000;
+  const windowed = sorted.filter((entry) => assistantReflectionTime(entry) >= threeWeeksAgo).slice(0, 10);
+  const candidates = windowed.length ? windowed : sorted.slice(0, 6);
+  const queryTokens = [...new Set(
+    (conversationText.toLowerCase().match(/[a-z]{5,}/g) ?? [])
+      .filter((token) => ![
+        "against", "based", "could", "their", "results", "recent",
+        "reflections", "session", "sessions", "training", "would",
+      ].includes(token)),
+  )];
+  const blocks = candidates
+    .map((entry) => {
+      const answerText = Object.values(entry.content ?? {})
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        .join(" ");
+      const score = queryTokens.filter((token) => answerText.toLowerCase().includes(token)).length;
+      return { entry, answerText, score, time: assistantReflectionTime(entry) };
+    })
+    .filter(({ answerText }) => Boolean(answerText.trim()))
+    .sort((a, b) => b.score - a.score || b.time - a.time)
+    .slice(0, 6)
+    .map(({ entry, answerText }) => {
+      const kind = entry.kind === "match_reflection" ? "Match reflection" : "Session reflection";
+      const label = entry.title?.trim() || kind;
+      return `${label}${entry.entryDate ? ` (${entry.entryDate})` : ""} [coach-authored, ${entry.source}]\n${compactAssistantEvidence(answerText, 320)}`;
+    })
+    .filter(Boolean);
+  return blocks.length ? blocks.join("\n\n").slice(0, 2200) : null;
+}
+
+async function savedAssistantMatchReports(
+  leagueId: number,
+  opponent: string | null,
+): Promise<string | null> {
+  const rows = await db
+    .select({
+      id: matchReportsTable.id,
+      title: matchReportsTable.title,
+      opponent: matchReportsTable.opponent,
+      matchDate: matchReportsTable.matchDate,
+      data: matchReportsTable.data,
+    })
+    .from(matchReportsTable)
+    .where(eq(matchReportsTable.leagueId, leagueId))
+    .orderBy(desc(matchReportsTable.updatedAt))
+    .limit(12);
+  if (!rows.length) return null;
+
+  const opponentKey = opponent?.trim().toLowerCase() ?? null;
+  const opponentReport = opponentKey
+    ? rows.find((row) => row.opponent?.trim().toLowerCase() === opponentKey)
+    : null;
+  const picked = [rows[0], opponentReport]
+    .filter((row): row is (typeof rows)[number] => Boolean(row))
+    .filter((row, index, all) => all.findIndex((candidate) => candidate.id === row.id) === index);
+
+  const blocks = picked.map((saved) => {
+    const snapshot = saved.data as {
+      report?: {
+        insights?: Array<{ text?: string }>;
+        ballUse?: { comments?: string[] } | null;
+        goalDna?: {
+          comments?: string[];
+          tacticalRead?: Array<{ text?: string } | string>;
+        } | null;
+      };
+    };
+    const notes = [
+      ...(snapshot.report?.insights ?? []).map((entry) => entry.text),
+      ...(snapshot.report?.ballUse?.comments ?? []),
+      ...(snapshot.report?.goalDna?.comments ?? []),
+      ...(snapshot.report?.goalDna?.tacticalRead ?? []).map((entry) =>
+        typeof entry === "string" ? entry : entry.text
+      ),
+    ]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .slice(0, 4)
+      .map((value) => compactAssistantEvidence(value, 260));
+    if (!notes.length) return "";
+    return `${saved.title}${saved.matchDate ? ` (${saved.matchDate})` : ""}\n${notes.join("\n")}`;
+  }).filter(Boolean);
+  return blocks.length ? blocks.join("\n\n").slice(0, 1800) : null;
+}
+
+export interface AssistantCoachingContextInput {
+  leagueId: number;
+  conversationText: string;
+  selectedOpponent?: string | null;
+  opponentHint?: string | null;
+  selectedSeasonId?: number | null;
+  includeReflections: boolean;
+}
+
+export interface AssistantCoachingContextResult {
+  block: string;
+  opponent: string | null;
+  seasonId: number | null;
+}
+
+/**
+ * Build the compact, league-private evidence pack used for conversational
+ * Assistant recommendations. Every section states its provenance so recorded
+ * results, coach reflections, analyst reads and Veo estimates cannot blur.
+ */
+export async function buildAssistantCoachingContext(
+  input: AssistantCoachingContextInput,
+): Promise<AssistantCoachingContextResult> {
+  const [league] = await db
+    .select({ name: leaguesTable.name, focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, input.leagueId))
+    .limit(1);
+  const focusClub = league?.focusClub?.trim() || "Belconnen";
+
+  let season = input.selectedSeasonId != null
+    ? (
+      await db
+        .select({ id: seasonsTable.id, label: seasonsTable.label })
+        .from(seasonsTable)
+        .where(
+          and(
+            eq(seasonsTable.id, input.selectedSeasonId),
+            eq(seasonsTable.leagueId, input.leagueId),
+          ),
+        )
+        .limit(1)
+    )[0]
+    : null;
+  if (!season) {
+    season = (
+      await db
+        .select({ id: seasonsTable.id, label: seasonsTable.label })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.leagueId, input.leagueId))
+        .orderBy(desc(seasonsTable.isActive), desc(seasonsTable.year), desc(seasonsTable.id))
+        .limit(1)
+    )[0] ?? null;
+  }
+
+  const leagueMatches = season
+    ? await db.select().from(leagueMatchesTable).where(eq(leagueMatchesTable.seasonId, season.id))
+    : [];
+  const focusKey = focusClub.toLowerCase();
+  const recordedOpponents = [...new Set(
+    leagueMatches
+      .flatMap((match) => [match.homeTeam, match.awayTeam])
+      .filter((club) => club.trim().toLowerCase() !== focusKey),
+  )];
+  const resolutionText = [input.conversationText, input.opponentHint].filter(Boolean).join("\n");
+  const opponent = resolveAssistantOpponent(
+    resolutionText,
+    recordedOpponents,
+    input.selectedOpponent,
+  );
+
+  const ourResults = recentResultLines(leagueMatches, focusClub);
+  const theirResults = opponent ? recentResultLines(leagueMatches, opponent) : [];
+
+  const [
+    lastMeeting,
+    scout,
+    previousOpponentPlan,
+    latestPlan,
+    savedMondayBrief,
+    savedMatchReports,
+    ourPassing,
+    opponentPassing,
+    reflections,
+  ] = await Promise.all([
+    season && opponent ? lastMeetingFacts(season.id, opponent).catch(() => []) : Promise.resolve([]),
+    season && opponent
+      ? opponentScoutFingerprint(season.id, opponent).catch(() => null)
+      : Promise.resolve(null),
+    opponent ? previousDeckText(input.leagueId, opponent).catch(() => null) : Promise.resolve(null),
+    previousDeckText(input.leagueId).catch(() => null),
+    opponent
+      ? mondayBriefTextForOpponent(input.leagueId, opponent).catch(() => null)
+      : Promise.resolve(null),
+    savedAssistantMatchReports(input.leagueId, opponent).catch(() => null),
+    recentPassingContext(input.leagueId).catch(() => null),
+    opponent
+      ? opponentPassingContext(input.leagueId, opponent).catch(() => null)
+      : Promise.resolve(null),
+    input.includeReflections
+      ? recentAssistantReflections(input.leagueId, input.conversationText).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  const sections = [
+    `## Weekly coaching decision context
+This is league-private evidence for a conversational coaching recommendation. It is NOT curriculum content.
+- League: ${league?.name ?? `league ${input.leagueId}`}${season ? `; season: ${season.label}` : ""}
+- Focus team: ${focusClub}
+- Opponent: ${opponent ?? "not confidently identified from the selected league and conversation"}
+- Never invent a missing result, reflection, report, scouting pattern or metric.`,
+    ourResults.length
+      ? `### Our recent form (Official Hub/Dribl recorded league results)\n${ourResults.map((line) => `- ${line}`).join("\n")}`
+      : `### Our recent form (Official Hub/Dribl)\n- No played results are available for the selected season.`,
+    opponent
+      ? theirResults.length
+        ? `### ${opponent}'s recent form (Official Hub/Dribl recorded league results)\n${theirResults.map((line) => `- ${line}`).join("\n")}`
+        : `### ${opponent}'s recent form (Official Hub/Dribl)\n- No played results are available. Say the evidence is thin.`
+      : `### Opponent evidence\n- No opponent was confidently identified. Ask one short clarifying question if the answer depends on an opponent.`,
+    lastMeeting.length
+      ? `### Previous meeting with ${opponent} (Official Hub/Dribl recorded facts)\n${lastMeeting.map((line) => `- ${line}`).join("\n").slice(0, 1800)}`
+      : "",
+    scout
+      ? `### ${opponent} scouting fingerprint (computed from Official Hub/Dribl league data)\n${scout.slice(0, 1800)}`
+      : "",
+    reflections
+      ? `### Recent reflections (coach-authored interpretation — not official facts or curriculum)\n${reflections}`
+      : input.includeReflections
+        ? `### Recent reflections\n- No recent coach-authored reflections are available.`
+        : `### Recent reflections\n- Not included because this account does not have Reflection Journal access for the league.`,
+    savedMondayBrief
+      ? `### Latest saved Week Ahead brief for ${opponent} (analyst/coach interpretation — not official facts or curriculum)\n${savedMondayBrief.slice(0, 1000)}`
+      : "",
+    previousOpponentPlan
+      ? `### Previous saved match plan for ${opponent} (coach-authored plan — not official facts or curriculum)\n${previousOpponentPlan.slice(0, 1200)}`
+      : "",
+    latestPlan && latestPlan !== previousOpponentPlan && !previousOpponentPlan
+      ? `### Our latest saved match plan (coach-authored plan — not official facts or curriculum)\n${latestPlan.slice(0, 1200)}`
+      : "",
+    savedMatchReports
+      ? `### Saved Football Match Report notes (Hub analyst interpretation — not official facts or curriculum)\n${savedMatchReports}`
+      : "",
+    ourPassing
+      ? `### Our recent possession and passing (Camera-derived Veo estimates — not official facts)\n${ourPassing.slice(0, 1600)}`
+      : `### Veo trend evidence\n- No recent camera-derived possession and passing trend is available.`,
+    opponentPassing
+      ? `### ${opponent}'s last recorded passing profile (Camera-derived Veo estimates — not official facts)\n${opponentPassing.slice(0, 1000)}`
+      : "",
+  ].filter(Boolean);
+
+  return {
+    block: sections.join("\n\n").slice(0, 12000),
+    opponent,
+    seasonId: season?.id ?? null,
+  };
 }
 
 // POST /journal/week-ahead-brief — review bullets + prep pointers for the Monday report

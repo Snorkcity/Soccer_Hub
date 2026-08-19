@@ -138,7 +138,7 @@ export function CoachAssistantChat({ variant }: { variant: "full" | "overlay" })
                   ? matchContext.matchRowId != null
                     ? `Match context selected: ${matchContext.label}. The assistant will use official Hub facts${matchContext.veoId != null ? " and clearly labelled Veo estimates" : ""}. Curriculum guidance takes priority.`
                     : `Match context selected: ${matchContext.label}. This unlinked Veo recording supplies camera-derived estimates only; no official Hub match facts are attached. Curriculum guidance takes priority.`
-                  : 'Ask for a session, matchday guidance, or a framework explained. Try one of these:'}
+                  : 'Ask for a short evidence-led training recommendation, discuss the theme, then request the full session when you are ready. Try one of these:'}
               </p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (

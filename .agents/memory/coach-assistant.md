@@ -11,4 +11,10 @@ description: RAG chat over the 14-doc Belconnen development curriculum (U11–16
 - Auth: whole /api is session-gated; POST /assistant/chat explicitly allowed for ANY signed-in role (not admin-only) in entryAuth — coach wants every hub viewer to have it.
 - Frontend chat is stateless (client sends last 16 messages); manual fetch SSE, not Orval (endpoint deliberately not in openapi.yaml).
 
+**Recommendation-first rule:** broad opponent/preparation questions must start with one training theme, a short evidence-led rationale, and an offer to expand. Only an exact curriculum reference or an explicit build/show/run follow-up unlocks the full 3–4-part session.
+
+**Why:** live coach testing showed that immediately dumping a complete session made the Assistant feel like a document search tool and hid whether results, opponent form, reflections, reports, and Veo trends had actually shaped the recommendation.
+
+**How to apply:** keep league evidence permission-scoped, relevance-gated and compact; label official results, coach reflections, analyst reads, and Veo estimates separately. When opponent identity is ambiguous, clarify instead of guessing.
+
 **Multi-club readiness (Scott, Jul 2026):** the 14 curriculum docx are Belconnen-flavoured. Before selling the assistant to other clubs, either rewrite docs club-neutral or make the assistant club-aware (know which club the signed-in user belongs to and adapt wording/examples). Decide alongside the payments build — no work started.
