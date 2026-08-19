@@ -134,6 +134,14 @@ avoids re-implementing period aggregation.
 summaries with their match and league scope. Keep raw detected jersey identity separate from Hub player
 identity so lineup corrections can remap without rewriting source data.
 
+## Interim Veo player-profile UX
+
+**Rule:** keep Match → Players simple while Veo's event metrics mature: use a single-player dropdown to filter the table, with own and opponent players first and unresolved/unassigned jersey rows last. Preserve those rows rather than guessing identities.
+
+**Why:** current Veo coverage varies by recording and does not yet provide a reliable, well-defined duel metric. A radar/profile chart would overstate precision until the underlying event set and samples are stronger.
+
+**How to apply:** improve the dropdown and table incrementally, but defer cross-metric radar/vector scoring until Veo coverage, definitions, minute thresholds, and comparison baselines are agreed.
+
 ## Analytics 2 team ownership safety
 Attribute every player-source contribution to own, opponent, or unassigned before combining metrics.
 Veo team IDs and MES Own/Opponent labels are strongest; an absent/zero physical team ID may fall back

@@ -10,9 +10,8 @@ import {
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { AlertCircle, Info, Search, User, ChevronRight, Hash, Activity, Clock } from "lucide-react";
+import { AlertCircle, Info, User, ChevronRight, Hash, Activity, Clock } from "lucide-react";
 import { teamLabel, VeoPlayerTeamBadge } from "./VeoPlayerTeamBadge";
 import { compareVeoPlayerTeamSide } from "@/lib/veoPlayerOrdering";
 
@@ -41,6 +40,15 @@ function formatMetric(val: number | null | undefined, key: string): string {
   if (key === "passSuccess" || key === "conversion") return val.toFixed(1) + "%";
   if (key === "topSpeedKmh" || key === "avgSpeedKmh") return val.toFixed(1);
   return val.toString();
+}
+
+function playerSelectLabel(player: VeoPlayerRecord): string {
+  const namedPlayer = player.identity.hubPlayerName || player.identity.veoPlayerName;
+  const name = namedPlayer || `Jersey #${player.identity.jerseyNumber ?? "?"}`;
+  const jersey = namedPlayer && player.identity.jerseyNumber != null
+    ? ` #${player.identity.jerseyNumber}`
+    : "";
+  return `${name}${jersey} · ${teamLabel(player.team)}`;
 }
 
 function IdentityBadge({ identity, team }: { identity: VeoPlayerIdentity; team: VeoPlayerTeam }) {
@@ -162,7 +170,7 @@ function EventTimeline({ events }: { events: VeoEventTimelineEntry[] }) {
 
 export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: number }) {
   const [metricGroup, setMetricGroup] = useState<MetricGroup>("Summary");
-  const [search, setSearch] = useState("");
+  const [playerFilter, setPlayerFilter] = useState("all");
   const [eventType, setEventType] = useState("all");
   const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<VeoPlayerRecord | null>(null);
@@ -184,14 +192,8 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
     if (teamFilter !== "all") {
       p = p.filter(r => r.team.side === teamFilter);
     }
-    if (search.trim()) {
-      const s = search.toLowerCase();
-      p = p.filter(r => 
-        (r.identity.hubPlayerName?.toLowerCase().includes(s)) ||
-        (r.identity.veoPlayerName?.toLowerCase().includes(s)) ||
-        (r.identity.jerseyNumber?.toString().includes(s)) ||
-        teamLabel(r.team).toLowerCase().includes(s)
-      );
+    if (playerFilter !== "all") {
+      p = p.filter(r => r.identityKey === playerFilter);
     }
     if (eventType !== "all") {
       p = p.filter(r => r.eventTimeline.some(event => event.eventType === eventType));
@@ -209,7 +211,7 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
     });
     
     return p;
-  }, [players, search, eventType, sortField, sortAsc, teamFilter]);
+  }, [players, playerFilter, eventType, sortField, sortAsc, teamFilter]);
 
   const columns = METRIC_GROUPS[metricGroup];
   const eventTypes = useMemo(
@@ -226,6 +228,14 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
     ),
     [players],
   );
+  const playerOptions = useMemo(
+    () => [...players].sort((a, b) => {
+      const sideDiff = compareVeoPlayerTeamSide(a, b);
+      if (sideDiff !== 0) return sideDiff;
+      return playerSelectLabel(a).localeCompare(playerSelectLabel(b), "en-AU");
+    }),
+    [players],
+  );
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -233,6 +243,13 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
     } else {
       setSortField(field);
       setSortAsc(false);
+    }
+  };
+
+  const handlePlayerSelect = (value: string) => {
+    setPlayerFilter(value);
+    if (value !== "all") {
+      setTeamFilter("all");
     }
   };
 
@@ -281,15 +298,21 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg border border-border/50">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Find player or jersey..." 
-              value={search} 
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 bg-background"
-            />
+        <div className="flex flex-wrap items-center gap-2 flex-1">
+          <div className="flex-1 max-w-sm">
+            <Select value={playerFilter} onValueChange={handlePlayerSelect}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="Select player..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All players</SelectItem>
+                {playerOptions.map(player => (
+                  <SelectItem key={player.identityKey} value={player.identityKey}>
+                    {playerSelectLabel(player)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
           <Select value={metricGroup} onValueChange={(v) => setMetricGroup(v as MetricGroup)}>
