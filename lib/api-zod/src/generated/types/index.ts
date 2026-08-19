@@ -7,6 +7,8 @@
  */
 
 export * from './adminLoginBody';
+export * from './assistantMatchesResponse';
+export * from './assistantMatchOption';
 export * from './assistsByOpponentEntry';
 export * from './assistsByOpponentPlayer';
 export * from './assistsByOpponentPlayerByOpponent';
@@ -224,6 +226,7 @@ export * from './libraryPara';
 export * from './libraryPractice';
 export * from './libraryPracticeDiagram';
 export * from './libraryPracticeList';
+export * from './listAssistantMatchesParams';
 export * from './listAthleticTestsParams';
 export * from './listDriblNameMapParams';
 export * from './listEntryGoalsParams';

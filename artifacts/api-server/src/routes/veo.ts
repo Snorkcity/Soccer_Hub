@@ -1133,14 +1133,22 @@ router.post("/entry/veo-link", async (req, res) => {
       .where(and(eq(matchesTable.id, matchId), eq(seasonsTable.leagueId, leagueId)))
       .limit(1);
     if (ok.length === 0) return res.status(400).json({ error: "That match doesn't belong to this league" });
-    // One Veo recording per Hub match: steal the link if another row held it.
-    await db
-      .update(veoMatchesTable)
-      .set({ matchId: null })
-      .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchId)));
   }
 
-  await db.update(veoMatchesTable).set({ matchId }).where(eq(veoMatchesTable.id, veoId));
+  // Replace a link atomically. The partial unique index on
+  // (league_id, match_id) is the final guard against concurrent assignments.
+  await db.transaction(async (tx) => {
+    if (matchId != null) {
+      await tx
+        .update(veoMatchesTable)
+        .set({ matchId: null })
+        .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchId)));
+    }
+    await tx
+      .update(veoMatchesTable)
+      .set({ matchId })
+      .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
+  });
   if (matchId != null) {
     try {
       await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId });

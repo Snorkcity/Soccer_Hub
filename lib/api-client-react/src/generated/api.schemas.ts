@@ -5,6 +5,25 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+export interface AssistantMatchOption {
+  id: number;
+  leagueId: number;
+  matchId: string;
+  opponent: string;
+  /** @nullable */
+  matchDate?: string | null;
+  /** @nullable */
+  goalsScored?: number | null;
+  /** @nullable */
+  goalsConceded?: number | null;
+  /** @nullable */
+  veoId?: number | null;
+}
+
+export interface AssistantMatchesResponse {
+  matches: AssistantMatchOption[];
+}
+
 export interface VeoSyncInput {
   leagueId: number;
   batch?: number;
@@ -3816,6 +3835,8 @@ export type SavedMatchReportData = { [key: string]: unknown };
 export interface SavedMatchReport {
   id: number;
   leagueId: number;
+  /** @nullable */
+  matchRowId: number | null;
   title: string;
   /** @nullable */
   round: string | null;
@@ -3832,6 +3853,7 @@ export type SavedMatchReportCreateRequestData = { [key: string]: unknown };
 
 export interface SavedMatchReportCreateRequest {
   leagueId: number;
+  matchRowId?: number;
   /** @minLength 1 */
   title: string;
   round?: string;
@@ -4446,5 +4468,9 @@ leagueId: number;
 export type GetVeoReportStatsParams = {
 leagueId: number;
 matchRowId: number;
+};
+
+export type ListAssistantMatchesParams = {
+leagueId: number;
 };
 

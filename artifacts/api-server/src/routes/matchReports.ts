@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, desc, eq } from "drizzle-orm";
-import { db, matchReportsTable, gpsCoachEmailsTable } from "@workspace/db";
+import { db, matchReportsTable, gpsCoachEmailsTable, matchesTable, seasonsTable } from "@workspace/db";
 import { CreateMatchReportBody, SaveMatchReportCoachEmailsBody, SendMatchReportEmailBody } from "@workspace/api-zod";
 import { getSessionUser, effectiveRole, mayTouchLeagueRow } from "../middlewares/entryAuth";
 import { sendEmail } from "../lib/email";
@@ -19,6 +19,7 @@ function reportJson(r: Row) {
   return {
     id: r.id,
     leagueId: r.leagueId,
+    matchRowId: r.matchRowId,
     title: r.title,
     round: r.round,
     opponent: r.opponent,
@@ -52,12 +53,23 @@ async function mayWriteLeague(req: Request, leagueId: number): Promise<boolean> 
 router.post("/match-reports", async (req, res) => {
   const parsed = CreateMatchReportBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { leagueId, title, round, opponent, matchDate, data } = parsed.data;
+  const { leagueId, matchRowId, title, round, opponent, matchDate, data } = parsed.data;
   if (!(await mayWriteLeague(req, leagueId)))
     return res.status(403).json({ error: "No access to this league's match reports" });
+  if (matchRowId != null) {
+    const exactMatch = await db
+      .select({ id: matchesTable.id })
+      .from(matchesTable)
+      .innerJoin(seasonsTable, eq(matchesTable.seasonId, seasonsTable.id))
+      .where(and(eq(matchesTable.id, matchRowId), eq(seasonsTable.leagueId, leagueId)))
+      .limit(1);
+    if (exactMatch.length === 0) {
+      return res.status(400).json({ error: "That match doesn't belong to this league" });
+    }
+  }
   const [row] = await db
     .insert(matchReportsTable)
-    .values({ leagueId, title, round: round ?? null, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
+    .values({ leagueId, matchRowId: matchRowId ?? null, title, round: round ?? null, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
     .returning();
   return res.json(reportJson(row));
 });

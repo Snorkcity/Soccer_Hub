@@ -16,6 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { AlertCircle, CalendarDays, Info, Search, SlidersHorizontal, User, ChevronRight, Hash } from "lucide-react";
 import { scopeSeasonPlayers } from "@/lib/veoSeasonMetrics";
 import { teamLabel, VeoPlayerTeamBadge } from "./VeoPlayerTeamBadge";
+import { compareVeoPlayerTeamSide } from "@/lib/veoPlayerOrdering";
 
 type MetricGroup = "Summary" | "Physical" | "Attacking" | "Possession";
 type TeamFilter = "all" | VeoPlayerTeam["side"];
@@ -127,8 +128,10 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
       );
     }
     
-    if (sortField) {
-      p = [...p].sort((a, b) => {
+    p = [...p].sort((a, b) => {
+      const sideDiff = compareVeoPlayerTeamSide(a, b);
+      if (sideDiff !== 0) return sideDiff;
+      if (sortField) {
         const isRate = sortField === "topSpeedKmh" || sortField === "avgSpeedKmh" || sortField === "passSuccess" || sortField === "conversion";
         const aVal = (mode === "per90" && !isRate) ? a.per90[sortField] : a.totals[sortField as keyof VeoPlayerStableMetrics];
         const bVal = (mode === "per90" && !isRate) ? b.per90[sortField] : b.totals[sortField as keyof VeoPlayerStableMetrics];
@@ -137,11 +140,9 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
         const bNum = Number(bVal) || 0;
         
         return sortAsc ? aNum - bNum : bNum - aNum;
-      });
-    } else {
-      // Default sort
-      p = [...p].sort((a, b) => (b.totals.matches || 0) - (a.totals.matches || 0));
-    }
+      }
+      return (b.totals.matches || 0) - (a.totals.matches || 0);
+    });
     
     return p;
   }, [scopedPlayers, minMatches, search, sortField, sortAsc, mode]);

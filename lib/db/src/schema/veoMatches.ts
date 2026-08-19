@@ -1,4 +1,5 @@
 import { pgTable, serial, text, integer, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { leaguesTable } from "./leagues";
@@ -47,6 +48,9 @@ export const veoMatchesTable = pgTable(
   },
   (t) => ({
     byLeagueMatch: uniqueIndex("veo_matches_league_match_idx").on(t.leagueId, t.veoMatchId),
+    oneRecordingPerHubMatch: uniqueIndex("veo_matches_league_hub_match_idx")
+      .on(t.leagueId, t.matchId)
+      .where(sql`${t.matchId} IS NOT NULL`),
   }),
 );
 

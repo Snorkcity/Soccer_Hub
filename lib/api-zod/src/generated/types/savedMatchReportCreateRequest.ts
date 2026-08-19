@@ -9,6 +9,7 @@ import type { SavedMatchReportCreateRequestData } from './savedMatchReportCreate
 
 export interface SavedMatchReportCreateRequest {
   leagueId: number;
+  matchRowId?: number;
   /** @minLength 1 */
   title: string;
   round?: string;

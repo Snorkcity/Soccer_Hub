@@ -10,6 +10,8 @@ import type { SavedMatchReportData } from './savedMatchReportData';
 export interface SavedMatchReport {
   id: number;
   leagueId: number;
+  /** @nullable */
+  matchRowId: number | null;
   title: string;
   /** @nullable */
   round: string | null;

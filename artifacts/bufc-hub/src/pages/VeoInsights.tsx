@@ -13,6 +13,7 @@ import {
   getGetVeoSeasonPassingQueryKey,
   getGetVeoPlayerSeasonQueryKey,
   getGetVeoPlayerMatchQueryKey,
+  getListAssistantMatchesQueryKey,
   type VeoSeasonPassingMatch,
   useListVeoLinks,
   getListVeoLinksQueryKey,
@@ -35,7 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock, AlertTriangle, MessageSquareText } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
@@ -46,6 +47,7 @@ import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { VeoSeasonPlayers } from "@/components/veo/VeoSeasonPlayers";
 import { VeoMatchPlayers } from "@/components/veo/VeoMatchPlayers";
+import { useAssistant } from "@/contexts/AssistantContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -233,12 +235,14 @@ function fmtDate(iso?: string | null): string {
 export default function VeoInsights() {
   const { hasModule, ready, isSuperadmin } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
+  const { openWithContext } = useAssistant();
   const qc = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [view, setView] = useState<"season" | "match">("season");
   const [subView, setSubView] = useState<"team" | "players">("team");
+  const [linkFocusRequest, setLinkFocusRequest] = useState(0);
 
   const listParams = { leagueId: activeLeagueId ?? 0 };
   const { data: listData, isLoading: listLoading } = useListVeoMatches(listParams, {
@@ -253,6 +257,7 @@ export default function VeoInsights() {
     selectedId != null && synced.some((m) => m.id === selectedId)
       ? selectedId
       : synced[0]?.id ?? null;
+  const currentSummary = synced.find((item) => item.id === currentId) ?? null;
   const detailParams = { id: currentId ?? 0, leagueId: activeLeagueId ?? 0 };
   const { data: match, isLoading: matchLoading } = useGetVeoMatch(detailParams, {
     query: { enabled: currentId != null && activeLeagueId != null, queryKey: getGetVeoMatchQueryKey(detailParams) },
@@ -357,6 +362,8 @@ export default function VeoInsights() {
           <MatchLinksCard
             leagueId={activeLeagueId!}
             canLink={isSuperadmin || hasModule(activeLeagueId!, "data-entry")}
+            highlightVeoId={currentSummary?.matchCode ? null : currentId}
+            openRequest={linkFocusRequest}
           />
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -395,7 +402,7 @@ export default function VeoInsights() {
                   {synced.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
                       <span className="flex items-center gap-1.5">
-                        {m.matchCode ? `${m.matchCode} · ` : ""}{opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
+                        {m.matchCode ? `${m.matchCode} · ` : "Unlinked Veo recording · "}{opponentOf(m)}{fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}
                         {m.pendingAnalytics && (
                           <span className="inline-flex items-center gap-0.5 rounded text-[10px] font-medium px-1 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
                             <Clock className="h-2.5 w-2.5" />
@@ -408,7 +415,37 @@ export default function VeoInsights() {
                 </SelectContent>
               </Select>
             )}
+            {view === "match" && currentSummary && activeLeagueId != null && (isSuperadmin || hasModule(activeLeagueId, "assistant")) && (
+              <Button
+                size="sm"
+                onClick={() => openWithContext({
+                  leagueId: activeLeagueId,
+                  veoId: currentSummary.id,
+                  label: `${currentSummary.matchCode ? `${currentSummary.matchCode} · ` : ""}${opponentOf(currentSummary)}${fmtDate(currentSummary.startsAt) ? ` · ${fmtDate(currentSummary.startsAt)}` : ""}`,
+                  opponent: opponentOf(currentSummary),
+                })}
+              >
+                <MessageSquareText className="h-4 w-4 mr-1.5" />
+                Ask Assistant
+              </Button>
+            )}
           </div>
+
+          {view === "match" && currentSummary && !currentSummary.matchCode && (
+            <div className="flex flex-col gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm sm:flex-row sm:items-center">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">This is an unlinked Veo recording.</span>{" "}
+                Link it to the official Hub match so Dribl squad names, report facts and Veo observations stay together.
+              </div>
+              {(isSuperadmin || hasModule(activeLeagueId!, "data-entry")) && (
+                <Button size="sm" variant="outline" onClick={() => setLinkFocusRequest((value) => value + 1)}>
+                  <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                  Link this recording
+                </Button>
+              )}
+            </div>
+          )}
 
           {view === "season" ? (
             subView === "team" ? (
@@ -451,7 +488,17 @@ export default function VeoInsights() {
   );
 }
 
-function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: boolean }) {
+function MatchLinksCard({
+  leagueId,
+  canLink,
+  highlightVeoId,
+  openRequest,
+}: {
+  leagueId: number;
+  canLink: boolean;
+  highlightVeoId: number | null;
+  openRequest: number;
+}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -466,6 +513,12 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListVeoLinksQueryKey(linkParams) });
 
+  useEffect(() => {
+    if (openRequest === 0) return;
+    setOpen(true);
+    requestAnimationFrame(() => document.getElementById("veo-match-links")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [openRequest]);
+
   const autoMut = useVeoAutoLink();
   async function runAutoLink() {
     setMsg(null);
@@ -478,7 +531,12 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
             ? `No confident matches — ${r.ambiguous} ambiguous, pick them below.`
             : "Nothing new to link.",
       );
-      invalidate();
+      await Promise.all([
+        invalidate(),
+        qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey({ leagueId }) }),
+        qc.invalidateQueries({ queryKey: getGetVeoPlayerSeasonQueryKey({ leagueId }) }),
+        qc.invalidateQueries({ queryKey: getListAssistantMatchesQueryKey({ leagueId }) }),
+      ]);
     } catch {
       setMsg("Auto-link failed — try again.");
     }
@@ -488,7 +546,16 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
   async function setLink(veoId: number, matchId: number | null) {
     try {
       await setMut.mutateAsync({ data: { leagueId, veoId, matchId } });
-      invalidate();
+      // Linking changes match labels, identity enrichment, report stats and
+      // Assistant context. Invalidate active data together so import order
+      // never leaves a stale partial view behind.
+      await Promise.all([
+        invalidate(),
+        qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey({ leagueId }) }),
+        qc.invalidateQueries({ queryKey: getGetVeoPlayerSeasonQueryKey({ leagueId }) }),
+        qc.invalidateQueries({ queryKey: getListAssistantMatchesQueryKey({ leagueId }) }),
+      ]);
+      qc.invalidateQueries();
     } catch {
       setMsg("Couldn't save that link — try again.");
     }
@@ -528,7 +595,7 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
     `${h.matchId.split("-")[0]} v ${h.opponent}${h.matchDate ? ` · ${h.matchDate}` : ""}`;
 
   return (
-    <Card>
+    <Card id="veo-match-links">
       <CardHeader className="pb-3 cursor-pointer select-none" onClick={() => setOpen((o) => !o)}>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -548,21 +615,29 @@ function MatchLinksCard({ leagueId, canLink }: { leagueId: number; canLink: bool
       {open && (
         <CardContent className="space-y-3">
           {canLink && (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button size="sm" variant="outline" onClick={runAutoLink} disabled={autoMut.isPending} className="gap-1.5">
-                {autoMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                Auto-link by date & opponent
-              </Button>
-              {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+            <div className="space-y-2">
+              <div className="rounded-md border bg-muted/40 p-2.5 text-xs text-muted-foreground">
+                Sync the Dribl team sheet first when it is available, then link the Veo recording. If the imports arrive in the opposite order, you can still link now; official player names will resolve safely when the team sheet arrives.
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button size="sm" variant="outline" onClick={runAutoLink} disabled={autoMut.isPending} className="gap-1.5">
+                  {autoMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                  Auto-link by date & opponent
+                </Button>
+                {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+              </div>
             </div>
           )}
           <div className="space-y-2">
             {links.map((l) => (
-              <div key={l.id} className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5 ${l.removed ? "opacity-60" : ""}`}>
+              <div key={l.id} className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5 ${l.removed ? "opacity-60" : ""} ${highlightVeoId === l.id ? "border-primary ring-1 ring-primary/30" : ""}`}>
                 <div className="min-w-0 sm:w-1/2">
                   <div className="text-sm font-medium truncate flex items-center gap-1.5">
                     {!l.removed && l.matchId != null && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
                     {opponentOf(l)}
+                    {!l.removed && l.matchId == null && (
+                      <span className="text-[10px] font-normal uppercase tracking-wide rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400 shrink-0">unlinked</span>
+                    )}
                     {l.removed && (
                       <span className="text-[10px] font-normal uppercase tracking-wide rounded bg-muted px-1.5 py-0.5 text-muted-foreground shrink-0">removed</span>
                     )}

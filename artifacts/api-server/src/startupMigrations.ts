@@ -194,6 +194,7 @@ export async function runStartupMigrations(): Promise<void> {
     CREATE TABLE IF NOT EXISTS match_reports (
       id serial PRIMARY KEY,
       league_id integer NOT NULL REFERENCES leagues(id),
+      match_row_id integer REFERENCES matches(id),
       title text NOT NULL,
       round text,
       opponent text,
@@ -202,6 +203,29 @@ export async function runStartupMigrations(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()
     )
+  `);
+  await db.execute(sql`ALTER TABLE match_reports ADD COLUMN IF NOT EXISTS match_row_id integer REFERENCES matches(id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS match_reports_match_row_idx ON match_reports (league_id, match_row_id) WHERE match_row_id IS NOT NULL`);
+  // Recover exact identities for older reports only where date + opponent maps
+  // to one and only one Hub match in that league. Ambiguous rows stay unlinked.
+  await db.execute(sql`
+    UPDATE match_reports AS report
+    SET match_row_id = candidate.match_row_id
+    FROM (
+      SELECT report_row.id AS report_id, min(hub_match.id) AS match_row_id
+      FROM match_reports AS report_row
+      INNER JOIN seasons AS season ON season.league_id = report_row.league_id
+      INNER JOIN matches AS hub_match
+        ON hub_match.season_id = season.id
+       AND hub_match.opponent = report_row.opponent
+       AND hub_match.match_date = report_row.match_date
+      WHERE report_row.match_row_id IS NULL
+        AND report_row.match_date IS NOT NULL
+        AND report_row.opponent IS NOT NULL
+      GROUP BY report_row.id
+      HAVING count(*) = 1
+    ) AS candidate
+    WHERE report.id = candidate.report_id
   `);
 
   await db.execute(sql`
@@ -1222,6 +1246,28 @@ async function runUserAccountsMigration(): Promise<void> {
     )
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_match_idx ON veo_matches (league_id, veo_match_id)`);
+  // A Hub fixture can have only one active Veo link. Clear any historical
+  // duplicates deterministically before adding the database-level guarantee.
+  await db.execute(sql`
+    WITH ranked AS (
+      SELECT id,
+             row_number() OVER (
+               PARTITION BY league_id, match_id
+               ORDER BY synced_at DESC NULLS LAST, id DESC
+             ) AS rn
+      FROM veo_matches
+      WHERE match_id IS NOT NULL
+    )
+    UPDATE veo_matches
+    SET match_id = NULL
+    FROM ranked
+    WHERE veo_matches.id = ranked.id AND ranked.rn > 1
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_hub_match_idx
+    ON veo_matches (league_id, match_id)
+    WHERE match_id IS NOT NULL
+  `);
   // Pass/possession analytics from Veo's RAS service (2026-08, task: pass strings).
   await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS pass_details jsonb`);
   // Soft delete for Veo games (2026-08): once synced the Hub keeps the row as

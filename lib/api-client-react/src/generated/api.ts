@@ -21,6 +21,7 @@ import type {
 
 import type {
   AdminLoginBody,
+  AssistantMatchesResponse,
   AssistsByOpponentResponse,
   AthleticTest,
   AthleticTestInput,
@@ -172,6 +173,7 @@ import type {
   LibraryFlagRequest,
   LibraryFlagResult,
   LibraryPracticeList,
+  ListAssistantMatchesParams,
   ListAthleticTestsParams,
   ListDriblNameMapParams,
   ListEntryGoalsParams,
@@ -13352,6 +13354,90 @@ export function useGetVeoReportStats<TData = Awaited<ReturnType<typeof getVeoRep
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVeoReportStatsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAssistantMatchesUrl = (params: ListAssistantMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/assistant/matches?${stringifiedParams}` : `/api/assistant/matches`
+}
+
+/**
+ * @summary Official Hub matches available as Coach Assistant context, with an optional linked Veo recording
+ */
+export const listAssistantMatches = async (params: ListAssistantMatchesParams, options?: RequestInit): Promise<AssistantMatchesResponse> => {
+
+  return customFetch<AssistantMatchesResponse>(getListAssistantMatchesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssistantMatchesQueryKey = (params?: ListAssistantMatchesParams,) => {
+    return [
+    `/api/assistant/matches`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssistantMatchesQueryOptions = <TData = Awaited<ReturnType<typeof listAssistantMatches>>, TError = ErrorType<void>>(params: ListAssistantMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssistantMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssistantMatchesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssistantMatches>>> = ({ signal }) => listAssistantMatches(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssistantMatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssistantMatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listAssistantMatches>>>
+export type ListAssistantMatchesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Official Hub matches available as Coach Assistant context, with an optional linked Veo recording
+ */
+
+export function useListAssistantMatches<TData = Awaited<ReturnType<typeof listAssistantMatches>>, TError = ErrorType<void>>(
+ params: ListAssistantMatchesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssistantMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssistantMatchesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

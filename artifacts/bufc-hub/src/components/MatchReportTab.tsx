@@ -30,12 +30,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History, Save, FileDown, Loader2, Trash2, ArrowLeft,
-  Mail, CheckCircle2, XCircle, Plus,
+  Mail, CheckCircle2, XCircle, Plus, MessageSquareText,
 } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { VeoReportPanel } from "@/components/VeoReportPanel";
 import type { FootballMatchReportModel } from "@/lib/matchReportPptx";
+import { useAssistant } from "@/contexts/AssistantContext";
 
 interface Props {
   teamId: number;
@@ -48,8 +49,10 @@ const resultBadge = (r: string | null | undefined) =>
 
 export default function MatchReportTab({ teamId, seasonId }: Props) {
   const { activeLeagueId } = useActiveLeague();
-  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const { isSuperadmin, hasModuleAnywhere, hasModule } = useLeagueModules();
+  const { openWithContext } = useAssistant();
   const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
+  const canAskAssistant = activeLeagueId != null && (isSuperadmin || hasModule(activeLeagueId, "assistant"));
 
   const listParams = { teamId, seasonId };
   const { data: matches } = useListMatches(listParams, {
@@ -131,6 +134,7 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
       }
       await createMatchReport({
         leagueId: activeLeagueId,
+        matchRowId: selectedId ?? undefined,
         title: `Match Report — ${liveModel.round} v ${liveModel.opponent}`,
         round: liveModel.round,
         opponent: liveModel.opponent,
@@ -197,6 +201,20 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
           </>
         )}
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {!viewingSaved && canAskAssistant && selectedMatch && activeLeagueId != null && (
+            <Button
+              size="sm"
+              onClick={() => openWithContext({
+                leagueId: activeLeagueId,
+                matchRowId: selectedMatch.id,
+                label: roundOf(selectedMatch.matchId, selectedMatch.opponent, selectedMatch.matchDate),
+                opponent: selectedMatch.opponent,
+              })}
+            >
+              <MessageSquareText className="h-4 w-4 mr-1.5" />
+              Ask Assistant
+            </Button>
+          )}
           {!viewingSaved && (
             <Button variant="outline" size="sm" onClick={saveReport} disabled={saving || !liveModel}>
               {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}

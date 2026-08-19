@@ -3567,8 +3567,50 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VeoReportStats" }
 
+  /assistant/matches:
+    get:
+      operationId: listAssistantMatches
+      tags: [assistant]
+      summary: Official Hub matches available as Coach Assistant context, with an optional linked Veo recording
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Matches the signed-in user may use as Assistant context
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssistantMatchesResponse" }
+        "401":
+          description: Not signed in
+        "403":
+          description: Assistant not enabled for this league
+
 components:
   schemas:
+    AssistantMatchOption:
+      type: object
+      required: [id, leagueId, matchId, opponent]
+      properties:
+        id:             { type: integer }
+        leagueId:       { type: integer }
+        matchId:        { type: string }
+        opponent:       { type: string }
+        matchDate:      { type: ["string", "null"] }
+        goalsScored:    { type: ["integer", "null"] }
+        goalsConceded:  { type: ["integer", "null"] }
+        veoId:          { type: ["integer", "null"] }
+
+    AssistantMatchesResponse:
+      type: object
+      required: [matches]
+      properties:
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/AssistantMatchOption" }
+
     VeoSyncInput:
       type: object
       required: [leagueId]
@@ -7048,6 +7090,7 @@ components:
       properties:
         id:        { type: integer }
         leagueId:  { type: integer }
+        matchRowId: { type: ["integer", "null"] }
         title:     { type: string }
         round:     { type: ["string", "null"] }
         opponent:  { type: ["string", "null"] }
@@ -7057,12 +7100,13 @@ components:
           additionalProperties: true
         createdAt: { type: string }
         updatedAt: { type: string }
-      required: [id, leagueId, title, round, opponent, matchDate, data, createdAt, updatedAt]
+      required: [id, leagueId, matchRowId, title, round, opponent, matchDate, data, createdAt, updatedAt]
 
     SavedMatchReportCreateRequest:
       type: object
       properties:
         leagueId:  { type: integer }
+        matchRowId: { type: integer }
         title:     { type: string, minLength: 1 }
         round:     { type: string }
         opponent:  { type: string }

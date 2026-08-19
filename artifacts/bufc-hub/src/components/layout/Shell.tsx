@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, Video, X } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { CoachAssistantOverlay } from "@/components/assistant/CoachAssistantOverlay";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 // `module` gates a module-locked item to the ACTIVE league. `moduleAnywhere`
@@ -224,6 +225,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </main>
+
+      <CoachAssistantOverlay />
     </div>
   );
 }

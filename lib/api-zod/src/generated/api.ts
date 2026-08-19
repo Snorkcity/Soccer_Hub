@@ -4405,6 +4405,7 @@ export const ListMatchReportsQueryParams = zod.object({
 export const ListMatchReportsResponseItem = zod.object({
   "id": zod.number(),
   "leagueId": zod.number(),
+  "matchRowId": zod.number().nullable(),
   "title": zod.string(),
   "round": zod.string().nullable(),
   "opponent": zod.string().nullable(),
@@ -4424,6 +4425,7 @@ export const ListMatchReportsResponse = zod.array(ListMatchReportsResponseItem)
 
 export const CreateMatchReportBody = zod.object({
   "leagueId": zod.number(),
+  "matchRowId": zod.number().optional(),
   "title": zod.string().min(1),
   "round": zod.string().optional(),
   "opponent": zod.string().optional(),
@@ -4434,6 +4436,7 @@ export const CreateMatchReportBody = zod.object({
 export const CreateMatchReportResponse = zod.object({
   "id": zod.number(),
   "leagueId": zod.number(),
+  "matchRowId": zod.number().nullable(),
   "title": zod.string(),
   "round": zod.string().nullable(),
   "opponent": zod.string().nullable(),
@@ -5269,6 +5272,27 @@ export const GetVeoReportStatsResponse = zod.object({
   "usMin": zod.number(),
   "themMin": zod.number()
 }).optional()
+})
+
+
+/**
+ * @summary Official Hub matches available as Coach Assistant context, with an optional linked Veo recording
+ */
+export const ListAssistantMatchesQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const ListAssistantMatchesResponse = zod.object({
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "matchId": zod.string(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullish(),
+  "goalsScored": zod.number().nullish(),
+  "goalsConceded": zod.number().nullish(),
+  "veoId": zod.number().nullish()
+}))
 })
 
 
