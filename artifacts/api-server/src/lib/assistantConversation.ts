@@ -227,6 +227,11 @@ export function detectAssistantTurnMode(
     || /\bturn (this|that|it) into\b.*\bsession\b/.test(previous);
   if (isAffirmative && previousOfferedSession) return "full-session";
 
+  const previousAskedWarmUpAge = /\bwhich age group is this for\b/.test(previous);
+  const userIdentifiedAge =
+    /\b(u ?(?:11|12|13|14|15|16)|under ?(?:11|12|13|14|15|16)|(?:11|12|13|14|15|16)s|adult|senior)\b/.test(user);
+  if (previousAskedWarmUpAge && userIdentifiedAge) return "pre-match-warm-up";
+
   const halfTimePatterns = [
     /\bhalf time\b.*\b(talk|team talk|message|words|say)\b/,
     /\b(talk|team talk|message|words|say)\b.*\bhalf time\b/,
@@ -299,10 +304,11 @@ The coach has asked for an evidence-led match plan${opponent ? ` against ${oppon
   }
   if (mode === "pre-match-warm-up") {
     return `## Response mode for THIS turn: opponent-specific pre-match warm-up
-Select exactly ONE approved Practice Library warm-up supplied below that best prepares the team for the evidence-led match priority${opponent ? ` against ${opponent}` : ""}.
-- Preserve the selected practice's dimensions, player numbers, rules, cues and outcomes exactly. Do not merge practices or invent an "official" variation.
-- Briefly explain why this practice fits using only supplied team/opponent evidence, with provenance labels kept clear.
-- If player availability/limitations, space, equipment, conditions or available time are essential to choose or run it safely and are not known, ask ONE focused logistics question instead of guessing.
+Use exactly ONE canonical Coach Pack match-day warm-up supplied below that best prepares the team for the evidence-led match priority${opponent ? ` against ${opponent}` : ""}.
+- The Coach Pack warm-up is age-group specific. If exactly one age group is not known, ask "Which age group is this for?" rather than choosing a routine.
+- Preserve the selected routine's timing, sequence, coaching detail and outcomes exactly. Do not merge routines or invent an "official" variation.
+- Briefly explain why this routine fits using only supplied team/opponent evidence, with provenance labels kept clear.
+- If player availability/limitations, space, equipment, conditions or available time are essential to run it safely and are not known, ask ONE focused logistics question instead of guessing.
 - This is one pre-match warm-up, not a full training session.`;
   }
   if (mode === "exact-session") {

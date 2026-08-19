@@ -28,7 +28,6 @@ import {
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { loadChunks, embedTexts, cosine, type CurriculumChunk } from "../assistant/curriculumStore";
-import { loadPractices, rankPractices } from "../assistant/practiceStore";
 import { OpenAiQuotaError, throwIfQuota } from "../lib/openaiQuota";
 import { getSessionUser, canSeeLeague, hasModule } from "../middlewares/entryAuth";
 import { focusClubForLeagueRequest } from "../lib/focusClub";
@@ -106,6 +105,25 @@ function findExactSessions(text: string, ages: string[], chunks: CurriculumChunk
     if (session && !h.includes(`session ${session}`)) return false;
     return true;
   }).slice(0, 6);
+}
+
+/**
+ * The age-group Coach Packs contain the club's canonical match-day warm-up.
+ * These are curriculum records, not Practice Library slides awaiting review.
+ * Keep this identity deliberately narrow so a generic warm-up reference never
+ * becomes an invented or loosely matched "official" routine.
+ */
+export function findCoachPackPreMatchWarmUps(
+  chunks: CurriculumChunk[],
+  ages: string[],
+): CurriculumChunk[] {
+  return chunks.filter((chunk) =>
+    chunk.docType === "coach_pack"
+    && AGE_GROUPS.includes(chunk.ageGroup as typeof AGE_GROUPS[number])
+    && (!ages.length || ages.includes(chunk.ageGroup))
+    && chunk.heading === `${chunk.ageGroup} Pre-Match Warm-Up`
+    && chunk.headingPath.includes(`${chunk.ageGroup} Game Day Guidance`)
+  );
 }
 
 const SYSTEM_PROMPT = `You are the Belconnen United Coaching Assistant inside the club's Performance Hub.
@@ -944,7 +962,7 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const isConfirmedFullSession = turnMode === "full-session";
     const turnLimits = assistantTurnLimits(turnMode);
 
-    const [[qVec], coachingContext, selectedMatchContext, practiceEntries] = await Promise.all([
+    const [[qVec], coachingContext, selectedMatchContext] = await Promise.all([
       embedTexts([queryText.slice(0, 8000)]),
       ctx && shouldLoadCoachingEvidence
         ? buildAssistantCoachingContext({
@@ -970,7 +988,6 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
           includeMatchReports,
         })
         : Promise.resolve(""),
-      turnMode === "pre-match-warm-up" ? loadPractices() : Promise.resolve([]),
     ]);
     const scored = embedded
       .map((c) => {
@@ -992,30 +1009,33 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       budget -= c.content.length;
     }
 
-    const context = picked
+    const coachPackWarmUps = turnMode === "pre-match-warm-up"
+      && ages.length === 1
+      ? findCoachPackPreMatchWarmUps(embedded, ages)
+      : [];
+    // Do not let a generic semantic curriculum hit select a warm-up from the
+    // wrong age pack. This mode is deliberately driven by the exact canonical
+    // Coach Pack section above, or a one-question age clarification.
+    const contextChunks = turnMode === "pre-match-warm-up"
+      ? coachPackWarmUps
+      : picked;
+    const context = contextChunks
       .map((c) => `### [${c.docTitle}] ${c.headingPath}\n${c.content}`)
       .join("\n\n---\n\n");
 
-    const warmUpPractices = turnMode === "pre-match-warm-up"
-      ? rankPractices(
-        practiceEntries,
-        qVec,
-        "Warmup",
-        3,
-        (entry) =>
-          entry.reviewPart === "warmup",
-      )
-      : [];
-    const practiceContextBlock = warmUpPractices.length > 0
-      ? `\n\n---\n\n## Approved Practice Library warm-up candidates for THIS turn
-Choose exactly ONE candidate. Preserve all listed practice detail; do not merge, trim or redesign it.
+    const coachPackWarmUpBlock = turnMode === "pre-match-warm-up"
+      ? ages.length !== 1
+        ? `\n\n---\n\n## Canonical Coach Pack match-day warm-up
+The club has one supplied pre-match warm-up per age group (U11, U12, U13, U14, U15 and U16+). The coach has not identified exactly one age group. Ask: "Which age group is this for?" Do not choose, merge or invent a routine.`
+        : coachPackWarmUps.length === 1
+          ? `\n\n---\n\n## Canonical Coach Pack match-day warm-up for THIS turn
+Use this ONE supplied routine for ${ages[0]}. Preserve its timing, sequence, coaching detail and outcomes exactly; do not merge, trim, redesign or present another practice as official.
 
-${warmUpPractices.map((practice) =>
-        `### Practice Library — ${practice.title ?? practice.sectionName ?? `Practice ${practice.id}`}\n${practice.text.slice(0, 5000)}`
-      ).join("\n\n---\n\n")}`
-      : turnMode === "pre-match-warm-up"
-        ? `\n\n---\n\n## Approved Practice Library warm-up candidates for THIS turn\nNo approved warm-up practice could be retrieved. Say so rather than inventing an official practice.`
-        : "";
+### ${coachPackWarmUps[0].docTitle} — ${coachPackWarmUps[0].heading}
+${coachPackWarmUps[0].content}`
+          : `\n\n---\n\n## Canonical Coach Pack match-day warm-up for THIS turn
+No canonical ${ages[0]} Coach Pack warm-up was retrieved. Say so rather than inventing an official routine.`
+      : "";
 
     // Build optional selected-match context block. A league-only context still
     // receives the weekly evidence pack above without pretending a match was selected.
@@ -1058,7 +1078,7 @@ ${warmUpPractices.map((practice) =>
       ? `\n\n---\n\n${coachingContext.block}`
       : "";
     const pageNote = assistantPageInstruction(ctx?.page);
-    const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n${turnNote}${pageNote ? `\n\n${pageNote}` : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${practiceContextBlock}${weeklyContextBlock}${matchContextBlock}`;
+    const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n${turnNote}${pageNote ? `\n\n${pageNote}` : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${coachPackWarmUpBlock}${weeklyContextBlock}${matchContextBlock}`;
 
     const modelStartedAt = performance.now();
     const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
@@ -1139,10 +1159,8 @@ ${warmUpPractices.map((practice) =>
     res.write(`data: ${JSON.stringify({
       done: true,
       sources: [
-        ...picked.slice(0, 8).map((c) => c.headingPath),
-        ...warmUpPractices.slice(0, 2).map((practice) =>
-          `Practice Library — ${practice.title ?? practice.sectionName ?? `Practice ${practice.id}`}`
-        ),
+        ...contextChunks.slice(0, 8).map((c) => c.headingPath),
+        ...coachPackWarmUps.map((warmUp) => `${warmUp.docTitle} — ${warmUp.heading}`),
       ],
     })}\n\n`);
     res.end();

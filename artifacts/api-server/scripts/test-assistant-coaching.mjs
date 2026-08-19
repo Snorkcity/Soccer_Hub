@@ -213,8 +213,22 @@ try {
   );
   assert.match(
     assistantTurnInstruction("pre-match-warm-up", "Canberra Croatia"),
-    /Select exactly ONE approved Practice Library warm-up/,
-    "the warm-up mode selects one approved practice without inventing a session",
+    /Use exactly ONE canonical Coach Pack match-day warm-up/,
+    "the warm-up mode uses the supplied age-group Coach Pack routine",
+  );
+  assert.match(
+    assistantTurnInstruction("pre-match-warm-up", "Canberra Croatia"),
+    /Which age group is this for\?/,
+    "the warm-up mode asks for the age group instead of guessing",
+  );
+  assert.equal(
+    detectAssistantTurnMode(
+      "U13 against Canberra Croatia",
+      false,
+      "Which age group is this for?",
+    ),
+    "pre-match-warm-up",
+    "an age-group clarification reply stays in protected Coach Pack warm-up mode",
   );
   assert.match(
     assistantTurnInstruction("match-plan", "Canberra Croatia"),
@@ -312,13 +326,13 @@ try {
   );
   assert.match(
     assistantRoute,
-    /rankPractices\([\s\S]*"Warmup"[\s\S]*Choose exactly ONE candidate/,
-    "pre-match warm-ups retrieve approved Practice Library candidates",
+    /findCoachPackPreMatchWarmUps\([\s\S]*chunk\.docType === "coach_pack"[\s\S]*Pre-Match Warm-Up[\s\S]*Game Day Guidance/,
+    "pre-match warm-ups retrieve only the canonical age-group Coach Pack routine",
   );
   assert.match(
     assistantRoute,
-    /entry\.reviewPart === "warmup"/,
-    "unreviewed and unusable practices cannot be represented as approved warm-ups",
+    /ages\.length !== 1[\s\S]*Which age group is this for\?/,
+    "ambiguous warm-up requests ask for an age group instead of choosing a routine",
   );
   assert.match(
     assistantRoute,

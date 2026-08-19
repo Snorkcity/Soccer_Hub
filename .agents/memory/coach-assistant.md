@@ -23,4 +23,10 @@ description: RAG chat over the 14-doc Belconnen development curriculum (U11–16
 
 **How to apply:** page labels are orientation, not evidence. Server-validate page keys and match IDs, retain explicit user match overrides, clear stale overrides on navigation, and never infer unseen values from a screen name.
 
+**Match-day warm-up source:** use only the canonical `Pre-Match Warm-Up` section under each age group's Coach Pack `Game Day Guidance` chapter (U11–U16+). This content is already approved curriculum; it is not a Practice Library slide awaiting review.
+
+**Why:** the coach confirmed every age-group pack already supplies its match-day routine. Generic Practice Library review state is the wrong authority and can leave the Assistant claiming no approved warm-up exists.
+
+**How to apply:** require exactly one age group, carry warm-up mode through the age clarification reply, and preserve the selected pack's timing, sequence and coaching detail verbatim. Never choose a semantically similar routine from another age group.
+
 **Multi-club readiness (Scott, Jul 2026):** the 14 curriculum docx are Belconnen-flavoured. Before selling the assistant to other clubs, either rewrite docs club-neutral or make the assistant club-aware (know which club the signed-in user belongs to and adapt wording/examples). Decide alongside the payments build — no work started.
