@@ -1202,6 +1202,7 @@ export default function SeasonStats() {
   const [effMetric, setEffMetric] = useState<"per90" | "total">("per90");
   const [effMinMins, setEffMinMins] = useState<0 | 90 | 150 | 180>(150);
   const [selectedClub, setSelectedClub] = useState<string>("");
+  const [showAllOpponentMatches, setShowAllOpponentMatches] = useState(false);
   const [hiddenOpponents, setHiddenOpponents] = useState<Set<string>>(new Set());
   const [mpgSort, setMpgSort] = useState<"goals" | "mpg">("goals");
   const [mpgLastN, setMpgLastN] = useState(false);
@@ -1263,6 +1264,10 @@ export default function SeasonStats() {
   const [oppMinsL3, setOppMinsL3]       = useState(false); // squad: total minutes
   const [comboLastN, setComboLastN]       = useState(false); // team: combo threat
   const [oppComboLastN, setOppComboLastN] = useState(false); // opponent: combo threat
+
+  useEffect(() => {
+    setShowAllOpponentMatches(false);
+  }, [selectedClub, selectedSeasonId]);
   const [dnaPlayer, setDnaPlayer]         = useState("");    // team: scoring-DNA focus player
   const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
   const [oppDnaLastN, setOppDnaLastN]     = useState(false); // opponent: scoring-DNA window
@@ -2773,7 +2778,11 @@ export default function SeasonStats() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {profile.matches.slice().sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? "")).map(m => {
+                        {profile.matches
+                          .slice()
+                          .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""))
+                          .slice(0, showAllOpponentMatches ? profile.matches.length : 4)
+                          .map(m => {
                           const color = m.result === "W" ? "text-[hsl(var(--chart-3))]" : m.result === "L" ? "text-[hsl(var(--chart-4))]" : "text-muted-foreground";
                           return (
                             <TableRow key={m.matchId} className="text-sm">
@@ -2788,9 +2797,22 @@ export default function SeasonStats() {
                               <TableCell className="py-1.5 text-center font-medium">{m.scored} – {m.conceded}</TableCell>
                             </TableRow>
                           );
-                        })}
+                          })}
                       </TableBody>
                     </Table>
+                    {profile.matches.length > 4 && (
+                      <div className="border-t px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllOpponentMatches(expanded => !expanded)}
+                          className="text-sm font-medium text-primary hover:underline underline-offset-4"
+                        >
+                          {showAllOpponentMatches
+                            ? "Show less"
+                            : `Show more (${profile.matches.length - 4})`}
+                        </button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
