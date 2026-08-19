@@ -12,9 +12,8 @@ import { Card, CardContent } from "@/components/ui/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { AlertCircle, Info, Search, User, ChevronRight, Hash, MessageSquareText, Activity, Clock } from "lucide-react";
+import { AlertCircle, Info, Search, User, ChevronRight, Hash, Activity, Clock } from "lucide-react";
 import { teamLabel, VeoPlayerTeamBadge } from "./VeoPlayerTeamBadge";
-import { useAssistant } from "@/contexts/AssistantContext";
 import { compareVeoPlayerTeamSide } from "@/lib/veoPlayerOrdering";
 
 type MetricGroup = "Summary" | "Physical" | "Attacking" | "Possession";
@@ -162,7 +161,6 @@ function EventTimeline({ events }: { events: VeoEventTimelineEntry[] }) {
 }
 
 export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: number }) {
-  const { openWithContext } = useAssistant();
   const [metricGroup, setMetricGroup] = useState<MetricGroup>("Summary");
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState("all");
@@ -318,19 +316,6 @@ export function VeoMatchPlayers({ leagueId, veoId }: { leagueId: number, veoId: 
           </Select>
         </div>
         
-        <button
-          type="button"
-          onClick={() => openWithContext({
-            leagueId,
-            veoId,
-            label: `${data?.title || data?.opponent || "Veo match"}${data?.startsAt ? ` · ${new Date(data.startsAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}` : ""}`,
-            opponent: data?.opponent ?? null,
-          })}
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shrink-0"
-        >
-          <MessageSquareText className="h-4 w-4" />
-          Ask Assistant
-        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter players by team">

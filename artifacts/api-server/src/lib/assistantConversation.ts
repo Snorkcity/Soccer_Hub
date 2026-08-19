@@ -1,5 +1,63 @@
 export type AssistantTurnMode = "recommendation" | "full-session" | "exact-session" | "general";
 
+export const ASSISTANT_PAGE_KEYS = [
+  "home",
+  "group-home",
+  "season-stats",
+  "football-match-report",
+  "season-report",
+  "gps-insights",
+  "veo-season-team",
+  "veo-season-players",
+  "veo-match-team",
+  "veo-match-players",
+  "athletic-testing",
+  "practice-library",
+  "diagram-review",
+  "session-builder",
+  "session-editor",
+  "reflection-journal",
+  "reflection-cycle",
+  "match-prep",
+  "coach-assistant",
+  "data-entry",
+  "user-management",
+  "account",
+] as const;
+
+export type AssistantPageKey = (typeof ASSISTANT_PAGE_KEYS)[number];
+
+const ASSISTANT_PAGE_LABELS: Record<AssistantPageKey, string> = {
+  "home": "the Hub home screen",
+  "group-home": "a Hub module landing screen",
+  "season-stats": "Season Stats",
+  "football-match-report": "the Football Match Report inside Season Stats",
+  "season-report": "the Season Report",
+  "gps-insights": "GPS Insights",
+  "veo-season-team": "Veo Insights — Season, Team view",
+  "veo-season-players": "Veo Insights — Season, Players view",
+  "veo-match-team": "Veo Insights — Match, Team view",
+  "veo-match-players": "Veo Insights — Match, Players view",
+  "athletic-testing": "Athletic Testing",
+  "practice-library": "the Practice Library",
+  "diagram-review": "Practice Diagram Review",
+  "session-builder": "the Session Builder",
+  "session-editor": "a saved session editor",
+  "reflection-journal": "the Reflection Journal",
+  "reflection-cycle": "a Reflection Journal cycle",
+  "match-prep": "Match Prep",
+  "coach-assistant": "the full Coach Assistant page",
+  "data-entry": "Data Entry",
+  "user-management": "User Management",
+  "account": "My Account",
+};
+
+export function assistantPageInstruction(page: AssistantPageKey | undefined): string {
+  if (!page) return "";
+  return `## Current Hub screen
+The user is currently viewing ${ASSISTANT_PAGE_LABELS[page]}. Assume their question relates to this screen and its active filters or selected match unless they clearly say otherwise. Use the screen as conversational orientation only: cite values only when they are present in the verified Hub/Veo context below, and never invent data merely because the screen normally contains it.`;
+}
+
 const GENERIC_CLUB_WORDS = new Set([
   "canberra",
   "city",

@@ -18,6 +18,7 @@ try {
   });
 
   const {
+    assistantPageInstruction,
     assistantTurnInstruction,
     detectAssistantTurnMode,
     recentResultLines,
@@ -132,6 +133,18 @@ try {
   assert.match(recommendationInstruction, /without dimensions, player numbers, full rules/);
   assert.match(recommendationInstruction, /Why now/);
 
+  const pageInstruction = assistantPageInstruction("veo-match-players");
+  assert.match(
+    pageInstruction,
+    /Veo Insights — Match, Players view/,
+    "the assistant is oriented to the active Hub subview",
+  );
+  assert.match(
+    pageInstruction,
+    /cite values only when they are present in the verified Hub\/Veo context/,
+    "page awareness cannot turn a screen label into invented data",
+  );
+
   const form = recentResultLines([
     {
       matchDate: "2026/08/16",
@@ -160,10 +173,20 @@ try {
     "2026/08/09 — D 2–2 v Canberra Olympic (away)",
   ], "only played official results appear, newest first");
 
-  const [assistantRoute, contextBuilder, clientContext] = await Promise.all([
+  const [
+    assistantRoute,
+    contextBuilder,
+    clientContext,
+    matchReportPage,
+    veoPage,
+    veoPlayers,
+  ] = await Promise.all([
     readFile("src/routes/assistant.ts", "utf8"),
     readFile("src/routes/journalInterview.ts", "utf8"),
     readFile("../bufc-hub/src/contexts/AssistantContext.tsx", "utf8"),
+    readFile("../bufc-hub/src/components/MatchReportTab.tsx", "utf8"),
+    readFile("../bufc-hub/src/pages/VeoInsights.tsx", "utf8"),
+    readFile("../bufc-hub/src/components/veo/VeoMatchPlayers.tsx", "utf8"),
   ]);
   assert.match(
     assistantRoute,
@@ -202,8 +225,18 @@ try {
   );
   assert.match(
     clientContext,
-    /const leagueContextId = matchContext\?\.leagueId \?\? effectiveSelectorLeagueId/,
+    /const leagueContextId = activeMatchContext\?\.leagueId \?\? effectiveSelectorLeagueId/,
     "the client sends active league context without requiring a selected match",
+  );
+  assert.match(
+    clientContext,
+    /page: pageContext/,
+    "the bottom Assistant sends the active Hub page with every league-scoped question",
+  );
+  assert.doesNotMatch(
+    `${matchReportPage}\n${veoPage}\n${veoPlayers}`,
+    /Ask Assistant/,
+    "inline Ask Assistant buttons stay removed from report and Veo screens",
   );
 
   console.log("Assistant coach-first regression tests passed");

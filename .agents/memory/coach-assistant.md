@@ -17,4 +17,10 @@ description: RAG chat over the 14-doc Belconnen development curriculum (U11–16
 
 **How to apply:** keep league evidence permission-scoped, relevance-gated and compact; label official results, coach reflections, analyst reads, and Veo estimates separately. When opponent identity is ambiguous, clarify instead of guessing.
 
+**Single-entry page-awareness rule:** the persistent bottom Assistant is the only in-page entry point. Do not add duplicate “Ask Assistant” buttons; automatically pass the active Hub screen/subview and selected match or Veo recording instead.
+
+**Why:** duplicate calls-to-action clutter analysis screens and make coaches choose between identical entry points. Page-derived context lets the same persistent chat interpret short questions naturally.
+
+**How to apply:** page labels are orientation, not evidence. Server-validate page keys and match IDs, retain explicit user match overrides, clear stale overrides on navigation, and never infer unseen values from a screen name.
+
 **Multi-club readiness (Scott, Jul 2026):** the 14 curriculum docx are Belconnen-flavoured. Before selling the assistant to other clubs, either rewrite docs club-neutral or make the assistant club-aware (know which club the signed-in user belongs to and adapt wording/examples). Decide alongside the payments build — no work started.

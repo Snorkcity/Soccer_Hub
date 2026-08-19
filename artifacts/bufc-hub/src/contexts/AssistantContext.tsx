@@ -41,6 +41,51 @@ export interface MatchContext {
   opponent: string | null;
 }
 
+export type AssistantPageKey =
+  | "home"
+  | "group-home"
+  | "season-stats"
+  | "football-match-report"
+  | "season-report"
+  | "gps-insights"
+  | "veo-season-team"
+  | "veo-season-players"
+  | "veo-match-team"
+  | "veo-match-players"
+  | "athletic-testing"
+  | "practice-library"
+  | "diagram-review"
+  | "session-builder"
+  | "session-editor"
+  | "reflection-journal"
+  | "reflection-cycle"
+  | "match-prep"
+  | "coach-assistant"
+  | "data-entry"
+  | "user-management"
+  | "account";
+
+function pageKeyForLocation(location: string): AssistantPageKey {
+  if (location === "/") return "home";
+  if (location.startsWith("/hub/")) return "group-home";
+  if (location === "/season-stats") return "season-stats";
+  if (location === "/season-report") return "season-report";
+  if (location === "/gps") return "gps-insights";
+  if (location === "/veo") return "veo-season-team";
+  if (location === "/testing") return "athletic-testing";
+  if (location === "/library/review") return "diagram-review";
+  if (location === "/library") return "practice-library";
+  if (/^\/sessions\/[^/]+$/.test(location)) return "session-editor";
+  if (location === "/sessions") return "session-builder";
+  if (/^\/reflections\/[^/]+$/.test(location)) return "reflection-cycle";
+  if (location === "/reflections") return "reflection-journal";
+  if (location === "/match-prep") return "match-prep";
+  if (location === "/assistant") return "coach-assistant";
+  if (location === "/data-entry") return "data-entry";
+  if (location === "/users") return "user-management";
+  return "account";
+}
+
 export const SUGGESTIONS_DEFAULT = [
   "What should we focus on in training this week based on our recent results and reflections?",
   "Suggest a training theme, then let me decide if I want the full session",
@@ -80,6 +125,11 @@ interface AssistantContextValue {
   listening: boolean;
   matchContext: MatchContext | null;
   setMatchContext: React.Dispatch<React.SetStateAction<MatchContext | null>>;
+  pageMatchContext: MatchContext | null;
+  setPageMatchContext: React.Dispatch<React.SetStateAction<MatchContext | null>>;
+  activeMatchContext: MatchContext | null;
+  pageContext: AssistantPageKey;
+  setPageContextOverride: React.Dispatch<React.SetStateAction<AssistantPageKey | null>>;
   speechSupported: boolean;
   send: (text?: string) => Promise<void>;
   toggleMic: () => void;
@@ -95,7 +145,6 @@ interface AssistantContextValue {
   selectorOpen: boolean;
   setSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleSelectMatch: (matchRowId: number) => void;
-  openWithContext: (context?: MatchContext) => void;
   
   isVisible: boolean;
   setVisible: React.Dispatch<React.SetStateAction<boolean>>;
@@ -124,6 +173,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   );
 
   const [matchContext, setMatchContext] = useState<MatchContext | null>(null);
+  const [pageMatchContext, setPageMatchContext] = useState<MatchContext | null>(null);
+  const [pageContextOverride, setPageContextOverride] = useState<AssistantPageKey | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [selectorLeagueId, setSelectorLeagueId] = useState<number | null>(null);
 
@@ -158,6 +209,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const effectiveSelectorLeagueId = selectorLeagueId ??
     (assistantLeagues.some((league) => league.id === activeLeagueId) ? activeLeagueId : (assistantLeagues[0]?.id ?? null));
+  const activeMatchContext = matchContext ?? pageMatchContext;
+  const pageContext = pageContextOverride ?? pageKeyForLocation(location);
+
+  const previousLocationRef = useRef(location);
+  useEffect(() => {
+    if (previousLocationRef.current !== location) {
+      setMatchContext(null);
+      previousLocationRef.current = location;
+    }
+  }, [location]);
 
   const matchListParams = { leagueId: effectiveSelectorLeagueId ?? 0 };
   const matchListEnabled = effectiveSelectorLeagueId != null && (selectorOpen || hasQp);
@@ -246,14 +307,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setSelectorOpen(false);
   }
 
-  function openWithContext(context?: MatchContext) {
-    if (context) {
-      setMatchContext(context);
-      setSelectorLeagueId(context.leagueId);
-    }
-    setVisible(true);
-  }
-
   function toggleMic() {
     if (listening) {
       recRef.current?.stop();
@@ -308,12 +361,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         messages: history.slice(-16).map(({ role, content: c }) => ({ role, content: c })),
         mobile: window.matchMedia("(max-width: 767px)").matches,
       };
-      const leagueContextId = matchContext?.leagueId ?? effectiveSelectorLeagueId;
+      const leagueContextId = activeMatchContext?.leagueId ?? effectiveSelectorLeagueId;
       if (leagueContextId != null) {
         body.context = {
           leagueId: leagueContextId,
-          ...(matchContext?.matchRowId != null ? { matchRowId: matchContext.matchRowId } : {}),
-          ...(matchContext?.veoId != null ? { veoId: matchContext.veoId } : {}),
+          page: pageContext,
+          ...(activeMatchContext?.matchRowId != null ? { matchRowId: activeMatchContext.matchRowId } : {}),
+          ...(activeMatchContext?.veoId != null ? { veoId: activeMatchContext.veoId } : {}),
         };
       }
       const res = await fetch("/api/assistant/chat", {
@@ -377,11 +431,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     input, setInput,
     busy, error, listening,
     matchContext, setMatchContext,
+    pageMatchContext, setPageMatchContext, activeMatchContext,
+    pageContext, setPageContextOverride,
     speechSupported,
     send, toggleMic, reset, abort,
     assistantLeagues, availableMatches, matchListLoading,
     selectorLeagueId, setSelectorLeagueId, effectiveSelectorLeagueId,
-    selectorOpen, setSelectorOpen, handleSelectMatch, openWithContext,
+    selectorOpen, setSelectorOpen, handleSelectMatch,
     isVisible, setVisible
   };
 

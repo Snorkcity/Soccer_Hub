@@ -37,6 +37,8 @@ import {
 } from "../lib/veoAnalytics2Identity";
 import type { Analytics2Bundle } from "../lib/veo";
 import {
+  ASSISTANT_PAGE_KEYS,
+  assistantPageInstruction,
   assistantTurnInstruction,
   detectAssistantTurnMode,
   shouldLoadAssistantCoachingEvidence,
@@ -49,6 +51,7 @@ const SelectedMatchContext = z.object({
   leagueId: z.number().int().positive(),
   veoId: z.number().int().positive().optional(),
   matchRowId: z.number().int().positive().optional(),
+  page: z.enum(ASSISTANT_PAGE_KEYS).optional(),
 });
 
 const ChatBody = z.object({
@@ -930,7 +933,8 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     const weeklyContextBlock = coachingContext
       ? `\n\n---\n\n${coachingContext.block}`
       : "";
-    const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n${turnNote}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${weeklyContextBlock}${matchContextBlock}`;
+    const pageNote = assistantPageInstruction(ctx?.page);
+    const systemContent = `${SYSTEM_PROMPT}${parsed.data.mobile ? MOBILE_STYLE_NOTE : ""}\n\n${turnNote}${pageNote ? `\n\n${pageNote}` : ""}\n\n## Belconnen curriculum excerpts retrieved for this question\n\n${context}${weeklyContextBlock}${matchContextBlock}`;
 
     const aiRes = await fetch(`${baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
       method: "POST",

@@ -36,7 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock, AlertTriangle, MessageSquareText } from "lucide-react";
+import { Loader2, RefreshCw, Video, Link2, ChevronDown, ChevronUp, Wand2, Check, Trash2, Undo2, RotateCcw, Clock, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell,
   ComposedChart, Line, Legend,
@@ -235,7 +235,7 @@ function fmtDate(iso?: string | null): string {
 export default function VeoInsights() {
   const { hasModule, ready, isSuperadmin } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
-  const { openWithContext } = useAssistant();
+  const { setPageMatchContext, setPageContextOverride } = useAssistant();
   const qc = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -262,6 +262,36 @@ export default function VeoInsights() {
   const { data: match, isLoading: matchLoading } = useGetVeoMatch(detailParams, {
     query: { enabled: currentId != null && activeLeagueId != null, queryKey: getGetVeoMatchQueryKey(detailParams) },
   });
+
+  useEffect(() => {
+    const pageKey = view === "season"
+      ? (subView === "team" ? "veo-season-team" : "veo-season-players")
+      : (subView === "team" ? "veo-match-team" : "veo-match-players");
+    setPageContextOverride(pageKey);
+    return () => setPageContextOverride((current) => current === pageKey ? null : current);
+  }, [setPageContextOverride, subView, view]);
+
+  useEffect(() => {
+    if (view !== "match" || !currentSummary || activeLeagueId == null) {
+      setPageMatchContext(null);
+      return;
+    }
+    const context = {
+      leagueId: activeLeagueId,
+      veoId: currentSummary.id,
+      label: `${currentSummary.matchCode ? `${currentSummary.matchCode} · ` : ""}${opponentOf(currentSummary)}${fmtDate(currentSummary.startsAt) ? ` · ${fmtDate(currentSummary.startsAt)}` : ""}`,
+      opponent: opponentOf(currentSummary),
+    };
+    setPageMatchContext(context);
+    return () => setPageMatchContext((current) =>
+      current?.veoId === context.veoId ? null : current
+    );
+  }, [
+    activeLeagueId,
+    currentSummary,
+    setPageMatchContext,
+    view,
+  ]);
 
   const seasonParams = { leagueId: activeLeagueId ?? 0 };
   const { data: seasonData, isLoading: seasonLoading } = useGetVeoSeason(seasonParams, {
@@ -414,20 +444,6 @@ export default function VeoInsights() {
                   ))}
                 </SelectContent>
               </Select>
-            )}
-            {view === "match" && currentSummary && activeLeagueId != null && (isSuperadmin || hasModule(activeLeagueId, "assistant")) && (
-              <Button
-                size="sm"
-                onClick={() => openWithContext({
-                  leagueId: activeLeagueId,
-                  veoId: currentSummary.id,
-                  label: `${currentSummary.matchCode ? `${currentSummary.matchCode} · ` : ""}${opponentOf(currentSummary)}${fmtDate(currentSummary.startsAt) ? ` · ${fmtDate(currentSummary.startsAt)}` : ""}`,
-                  opponent: opponentOf(currentSummary),
-                })}
-              >
-                <MessageSquareText className="h-4 w-4 mr-1.5" />
-                Ask Assistant
-              </Button>
             )}
           </div>
 

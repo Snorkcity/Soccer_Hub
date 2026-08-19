@@ -10,7 +10,8 @@ import { useAssistant, SUGGESTIONS_DEFAULT, suggestionsForMatch, matchLabel } fr
 export function CoachAssistantChat({ variant }: { variant: "full" | "overlay" }) {
   const {
     messages, input, setInput, busy, error, listening,
-    matchContext, setMatchContext, speechSupported,
+    matchContext: manualMatchContext, activeMatchContext: matchContext,
+    setMatchContext, speechSupported,
     send, toggleMic,
     assistantLeagues, availableMatches, matchListLoading,
     effectiveSelectorLeagueId, setSelectorLeagueId,
@@ -42,15 +43,17 @@ export function CoachAssistantChat({ variant }: { variant: "full" | "overlay" })
                 </span>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0"
-              onClick={() => setMatchContext(null)}
-              title="Remove match context"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            {manualMatchContext && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => setMatchContext(null)}
+                title="Use the current page context"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         ) : null}
 
@@ -111,7 +114,7 @@ export function CoachAssistantChat({ variant }: { variant: "full" | "overlay" })
                       </SelectContent>
                     </Select>
                   )}
-                  {matchContext && (
+                  {manualMatchContext && (
                     <Button
                       variant="ghost"
                       size="sm"

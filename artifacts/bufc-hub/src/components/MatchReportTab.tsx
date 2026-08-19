@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Sparkles, ShieldCheck, AlertTriangle, Info, Activity, History, Save, FileDown, Loader2, Trash2, ArrowLeft,
-  Mail, CheckCircle2, XCircle, Plus, MessageSquareText,
+  Mail, CheckCircle2, XCircle, Plus,
 } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
@@ -55,10 +55,9 @@ const statisticSourceLabel = (source: "official" | "veo" | "unknown" | null | un
 
 export default function MatchReportTab({ teamId, seasonId }: Props) {
   const { activeLeagueId } = useActiveLeague();
-  const { isSuperadmin, hasModuleAnywhere, hasModule } = useLeagueModules();
-  const { openWithContext } = useAssistant();
+  const { isSuperadmin, hasModuleAnywhere } = useLeagueModules();
+  const { setPageMatchContext, setPageContextOverride } = useAssistant();
   const isAdmin = isSuperadmin || hasModuleAnywhere("data-entry");
-  const canAskAssistant = activeLeagueId != null && (isSuperadmin || hasModule(activeLeagueId, "assistant"));
 
   const listParams = { teamId, seasonId };
   const { data: matches } = useListMatches(listParams, {
@@ -115,6 +114,36 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
 
   const [viewingSaved, setViewingSaved] = useState<SavedMatchReport | null>(null);
   const model = viewingSaved ? (viewingSaved.data as unknown as FootballMatchReportModel) : liveModel;
+
+  useEffect(() => {
+    setPageContextOverride("football-match-report");
+    return () => setPageContextOverride((current) => current === "football-match-report" ? null : current);
+  }, [setPageContextOverride]);
+
+  useEffect(() => {
+    if (viewingSaved || !selectedMatch || activeLeagueId == null) {
+      setPageMatchContext(null);
+      return;
+    }
+    const context = {
+      leagueId: activeLeagueId,
+      matchRowId: selectedMatch.id,
+      label: roundOf(selectedMatch.matchId, selectedMatch.opponent, selectedMatch.matchDate),
+      opponent: selectedMatch.opponent,
+    };
+    setPageMatchContext(context);
+    return () => setPageMatchContext((current) =>
+      current?.matchRowId === context.matchRowId ? null : current
+    );
+  }, [
+    activeLeagueId,
+    selectedMatch?.id,
+    selectedMatch?.matchDate,
+    selectedMatch?.matchId,
+    selectedMatch?.opponent,
+    setPageMatchContext,
+    viewingSaved,
+  ]);
   const report: MatchReportResponse | null = model?.report ?? null;
 
   const [saving, setSaving] = useState(false);
@@ -207,20 +236,6 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
           </>
         )}
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-          {!viewingSaved && canAskAssistant && selectedMatch && activeLeagueId != null && (
-            <Button
-              size="sm"
-              onClick={() => openWithContext({
-                leagueId: activeLeagueId,
-                matchRowId: selectedMatch.id,
-                label: roundOf(selectedMatch.matchId, selectedMatch.opponent, selectedMatch.matchDate),
-                opponent: selectedMatch.opponent,
-              })}
-            >
-              <MessageSquareText className="h-4 w-4 mr-1.5" />
-              Ask Assistant
-            </Button>
-          )}
           {!viewingSaved && (
             <Button variant="outline" size="sm" onClick={saveReport} disabled={saving || !liveModel}>
               {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
