@@ -170,6 +170,18 @@ try {
   assert.match(recommendationInstruction, /without dimensions, player numbers, full rules/);
   assert.match(recommendationInstruction, /Why now/);
 
+  const fullSessionInstruction = assistantTurnInstruction("full-session", null);
+  assert.match(
+    fullSessionInstruction,
+    /literal section headings "Warm-Up", "1st Part", "2nd Part", and "3rd Part"/,
+    "confirmed expansions keep all four runnable session sections explicit",
+  );
+  assert.doesNotMatch(
+    assistantTurnInstruction("exact-session", null),
+    /literal section headings/,
+    "exact curriculum sessions keep their source-faithful 3–4-part path",
+  );
+
   const pageInstruction = assistantPageInstruction("veo-match-players");
   assert.match(
     pageInstruction,

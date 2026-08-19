@@ -260,7 +260,8 @@ The coach named an exact curriculum session. Deliver the complete selected sessi
   }
   if (mode === "full-session") {
     return `## Response mode for THIS turn: full session requested
-The coach explicitly asked to build or run the session. Deliver the complete session using the non-negotiable 3–4-part format and content-preservation rules.`;
+The coach explicitly asked to build or run the session. Deliver the complete session using the non-negotiable 3–4-part format and content-preservation rules.
+- Use the literal section headings "Warm-Up", "1st Part", "2nd Part", and "3rd Part". Do not omit the separate Warm-Up, including for older or senior teams.`;
   }
   return `## Response mode for THIS turn: normal coaching conversation
 Answer the question directly. Do not turn the reply into a complete session unless the coach explicitly asks to build or run one.`;
