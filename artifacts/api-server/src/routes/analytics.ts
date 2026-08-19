@@ -563,6 +563,7 @@ router.get("/analytics/goal-breakdown", async (req, res): Promise<void> => {
       howPenetrated:   g.howPenetrated ?? null,
       firstTimeFinish: g.firstTimeFinish ?? null,
       passString:      g.passString ?? null,
+      source:          g.source ?? null,
       goalX:           g.goalX != null ? Number(g.goalX) : null,
       goalY:           g.goalY != null ? Number(g.goalY) : null,
       scorer:          g.scorer ?? null,
@@ -1236,6 +1237,7 @@ router.get("/analytics/opponent-goal-breakdown", async (req, res): Promise<void>
     howPenetrated:   g.howPenetrated ?? null,
     finishType:      g.finishType ?? null,
     firstTimeFinish: g.firstTimeFinish ?? null,
+    source:          g.source ?? null,
     scorer:          g.scorer ?? null,
     assist:          g.assist ?? null,
     matchDate:       clubMatchDateMap[g.matchId] ?? null,
@@ -2553,6 +2555,7 @@ router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
         firstTimeFinish: g.firstTimeFinish ?? null,
         finishType: g.finishType ?? null,
         passString: g.passString ?? null,
+        source: g.source ?? null,
         goalX: g.goalX ?? null,
         goalY: g.goalY ?? null,
       }));
@@ -2691,6 +2694,7 @@ router.get("/analytics/opponent-profile", async (req, res): Promise<void> => {
       firstTimeFinish: g.firstTimeFinish ?? null,
       finishType: g.finishType ?? null,
       passString: g.passString ?? null,
+      source: g.source ?? null,
       goalX: g.goalX ?? null,
       goalY: g.goalY ?? null,
     }));

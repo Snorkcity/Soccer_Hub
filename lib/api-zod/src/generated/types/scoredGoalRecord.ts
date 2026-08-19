@@ -27,6 +27,8 @@ export interface ScoredGoalRecord {
   /** @nullable */
   passString?: string | null;
   /** @nullable */
+  source?: string | null;
+  /** @nullable */
   goalX?: number | null;
   /** @nullable */
   goalY?: number | null;

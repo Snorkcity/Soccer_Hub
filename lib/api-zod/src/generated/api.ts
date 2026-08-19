@@ -1436,6 +1436,7 @@ export const GetGoalBreakdownResponse = zod.object({
   "howPenetrated": zod.string().nullish(),
   "firstTimeFinish": zod.boolean().nullish(),
   "passString": zod.string().nullish(),
+  "source": zod.string().nullish(),
   "goalX": zod.number().nullish(),
   "goalY": zod.number().nullish(),
   "scorer": zod.string().nullish(),
@@ -1456,6 +1457,7 @@ export const GetGoalBreakdownResponse = zod.object({
   "howPenetrated": zod.string().nullish(),
   "firstTimeFinish": zod.boolean().nullish(),
   "passString": zod.string().nullish(),
+  "source": zod.string().nullish(),
   "goalX": zod.number().nullish(),
   "goalY": zod.number().nullish(),
   "scorer": zod.string().nullish(),
@@ -1585,6 +1587,7 @@ export const GetOpponentGoalBreakdownResponse = zod.object({
   "howPenetrated": zod.string().nullish(),
   "finishType": zod.string().nullish(),
   "firstTimeFinish": zod.boolean().nullish(),
+  "source": zod.string().nullish(),
   "scorer": zod.string().nullish(),
   "assist": zod.string().nullish(),
   "matchDate": zod.string().nullish()
@@ -1598,6 +1601,7 @@ export const GetOpponentGoalBreakdownResponse = zod.object({
   "howPenetrated": zod.string().nullish(),
   "finishType": zod.string().nullish(),
   "firstTimeFinish": zod.boolean().nullish(),
+  "source": zod.string().nullish(),
   "scorer": zod.string().nullish(),
   "assist": zod.string().nullish(),
   "matchDate": zod.string().nullish()
@@ -1676,6 +1680,7 @@ export const GetOpponentProfileResponse = zod.object({
   "firstTimeFinish": zod.boolean().nullable(),
   "finishType": zod.string().nullable(),
   "passString": zod.string().nullable(),
+  "source": zod.string().nullable(),
   "goalX": zod.string().nullable(),
   "goalY": zod.string().nullable()
 })),

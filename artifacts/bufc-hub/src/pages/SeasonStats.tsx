@@ -181,12 +181,13 @@ function typeRank(code: string): number {
 }
 
 // Goal Detail by Type — dimension dropdown → accessor on a scored-goal record
-type GoalDetailDim = "assist" | "buildup" | "finish" | "penetration" | "firsttime";
+type GoalDetailDim = "assist" | "buildup" | "finish" | "penetration" | "source" | "firsttime";
 const DIM_GETTER: Record<GoalDetailDim, (g: ScoredGoalRecord) => string | null | undefined> = {
   assist:      g => g.assistType,
   buildup:     g => g.buildupLane,
   finish:      g => g.finishType,
   penetration: g => g.howPenetrated,
+  source:      g => g.source,
   firsttime:   g => g.firstTimeFinish == null ? null : (g.firstTimeFinish ? "First-time" : "Not first-time"),
 };
 
@@ -2053,10 +2054,10 @@ export default function SeasonStats() {
             controls={<Last3Toggle active={l3ScType} onToggle={() => setL3ScType(v => !v)} />}
           />
 
-          {/* Goal Detail by Type — stacked by opponent club, dropdown across 4 dimensions */}
+          {/* Goal Detail by Type — stacked by opponent club, dropdown across all coded dimensions */}
           <OpponentStackChart
             title={`Goal Detail by Type${l3ScDet ? " — Last 3 Rounds" : ""}`}
-            description="Break our goals down by assist, buildup, finish, or penetration — stacked by opponent club"
+            description="Break our goals down by assist, buildup, finish, penetration, or source — stacked by opponent club"
             tooltip="Our goals across the selected detail dimension, split by opponent. Hover a bar to see the individual goals (minute, scorer, opponent). Click a club below to include/exclude it."
             data={teamScDetData}
             opponents={teamScDetOpps}
@@ -2073,6 +2074,7 @@ export default function SeasonStats() {
                     <SelectItem value="buildup">Buildup Lane</SelectItem>
                     <SelectItem value="finish">Finish Type</SelectItem>
                     <SelectItem value="penetration">How Penetrated</SelectItem>
+                    <SelectItem value="source">Source</SelectItem>
                     <SelectItem value="firsttime">First-time Finish</SelectItem>
                   </SelectContent>
                 </Select>
@@ -2194,7 +2196,7 @@ export default function SeasonStats() {
 
           <OpponentStackChart
             title={`Goal Detail by Type (Conceded)${l3CcDet ? " — Last 3 Rounds" : ""}`}
-            description="Break goals against down by assist, buildup, finish, or penetration — stacked by the club that scored"
+            description="Break goals against down by assist, buildup, finish, penetration, or source — stacked by the club that scored"
             tooltip="Goals we conceded across the selected detail dimension, split by the club that scored. Hover a bar to see the individual goals. Click a club below to include/exclude it."
             data={teamCcDetData}
             opponents={teamCcDetOpps}
@@ -2211,6 +2213,7 @@ export default function SeasonStats() {
                     <SelectItem value="buildup">Buildup Lane</SelectItem>
                     <SelectItem value="finish">Finish Type</SelectItem>
                     <SelectItem value="penetration">How Penetrated</SelectItem>
+                    <SelectItem value="source">Source</SelectItem>
                     <SelectItem value="firsttime">First-time Finish</SelectItem>
                   </SelectContent>
                 </Select>
@@ -2884,6 +2887,7 @@ export default function SeasonStats() {
                       <SelectItem value="buildup">Buildup Lane</SelectItem>
                       <SelectItem value="finish">Finish Type</SelectItem>
                       <SelectItem value="penetration">How Penetrated</SelectItem>
+                      <SelectItem value="source">Source</SelectItem>
                       <SelectItem value="firsttime">First-time Finish</SelectItem>
                     </SelectContent>
                   </Select>
@@ -2942,7 +2946,7 @@ export default function SeasonStats() {
                   {/* 10. Goal conceded detail by type */}
                   <OpponentStackChart
                     title={`${selectedClub} — Goal Detail (Conceded)`}
-                    description="Goals against broken down by assist, buildup, finish, or penetration — stacked by opponent"
+                    description="Goals against broken down by assist, buildup, finish, penetration, or source — stacked by opponent"
                     tooltip="Goals this club conceded across the selected detail dimension, split by opponent. Hover a bar for the individual goals. Click a club below to include/exclude it."
                     data={profileGcDetData}
                     opponents={profileOpponents}
@@ -2958,6 +2962,7 @@ export default function SeasonStats() {
                           <SelectItem value="buildup">Buildup Lane</SelectItem>
                           <SelectItem value="finish">Finish Type</SelectItem>
                           <SelectItem value="penetration">How Penetrated</SelectItem>
+                          <SelectItem value="source">Source</SelectItem>
                           <SelectItem value="firsttime">First-time Finish</SelectItem>
                         </SelectContent>
                       </Select>
@@ -3979,7 +3984,7 @@ interface RawProfileGoal {
   matchId: string; matchDate: string | null; minuteScored: number | null; side: string; opponent: string;
   scorer: string | null; assist: string | null; goalType: string | null; assistType: string | null;
   howPenetrated: string | null; buildupLane: string | null; firstTimeFinish: boolean | null;
-  finishType: string | null; passString: string | null; goalX: string | null; goalY: string | null;
+  finishType: string | null; passString: string | null; source: string | null; goalX: string | null; goalY: string | null;
 }
 interface RawProfileMatch { matchId: string; opponent: string; result: string }
 interface ProfilePlayer {
@@ -4006,7 +4011,7 @@ function mapProfileGoals(goals: RawProfileGoal[] | undefined, side: "scored" | "
   return (goals ?? []).filter(g => g.side === side).map((g, i) => ({
     id: i, matchId: null, matchCode: g.matchId, opponent: g.opponent, minuteScored: g.minuteScored,
     goalType: g.goalType, assistType: g.assistType, buildupLane: g.buildupLane, finishType: g.finishType,
-    howPenetrated: g.howPenetrated, firstTimeFinish: g.firstTimeFinish, passString: g.passString,
+    howPenetrated: g.howPenetrated, firstTimeFinish: g.firstTimeFinish, passString: g.passString, source: g.source,
     scorer: g.scorer, assist: g.assist,
     goalX: g.goalX != null && g.goalX !== "" ? Number(g.goalX) : null,
     goalY: g.goalY != null && g.goalY !== "" ? Number(g.goalY) : null,

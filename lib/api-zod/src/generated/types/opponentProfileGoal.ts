@@ -33,6 +33,8 @@ export interface OpponentProfileGoal {
   /** @nullable */
   passString: string | null;
   /** @nullable */
+  source: string | null;
+  /** @nullable */
   goalX: string | null;
   /** @nullable */
   goalY: string | null;

@@ -5113,6 +5113,7 @@ components:
         howPenetrated:   { type: ["string", "null"] }
         firstTimeFinish: { type: ["boolean", "null"] }
         passString:      { type: ["string", "null"] }
+        source:          { type: ["string", "null"] }
         goalX:           { type: ["number", "null"] }
         goalY:           { type: ["number", "null"] }
         scorer:          { type: ["string", "null"] }
@@ -5673,6 +5674,7 @@ components:
         howPenetrated:   { type: ["string", "null"] }
         finishType:      { type: ["string", "null"] }
         firstTimeFinish: { type: ["boolean", "null"] }
+        source:          { type: ["string", "null"] }
         scorer:          { type: ["string", "null"] }
         assist:          { type: ["string", "null"] }
         matchDate:       { type: ["string", "null"] }
@@ -5752,9 +5754,10 @@ components:
         firstTimeFinish: { type: ["boolean", "null"] }
         finishType:      { type: ["string", "null"] }
         passString:      { type: ["string", "null"] }
+        source:          { type: ["string", "null"] }
         goalX:           { type: ["string", "null"] }
         goalY:           { type: ["string", "null"] }
-      required: [matchId, matchDate, minuteScored, side, opponent, scorer, assist, goalType, assistType, howPenetrated, buildupLane, firstTimeFinish, finishType, passString, goalX, goalY]
+      required: [matchId, matchDate, minuteScored, side, opponent, scorer, assist, goalType, assistType, howPenetrated, buildupLane, firstTimeFinish, finishType, passString, source, goalX, goalY]
 
     # Per-player season aggregate for the selected club (or whole league under __ALL__).
     OpponentProfilePlayer:

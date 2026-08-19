@@ -1803,6 +1803,8 @@ export interface ScoredGoalRecord {
   /** @nullable */
   passString?: string | null;
   /** @nullable */
+  source?: string | null;
+  /** @nullable */
   goalX?: number | null;
   /** @nullable */
   goalY?: number | null;
@@ -2282,6 +2284,8 @@ export interface OpponentGoalDetail {
   /** @nullable */
   firstTimeFinish?: boolean | null;
   /** @nullable */
+  source?: string | null;
+  /** @nullable */
   scorer?: string | null;
   /** @nullable */
   assist?: string | null;
@@ -2357,6 +2361,8 @@ export interface OpponentProfileGoal {
   finishType: string | null;
   /** @nullable */
   passString: string | null;
+  /** @nullable */
+  source: string | null;
   /** @nullable */
   goalX: string | null;
   /** @nullable */

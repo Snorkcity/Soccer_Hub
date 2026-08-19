@@ -23,6 +23,8 @@ export interface OpponentGoalDetail {
   /** @nullable */
   firstTimeFinish?: boolean | null;
   /** @nullable */
+  source?: string | null;
+  /** @nullable */
   scorer?: string | null;
   /** @nullable */
   assist?: string | null;

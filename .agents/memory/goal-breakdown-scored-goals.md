@@ -4,7 +4,7 @@ description: /analytics/goal-breakdown returns raw scored-goal records; frontend
 ---
 
 ## What it returns
-`/analytics/goal-breakdown` (teamId+seasonId) returns `{ opponents: string[], goals: ScoredGoalRecord[] }`, NOT pre-bucketed counts. Each record carries goalType/assistType/buildupLane/finishType/howPenetrated + scorer/assist + opponent + matchDate. Opponent comes from `matchesTable.opponent` (matches clubs.name, so club colours resolve); goals attributed to us via player_stats roster (scorer in FOCUS_CLUB roster set).
+`/analytics/goal-breakdown` (teamId+seasonId) returns `{ opponents: string[], goals: ScoredGoalRecord[] }`, NOT pre-bucketed counts. Each record carries goalType/assistType/buildupLane/finishType/howPenetrated/source + scorer/assist + opponent + matchDate. Opponent comes from `matchesTable.opponent` (matches clubs.name, so club colours resolve); goals attributed to us via player_stats roster (scorer in FOCUS_CLUB roster set).
 
 **Why:** one flexible endpoint feeds three Team Insights charts (interval / goal-type / goal-detail-by-dimension), all stacked by opponent club, plus a hover tooltip that lists individual goals for context. Client-side bucketing avoids N endpoints and enables per-goal detail.
 
@@ -20,6 +20,8 @@ Pie tooltip (user says hovers are "ultra important"): shows count, percent of GR
 
 ## Extra record fields (unlock client-side charts)
 `ScoredGoalRecord` also carries `matchId`, `passString`, `goalX`, `goalY`, `firstTimeFinish` (coords `Number()`-coerced from numeric DB cols; drizzle goalsTable props are camelCase: firstTimeFinish/passString/goalX/goalY). `matchId` lets the client merge scored+conceded into per-match timelines. Pass-string is empty/null for set pieces → bucket as "Set play / n.a.".
+
+`source` is a first-class Goal Detail dimension. Every raw-goal analytics response that powers Goal Detail (team and opponent-profile, scored and conceded) must carry it; blank source values are deliberately omitted rather than shown as "Unknown".
 
 Also carries match-level metadata mirrored onto every record: `matchCode` (= `matchesTable.matchId` text, e.g. "R1-WAN-BEL" = round + home-away 3-letter club codes; BEL = Belconnen) and `matchResult` ("W"/"D"/"L"). **Why:** the First Goal Value Index chart needs the round code for its hover match-list, and W/D/L MUST come from the recorded final score (`goalsScored`/`goalsConceded`), NOT from goal-count attribution (roster/OG heuristics can misattribute and flip results). First-goal *side* (SF/CF) still uses event order from timelines (only signal available; minute-granularity ties resolve to "for" via insertion order — a known ambiguity).
 
