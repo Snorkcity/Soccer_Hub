@@ -47,6 +47,12 @@ const resultBadge = (r: string | null | undefined) =>
   : r === "L" ? "bg-red-500/15 text-red-600 border-red-500/30"
   : "bg-amber-500/15 text-amber-600 border-amber-500/30";
 
+const statisticSourceLabel = (source: "official" | "veo" | "unknown" | null | undefined) =>
+  source == null ? (source === null ? null : "Source unknown")
+  : source === "official" ? "Official/manual"
+  : source === "veo" ? "Veo backfill"
+  : "Source unknown";
+
 export default function MatchReportTab({ teamId, seasonId }: Props) {
   const { activeLeagueId } = useActiveLeague();
   const { isSuperadmin, hasModuleAnywhere, hasModule } = useLeagueModules();
@@ -295,6 +301,11 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                     <CardContent className="pt-4 pb-3">
                       <div className="text-xs text-muted-foreground">{t.label}</div>
                       <div className="text-2xl font-semibold">{t.value?.toFixed(t.decimals)}{t.unit}</div>
+                      {statisticSourceLabel(t.source) && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {statisticSourceLabel(t.source)}
+                        </div>
+                      )}
                       {t.oppAvg != null && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
                           avg v {report.header.opponent} {t.oppAvg.toFixed(t.decimals === 0 ? 1 : t.decimals)}{t.unit}
@@ -519,14 +530,15 @@ export default function MatchReportTab({ teamId, seasonId }: Props) {
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {([
-                      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
-                      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null],
-                      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
-                      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
-                    ] as const).map(([label, v, sub]) => (
+                      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null, statisticSourceLabel(bu.possessionSource)],
+                      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null, statisticSourceLabel(bu.passesSource)],
+                      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null, Array.from(new Set([statisticSourceLabel(bu.passesSource), statisticSourceLabel(bu.shotsSource)].filter(Boolean))).join(" · ") || null],
+                      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null, Array.from(new Set([statisticSourceLabel(bu.shotsSource), statisticSourceLabel(bu.passesSource)].filter(Boolean))).join(" · ") || null],
+                    ] as const).map(([label, v, sub, source]) => (
                       <div key={label} className="rounded-md border p-3">
                         <div className="text-xs text-muted-foreground">{label}</div>
                         <div className="text-xl font-semibold">{v}</div>
+                        {source && <div className="text-[11px] text-muted-foreground mt-0.5">{source}</div>}
                         {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
                       </div>
                     ))}

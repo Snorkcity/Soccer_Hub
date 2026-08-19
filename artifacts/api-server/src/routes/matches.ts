@@ -49,7 +49,15 @@ router.post("/matches", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [match] = await db.insert(matchesTable).values({ ...parsed.data, possession: n2s(parsed.data.possession) }).returning();
+  const [match] = await db.insert(matchesTable).values({
+    ...parsed.data,
+    possession: n2s(parsed.data.possession),
+    possessionSource: parsed.data.possession == null ? "unknown" : "official",
+    shotsSource: parsed.data.shots == null ? "unknown" : "official",
+    passesSource: parsed.data.passes == null ? "unknown" : "official",
+    oppShotsSource: parsed.data.oppShots == null ? "unknown" : "official",
+    oppPassesSource: parsed.data.oppPasses == null ? "unknown" : "official",
+  }).returning();
   res.status(201).json(CreateMatchResponse.parse({ ...match, result: computeResult(match.goalsScored, match.goalsConceded), possession: match.possession != null ? parseFloat(match.possession) : null }));
 });
 
@@ -81,8 +89,17 @@ router.patch("/matches/:id", async (req, res): Promise<void> => {
   // Only touch possession when the client actually sent it — a partial update
   // (e.g. just shots/passes) must not wipe an existing possession value.
   const { possession, ...rest } = parsed.data;
+  // This endpoint is the coach's manual editor. Only fields actually supplied
+  // are reclassified as official; untouched Veo values keep their provenance.
+  const statisticSourceUpdates = {
+    ...("possession" in req.body ? { possessionSource: possession == null ? "unknown" : "official" } : {}),
+    ...("shots" in req.body ? { shotsSource: parsed.data.shots == null ? "unknown" : "official" } : {}),
+    ...("passes" in req.body ? { passesSource: parsed.data.passes == null ? "unknown" : "official" } : {}),
+    ...("oppShots" in req.body ? { oppShotsSource: parsed.data.oppShots == null ? "unknown" : "official" } : {}),
+    ...("oppPasses" in req.body ? { oppPassesSource: parsed.data.oppPasses == null ? "unknown" : "official" } : {}),
+  };
   const [match] = await db.update(matchesTable)
-    .set({ ...rest, ...("possession" in req.body ? { possession: n2s(possession) } : {}) })
+    .set({ ...rest, ...statisticSourceUpdates, ...("possession" in req.body ? { possession: n2s(possession) } : {}) })
     .where(eq(matchesTable.id, params.data.id))
     .returning();
   if (!match) {

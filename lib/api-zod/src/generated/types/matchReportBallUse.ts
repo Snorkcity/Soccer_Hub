@@ -7,6 +7,7 @@
  */
 import type { MatchReportBallUsePoint } from './matchReportBallUsePoint';
 import type { MatchReportBallUseQuadrant } from './matchReportBallUseQuadrant';
+import type { MatchStatisticSource } from './matchStatisticSource';
 
 /**
  * Possession vs possession-effectiveness quadrant for this match, with ball-use commentary.
@@ -16,6 +17,9 @@ export interface MatchReportBallUse {
   passesPerShot: number;
   shotsPer100Passes: number;
   passes?: number;
+  possessionSource?: MatchStatisticSource;
+  shotsSource?: MatchStatisticSource;
+  passesSource?: MatchStatisticSource;
   /** @nullable */
   seasonAvgPasses?: number | null;
   /** @nullable */

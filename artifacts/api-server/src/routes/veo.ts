@@ -961,7 +961,8 @@ router.get("/veo/links", async (req, res) => {
 // passes) fill automatically from a linked recording, so manual entry becomes
 // the backup for games without video. Normal syncs and link passes only fill
 // fields that are still empty (a hand-typed number is never silently replaced);
-// the deliberate per-game "Re-fetch stats" overwrites all five from Veo.
+// the deliberate per-game "Re-fetch stats" refreshes Veo/unknown values only.
+// Official/manual values remain protected in every path.
 export async function backfillMatchStatsFromVeo(
   leagueId: number,
   opts: { overwrite?: boolean; veoRowId?: number } = {},
@@ -1007,10 +1008,15 @@ export async function backfillMatchStatsFromVeo(
     const cur = await db
       .select({
         possession: matchesTable.possession,
+        possessionSource: matchesTable.possessionSource,
         shots: matchesTable.shots,
+        shotsSource: matchesTable.shotsSource,
         oppShots: matchesTable.oppShots,
+        oppShotsSource: matchesTable.oppShotsSource,
         passes: matchesTable.passes,
+        passesSource: matchesTable.passesSource,
         oppPasses: matchesTable.oppPasses,
+        oppPassesSource: matchesTable.oppPassesSource,
       })
       .from(matchesTable)
       .where(eq(matchesTable.id, r.matchId))
@@ -1018,7 +1024,13 @@ export async function backfillMatchStatsFromVeo(
     if (cur.length === 0) continue;
     const set: Record<string, unknown> = {};
     for (const k of ["shots", "oppShots", "passes", "oppPasses", "possession"] as const) {
-      if (fresh[k] != null && (opts.overwrite || cur[0][k] == null)) set[k] = fresh[k];
+      const sourceKey = `${k}Source` as const;
+      // Re-fetch is allowed to refresh an old Veo/unknown value, but never a
+      // coach-entered official value. A normal sync only fills a blank field.
+      if (fresh[k] != null && cur[0][sourceKey] !== "official" && (opts.overwrite || cur[0][k] == null)) {
+        set[k] = fresh[k];
+        set[sourceKey] = "veo";
+      }
     }
     if (Object.keys(set).length === 0) continue;
     await db.update(matchesTable).set(set).where(eq(matchesTable.id, r.matchId));
@@ -1218,8 +1230,8 @@ router.post("/entry/veo-refetch", async (req, res) => {
         syncedAt: nowIso,
       })
       .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
-    // A Re-fetch is a deliberate "trust the video again" — overwrite the
-    // Data Entry metric fields for this game with the fresh Veo numbers.
+    // A Re-fetch is a deliberate "trust the video again" for Veo/unknown
+    // fields. Coach-entered official values remain protected.
     try {
       await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId, overwrite: true });
     } catch (e2) {

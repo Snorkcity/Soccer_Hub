@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchStatisticSource } from './matchStatisticSource';
 
 export interface Match {
   id: number;
@@ -32,14 +33,19 @@ export interface Match {
   conditions?: string | null;
   /** @nullable */
   possession?: number | null;
+  possessionSource: MatchStatisticSource;
   /** @nullable */
   shots?: number | null;
+  shotsSource: MatchStatisticSource;
   /** @nullable */
   passes?: number | null;
+  passesSource: MatchStatisticSource;
   /** @nullable */
   oppShots?: number | null;
+  oppShotsSource: MatchStatisticSource;
   /** @nullable */
   oppPasses?: number | null;
+  oppPassesSource: MatchStatisticSource;
   /** @nullable */
   quadrantPoints?: string | null;
   teamId: number;

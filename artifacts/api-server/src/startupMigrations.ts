@@ -8,6 +8,23 @@ import { logger } from "./lib/logger";
  * must be safe to re-run (IF NOT EXISTS / conditional backfills only).
  */
 export async function runStartupMigrations(): Promise<void> {
+  // Match-stat provenance (2026-08): possession, shots and passes may be
+  // entered by a coach or derived from Veo. Existing values deliberately stay
+  // "unknown" — we cannot safely reconstruct their origin after the fact.
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS possession_source text NOT NULL DEFAULT 'unknown'`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS shots_source text NOT NULL DEFAULT 'unknown'`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS passes_source text NOT NULL DEFAULT 'unknown'`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS opp_shots_source text NOT NULL DEFAULT 'unknown'`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS opp_passes_source text NOT NULL DEFAULT 'unknown'`);
+  await db.execute(sql`
+    UPDATE matches
+    SET possession_source = CASE WHEN possession_source IN ('official', 'veo', 'unknown') THEN possession_source ELSE 'unknown' END,
+        shots_source = CASE WHEN shots_source IN ('official', 'veo', 'unknown') THEN shots_source ELSE 'unknown' END,
+        passes_source = CASE WHEN passes_source IN ('official', 'veo', 'unknown') THEN passes_source ELSE 'unknown' END,
+        opp_shots_source = CASE WHEN opp_shots_source IN ('official', 'veo', 'unknown') THEN opp_shots_source ELSE 'unknown' END,
+        opp_passes_source = CASE WHEN opp_passes_source IN ('official', 'veo', 'unknown') THEN opp_passes_source ELSE 'unknown' END
+  `);
+
   // ── League layer (2026-07): leagues table + league_id on seasons/clubs ──
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS leagues (

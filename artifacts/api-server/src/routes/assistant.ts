@@ -145,7 +145,7 @@ The selected match context is supplementary information about a real recorded ma
 **Mandatory labelling rules:**
 - Facts from the Hub/Dribl section are Official Hub/Dribl facts and must be treated as reliable recorded data.
 - If the selected context says no Hub match is linked, then no official Hub/Dribl match facts are available. Never claim that both official Hub facts and Veo estimates are present in that case.
-- Hub-recorded match statistics marked mixed/unknown source are not official facts. They may be manually entered or Veo-backfilled, so preserve that source uncertainty.
+- Hub-recorded match statistics show an explicit source beside every value. Only values labelled Official/manual are official facts. Values labelled Veo backfill are camera-derived estimates; values labelled Unknown source must keep that uncertainty.
 - Facts from the Veo camera observations section are Camera-derived Veo estimates. They come from computer vision and may contain measurement uncertainty. Never present them as definitive facts.
 - Saved Football Match Report notes are analyst-generated Hub interpretation. They are not official source facts and are not curriculum content.
 - Any coaching interpretation or advice you provide based on this data must be labelled as Coaching interpretation — it is not curriculum content.
@@ -180,10 +180,15 @@ interface HubContextRow {
     oppFormation: string | null;
     conditions: string | null;
     possession: string | null;
+    possessionSource: string;
     shots: number | null;
+    shotsSource: string;
     oppShots: number | null;
+    oppShotsSource: string;
     passes: number | null;
+    passesSource: string;
     oppPasses: number | null;
+    oppPassesSource: string;
 }
 
 /** Build a compact selected-match context block from official Hub data, with
@@ -236,10 +241,15 @@ async function buildMatchContextBlock(
         oppFormation: matchesTable.oppFormation,
         conditions: matchesTable.conditions,
         possession: matchesTable.possession,
+        possessionSource: matchesTable.possessionSource,
         shots: matchesTable.shots,
+        shotsSource: matchesTable.shotsSource,
         oppShots: matchesTable.oppShots,
+        oppShotsSource: matchesTable.oppShotsSource,
         passes: matchesTable.passes,
+        passesSource: matchesTable.passesSource,
         oppPasses: matchesTable.oppPasses,
+        oppPassesSource: matchesTable.oppPassesSource,
       })
       .from(matchesTable)
       .innerJoin(seasonsTable, eq(matchesTable.seasonId, seasonsTable.id))
@@ -323,8 +333,13 @@ async function buildMatchContextBlock(
     hubSection += `- No official opponent, date, score, squad, goals or match statistics are attached. Do not claim official Hub/Dribl match facts are available.\n`;
   }
 
-  // These fields live on the Hub match row, but blank values can be backfilled
-  // from Veo. Without per-field provenance they cannot be called official.
+  const statisticSourceLabel = (source: string): string =>
+    source === "official" ? "Official/manual"
+      : source === "veo" ? "Veo backfill — camera estimate"
+      : "Unknown source";
+
+  // These fields live on the Hub match row. Each one carries its own source:
+  // an official/manual entry, a Veo backfill, or explicit unknown provenance.
   let recordedMetricsSection = "";
   if (hubMatch && (
     hubMatch.possession != null
@@ -333,15 +348,13 @@ async function buildMatchContextBlock(
     || hubMatch.passes != null
     || hubMatch.oppPasses != null
   )) {
-    recordedMetricsSection = `\n#### Hub-recorded match statistics (mixed/unknown source — not official facts)\n`;
-    recordedMetricsSection += `_These fields may have been entered manually or backfilled from Veo. Preserve that source uncertainty._\n`;
-    if (hubMatch.possession != null) recordedMetricsSection += `- Possession: ${hubMatch.possession}%\n`;
-    if (hubMatch.shots != null || hubMatch.oppShots != null) {
-      recordedMetricsSection += `- Shots: ${focusClub} ${hubMatch.shots ?? "not recorded"} – ${hubMatch.oppShots ?? "not recorded"} ${opponentName}\n`;
-    }
-    if (hubMatch.passes != null || hubMatch.oppPasses != null) {
-      recordedMetricsSection += `- Passes: ${focusClub} ${hubMatch.passes ?? "not recorded"} – ${hubMatch.oppPasses ?? "not recorded"} ${opponentName}\n`;
-    }
+    recordedMetricsSection = `\n#### Hub-recorded match statistics (source shown per value)\n`;
+    recordedMetricsSection += `_Official/manual values are recorded facts. Veo backfills are camera estimates. Unknown-source values must stay uncertain._\n`;
+    if (hubMatch.possession != null) recordedMetricsSection += `- Possession: ${hubMatch.possession}% (${statisticSourceLabel(hubMatch.possessionSource)})\n`;
+    if (hubMatch.shots != null) recordedMetricsSection += `- ${focusClub} shots: ${hubMatch.shots} (${statisticSourceLabel(hubMatch.shotsSource)})\n`;
+    if (hubMatch.oppShots != null) recordedMetricsSection += `- ${opponentName} shots: ${hubMatch.oppShots} (${statisticSourceLabel(hubMatch.oppShotsSource)})\n`;
+    if (hubMatch.passes != null) recordedMetricsSection += `- ${focusClub} passes: ${hubMatch.passes} (${statisticSourceLabel(hubMatch.passesSource)})\n`;
+    if (hubMatch.oppPasses != null) recordedMetricsSection += `- ${opponentName} passes: ${hubMatch.oppPasses} (${statisticSourceLabel(hubMatch.oppPassesSource)})\n`;
   }
 
   // ── 5. Selected match squad from league_player_stats ────────────────────
@@ -625,7 +638,7 @@ async function buildMatchContextBlock(
     ``,
     `**Important:** This context is supplementary information about a specific recorded match. It is not curriculum content.`,
     `- Hub/Dribl facts below are official recorded data.`,
-    `- Hub-recorded match statistics marked mixed/unknown source are not official facts.`,
+    `- Hub-recorded match statistics are labelled per value: Official/manual, Veo backfill (camera estimate), or Unknown source.`,
     `- Veo camera observations are estimates from computer vision — preserve their uncertainty.`,
     `- Do not use this section to override or replace curriculum excerpts or session planning rules.`,
     `- Do not infer or fabricate GPS wearable data.`,

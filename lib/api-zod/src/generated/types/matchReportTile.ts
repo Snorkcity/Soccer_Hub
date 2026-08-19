@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchStatisticSource } from './matchStatisticSource';
 
 export interface MatchReportTile {
   id: string;
@@ -32,4 +33,6 @@ export interface MatchReportTile {
      * @nullable
      */
   oppGames: number | null;
+  /** Source of this match-only statistic. Null for official scoreline tiles that do not use match-stat provenance. */
+  source: MatchStatisticSource | null;
 }

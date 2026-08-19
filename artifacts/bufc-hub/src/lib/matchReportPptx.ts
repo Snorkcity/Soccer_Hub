@@ -38,6 +38,13 @@ type Runs = Array<{ text: string; options?: Record<string, unknown> }>;
 type Cell = { text: string | Runs; options?: Record<string, unknown> };
 
 const ord = (n: number) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
+const statisticSourceLabel = (source: "official" | "veo" | "unknown" | null | undefined) =>
+  source == null ? (source === null ? null : "Source unknown")
+  : source === "official" ? "Official/manual"
+  : source === "veo" ? "Veo backfill"
+  : "Source unknown";
+const combinedSourceLabel = (...sources: Array<"official" | "veo" | "unknown" | null | undefined>) =>
+  Array.from(new Set(sources.map(statisticSourceLabel).filter(source => source != null))).join(" · ") || null;
 
 // Fetch pptxgenjs as soon as this module loads (the page preloads this module
 // on mount), so a deploy between page-load and the download click can't 404
@@ -101,7 +108,9 @@ export async function generateFootballMatchReport(
       const y = y0 + Math.floor(i / 3) * (th + 0.3);
       s.addShape("roundRect", { x, y, w: tw, h: th, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
       s.addText(`${t.value!.toFixed(t.decimals)}${t.unit}`, { x: x + 0.25, y: y + 0.15, w: tw - 0.5, h: 0.55, fontSize: 26, bold: true, color: SKY });
-      s.addText(t.label.toUpperCase(), { x: x + 0.25, y: y + 0.72, w: tw - 0.5, h: 0.3, fontSize: 10.5, color: GREY, charSpacing: 2 });
+      s.addText(t.label.toUpperCase(), { x: x + 0.25, y: y + 0.68, w: tw - 0.5, h: 0.25, fontSize: 10.5, color: GREY, charSpacing: 2 });
+      const source = statisticSourceLabel(t.source);
+      if (source) s.addText(source, { x: x + 0.25, y: y + 0.92, w: tw - 0.5, h: 0.2, fontSize: 8.5, color: GREY });
       const bits: Runs = [];
       if (t.seasonAvg != null) bits.push({ text: `season avg ${t.seasonAvg.toFixed(t.decimals === 0 ? 1 : t.decimals)}${t.unit}`, options: { color: GREY } });
       if (t.rank != null && t.outOf != null) {
@@ -109,7 +118,7 @@ export async function generateFootballMatchReport(
         const poor = t.rank > t.outOf - Math.ceil(t.outOf / 3);
         bits.push({ text: `${bits.length ? "  ·  " : ""}${t.rank === 1 ? "best" : ord(t.rank)} of ${t.outOf}`, options: { color: good ? GOOD : poor ? ORANGE : GREY, bold: true } });
       }
-      if (bits.length) s.addText(bits as never, { x: x + 0.25, y: y + 1.02, w: tw - 0.5, h: 0.35, fontSize: 10, italic: true });
+      if (bits.length) s.addText(bits as never, { x: x + 0.25, y: y + 1.14, w: tw - 0.5, h: 0.25, fontSize: 9, italic: true });
     });
     addInsightBar(s, "Ranks read in the stat's own direction — 'best of 12' means the best game of the season for that number.");
     addFooter(s);
@@ -180,19 +189,20 @@ export async function generateFootballMatchReport(
     const s = pptx.addSlide();
     s.background = { color: BG };
     addHeader(s, "Ball use", "How much of the ball we had, and how often having it turned into a shot.");
-    const boxes: Array<[string, string, string | null]> = [
-      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null],
-      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null],
-      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null],
-      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null],
+    const boxes: Array<[string, string, string | null, string | null]> = [
+      ["Possession", `${bu.possession}%`, bu.seasonAvgPossession != null ? `season avg ${bu.seasonAvgPossession.toFixed(0)}%` : null, statisticSourceLabel(bu.possessionSource)],
+      ["Passes", bu.passes != null ? `${bu.passes}` : "—", bu.seasonAvgPasses != null ? `season avg ${bu.seasonAvgPasses.toFixed(0)}` : null, statisticSourceLabel(bu.passesSource)],
+      ["Passes per shot", bu.passesPerShot.toFixed(0), bu.seasonAvgShotsPer100 != null && bu.seasonAvgShotsPer100 > 0 ? `season avg ${(100 / bu.seasonAvgShotsPer100).toFixed(0)}` : null, combinedSourceLabel(bu.passesSource, bu.shotsSource)],
+      ["Shots per 100 passes", bu.shotsPer100Passes.toFixed(1), bu.seasonAvgShotsPer100 != null ? `season avg ${bu.seasonAvgShotsPer100.toFixed(1)}` : null, combinedSourceLabel(bu.shotsSource, bu.passesSource)],
     ];
     const tw2 = 2.85, gx2 = 0.3, x02 = 0.75, y02 = 1.9;
-    boxes.forEach(([label, v, sub], i) => {
+    boxes.forEach(([label, v, sub, source], i) => {
       const x = x02 + i * (tw2 + gx2);
-      s.addShape("roundRect", { x, y: y02, w: tw2, h: 1.6, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
+      s.addShape("roundRect", { x, y: y02, w: tw2, h: 1.75, fill: { color: TINT }, rectRadius: 0.08, line: { color: LINE, width: 1 } });
       s.addText(label.toUpperCase(), { x: x + 0.25, y: y02 + 0.15, w: tw2 - 0.5, h: 0.3, fontSize: 10.5, color: GREY, charSpacing: 2 });
       s.addText(v, { x: x + 0.25, y: y02 + 0.45, w: tw2 - 0.5, h: 0.6, fontSize: 28, bold: true, color: SKY });
-      if (sub) s.addText(sub, { x: x + 0.25, y: y02 + 1.1, w: tw2 - 0.5, h: 0.3, fontSize: 10.5, italic: true, color: GREY });
+      if (source) s.addText(source, { x: x + 0.25, y: y02 + 1.06, w: tw2 - 0.5, h: 0.2, fontSize: 8.5, color: GREY });
+      if (sub) s.addText(sub, { x: x + 0.25, y: y02 + 1.29, w: tw2 - 0.5, h: 0.24, fontSize: 9, italic: true, color: GREY });
     });
     if (bu.comments.length) {
       const runs: Runs = bu.comments.slice(0, 4).flatMap(c => ([

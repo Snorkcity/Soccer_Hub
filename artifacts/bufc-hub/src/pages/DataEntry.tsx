@@ -398,10 +398,10 @@ function MatchStatsEditor({ teamId, seasonId }: { teamId: number; seasonId: numb
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add Veo stats to a saved match</CardTitle>
+        <CardTitle>Add official match stats to a saved match</CardTitle>
         <CardDescription>
-          Pick a match that's already in (e.g. synced from Dribl) and fill in possession, shots and passes —
-          no need to re-enter the match. Missing numbers hide their tiles on the Match Report tab.
+          Pick a match that's already in (e.g. synced from Dribl) and add or correct possession, shots and passes —
+          no need to re-enter the match. Only values you change are marked Official/manual; existing Veo backfills keep their source.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -442,11 +442,21 @@ function MatchStatsEditor({ teamId, seasonId }: { teamId: number; seasonId: numb
                 disabled={update.isPending}
                 onClick={() => {
                   setOk(null); setErr(null);
-                  update.mutate({ id: selected.id, data: {
+                  const values = {
                     possession: num(possession),
-                    shots: num(shots), oppShots: num(oppShots),
-                    passes: num(passes), oppPasses: num(oppPasses),
-                  }});
+                    shots: num(shots),
+                    oppShots: num(oppShots),
+                    passes: num(passes),
+                    oppPasses: num(oppPasses),
+                  };
+                  const changed = Object.fromEntries(
+                    Object.entries(values).filter(([key, value]) => value !== selected[key as keyof typeof values]),
+                  );
+                  if (Object.keys(changed).length === 0) {
+                    setErr("Change a stat before saving.");
+                    return;
+                  }
+                  update.mutate({ id: selected.id, data: changed });
                 }}
               >
                 {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save stats"}

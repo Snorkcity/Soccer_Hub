@@ -577,7 +577,7 @@ function MatchLinksCard({
   const [refetchingId, setRefetchingId] = useState<number | null>(null);
   const refetchMut = useVeoRefetchMatch();
   async function refetchStats(veoId: number, label: string) {
-    if (!window.confirm(`Re-fetch stats for "${label}" from Veo?\n\nThis clears the current data and re-downloads it — useful after fixing team directions or other settings in Veo.`)) return;
+    if (!window.confirm(`Re-fetch stats for "${label}" from Veo?\n\nThis refreshes the video data and its Veo/unknown match stats — useful after fixing team directions or other settings in Veo. Official/manual stats stay unchanged.`)) return;
     setRefetchingId(veoId);
     try {
       await refetchMut.mutateAsync({ data: { leagueId, veoId } });

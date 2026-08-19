@@ -4257,15 +4257,25 @@ components:
         oppFormation:   { type: ["string", "null"] }
         conditions:     { type: ["string", "null"] }
         possession:     { type: ["number", "null"] }
+        possessionSource: { $ref: "#/components/schemas/MatchStatisticSource" }
         shots:          { type: ["integer", "null"] }
+        shotsSource:    { $ref: "#/components/schemas/MatchStatisticSource" }
         passes:         { type: ["integer", "null"] }
+        passesSource:   { $ref: "#/components/schemas/MatchStatisticSource" }
         oppShots:       { type: ["integer", "null"] }
+        oppShotsSource: { $ref: "#/components/schemas/MatchStatisticSource" }
         oppPasses:      { type: ["integer", "null"] }
+        oppPassesSource: { $ref: "#/components/schemas/MatchStatisticSource" }
         quadrantPoints: { type: ["string", "null"] }
         teamId:         { type: integer }
         seasonId:       { type: integer }
         result:         { type: ["string", "null"] }
-      required: [id, matchId, opponent, teamId, seasonId]
+      required: [id, matchId, opponent, possessionSource, shotsSource, passesSource, oppShotsSource, oppPassesSource, teamId, seasonId]
+
+    MatchStatisticSource:
+      type: string
+      enum: [official, veo, unknown]
+      description: Whether this individual match statistic was manually recorded, backfilled from Veo, or predates provenance tracking.
 
     MatchInput:
       type: object
@@ -4786,7 +4796,12 @@ components:
         oppGames:
           type: ["integer", "null"]
           description: How many other meetings with this opponent the oppAvg is built from.
-      required: [id, label, value, unit, decimals, seasonAvg, deltaPct, rank, outOf, higherIsBetter, oppAvg, oppGames]
+        source:
+          oneOf:
+            - { $ref: "#/components/schemas/MatchStatisticSource" }
+            - { type: "null" }
+          description: Source of this match-only statistic. Null for official scoreline tiles that do not use match-stat provenance.
+      required: [id, label, value, unit, decimals, seasonAvg, deltaPct, rank, outOf, higherIsBetter, oppAvg, oppGames, source]
 
     MatchReportGoal:
       type: object
@@ -4956,6 +4971,9 @@ components:
         shotsPer100Passes: { type: number }
         # Optional (not required) — older saved reports won't carry them.
         passes:            { type: number }
+        possessionSource: { $ref: "#/components/schemas/MatchStatisticSource" }
+        shotsSource:      { $ref: "#/components/schemas/MatchStatisticSource" }
+        passesSource:     { $ref: "#/components/schemas/MatchStatisticSource" }
         seasonAvgPasses:   { type: ["number", "null"] }
         seasonAvgPossession: { type: ["number", "null"] }
         seasonAvgShotsPer100: { type: ["number", "null"] }

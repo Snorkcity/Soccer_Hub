@@ -661,6 +661,18 @@ export interface LeagueUpdateInput {
   gpsSourceSquad?: string | null;
 }
 
+/**
+ * Whether this individual match statistic was manually recorded, backfilled from Veo, or predates provenance tracking.
+ */
+export type MatchStatisticSource = typeof MatchStatisticSource[keyof typeof MatchStatisticSource];
+
+
+export const MatchStatisticSource = {
+  official: 'official',
+  veo: 'veo',
+  unknown: 'unknown',
+} as const;
+
 export interface Match {
   id: number;
   matchId: string;
@@ -687,14 +699,19 @@ export interface Match {
   conditions?: string | null;
   /** @nullable */
   possession?: number | null;
+  possessionSource: MatchStatisticSource;
   /** @nullable */
   shots?: number | null;
+  shotsSource: MatchStatisticSource;
   /** @nullable */
   passes?: number | null;
+  passesSource: MatchStatisticSource;
   /** @nullable */
   oppShots?: number | null;
+  oppShotsSource: MatchStatisticSource;
   /** @nullable */
   oppPasses?: number | null;
+  oppPassesSource: MatchStatisticSource;
   /** @nullable */
   quadrantPoints?: string | null;
   teamId: number;
@@ -1383,6 +1400,8 @@ export interface MatchReportTile {
      * @nullable
      */
   oppGames: number | null;
+  /** Source of this match-only statistic. Null for official scoreline tiles that do not use match-stat provenance. */
+  source: MatchStatisticSource | null;
 }
 
 export interface MatchReportGoal {
@@ -1639,6 +1658,9 @@ export interface MatchReportBallUse {
   passesPerShot: number;
   shotsPer100Passes: number;
   passes?: number;
+  possessionSource?: MatchStatisticSource;
+  shotsSource?: MatchStatisticSource;
+  passesSource?: MatchStatisticSource;
   /** @nullable */
   seasonAvgPasses?: number | null;
   /** @nullable */

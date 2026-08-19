@@ -289,6 +289,7 @@ export * from './matchReportInsightTone';
 export * from './matchReportMeeting';
 export * from './matchReportResponse';
 export * from './matchReportTile';
+export * from './matchStatisticSource';
 export * from './matchUpdate';
 export * from './okResponse';
 export * from './opponentGoalBreakdownResponse';

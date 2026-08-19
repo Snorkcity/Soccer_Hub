@@ -2754,6 +2754,13 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   const upTo = ordered.slice(0, idx + 1);
 
   type MatchRow = typeof allMatches[number];
+  type StatisticKey = "possession" | "shots" | "passes" | "oppShots" | "oppPasses";
+  type StatisticSource = "official" | "veo" | "unknown";
+  const statisticSourceOf = (m: MatchRow, key: StatisticKey): StatisticSource => {
+    const sourceKey = `${key}Source` as "possessionSource" | "shotsSource" | "passesSource" | "oppShotsSource" | "oppPassesSource";
+    const source = m[sourceKey];
+    return source === "official" || source === "veo" ? source : "unknown";
+  };
   const resultOf = (m: MatchRow): "W" | "D" | "L" | null =>
     m.goalsScored == null || m.goalsConceded == null ? null
       : m.goalsScored > m.goalsConceded ? "W" : m.goalsScored < m.goalsConceded ? "L" : "D";
@@ -2766,7 +2773,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     v == null ? null : typeof v === "number" ? v : Number.isFinite(Number(v)) ? Number(v) : null;
   const tile = (
     id: string, label: string, unit: string, decimals: number,
-    f: (m: MatchRow) => number | null, higherIsBetter: boolean,
+    f: (m: MatchRow) => number | null, higherIsBetter: boolean, source: StatisticSource | null = null,
   ) => {
     const value = f(match);
     const others = ordered.filter(m => m.id !== matchRowId).map(f).filter((v): v is number => v != null);
@@ -2780,15 +2787,16 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       .filter(m => m.id !== matchRowId && m.opponent === match.opponent)
       .map(f).filter((v): v is number => v != null);
     const oppAvg = oppVals.length ? oppVals.reduce((a, b) => a + b, 0) / oppVals.length : null;
-    return { id, label, value, unit, decimals, seasonAvg, deltaPct, rank: value == null ? null : rank, outOf: value == null ? null : all.length, higherIsBetter, oppAvg, oppGames: oppVals.length ? oppVals.length : null };
+    return { id, label, value, unit, decimals, seasonAvg, deltaPct, rank: value == null ? null : rank, outOf: value == null ? null : all.length, higherIsBetter, oppAvg, oppGames: oppVals.length ? oppVals.length : null, source };
   };
   const tiles = [
     tile("goalsFor", "Goals scored", "", 0, m => m.goalsScored, true),
     tile("goalsAgainst", "Goals conceded", "", 0, m => m.goalsConceded, false),
-    tile("possession", "Possession", "%", 0, m => num(m.possession), true),
-    tile("shots", "Shots", "", 0, m => m.shots, true),
-    tile("oppShots", "Shots against", "", 0, m => m.oppShots, false),
-    tile("passes", "Passes", "", 0, m => m.passes, true),
+    tile("possession", "Possession", "%", 0, m => num(m.possession), true, statisticSourceOf(match, "possession")),
+    tile("shots", "Shots", "", 0, m => m.shots, true, statisticSourceOf(match, "shots")),
+    tile("oppShots", "Shots against", "", 0, m => m.oppShots, false, statisticSourceOf(match, "oppShots")),
+    tile("passes", "Passes", "", 0, m => m.passes, true, statisticSourceOf(match, "passes")),
+    tile("oppPasses", "Passes against", "", 0, m => m.oppPasses, false, statisticSourceOf(match, "oppPasses")),
   ].filter(t => t.value != null);
 
   // ── Goals in this match, with roster attribution + season milestones ─────
@@ -3487,6 +3495,9 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     quadrant: "control" | "sterile" | "direct" | "chasing" | null;
     points: Array<{ label: string; possession: number; shotsPer100Passes: number; result: string | null; isThisMatch: boolean }>;
     comments: string[];
+    possessionSource: StatisticSource;
+    shotsSource: StatisticSource;
+    passesSource: StatisticSource;
   } | null = null;
   {
     const possN = num(match.possession);
@@ -3584,7 +3595,21 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
         if (best) comments.push(best.text);
       }
 
-      ballUse = { possession: possN, passesPerShot: pps, shotsPer100Passes: sp100, passes: passesN, seasonAvgPasses, seasonAvgPossession, seasonAvgShotsPer100, quadrant, points, comments };
+      ballUse = {
+        possession: possN,
+        passesPerShot: pps,
+        shotsPer100Passes: sp100,
+        passes: passesN,
+        possessionSource: statisticSourceOf(match, "possession"),
+        shotsSource: statisticSourceOf(match, "shots"),
+        passesSource: statisticSourceOf(match, "passes"),
+        seasonAvgPasses,
+        seasonAvgPossession,
+        seasonAvgShotsPer100,
+        quadrant,
+        points,
+        comments,
+      };
     }
   }
 
