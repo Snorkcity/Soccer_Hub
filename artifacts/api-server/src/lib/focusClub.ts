@@ -24,6 +24,20 @@ const DEFAULT_FOCUS_CLUB = "Belconnen";
 // season → league mapping never changes, so the resolved focus club is cached
 // for the lifetime of the process.
 const cache = new Map<number, string>();
+const leagueCache = new Map<number, string>();
+
+async function focusClubForLeague(leagueId: number): Promise<string> {
+  const cached = leagueCache.get(leagueId);
+  if (cached !== undefined) return cached;
+  const [row] = await db
+    .select({ focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const focusClub = row?.focusClub ?? DEFAULT_FOCUS_CLUB;
+  leagueCache.set(leagueId, focusClub);
+  return focusClub;
+}
 
 /**
  * Resolve the focus club for a season by joining seasons → leagues and reading
@@ -46,6 +60,23 @@ export async function focusClubForSeason(seasonId: number): Promise<string> {
 }
 
 /**
+ * Resolve the focus club for a request that already has a validated league.
+ * This is the ownership boundary for league-scoped private coaching rows.
+ */
+export async function focusClubForLeagueRequest(req: Request, leagueId: number): Promise<string> {
+  const user = await getSessionUser(req);
+  if (user) {
+    if (user.isSuperadmin) {
+      const override = req.header("x-focus-club")?.trim();
+      if (override && (await isClubInLeague(leagueId, override))) return override;
+    }
+    const club = user.leagues.get(leagueId)?.club?.trim();
+    if (club) return club;
+  }
+  return focusClubForLeague(leagueId);
+}
+
+/**
  * Resolve the focus club for THIS request: if the signed-in user has their own
  * club set for the season's league (user_league_access.club), that wins —
  * their Team/Player insights centre on their club. Otherwise fall back to the
@@ -53,20 +84,7 @@ export async function focusClubForSeason(seasonId: number): Promise<string> {
  * the league default.
  */
 export async function focusClubForRequest(req: Request, seasonId: number): Promise<string> {
-  const user = await getSessionUser(req);
-  if (user) {
-    const leagueId = await leagueIdForSeason(seasonId);
-    if (leagueId !== null) {
-      // Superadmin may steer the focus club per request (X-Focus-Club header,
-      // set by the club dropdown). Ignored unless it names a real club of the
-      // season's league, so a stale header can never break the page.
-      if (user.isSuperadmin) {
-        const override = req.header("x-focus-club")?.trim();
-        if (override && (await isClubInLeague(leagueId, override))) return override;
-      }
-      const club = user.leagues.get(leagueId)?.club;
-      if (club) return club;
-    }
-  }
+  const leagueId = await leagueIdForSeason(seasonId);
+  if (leagueId !== null) return focusClubForLeagueRequest(req, leagueId);
   return focusClubForSeason(seasonId);
 }

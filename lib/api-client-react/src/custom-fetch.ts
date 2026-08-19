@@ -55,6 +55,11 @@ export function setDefaultHeaders(headers: Record<string, string>): void {
   _defaultHeaders = { ...headers };
 }
 
+/** Snapshot the configured request headers for streaming/manual fetch calls. */
+export function getDefaultHeaders(): Record<string, string> {
+  return { ..._defaultHeaders };
+}
+
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }

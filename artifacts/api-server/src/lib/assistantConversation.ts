@@ -1,4 +1,11 @@
-export type AssistantTurnMode = "recommendation" | "full-session" | "exact-session" | "general";
+export type AssistantTurnMode =
+  | "recommendation"
+  | "match-plan"
+  | "half-time-talk"
+  | "pre-match-warm-up"
+  | "full-session"
+  | "exact-session"
+  | "general";
 
 export const ASSISTANT_PAGE_KEYS = [
   "home",
@@ -220,6 +227,26 @@ export function detectAssistantTurnMode(
     || /\bturn (this|that|it) into\b.*\bsession\b/.test(previous);
   if (isAffirmative && previousOfferedSession) return "full-session";
 
+  const halfTimePatterns = [
+    /\bhalf time\b.*\b(talk|team talk|message|words|say)\b/,
+    /\b(talk|team talk|message|words|say)\b.*\bhalf time\b/,
+    /\bhalftime\b.*\b(talk|message|words|say)\b/,
+  ];
+  if (halfTimePatterns.some((pattern) => pattern.test(user))) return "half-time-talk";
+
+  const warmUpPatterns = [
+    /\b(pre match|prematch)\b.*\b(warm up|activation)\b/,
+    /\b(warm up|activation)\b.*\b(pre match|prematch|before (the )?(match|game))\b/,
+  ];
+  if (warmUpPatterns.some((pattern) => pattern.test(user))) return "pre-match-warm-up";
+
+  const matchPlanPatterns = [
+    /\b(match plan|game plan)\b/,
+    /\b(plan|approach)\b.*\b(for|into)\b.*\b(match|game)\b/,
+    /\bhow should we (play|approach|set up)\b/,
+  ];
+  if (matchPlanPatterns.some((pattern) => pattern.test(user))) return "match-plan";
+
   const recommendationPatterns = [
     /\bwhat (session|sessions|training|theme|focus).*\b(could|should|would|recommend|suggest)\b/,
     /\bwhat (could|should|would).*\b(session|sessions|training|work on|focus on)\b/,
@@ -254,6 +281,30 @@ The coach is exploring what to work on${opponent ? ` against ${opponent}` : ""};
 - Keep the answer under about 180 words, then ask whether they want you to turn the preferred direction into the full session.
 - If an opponent cannot be confidently identified, ask one short clarification rather than guessing.`;
   }
+  if (mode === "match-plan") {
+    return `## Response mode for THIS turn: concise match plan
+The coach has asked for an evidence-led match plan${opponent ? ` against ${opponent}` : ""}.
+- If no opponent can be confidently identified, ask one short clarification rather than guessing.
+- Lead with ONE match priority, then give concise In possession, Out of possession, Transition/set-piece and Game-state actions only where the supplied evidence supports them.
+- Separate Official Hub/Dribl facts, coach-authored intent, Veo estimates and your Coaching interpretation. Do not turn an estimate into an official fact.
+- Keep it practical and brief enough to deliver to staff and players. Do not turn it into a training session.`;
+  }
+  if (mode === "half-time-talk") {
+    return `## Response mode for THIS turn: concise half-time team talk
+- A half-time talk needs the CURRENT score and what the coach is seeing in THIS match.
+- Use a recorded half-time score or current event only when it is explicitly present in the selected match context or the coach's message. A previous game's half-time score is not live context.
+- If the current score or observed game state is missing, ask ONE focused question covering both: "What's the score, and what are you seeing?"
+- When the live state is known, write a short spoken team talk: acknowledge the state, give no more than THREE specific actions, and finish with one clear final line.
+- Never invent injuries, fatigue, attendance, workload, weather, pitch conditions, tactical causes or live events.`;
+  }
+  if (mode === "pre-match-warm-up") {
+    return `## Response mode for THIS turn: opponent-specific pre-match warm-up
+Select exactly ONE approved Practice Library warm-up supplied below that best prepares the team for the evidence-led match priority${opponent ? ` against ${opponent}` : ""}.
+- Preserve the selected practice's dimensions, player numbers, rules, cues and outcomes exactly. Do not merge practices or invent an "official" variation.
+- Briefly explain why this practice fits using only supplied team/opponent evidence, with provenance labels kept clear.
+- If player availability/limitations, space, equipment, conditions or available time are essential to choose or run it safely and are not known, ask ONE focused logistics question instead of guessing.
+- This is one pre-match warm-up, not a full training session.`;
+  }
   if (mode === "exact-session") {
     return `## Response mode for THIS turn: exact curriculum session
 The coach named an exact curriculum session. Deliver the complete selected session using the non-negotiable 3–4-part format and content-preservation rules.`;
@@ -277,7 +328,13 @@ export function shouldLoadAssistantCoachingEvidence(
   conversationText: string,
 ): boolean {
   if (mode === "exact-session") return false;
-  if (mode === "recommendation" || mode === "full-session") return true;
+  if (
+    mode === "recommendation"
+    || mode === "match-plan"
+    || mode === "half-time-talk"
+    || mode === "pre-match-warm-up"
+    || mode === "full-session"
+  ) return true;
   const text = normaliseWords(conversationText);
   return /\b(against|form|last game|last match|last meeting|match report|opponent|reflection|results|scouting|team trend|veo|week ahead)\b/.test(text);
 }

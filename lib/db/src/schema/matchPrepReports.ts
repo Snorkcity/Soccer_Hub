@@ -8,6 +8,8 @@ export type MatchPrepReportKind = (typeof MATCH_PREP_REPORT_KINDS)[number];
 export const matchPrepReportsTable = pgTable("match_prep_reports", {
   id: serial("id").primaryKey(),
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
+  /** Server-resolved owning club. Never accepted from the client. */
+  club: text("club"),
   kind: text("kind").notNull(), // monday | friday
   title: text("title").notNull(), // e.g. "R16 v Canberra Croatia"
   opponent: text("opponent"),

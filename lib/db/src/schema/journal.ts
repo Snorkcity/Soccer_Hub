@@ -11,6 +11,8 @@ import { leaguesTable } from "./leagues";
 export const journalCyclesTable = pgTable("journal_cycles", {
   id: serial("id").primaryKey(),
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
+  /** Server-resolved owning club. Never accepted from the client. */
+  club: text("club"),
   title: text("title").notNull(),
   weeksCount: integer("weeks_count").notNull().default(6),
   startDate: text("start_date"), // coach's format, free text e.g. "3.08.2026"
@@ -36,6 +38,8 @@ export type JournalStandaloneKind = (typeof JOURNAL_STANDALONE_KINDS)[number];
 export const journalEntriesTable = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
+  /** Server-resolved owning club. NULL only for legacy/unprovable rows. */
+  club: text("club"),
   cycleId: integer("cycle_id").references(() => journalCyclesTable.id, { onDelete: "cascade" }),
   weekNo: integer("week_no"), // 1-based, NULL for standalone reflections
   kind: text("kind").notNull(),

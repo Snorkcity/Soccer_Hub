@@ -5,6 +5,7 @@ import { CreateMatchReportBody, SaveMatchReportCoachEmailsBody, SendMatchReportE
 import { getSessionUser, effectiveRole, mayTouchLeagueRow } from "../middlewares/entryAuth";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { focusClubForLeagueRequest } from "../lib/focusClub";
 
 const router: IRouter = Router();
 
@@ -36,10 +37,11 @@ router.get("/match-reports", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
   if (!Number.isInteger(leagueId) || leagueId <= 0)
     return res.status(400).json({ error: "leagueId is required" });
+  const club = await focusClubForLeagueRequest(req, leagueId);
   const rows = await db
     .select()
     .from(matchReportsTable)
-    .where(eq(matchReportsTable.leagueId, leagueId))
+    .where(and(eq(matchReportsTable.leagueId, leagueId), eq(matchReportsTable.club, club)))
     .orderBy(desc(matchReportsTable.updatedAt), desc(matchReportsTable.id));
   return res.json(rows.map(reportJson));
 });
@@ -67,9 +69,10 @@ router.post("/match-reports", async (req, res) => {
       return res.status(400).json({ error: "That match doesn't belong to this league" });
     }
   }
+  const club = await focusClubForLeagueRequest(req, leagueId);
   const [row] = await db
     .insert(matchReportsTable)
-    .values({ leagueId, matchRowId: matchRowId ?? null, title, round: round ?? null, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
+    .values({ leagueId, club, matchRowId: matchRowId ?? null, title, round: round ?? null, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
     .returning();
   return res.json(reportJson(row));
 });
@@ -83,6 +86,11 @@ async function loadGuarded(req: Request, res: Response, id: number): Promise<Row
   }
   if (!(await mayWriteLeague(req, row.leagueId))) {
     res.status(403).json({ error: "No access to this league's match reports" });
+    return null;
+  }
+  const club = await focusClubForLeagueRequest(req, row.leagueId);
+  if (row.club !== club) {
+    res.status(404).json({ error: "Report not found" });
     return null;
   }
   return row;

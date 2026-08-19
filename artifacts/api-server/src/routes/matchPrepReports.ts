@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db, matchPrepReportsTable, MATCH_PREP_REPORT_KINDS } from "@workspace/db";
 import { CreateMatchPrepReportBody, UpdateMatchPrepReportBody } from "@workspace/api-zod";
 import { mayTouchLeagueRow } from "../middlewares/entryAuth";
+import { focusClubForLeagueRequest } from "../lib/focusClub";
 
 const router: IRouter = Router();
 
@@ -33,10 +34,14 @@ router.get("/match-prep/reports", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
   if (!Number.isInteger(leagueId) || leagueId <= 0)
     return res.status(400).json({ error: "leagueId is required" });
+  const club = await focusClubForLeagueRequest(req, leagueId);
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
-    .where(eq(matchPrepReportsTable.leagueId, leagueId))
+    .where(and(
+      eq(matchPrepReportsTable.leagueId, leagueId),
+      eq(matchPrepReportsTable.club, club),
+    ))
     .orderBy(desc(matchPrepReportsTable.updatedAt), desc(matchPrepReportsTable.id));
   return res.json(rows.map(reportJson));
 });
@@ -47,9 +52,12 @@ router.post("/match-prep/reports", async (req, res) => {
   const { leagueId, kind, title, opponent, matchDate, data } = parsed.data;
   if (!(MATCH_PREP_REPORT_KINDS as readonly string[]).includes(kind))
     return res.status(400).json({ error: "Invalid kind" });
+  if (!(await mayTouchLeagueRow(req, leagueId, "match-prep")))
+    return res.status(403).json({ error: "No access to this league's reports" });
+  const club = await focusClubForLeagueRequest(req, leagueId);
   const [row] = await db
     .insert(matchPrepReportsTable)
-    .values({ leagueId, kind, title, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
+    .values({ leagueId, club, kind, title, opponent: opponent ?? null, matchDate: matchDate ?? null, data })
     .returning();
   return res.json(reportJson(row));
 });
@@ -63,6 +71,11 @@ async function loadGuarded(req: Request, res: Response, id: number): Promise<Row
   }
   if (!(await mayTouchLeagueRow(req, row.leagueId, "match-prep"))) {
     res.status(403).json({ error: "No access to this league's reports" });
+    return null;
+  }
+  const club = await focusClubForLeagueRequest(req, row.leagueId);
+  if (row.club !== club) {
+    res.status(404).json({ error: "Report not found" });
     return null;
   }
   return row;

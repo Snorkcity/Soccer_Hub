@@ -416,6 +416,49 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE e.cycle_id = c.id AND e.league_id <> c.league_id
   `);
 
+  // Club ownership for private coaching material. This must run after the
+  // journal/prep/report tables and their league_id columns exist so an empty
+  // database can boot. Existing rows pre-date multi-club access and belong to
+  // the league's recorded focus club.
+  await db.execute(sql`ALTER TABLE journal_cycles ADD COLUMN IF NOT EXISTS club text`);
+  await db.execute(sql`ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS club text`);
+  await db.execute(sql`ALTER TABLE match_prep_reports ADD COLUMN IF NOT EXISTS club text`);
+  await db.execute(sql`ALTER TABLE match_reports ADD COLUMN IF NOT EXISTS club text`);
+  await db.execute(sql`
+    UPDATE journal_cycles AS row
+    SET club = COALESCE(leagues.focus_club, 'Belconnen')
+    FROM leagues
+    WHERE row.league_id = leagues.id AND row.club IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE journal_entries AS row
+    SET club = cycle.club
+    FROM journal_cycles AS cycle
+    WHERE row.cycle_id = cycle.id AND row.club IS DISTINCT FROM cycle.club
+  `);
+  await db.execute(sql`
+    UPDATE journal_entries AS row
+    SET club = COALESCE(leagues.focus_club, 'Belconnen')
+    FROM leagues
+    WHERE row.league_id = leagues.id AND row.club IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE match_prep_reports AS row
+    SET club = COALESCE(leagues.focus_club, 'Belconnen')
+    FROM leagues
+    WHERE row.league_id = leagues.id AND row.club IS NULL
+  `);
+  await db.execute(sql`
+    UPDATE match_reports AS row
+    SET club = COALESCE(leagues.focus_club, 'Belconnen')
+    FROM leagues
+    WHERE row.league_id = leagues.id AND row.club IS NULL
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS journal_cycles_league_club_idx ON journal_cycles (league_id, club)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS journal_entries_league_club_idx ON journal_entries (league_id, club)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS match_prep_reports_league_club_idx ON match_prep_reports (league_id, club)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS match_reports_league_club_idx ON match_reports (league_id, club)`);
+
   // ── Dribl name map (2026-07): permanent full-name → display-name mapping so
   // same-initial teammates keep stable display names across syncs.
   await db.execute(sql`

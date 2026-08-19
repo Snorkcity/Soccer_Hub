@@ -104,6 +104,21 @@ try {
     "an exact curriculum reference keeps the existing complete-session path",
   );
   assert.equal(
+    detectAssistantTurnMode("Build a match plan for Canberra Croatia", false),
+    "match-plan",
+    "match-plan requests use the dedicated analyst response mode",
+  );
+  assert.equal(
+    detectAssistantTurnMode("Write a half-time team talk", false),
+    "half-time-talk",
+    "half-time requests use the live-state-safe response mode",
+  );
+  assert.equal(
+    detectAssistantTurnMode("Pick a pre-match warm-up against Croatia", false),
+    "pre-match-warm-up",
+    "pre-match warm-up requests retrieve an approved practice rather than a full session",
+  );
+  assert.equal(
     shouldLoadAssistantCoachingEvidence(
       "exact-session",
       "Give me U13 Cycle 2, week 1, session 1",
@@ -126,6 +141,16 @@ try {
     ),
     true,
     "an explicit evidence question can access the permission-scoped context",
+  );
+  assert.equal(
+    shouldLoadAssistantCoachingEvidence("match-plan", "Build a match plan for Croatia"),
+    true,
+    "match plans load permission-scoped team evidence",
+  );
+  assert.equal(
+    shouldLoadAssistantCoachingEvidence("half-time-talk", "Write a half-time talk"),
+    true,
+    "half-time talks load selected-match evidence when it is available",
   );
 
   assert.deepEqual(
@@ -181,6 +206,21 @@ try {
     /literal section headings/,
     "exact curriculum sessions keep their source-faithful 3–4-part path",
   );
+  assert.match(
+    assistantTurnInstruction("half-time-talk", "Canberra Croatia"),
+    /What's the score, and what are you seeing\?/,
+    "a half-time talk asks one focused live-state question when facts are missing",
+  );
+  assert.match(
+    assistantTurnInstruction("pre-match-warm-up", "Canberra Croatia"),
+    /Select exactly ONE approved Practice Library warm-up/,
+    "the warm-up mode selects one approved practice without inventing a session",
+  );
+  assert.match(
+    assistantTurnInstruction("match-plan", "Canberra Croatia"),
+    /Separate Official Hub\/Dribl facts, coach-authored intent, Veo estimates/,
+    "match plans preserve evidence provenance",
+  );
 
   const pageInstruction = assistantPageInstruction("veo-match-players");
   assert.match(
@@ -229,6 +269,10 @@ try {
     matchReportPage,
     veoPage,
     veoPlayers,
+    migrations,
+    journalRoute,
+    matchPrepRoute,
+    matchReportsRoute,
   ] = await Promise.all([
     readFile("src/routes/assistant.ts", "utf8"),
     readFile("src/routes/journalInterview.ts", "utf8"),
@@ -236,11 +280,45 @@ try {
     readFile("../bufc-hub/src/components/MatchReportTab.tsx", "utf8"),
     readFile("../bufc-hub/src/pages/VeoInsights.tsx", "utf8"),
     readFile("../bufc-hub/src/components/veo/VeoMatchPlayers.tsx", "utf8"),
+    readFile("src/startupMigrations.ts", "utf8"),
+    readFile("src/routes/journal.ts", "utf8"),
+    readFile("src/routes/matchPrepReports.ts", "utf8"),
+    readFile("src/routes/matchReports.ts", "utf8"),
   ]);
   assert.match(
     assistantRoute,
     /includeReflections = hasModule\(user, ctx\.leagueId, "reflections"\)/,
     "reflection evidence remains gated by the league's Reflection Journal permission",
+  );
+  assert.match(
+    assistantRoute,
+    /includeMatchPrep = hasModule\(user, ctx\.leagueId, "match-prep"\)/,
+    "saved prep evidence is gated by Match Prep access",
+  );
+  assert.match(
+    assistantRoute,
+    /includeVeo = hasModule\(user, ctx\.leagueId, "veo"\)/,
+    "Veo evidence is gated by Veo access",
+  );
+  assert.match(
+    assistantRoute,
+    /\(ctx\.veoId != null \|\| ctx\.matchRowId != null\) && !includeMatchReports/,
+    "selected-match squad evidence is rejected without Season Stats access",
+  );
+  assert.match(
+    assistantRoute,
+    /focusClub = await focusClubForLeagueRequest\(req, ctx\.leagueId\)/,
+    "the Assistant resolves the signed-in request's club on the server",
+  );
+  assert.match(
+    assistantRoute,
+    /rankPractices\([\s\S]*"Warmup"[\s\S]*Choose exactly ONE candidate/,
+    "pre-match warm-ups retrieve approved Practice Library candidates",
+  );
+  assert.match(
+    assistantRoute,
+    /entry\.reviewPart === "warmup"/,
+    "unreviewed and unusable practices cannot be represented as approved warm-ups",
   );
   assert.match(
     assistantRoute,
@@ -274,6 +352,26 @@ try {
   );
   assert.match(
     contextBuilder,
+    /eq\(journalEntriesTable\.club, club\)/,
+    "reflection evidence is filtered to the resolved club",
+  );
+  assert.match(
+    contextBuilder,
+    /eq\(matchPrepReportsTable\.club, club\)/,
+    "saved prep evidence is filtered to the resolved club",
+  );
+  assert.match(
+    contextBuilder,
+    /eq\(matchReportsTable\.club, club\)/,
+    "saved match reports are filtered to the resolved club",
+  );
+  assert.match(
+    contextBuilder,
+    /Recent player involvement \(Official Hub\/Dribl recorded appearances/,
+    "the evidence pack includes permission-gated recent player involvement",
+  );
+  assert.match(
+    contextBuilder,
     /coach-authored interpretation — not official facts or curriculum/,
     "reflection provenance stays explicit",
   );
@@ -301,6 +399,41 @@ try {
     clientContext,
     /page: pageContext/,
     "the bottom Assistant sends the active Hub page with every league-scoped question",
+  );
+  assert.match(
+    clientContext,
+    /\{ seasonId: activeSeason\.id \}/,
+    "the client carries the active season when no match is explicitly selected",
+  );
+  assert.match(
+    clientContext,
+    /getDefaultHeaders\(\)/,
+    "the streaming Assistant request carries the validated superadmin focus-club header",
+  );
+  assert.match(
+    migrations,
+    /ALTER TABLE journal_cycles ADD COLUMN IF NOT EXISTS club text[\s\S]*ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS club text[\s\S]*ALTER TABLE match_prep_reports ADD COLUMN IF NOT EXISTS club text[\s\S]*ALTER TABLE match_reports ADD COLUMN IF NOT EXISTS club text/,
+    "private coaching tables receive an explicit club ownership field",
+  );
+  assert.ok(
+    migrations.indexOf("CREATE TABLE IF NOT EXISTS journal_cycles")
+      < migrations.indexOf("ALTER TABLE journal_cycles ADD COLUMN IF NOT EXISTS club text"),
+    "club ownership migration runs after the journal tables exist on an empty database",
+  );
+  assert.match(
+    `${journalRoute}\n${matchPrepRoute}\n${matchReportsRoute}`,
+    /focusClubForLeagueRequest/,
+    "private coaching writes stamp ownership from the authenticated server request",
+  );
+  assert.match(
+    journalRoute,
+    /eq\(journalCyclesTable\.club, club\)/,
+    "cycle journal lists are scoped to the resolved club",
+  );
+  assert.match(
+    journalRoute,
+    /club: cycle\.club/,
+    "cycle entries inherit the cycle's server-resolved club ownership",
   );
   assert.doesNotMatch(
     `${matchReportPage}\n${veoPage}\n${veoPlayers}`,

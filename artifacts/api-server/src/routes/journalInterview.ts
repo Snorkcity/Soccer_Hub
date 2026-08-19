@@ -13,12 +13,13 @@
  *  - /writeup  — full Q&A → journal field content in the coach's voice
  */
 import { Router, type IRouter } from "express";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   db,
   journalEntriesTable,
   leagueMatchesTable,
   leagueGoalsTable,
+  leaguePlayerStatsTable,
   leaguesTable,
   matchPrepReportsTable,
   matchReportsTable,
@@ -558,12 +559,17 @@ async function previousDecksVsOpponentText(
 async function mondayBriefTextForOpponent(
   leagueId: number,
   opponent: string,
+  club?: string,
 ): Promise<string | null> {
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
     .where(
-      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "monday")),
+      and(
+        eq(matchPrepReportsTable.leagueId, leagueId),
+        eq(matchPrepReportsTable.kind, "monday"),
+        ...(club ? [eq(matchPrepReportsTable.club, club)] : []),
+      ),
     );
   const opp = opponent.trim().toLowerCase();
   const candidates = rows
@@ -865,8 +871,12 @@ export async function opponentPassingContext(leagueId: number, opponent: string)
 // ── Week-ahead server-side context lookups ─────────────────────────────────
 
 /** Headline-fact lines from the most recent league meeting vs `opponent` this season. */
-export async function lastMeetingFacts(seasonId: number, opponent: string): Promise<string[]> {
-  const focus = await focusClubForSeason(seasonId);
+export async function lastMeetingFacts(
+  seasonId: number,
+  opponent: string,
+  requestedFocusClub?: string,
+): Promise<string[]> {
+  const focus = requestedFocusClub ?? await focusClubForSeason(seasonId);
   const opp = opponent.trim().toLowerCase();
   const isMeeting = (home: string | null, away: string | null) => {
     const h = (home ?? "").trim().toLowerCase();
@@ -928,12 +938,20 @@ export async function lastMeetingFacts(seasonId: number, opponent: string): Prom
 /** Condensed text from our latest saved Friday pre-match deck whose game has
  * been played. Pass `opponent` to instead get the latest played deck vs that
  * club — the plan we took into the previous meeting. */
-export async function previousDeckText(leagueId: number, opponent?: string): Promise<string | null> {
+export async function previousDeckText(
+  leagueId: number,
+  opponent?: string,
+  club?: string,
+): Promise<string | null> {
   const rows = await db
     .select()
     .from(matchPrepReportsTable)
     .where(
-      and(eq(matchPrepReportsTable.leagueId, leagueId), eq(matchPrepReportsTable.kind, "friday")),
+      and(
+        eq(matchPrepReportsTable.leagueId, leagueId),
+        eq(matchPrepReportsTable.kind, "friday"),
+        ...(club ? [eq(matchPrepReportsTable.club, club)] : []),
+      ),
     );
   const now = Date.now();
   const time = (md: string | null) => {
@@ -1000,6 +1018,7 @@ function compactAssistantEvidence(value: string, maxChars: number): string {
 
 async function recentAssistantReflections(
   leagueId: number,
+  club: string,
   conversationText: string,
 ): Promise<string | null> {
   const rows = await db
@@ -1015,6 +1034,7 @@ async function recentAssistantReflections(
     .where(
       and(
         eq(journalEntriesTable.leagueId, leagueId),
+        eq(journalEntriesTable.club, club),
         isNull(journalEntriesTable.cycleId),
         sql`${journalEntriesTable.kind} IN ('session_reflection', 'match_reflection')`,
       ),
@@ -1056,6 +1076,7 @@ async function recentAssistantReflections(
 
 async function savedAssistantMatchReports(
   leagueId: number,
+  club: string,
   opponent: string | null,
 ): Promise<string | null> {
   const rows = await db
@@ -1067,7 +1088,10 @@ async function savedAssistantMatchReports(
       data: matchReportsTable.data,
     })
     .from(matchReportsTable)
-    .where(eq(matchReportsTable.leagueId, leagueId))
+    .where(and(
+      eq(matchReportsTable.leagueId, leagueId),
+      eq(matchReportsTable.club, club),
+    ))
     .orderBy(desc(matchReportsTable.updatedAt))
     .limit(12);
   if (!rows.length) return null;
@@ -1108,13 +1132,78 @@ async function savedAssistantMatchReports(
   return blocks.length ? blocks.join("\n\n").slice(0, 1800) : null;
 }
 
+async function recentAssistantPlayerInvolvement(
+  seasonId: number,
+  focusClub: string,
+  leagueMatches: Array<typeof leagueMatchesTable.$inferSelect>,
+): Promise<string | null> {
+  const focusKey = focusClub.trim().toLowerCase();
+  const recentMatchIds = leagueMatches
+    .filter((match) =>
+      match.homeTeam.trim().toLowerCase() === focusKey
+      || match.awayTeam.trim().toLowerCase() === focusKey
+    )
+    .filter((match) => match.homeGoals != null && match.awayGoals != null)
+    .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""))
+    .slice(0, 4)
+    .map((match) => match.matchId);
+  if (!recentMatchIds.length) return null;
+
+  const rows = await db
+    .select({
+      matchId: leaguePlayerStatsTable.matchId,
+      playerName: leaguePlayerStatsTable.playerName,
+      minsPlayed: leaguePlayerStatsTable.minsPlayed,
+      started: leaguePlayerStatsTable.started,
+      appearance: leaguePlayerStatsTable.appearance,
+    })
+    .from(leaguePlayerStatsTable)
+    .where(and(
+      eq(leaguePlayerStatsTable.seasonId, seasonId),
+      eq(leaguePlayerStatsTable.club, focusClub),
+      inArray(leaguePlayerStatsTable.matchId, recentMatchIds),
+    ));
+  if (!rows.length) return null;
+
+  const byPlayer = new Map<string, { appearances: number; starts: number; minutes: number }>();
+  for (const row of rows) {
+    if (row.appearance === false && !row.started && !(row.minsPlayed && row.minsPlayed > 0)) continue;
+    const current = byPlayer.get(row.playerName) ?? { appearances: 0, starts: 0, minutes: 0 };
+    current.appearances += 1;
+    if (row.started) current.starts += 1;
+    current.minutes += Math.max(0, row.minsPlayed ?? 0);
+    byPlayer.set(row.playerName, current);
+  }
+  const leaders = [...byPlayer.entries()]
+    .sort((a, b) =>
+      b[1].appearances - a[1].appearances
+      || b[1].starts - a[1].starts
+      || b[1].minutes - a[1].minutes
+      || a[0].localeCompare(b[0])
+    )
+    .slice(0, 8);
+  if (!leaders.length) return null;
+
+  return [
+    `Recorded over the team's latest ${recentMatchIds.length} played match${recentMatchIds.length === 1 ? "" : "es"}:`,
+    ...leaders.map(([name, totals]) =>
+      `- ${name}: ${totals.appearances} app${totals.appearances === 1 ? "" : "s"}, ${totals.starts} start${totals.starts === 1 ? "" : "s"}, ${totals.minutes} min`
+    ),
+  ].join("\n");
+}
+
 export interface AssistantCoachingContextInput {
   leagueId: number;
+  focusClub: string;
   conversationText: string;
   selectedOpponent?: string | null;
   opponentHint?: string | null;
   selectedSeasonId?: number | null;
   includeReflections: boolean;
+  includeMatchPrep: boolean;
+  includeMatchReports: boolean;
+  includeTeamStats: boolean;
+  includeVeo: boolean;
 }
 
 export interface AssistantCoachingContextResult {
@@ -1132,11 +1221,11 @@ export async function buildAssistantCoachingContext(
   input: AssistantCoachingContextInput,
 ): Promise<AssistantCoachingContextResult> {
   const [league] = await db
-    .select({ name: leaguesTable.name, focusClub: leaguesTable.focusClub })
+    .select({ name: leaguesTable.name })
     .from(leaguesTable)
     .where(eq(leaguesTable.id, input.leagueId))
     .limit(1);
-  const focusClub = league?.focusClub?.trim() || "Belconnen";
+  const focusClub = input.focusClub.trim();
 
   let season = input.selectedSeasonId != null
     ? (
@@ -1192,36 +1281,56 @@ export async function buildAssistantCoachingContext(
     ourPassing,
     opponentPassing,
     reflections,
+    playerInvolvement,
   ] = await Promise.all([
-    season && opponent ? lastMeetingFacts(season.id, opponent).catch(() => []) : Promise.resolve([]),
+    season && opponent
+      ? lastMeetingFacts(season.id, opponent, focusClub).catch(() => [])
+      : Promise.resolve([]),
     season && opponent
       ? opponentScoutFingerprint(season.id, opponent).catch(() => null)
       : Promise.resolve(null),
-    opponent ? previousDeckText(input.leagueId, opponent).catch(() => null) : Promise.resolve(null),
-    previousDeckText(input.leagueId).catch(() => null),
-    opponent
-      ? mondayBriefTextForOpponent(input.leagueId, opponent).catch(() => null)
+    input.includeMatchPrep && opponent
+      ? previousDeckText(input.leagueId, opponent, focusClub).catch(() => null)
       : Promise.resolve(null),
-    savedAssistantMatchReports(input.leagueId, opponent).catch(() => null),
-    recentPassingContext(input.leagueId).catch(() => null),
-    opponent
+    input.includeMatchPrep
+      ? previousDeckText(input.leagueId, undefined, focusClub).catch(() => null)
+      : Promise.resolve(null),
+    input.includeMatchPrep && opponent
+      ? mondayBriefTextForOpponent(input.leagueId, opponent, focusClub).catch(() => null)
+      : Promise.resolve(null),
+    input.includeMatchReports
+      ? savedAssistantMatchReports(input.leagueId, focusClub, opponent).catch(() => null)
+      : Promise.resolve(null),
+    input.includeVeo
+      ? recentPassingContext(input.leagueId).catch(() => null)
+      : Promise.resolve(null),
+    input.includeVeo && opponent
       ? opponentPassingContext(input.leagueId, opponent).catch(() => null)
       : Promise.resolve(null),
     input.includeReflections
-      ? recentAssistantReflections(input.leagueId, input.conversationText).catch(() => null)
+      ? recentAssistantReflections(input.leagueId, focusClub, input.conversationText).catch(() => null)
+      : Promise.resolve(null),
+    input.includeTeamStats && season
+      ? recentAssistantPlayerInvolvement(season.id, focusClub, leagueMatches).catch(() => null)
       : Promise.resolve(null),
   ]);
 
   const sections = [
     `## Weekly coaching decision context
-This is league-private evidence for a conversational coaching recommendation. It is NOT curriculum content.
+This is permission-scoped evidence for the signed-in coach's team. It is NOT curriculum content.
 - League: ${league?.name ?? `league ${input.leagueId}`}${season ? `; season: ${season.label}` : ""}
 - Focus team: ${focusClub}
 - Opponent: ${opponent ?? "not confidently identified from the selected league and conversation"}
+- Private reflections, saved plans, saved reports and Veo detail below are included only when the source is authorised and owned by ${focusClub}.
 - Never invent a missing result, reflection, report, scouting pattern or metric.`,
     ourResults.length
       ? `### Our recent form (Official Hub/Dribl recorded league results)\n${ourResults.map((line) => `- ${line}`).join("\n")}`
       : `### Our recent form (Official Hub/Dribl)\n- No played results are available for the selected season.`,
+    playerInvolvement
+      ? `### Recent player involvement (Official Hub/Dribl recorded appearances — not an injury, availability or performance judgement)\n${playerInvolvement}`
+      : input.includeTeamStats
+        ? `### Recent player involvement\n- No recorded appearance sample is available for this team in the selected season.`
+        : `### Recent player involvement\n- Not included because this account does not have Season Stats access for the league.`,
     opponent
       ? theirResults.length
         ? `### ${opponent}'s recent form (Official Hub/Dribl recorded league results)\n${theirResults.map((line) => `- ${line}`).join("\n")}`
@@ -1243,16 +1352,22 @@ This is league-private evidence for a conversational coaching recommendation. It
       : "",
     previousOpponentPlan
       ? `### Previous saved match plan for ${opponent} (coach-authored plan — not official facts or curriculum)\n${previousOpponentPlan.slice(0, 1200)}`
-      : "",
+      : !input.includeMatchPrep
+        ? `### Saved Match Prep material\n- Not included because this account does not have Match Prep access for the league.`
+        : "",
     latestPlan && latestPlan !== previousOpponentPlan && !previousOpponentPlan
       ? `### Our latest saved match plan (coach-authored plan — not official facts or curriculum)\n${latestPlan.slice(0, 1200)}`
       : "",
     savedMatchReports
       ? `### Saved Football Match Report notes (Hub analyst interpretation — not official facts or curriculum)\n${savedMatchReports}`
-      : "",
+      : !input.includeMatchReports
+        ? `### Saved Football Match Report notes\n- Not included because this account does not have Season Stats access for the league.`
+        : "",
     ourPassing
       ? `### Our recent possession and passing (Camera-derived Veo estimates — not official facts)\n${ourPassing.slice(0, 1600)}`
-      : `### Veo trend evidence\n- No recent camera-derived possession and passing trend is available.`,
+      : input.includeVeo
+        ? `### Veo trend evidence\n- No recent camera-derived possession and passing trend is available.`
+        : `### Veo trend evidence\n- Not included because Veo access or provable club ownership is unavailable for this team.`,
     opponentPassing
       ? `### ${opponent}'s last recorded passing profile (Camera-derived Veo estimates — not official facts)\n${opponentPassing.slice(0, 1000)}`
       : "",

@@ -4,7 +4,9 @@ import {
   useListAssistantMatches,
   getListAssistantMatchesQueryKey,
   useListVeoMatches,
+  useListSeasons,
   getListVeoMatchesQueryKey,
+  getDefaultHeaders,
   type AssistantMatchOption,
 } from '@workspace/api-client-react';
 import { useActiveLeague } from '@/contexts/LeagueContext';
@@ -87,19 +89,19 @@ function pageKeyForLocation(location: string): AssistantPageKey {
 }
 
 export const SUGGESTIONS_DEFAULT = [
-  "What should we focus on in training this week based on our recent results and reflections?",
-  "Suggest a training theme, then let me decide if I want the full session",
-  "Give me U13 Cycle 2, week 1, session 1",
-  "Explain Drive-Draw-Play in simple terms",
+  "What should we train this week?",
+  "Build a match plan for our next opponent",
+  "Write a half-time team talk",
+  "Pick an approved pre-match warm-up",
 ];
 
 export function suggestionsForMatch(opponent: string | null): string[] {
   const opp = opponent ?? "the opponent";
   return [
-    `Based on our results, ${opp}'s form and my recent reflections, what should we focus on?`,
-    `What training theme would you recommend before we play ${opp}?`,
-    `What did the last meeting suggest we should sharpen against ${opp}?`,
-    `Give me a short recommendation first, then I'll ask for the full session`,
+    `What should we train before ${opp}?`,
+    `Build a match plan for ${opp}`,
+    "Write a half-time team talk for this match",
+    `Pick an approved pre-match warm-up for ${opp}`,
   ];
 }
 
@@ -156,6 +158,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { activeLeagueId, leagueOptions } = useActiveLeague();
   const { hasModule, isSuperadmin } = useLeagueModules();
+  const { data: seasons } = useListSeasons();
   
   const [isVisible, setVisible] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -363,8 +366,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       };
       const leagueContextId = activeMatchContext?.leagueId ?? effectiveSelectorLeagueId;
       if (leagueContextId != null) {
+        const leagueSeasons = (seasons ?? []).filter((season) => season.leagueId === leagueContextId);
+        const activeSeason = leagueSeasons.find((season) => season.isActive) ?? leagueSeasons[0];
         body.context = {
           leagueId: leagueContextId,
+          ...(activeSeason ? { seasonId: activeSeason.id } : {}),
           page: pageContext,
           ...(activeMatchContext?.matchRowId != null ? { matchRowId: activeMatchContext.matchRowId } : {}),
           ...(activeMatchContext?.veoId != null ? { veoId: activeMatchContext.veoId } : {}),
@@ -372,7 +378,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       }
       const res = await fetch("/api/assistant/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getDefaultHeaders() },
         body: JSON.stringify(body),
         signal: ac.signal,
       });

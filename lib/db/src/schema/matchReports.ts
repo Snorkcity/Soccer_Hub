@@ -6,6 +6,8 @@ import { matchesTable } from "./matches";
 export const matchReportsTable = pgTable("match_reports", {
   id: serial("id").primaryKey(),
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
+  /** Server-resolved owning club. Never accepted from the client. */
+  club: text("club"),
   /** Exact Hub match identity. Older saved rows may be null until re-saved. */
   matchRowId: integer("match_row_id").references(() => matchesTable.id),
   title: text("title").notNull(), // e.g. "Match Report — R16 v Canberra Croatia"
