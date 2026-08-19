@@ -12,7 +12,7 @@
  *                 phase "confirm": coach reply → "next" or "continue"
  *  - /writeup  — full Q&A → journal field content in the coach's voice
  */
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   db,
@@ -26,7 +26,7 @@ import {
   seasonsTable,
   veoMatchesTable,
 } from "@workspace/db";
-import { focusClubForLeagueRequest, focusClubForSeason } from "../lib/focusClub";
+import { focusClubForLeagueRequest, focusClubForRequest, focusClubForSeason } from "../lib/focusClub";
 import { canSeeLeague, getSessionUser, hasModule } from "../middlewares/entryAuth";
 import { summarisePassDetails } from "./veo";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
@@ -470,11 +470,11 @@ router.post("/journal/prematch-talk", async (req, res, next) => {
       seasonId != null
         ? opponentScoutFingerprint(seasonId, opponent).catch(() => null)
         : Promise.resolve(null),
-      leagueId != null && includeVeo
-        ? recentPassingContext(leagueId).catch(() => null)
+      leagueId != null && focusClub && includeVeo
+        ? recentPassingContext(leagueId, focusClub).catch(() => null)
         : Promise.resolve(null),
-      leagueId != null && includeVeo
-        ? opponentPassingContext(leagueId, opponent).catch(() => null)
+      leagueId != null && focusClub && includeVeo
+        ? opponentPassingContext(leagueId, focusClub, opponent).catch(() => null)
         : Promise.resolve(null),
     ]);
 
@@ -744,6 +744,17 @@ export async function opponentScoutFingerprint(
 
 type PassSummary = NonNullable<ReturnType<typeof summarisePassDetails>>;
 
+/** Legacy Veo rows belong to the league's configured focus club. */
+async function clubOwnsLegacyVeo(leagueId: number, club: string): Promise<boolean> {
+  const [league] = await db
+    .select({ focusClub: leaguesTable.focusClub })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const owner = league?.focusClub?.trim() || "Belconnen";
+  return owner.toLowerCase() === club.trim().toLowerCase();
+}
+
 function possessionPct(s: PassSummary): number | null {
   const total = s.possessionSecUs + s.possessionSecThem;
   if (total <= 0) return null;
@@ -771,7 +782,12 @@ function confidenceLabel(n: number): string {
  * Summarise our own possession/passing trends from the last `lastN`
  * Veo-recorded games for a league, in the house hedged-voice style.
  */
-export async function recentPassingContext(leagueId: number, lastN = 3): Promise<string | null> {
+export async function recentPassingContext(
+  leagueId: number,
+  focusClub: string,
+  lastN = 3,
+): Promise<string | null> {
+  if (!(await clubOwnsLegacyVeo(leagueId, focusClub))) return null;
   const rows = await db
     .select({
       id: veoMatchesTable.id,
@@ -857,7 +873,12 @@ export async function recentPassingContext(leagueId: number, lastN = 3): Promise
  * Passing/possession numbers from the most recent Veo-recorded meeting vs
  * this opponent, giving their side of the story.
  */
-export async function opponentPassingContext(leagueId: number, opponent: string): Promise<string | null> {
+export async function opponentPassingContext(
+  leagueId: number,
+  focusClub: string,
+  opponent: string,
+): Promise<string | null> {
+  if (!(await clubOwnsLegacyVeo(leagueId, focusClub))) return null;
   const oppLc = opponent.trim().toLowerCase();
   const rows = await db
     .select({
@@ -976,8 +997,8 @@ export async function lastMeetingFacts(
  * club — the plan we took into the previous meeting. */
 export async function previousDeckText(
   leagueId: number,
-  opponent?: string,
-  club?: string,
+  opponent: string | undefined,
+  club: string,
 ): Promise<string | null> {
   const rows = await db
     .select()
@@ -985,8 +1006,8 @@ export async function previousDeckText(
     .where(
       and(
         eq(matchPrepReportsTable.leagueId, leagueId),
+        eq(matchPrepReportsTable.club, club),
         eq(matchPrepReportsTable.kind, "friday"),
-        ...(club ? [eq(matchPrepReportsTable.club, club)] : []),
       ),
     );
   const now = Date.now();
@@ -1229,8 +1250,8 @@ async function recentAssistantPlayerInvolvement(
 }
 
 export interface AssistantCoachingContextInput {
+  request: Request;
   leagueId: number;
-  focusClub: string;
   conversationText: string;
   selectedOpponent?: string | null;
   opponentHint?: string | null;
@@ -1261,7 +1282,7 @@ export async function buildAssistantCoachingContext(
     .from(leaguesTable)
     .where(eq(leaguesTable.id, input.leagueId))
     .limit(1);
-  const focusClub = input.focusClub.trim();
+  const focusClub = (await focusClubForLeagueRequest(input.request, input.leagueId)).trim();
 
   let season = input.selectedSeasonId != null
     ? (
@@ -1338,10 +1359,10 @@ export async function buildAssistantCoachingContext(
       ? savedAssistantMatchReports(input.leagueId, focusClub, opponent).catch(() => null)
       : Promise.resolve(null),
     input.includeVeo
-      ? recentPassingContext(input.leagueId).catch(() => null)
+      ? recentPassingContext(input.leagueId, focusClub).catch(() => null)
       : Promise.resolve(null),
     input.includeVeo && opponent
-      ? opponentPassingContext(input.leagueId, opponent).catch(() => null)
+      ? opponentPassingContext(input.leagueId, focusClub, opponent).catch(() => null)
       : Promise.resolve(null),
     input.includeReflections
       ? recentAssistantReflections(input.leagueId, focusClub, input.conversationText).catch(() => null)
@@ -1416,6 +1437,35 @@ This is permission-scoped evidence for the signed-in coach's team. It is NOT cur
   };
 }
 
+export interface WeekAheadServerEvidenceInput {
+  seasonId: number | null;
+  leagueId: number;
+  opponent: string;
+  focusClub: string;
+  includeVeo: boolean;
+}
+
+/** Server-owned evidence supplied to the Monday Week Ahead generation. */
+export async function buildWeekAheadServerEvidence(input: WeekAheadServerEvidenceInput) {
+  const [lastMeeting, prevDeck, prevOppDeck, scout, ourPassing, oppPassing] = await Promise.all([
+    input.seasonId != null
+      ? lastMeetingFacts(input.seasonId, input.opponent, input.focusClub).catch(() => [])
+      : Promise.resolve([]),
+    previousDeckText(input.leagueId, undefined, input.focusClub).catch(() => null),
+    previousDeckText(input.leagueId, input.opponent, input.focusClub).catch(() => null),
+    input.seasonId != null
+      ? opponentScoutFingerprint(input.seasonId, input.opponent).catch(() => null)
+      : Promise.resolve(null),
+    input.includeVeo
+      ? recentPassingContext(input.leagueId, input.focusClub).catch(() => null)
+      : Promise.resolve(null),
+    input.includeVeo
+      ? opponentPassingContext(input.leagueId, input.focusClub, input.opponent).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  return { lastMeeting, prevDeck, prevOppDeck, scout, ourPassing, oppPassing };
+}
+
 // POST /journal/week-ahead-brief — review bullets + prep pointers for the Monday report
 router.post("/journal/week-ahead-brief", async (req, res, next) => {
   try {
@@ -1423,22 +1473,57 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
     if (!key) return noKey(res);
     const parsed = CreateWeekAheadBriefBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-    const { opponent, seasonId, leagueId, reflectionsText, lastVsOpponentText, theirGamesText,
+    const { opponent, seasonId, reflectionsText, lastVsOpponentText, theirGamesText,
       ourGamesText, lastMeetingText, lastReportText, prevMeetingPrepText } = parsed.data;
+    let { leagueId } = parsed.data;
+
+    if (seasonId != null) {
+      const [season] = await db
+        .select({ leagueId: seasonsTable.leagueId })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.id, seasonId));
+      if (!season) return res.status(400).json({ error: "Unknown seasonId" });
+      if (leagueId != null && leagueId !== season.leagueId) {
+        return res.status(400).json({ error: "seasonId and leagueId belong to different leagues" });
+      }
+      leagueId = season.leagueId;
+    }
+    if (leagueId == null) {
+      return res.status(400).json({ error: "leagueId or seasonId is required" });
+    }
+
+    const user = await getSessionUser(req);
+    if (!user) return res.status(401).json({ error: "Not authenticated" });
+    if (
+      !user.isSuperadmin
+      && (!canSeeLeague(user, leagueId) || !hasModule(user, leagueId, "match-prep"))
+    ) {
+      return res.status(403).json({ error: "No Match Prep access for this league" });
+    }
+    const focusClub = await focusClubForLeagueRequest(req, leagueId);
+    const [leagueScope] = await db
+      .select({ focusClub: leaguesTable.focusClub })
+      .from(leaguesTable)
+      .where(eq(leaguesTable.id, leagueId))
+      .limit(1);
+    const defaultClub = leagueScope?.focusClub?.trim() || "Belconnen";
+    const includeVeo =
+      (user.isSuperadmin || hasModule(user, leagueId, "veo"))
+      && focusClub.toLowerCase() === defaultClub.toLowerCase();
 
     // Server-side context: the last league meeting vs this opponent, our
     // latest saved pre-match deck, the deck we took into the previous meeting
     // vs this opponent, their scouting fingerprint, and Veo passing trends.
     // All optional — first meeting / no saved deck / thin data simply
     // contributes nothing.
-    const [lastMeeting, prevDeck, prevOppDeck, scout, ourPassing, oppPassing] = await Promise.all([
-      seasonId != null ? lastMeetingFacts(seasonId, opponent).catch(() => []) : Promise.resolve([]),
-      leagueId != null ? previousDeckText(leagueId).catch(() => null) : Promise.resolve(null),
-      leagueId != null ? previousDeckText(leagueId, opponent).catch(() => null) : Promise.resolve(null),
-      seasonId != null ? opponentScoutFingerprint(seasonId, opponent).catch(() => null) : Promise.resolve(null),
-      leagueId != null ? recentPassingContext(leagueId).catch(() => null) : Promise.resolve(null),
-      leagueId != null ? opponentPassingContext(leagueId, opponent).catch(() => null) : Promise.resolve(null),
-    ]);
+    const { lastMeeting, prevDeck, prevOppDeck, scout, ourPassing, oppPassing } =
+      await buildWeekAheadServerEvidence({
+        seasonId: seasonId ?? null,
+        leagueId,
+        opponent,
+        focusClub,
+        includeVeo,
+      });
 
     const sections = [
       reflectionsText ? `## The coach's recent reflections\n${reflectionsText}` : "",
@@ -1463,7 +1548,7 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
       ourPassing ? `## Our possession & passing trends (Veo data)\n${ourPassing}` : "",
       oppPassing ? `## ${opponent}'s Veo passing numbers — last recorded meeting\n${oppPassing}` : "",
       theirGamesText ? `## ${opponent}'s last 3 games\n${theirGamesText}` : "",
-      ourGamesText ? `## Our (Belconnen) last 3 games\n${ourGamesText}` : "",
+      ourGamesText ? `## Our (${focusClub}) last 3 games\n${ourGamesText}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -1477,7 +1562,7 @@ router.post("/journal/week-ahead-brief", async (req, res, next) => {
         messages: [
           {
             role: "system",
-            content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of Belconnen United (NPLW football). This week's opponent: ${opponent}.
+            content: `You are an assistant coach preparing a Monday "Week Ahead" briefing for the head coach of ${focusClub}. This week's opponent: ${opponent}.
 Return JSON: {"review": string[], "pointers": string[], "trainingFocus": string[]}.
 - "review": 3-5 bullets summarising the coach's OWN recent reflections — what went well, what he flagged to fix, and anything he said he'd do differently. Write in second person ("you noted..."). Only use what he actually wrote. His reflections may span the last few weeks: when the same theme recurs across weeks, say so explicitly ("third week running you've flagged...") — a recurring thread matters more than a one-off from the latest session.
 - "pointers": 3-6 short, practical prep pointers for the week ahead, drawing the opponent's recent results/scorers, the last meeting's recorded facts, our last match report, Veo possession/passing trends, and his own notes together (e.g. dangers to plan for, threads to carry into the two training sessions). Don't let the latest week dominate: weigh the last 2-3 weeks of reflections together, and where the inputs include what we worked on or planned before the previous meeting vs this opponent, connect back to it ("before the last ${opponent} game you worked on X — it paid off / it's still the gap"). When Veo passing data is provided (for us or for them), include a pointer grounded in it — e.g. if our possession has been low ("our build-up has been under pressure — look to get an early foothold this week"), or if the opponent had high sustained sequences last time ("they moved the ball well last meeting — we'll need to be compact and press our triggers").
@@ -1516,7 +1601,8 @@ router.get("/journal/last-meeting", async (req, res, next) => {
     if (!Number.isFinite(seasonId) || !opponent) {
       return res.status(400).json({ error: "seasonId and opponent are required" });
     }
-    const facts = await lastMeetingFacts(seasonId, opponent);
+    const focusClub = await focusClubForRequest(req, seasonId);
+    const facts = await lastMeetingFacts(seasonId, opponent, focusClub);
     return res.json({ facts });
   } catch (err) {
     return next(err);

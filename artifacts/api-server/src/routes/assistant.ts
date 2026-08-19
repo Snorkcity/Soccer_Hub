@@ -970,8 +970,8 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
       embedTexts([queryText.slice(0, 8000)]),
       ctx && shouldLoadCoachingEvidence
         ? buildAssistantCoachingContext({
+          request: req,
           leagueId: ctx.leagueId,
-          focusClub: focusClub!,
           conversationText: queryText,
           selectedOpponent,
           opponentHint,

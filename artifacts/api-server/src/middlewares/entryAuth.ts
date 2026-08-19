@@ -221,6 +221,7 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
   ["/journal/prematch-talk", "match-prep"],    // Friday team-talk drafting too
   ["/journal/week-ahead-brief", "match-prep"], // under /journal, not /match-prep
+  ["/journal/last-meeting", "match-prep"],     // Week Ahead match facts
 
   ["/sessions", "session-planner"],
   ["/library", "session-planner"],

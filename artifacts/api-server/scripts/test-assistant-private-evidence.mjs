@@ -19,6 +19,7 @@ try {
     stdin: {
       contents: `
         export {
+          buildWeekAheadServerEvidence,
           previousDecksVsOpponentText,
           mondayBriefTextForOpponent,
         } from "./src/routes/journalInterview.ts";
@@ -36,6 +37,7 @@ try {
   });
 
   const {
+    buildWeekAheadServerEvidence,
     previousDecksVsOpponentText,
     mondayBriefTextForOpponent,
     pool: importedPool,
@@ -96,11 +98,25 @@ try {
     insertedIds.push(Number(inserted.rows[0].id));
   }
 
-  const [fridayA, fridayB, mondayA, mondayB] = await Promise.all([
+  const [fridayA, fridayB, mondayA, mondayB, weekAheadA, weekAheadB] = await Promise.all([
     previousDecksVsOpponentText(leagueId, opponent, clubA),
     previousDecksVsOpponentText(leagueId, opponent, clubB),
     mondayBriefTextForOpponent(leagueId, opponent, clubA),
     mondayBriefTextForOpponent(leagueId, opponent, clubB),
+    buildWeekAheadServerEvidence({
+      seasonId: null,
+      leagueId,
+      opponent,
+      focusClub: clubA,
+      includeVeo: false,
+    }),
+    buildWeekAheadServerEvidence({
+      seasonId: null,
+      leagueId,
+      opponent,
+      focusClub: clubB,
+      includeVeo: false,
+    }),
   ]);
 
   assert.match(fridayA ?? "", new RegExp(`ONLY_A_FRIDAY_${tag}`));
@@ -111,6 +127,14 @@ try {
   assert.doesNotMatch(mondayA ?? "", new RegExp(`ONLY_B_MONDAY_${tag}`));
   assert.match(mondayB ?? "", new RegExp(`ONLY_B_MONDAY_${tag}`));
   assert.doesNotMatch(mondayB ?? "", new RegExp(`ONLY_A_MONDAY_${tag}`));
+  assert.match(weekAheadA.prevDeck ?? "", new RegExp(`ONLY_A_FRIDAY_${tag}`));
+  assert.doesNotMatch(weekAheadA.prevDeck ?? "", new RegExp(`ONLY_B_FRIDAY_${tag}`));
+  assert.match(weekAheadA.prevOppDeck ?? "", new RegExp(`ONLY_A_FRIDAY_${tag}`));
+  assert.doesNotMatch(weekAheadA.prevOppDeck ?? "", new RegExp(`ONLY_B_FRIDAY_${tag}`));
+  assert.match(weekAheadB.prevDeck ?? "", new RegExp(`ONLY_B_FRIDAY_${tag}`));
+  assert.doesNotMatch(weekAheadB.prevDeck ?? "", new RegExp(`ONLY_A_FRIDAY_${tag}`));
+  assert.match(weekAheadB.prevOppDeck ?? "", new RegExp(`ONLY_B_FRIDAY_${tag}`));
+  assert.doesNotMatch(weekAheadB.prevOppDeck ?? "", new RegExp(`ONLY_A_FRIDAY_${tag}`));
 
   console.log("Assistant private-evidence integration test passed");
 } finally {

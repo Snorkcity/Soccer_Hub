@@ -346,8 +346,28 @@ try {
   );
   assert.match(
     contextBuilder,
-    /hasModule\(user, leagueId, "veo"\)[\s\S]*focusClub\.toLowerCase\(\) === defaultClub\.toLowerCase\(\)[\s\S]*leagueId != null && includeVeo/,
+    /hasModule\(user, leagueId, "veo"\)[\s\S]*focusClub\.toLowerCase\(\) === defaultClub\.toLowerCase\(\)[\s\S]*leagueId != null && focusClub && includeVeo/,
     "pre-match talk includes legacy Veo evidence only for the authorised league focus club",
+  );
+  assert.match(
+    contextBuilder,
+    /week-ahead-brief[\s\S]*focusClubForLeagueRequest\(req, leagueId\)[\s\S]*buildWeekAheadServerEvidence\(\{[\s\S]*focusClub,[\s\S]*includeVeo/,
+    "Week Ahead resolves the authenticated club before building its server evidence",
+  );
+  assert.match(
+    contextBuilder,
+    /buildWeekAheadServerEvidence[\s\S]*previousDeckText\(input\.leagueId, undefined, input\.focusClub\)[\s\S]*previousDeckText\(input\.leagueId, input\.opponent, input\.focusClub\)/,
+    "Week Ahead's current and opponent deck lookups require exact club ownership",
+  );
+  assert.match(
+    contextBuilder,
+    /clubOwnsLegacyVeo\(leagueId, focusClub\)[\s\S]*clubOwnsLegacyVeo\(leagueId, focusClub\)/,
+    "both legacy Veo helpers enforce the owning focus club internally",
+  );
+  assert.match(
+    contextBuilder,
+    /focusClubForLeagueRequest\(input\.request, input\.leagueId\)/,
+    "the persistent coaching-context builder resolves its club from the authenticated request",
   );
   assert.match(
     assistantRoute,
