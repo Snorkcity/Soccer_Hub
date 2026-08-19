@@ -1349,6 +1349,53 @@ async function runUserAccountsMigration(): Promise<void> {
     await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('veo-module-grant-v1') ON CONFLICT DO NOTHING`);
   }
 
+  // ── Managed curriculum documents (task #154) ────────────────────────────────
+  // curriculum_documents: stable registry of curriculum files
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS curriculum_documents (
+      id text PRIMARY KEY,
+      key text NOT NULL UNIQUE,
+      title text NOT NULL,
+      doc_type text NOT NULL,
+      age_group text NOT NULL,
+      active_version_id text,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  // curriculum_document_versions: each uploaded file gets a version row
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS curriculum_document_versions (
+      id text PRIMARY KEY,
+      document_id text NOT NULL REFERENCES curriculum_documents(id),
+      version_number integer NOT NULL DEFAULT 1,
+      filename text NOT NULL,
+      content_hash text NOT NULL,
+      status text NOT NULL DEFAULT 'processing',
+      chunk_count integer NOT NULL DEFAULT 0,
+      embedded_count integer NOT NULL DEFAULT 0,
+      error text,
+      created_at timestamp NOT NULL DEFAULT now(),
+      published_at timestamp,
+      updated_at timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS curriculum_document_versions_doc_idx ON curriculum_document_versions (document_id)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS curriculum_document_versions_number_uq ON curriculum_document_versions (document_id, version_number)`);
+  // Add document_id + version_id to chunks (nullable for bootstrap migration)
+  await db.execute(sql`ALTER TABLE curriculum_chunks ADD COLUMN IF NOT EXISTS document_id text REFERENCES curriculum_documents(id)`);
+  await db.execute(sql`ALTER TABLE curriculum_chunks ADD COLUMN IF NOT EXISTS version_id text REFERENCES curriculum_document_versions(id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS curriculum_chunks_doc_ver_idx ON curriculum_chunks (document_id, version_id)`);
+  // Mark any version that was left in 'processing' state at boot as failed
+  // (they were interrupted mid-parse on the previous run)
+  await db.execute(sql`
+    UPDATE curriculum_document_versions
+    SET status = 'failed',
+        error = 'Processing interrupted by server restart',
+        updated_at = now()
+    WHERE status = 'processing'
+  `);
+
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

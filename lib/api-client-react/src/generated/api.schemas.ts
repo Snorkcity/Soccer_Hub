@@ -2498,6 +2498,113 @@ export interface OkResponse {
   ok: boolean;
 }
 
+/**
+ * A curriculum document with its current version status
+ */
+export interface CurriculumDocumentResponse {
+  id: string;
+  key: string;
+  title: string;
+  docType: string;
+  ageGroup: string;
+  /** @nullable */
+  activeVersionId?: string | null;
+  /** @nullable */
+  activeFilename?: string | null;
+  /** @nullable */
+  activeVersionNumber?: number | null;
+  activeChunkCount: number;
+  activeEmbeddedCount: number;
+  /** @nullable */
+  filename?: string | null;
+  /** @nullable */
+  versionNumber?: number | null;
+  status: string;
+  isActive: boolean;
+  isReady: boolean;
+  chunkCount: number;
+  embeddedCount: number;
+  /** @nullable */
+  error?: string | null;
+  /** @nullable */
+  uploadedAt?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  createdAt: string | null;
+}
+
+export type CurriculumDocumentList = CurriculumDocumentResponse[];
+
+export type CurriculumDocumentInputDocType = typeof CurriculumDocumentInputDocType[keyof typeof CurriculumDocumentInputDocType];
+
+
+export const CurriculumDocumentInputDocType = {
+  framework: 'framework',
+  coach_pack: 'coach_pack',
+  session_plans: 'session_plans',
+  curriculum: 'curriculum',
+} as const;
+
+export type CurriculumDocumentInputAgeGroup = typeof CurriculumDocumentInputAgeGroup[keyof typeof CurriculumDocumentInputAgeGroup];
+
+
+export const CurriculumDocumentInputAgeGroup = {
+  All: 'All',
+  U11: 'U11',
+  U12: 'U12',
+  U13: 'U13',
+  U14: 'U14',
+  U15: 'U15',
+  'U16+': 'U16+',
+} as const;
+
+/**
+ * Add a new curriculum document from a DOCX upload
+ */
+export interface CurriculumDocumentInput {
+  /** @minLength 1 */
+  title: string;
+  docType: CurriculumDocumentInputDocType;
+  ageGroup: CurriculumDocumentInputAgeGroup;
+  /** @minLength 1 */
+  filename: string;
+  /**
+     * Base64-encoded DOCX bytes
+     * @minLength 1
+     */
+  base64: string;
+}
+
+/**
+ * Replace a curriculum document with a new DOCX upload
+ */
+export interface CurriculumDocumentReplaceInput {
+  /** @minLength 1 */
+  filename: string;
+  /**
+     * Base64-encoded DOCX bytes
+     * @minLength 1
+     */
+  base64: string;
+}
+
+/**
+ * Re-index request (no additional fields required)
+ */
+export interface CurriculumDocumentReindexInput {
+  _placeholder?: string | null;
+}
+
+/**
+ * Explicit confirmation for permanent curriculum document deletion
+ */
+export interface CurriculumDocumentDeleteInput {
+  confirm: true;
+}
+
 export interface UserActivitySample {
   seenAt: string;
   userAgent: string;

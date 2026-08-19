@@ -36,6 +36,12 @@ import type {
   CopyClubsBody,
   CopyClubsResponse,
   CreateUserRequest,
+  CurriculumDocumentDeleteInput,
+  CurriculumDocumentInput,
+  CurriculumDocumentList,
+  CurriculumDocumentReindexInput,
+  CurriculumDocumentReplaceInput,
+  CurriculumDocumentResponse,
   DeleteEntryGpsUploadParams,
   DeleteEntryPlayerStatsParams,
   DriblAssembleBody,
@@ -13449,4 +13455,368 @@ export function useListAssistantMatches<TData = Awaited<ReturnType<typeof listAs
 
 
 
+
+export const getListCurriculumDocumentsUrl = () => {
+
+
+
+
+  return `/api/curriculum-documents`
+}
+
+/**
+ * @summary List all curriculum documents with version/status (superadmin only)
+ */
+export const listCurriculumDocuments = async ( options?: RequestInit): Promise<CurriculumDocumentList> => {
+
+  return customFetch<CurriculumDocumentList>(getListCurriculumDocumentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCurriculumDocumentsQueryKey = () => {
+    return [
+    `/api/curriculum-documents`
+    ] as const;
+    }
+
+
+export const getListCurriculumDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listCurriculumDocuments>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCurriculumDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCurriculumDocumentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCurriculumDocuments>>> = ({ signal }) => listCurriculumDocuments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCurriculumDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCurriculumDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listCurriculumDocuments>>>
+export type ListCurriculumDocumentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all curriculum documents with version/status (superadmin only)
+ */
+
+export function useListCurriculumDocuments<TData = Awaited<ReturnType<typeof listCurriculumDocuments>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCurriculumDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCurriculumDocumentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddCurriculumDocumentUrl = () => {
+
+
+
+
+  return `/api/curriculum-documents`
+}
+
+/**
+ * @summary Add a new curriculum document from DOCX upload (superadmin only)
+ */
+export const addCurriculumDocument = async (curriculumDocumentInput: CurriculumDocumentInput, options?: RequestInit): Promise<CurriculumDocumentResponse> => {
+
+  return customFetch<CurriculumDocumentResponse>(getAddCurriculumDocumentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(curriculumDocumentInput)
+  }
+);}
+
+
+
+
+
+export const getAddCurriculumDocumentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCurriculumDocument>>, TError,{data: BodyType<CurriculumDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addCurriculumDocument>>, TError,{data: BodyType<CurriculumDocumentInput>}, TContext> => {
+
+const mutationKey = ['addCurriculumDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addCurriculumDocument>>, {data: BodyType<CurriculumDocumentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addCurriculumDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddCurriculumDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof addCurriculumDocument>>>
+    export type AddCurriculumDocumentMutationBody = BodyType<CurriculumDocumentInput>
+    export type AddCurriculumDocumentMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a new curriculum document from DOCX upload (superadmin only)
+ */
+export const useAddCurriculumDocument = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCurriculumDocument>>, TError,{data: BodyType<CurriculumDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addCurriculumDocument>>,
+        TError,
+        {data: BodyType<CurriculumDocumentInput>},
+        TContext
+      > => {
+      return useMutation(getAddCurriculumDocumentMutationOptions(options));
+    }
+
+export const getReplaceCurriculumDocumentUrl = (id: string,) => {
+
+
+
+
+  return `/api/curriculum-documents/${id}/replace`
+}
+
+/**
+ * @summary Replace an existing curriculum document with a new DOCX (superadmin only)
+ */
+export const replaceCurriculumDocument = async (id: string,
+    curriculumDocumentReplaceInput: CurriculumDocumentReplaceInput, options?: RequestInit): Promise<CurriculumDocumentResponse> => {
+
+  return customFetch<CurriculumDocumentResponse>(getReplaceCurriculumDocumentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(curriculumDocumentReplaceInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceCurriculumDocumentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReplaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReplaceInput>}, TContext> => {
+
+const mutationKey = ['replaceCurriculumDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceCurriculumDocument>>, {id: string;data: BodyType<CurriculumDocumentReplaceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  replaceCurriculumDocument(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceCurriculumDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof replaceCurriculumDocument>>>
+    export type ReplaceCurriculumDocumentMutationBody = BodyType<CurriculumDocumentReplaceInput>
+    export type ReplaceCurriculumDocumentMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace an existing curriculum document with a new DOCX (superadmin only)
+ */
+export const useReplaceCurriculumDocument = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReplaceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceCurriculumDocument>>,
+        TError,
+        {id: string;data: BodyType<CurriculumDocumentReplaceInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceCurriculumDocumentMutationOptions(options));
+    }
+
+export const getReindexCurriculumDocumentUrl = (id: string,) => {
+
+
+
+
+  return `/api/curriculum-documents/${id}/reindex`
+}
+
+/**
+ * @summary Re-index active curriculum document content (superadmin only)
+ */
+export const reindexCurriculumDocument = async (id: string,
+    curriculumDocumentReindexInput: CurriculumDocumentReindexInput, options?: RequestInit): Promise<CurriculumDocumentResponse> => {
+
+  return customFetch<CurriculumDocumentResponse>(getReindexCurriculumDocumentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(curriculumDocumentReindexInput)
+  }
+);}
+
+
+
+
+
+export const getReindexCurriculumDocumentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reindexCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReindexInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reindexCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReindexInput>}, TContext> => {
+
+const mutationKey = ['reindexCurriculumDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reindexCurriculumDocument>>, {id: string;data: BodyType<CurriculumDocumentReindexInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reindexCurriculumDocument(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReindexCurriculumDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof reindexCurriculumDocument>>>
+    export type ReindexCurriculumDocumentMutationBody = BodyType<CurriculumDocumentReindexInput>
+    export type ReindexCurriculumDocumentMutationError = ErrorType<void>
+
+    /**
+ * @summary Re-index active curriculum document content (superadmin only)
+ */
+export const useReindexCurriculumDocument = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reindexCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentReindexInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reindexCurriculumDocument>>,
+        TError,
+        {id: string;data: BodyType<CurriculumDocumentReindexInput>},
+        TContext
+      > => {
+      return useMutation(getReindexCurriculumDocumentMutationOptions(options));
+    }
+
+export const getDeleteCurriculumDocumentUrl = (id: string,) => {
+
+
+
+
+  return `/api/curriculum-documents/${id}`
+}
+
+/**
+ * @summary Delete a curriculum document and all its versions/chunks (superadmin only)
+ */
+export const deleteCurriculumDocument = async (id: string,
+    curriculumDocumentDeleteInput: CurriculumDocumentDeleteInput, options?: RequestInit): Promise<OkResponse> => {
+
+  return customFetch<OkResponse>(getDeleteCurriculumDocumentUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(curriculumDocumentDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getDeleteCurriculumDocumentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentDeleteInput>}, TContext> => {
+
+const mutationKey = ['deleteCurriculumDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCurriculumDocument>>, {id: string;data: BodyType<CurriculumDocumentDeleteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  deleteCurriculumDocument(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCurriculumDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCurriculumDocument>>>
+    export type DeleteCurriculumDocumentMutationBody = BodyType<CurriculumDocumentDeleteInput>
+    export type DeleteCurriculumDocumentMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a curriculum document and all its versions/chunks (superadmin only)
+ */
+export const useDeleteCurriculumDocument = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCurriculumDocument>>, TError,{id: string;data: BodyType<CurriculumDocumentDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCurriculumDocument>>,
+        TError,
+        {id: string;data: BodyType<CurriculumDocumentDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getDeleteCurriculumDocumentMutationOptions(options));
+    }
 

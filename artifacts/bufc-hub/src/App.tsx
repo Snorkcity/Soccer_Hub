@@ -27,6 +27,7 @@ import MatchPrep from '@/pages/MatchPrep';
 import CoachAssistant from '@/pages/CoachAssistant';
 import ReflectionCycle from '@/pages/ReflectionCycle';
 import Users from '@/pages/Users';
+import CurriculumDocuments from '@/pages/CurriculumDocuments';
 import Account from '@/pages/Account';
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ function Router() {
             <Route path="/assistant" component={CoachAssistant} />
             <Route path="/reflections/:id" component={ReflectionCycle} />
             <Route path="/data-entry" component={DataEntry} />
+            <Route path="/curriculum" component={CurriculumDocuments} />
             <Route path="/users" component={Users} />
             <Route path="/account" component={Account} />
             <Route component={NotFound} />

@@ -38,6 +38,8 @@ tags:
     description: Training-session builder (assembled from library practices)
   - name: journal
     description: Reflection journal (A-diploma cycles + standalone coach reflections)
+  - name: curriculum
+    description: Curriculum document management (superadmin only)
 
 paths:
   /healthz:
@@ -3588,6 +3590,134 @@ paths:
         "403":
           description: Assistant not enabled for this league
 
+  /curriculum-documents:
+    get:
+      operationId: listCurriculumDocuments
+      tags: [curriculum]
+      summary: List all curriculum documents with version/status (superadmin only)
+      responses:
+        "200":
+          description: All curriculum documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurriculumDocumentList"
+        "403":
+          description: Superadmin required
+    post:
+      operationId: addCurriculumDocument
+      tags: [curriculum]
+      summary: Add a new curriculum document from DOCX upload (superadmin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurriculumDocumentInput"
+      responses:
+        "201":
+          description: Document created and indexed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurriculumDocumentResponse"
+        "400":
+          description: Invalid DOCX or missing fields
+        "403":
+          description: Superadmin required
+        "409":
+          description: Document key already exists
+
+  /curriculum-documents/{id}/replace:
+    post:
+      operationId: replaceCurriculumDocument
+      tags: [curriculum]
+      summary: Replace an existing curriculum document with a new DOCX (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurriculumDocumentReplaceInput"
+      responses:
+        "200":
+          description: Document replaced and re-indexed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurriculumDocumentResponse"
+        "400":
+          description: Invalid DOCX
+        "403":
+          description: Superadmin required
+        "404":
+          description: Document not found
+
+  /curriculum-documents/{id}/reindex:
+    post:
+      operationId: reindexCurriculumDocument
+      tags: [curriculum]
+      summary: Re-index active curriculum document content (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurriculumDocumentReindexInput"
+      responses:
+        "200":
+          description: Document re-indexed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurriculumDocumentResponse"
+        "400":
+          description: No active version to re-index
+        "403":
+          description: Superadmin required
+        "404":
+          description: Document not found
+
+  /curriculum-documents/{id}:
+    delete:
+      operationId: deleteCurriculumDocument
+      tags: [curriculum]
+      summary: Delete a curriculum document and all its versions/chunks (superadmin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurriculumDocumentDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Confirmation required (add ?confirm=true)
+        "403":
+          description: Superadmin required
+        "404":
+          description: Document not found
+
 components:
   schemas:
     AssistantMatchOption:
@@ -5911,6 +6041,78 @@ components:
       properties:
         ok: { type: boolean }
       required: [ok]
+
+    # ── Curriculum document management (task #154) ───────────────────────────
+
+    CurriculumDocumentResponse:
+      type: object
+      description: A curriculum document with its current version status
+      required: [id, key, title, docType, ageGroup, status, isActive, isReady, activeChunkCount, activeEmbeddedCount, chunkCount, embeddedCount, createdAt, updatedAt]
+      properties:
+        id:              { type: string }
+        key:             { type: string }
+        title:           { type: string }
+        docType:         { type: string }
+        ageGroup:        { type: string }
+        activeVersionId: { type: ["string", "null"] }
+        activeFilename:  { type: ["string", "null"] }
+        activeVersionNumber: { type: ["integer", "null"] }
+        activeChunkCount: { type: integer }
+        activeEmbeddedCount: { type: integer }
+        filename:        { type: ["string", "null"] }
+        versionNumber:   { type: ["integer", "null"] }
+        status:          { type: string }
+        isActive:        { type: boolean }
+        isReady:         { type: boolean }
+        chunkCount:      { type: integer }
+        embeddedCount:   { type: integer }
+        error:           { type: ["string", "null"] }
+        uploadedAt:      { type: ["string", "null"] }
+        publishedAt:     { type: ["string", "null"] }
+        updatedAt:       { type: ["string", "null"] }
+        createdAt:       { type: ["string", "null"] }
+
+    CurriculumDocumentList:
+      type: array
+      items: { $ref: "#/components/schemas/CurriculumDocumentResponse" }
+
+    CurriculumDocumentInput:
+      type: object
+      description: Add a new curriculum document from a DOCX upload
+      required: [title, docType, ageGroup, filename, base64]
+      properties:
+        title:    { type: string, minLength: 1 }
+        docType:
+          type: string
+          enum: [framework, coach_pack, session_plans, curriculum]
+        ageGroup:
+          type: string
+          enum: [All, U11, U12, U13, U14, U15, "U16+"]
+        filename: { type: string, minLength: 1 }
+        base64:   { type: string, minLength: 1, description: "Base64-encoded DOCX bytes" }
+
+    CurriculumDocumentReplaceInput:
+      type: object
+      description: Replace a curriculum document with a new DOCX upload
+      required: [filename, base64]
+      properties:
+        filename: { type: string, minLength: 1 }
+        base64:   { type: string, minLength: 1, description: "Base64-encoded DOCX bytes" }
+
+    CurriculumDocumentReindexInput:
+      type: object
+      description: Re-index request (no additional fields required)
+      properties:
+        _placeholder: { type: string, nullable: true }
+
+    CurriculumDocumentDeleteInput:
+      type: object
+      description: Explicit confirmation for permanent curriculum document deletion
+      required: [confirm]
+      properties:
+        confirm:
+          type: boolean
+          enum: [true]
 
     UserInfo:
       type: object

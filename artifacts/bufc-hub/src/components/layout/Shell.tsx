@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, Video, X } from "lucide-react";
+import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, Video, X, BookText } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { CoachAssistantOverlay } from "@/components/assistant/CoachAssistantOverlay";
@@ -56,6 +56,7 @@ const navSections: { heading: string | null; items: NavItem[] }[] = [
     heading: "Admin",
     items: [
       { href: "/data-entry", label: "Data Entry", icon: Edit3, module: "data-entry" },
+      { href: "/curriculum", label: "Curriculum", icon: BookText, superadmin: true },
       { href: "/users", label: "Users", icon: Users, superadmin: true },
       { href: "/account", label: "My Account", icon: UserRound },
     ],
@@ -154,6 +155,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      data-testid={`nav-${item.href.replace(/^\/+/, "").replace(/[^a-z0-9-]/gi, "-") || "home"}`}
                       title={collapsed ? item.label : undefined}
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-3 rounded-md py-3 md:py-2.5 text-sm font-medium transition-colors ${

@@ -5329,3 +5329,170 @@ export const ListAssistantMatchesResponse = zod.object({
 })
 
 
+/**
+ * @summary List all curriculum documents with version/status (superadmin only)
+ */
+export const ListCurriculumDocumentsResponseItem = zod.object({
+  "id": zod.string(),
+  "key": zod.string(),
+  "title": zod.string(),
+  "docType": zod.string(),
+  "ageGroup": zod.string(),
+  "activeVersionId": zod.string().nullish(),
+  "activeFilename": zod.string().nullish(),
+  "activeVersionNumber": zod.number().nullish(),
+  "activeChunkCount": zod.number(),
+  "activeEmbeddedCount": zod.number(),
+  "filename": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.string(),
+  "isActive": zod.boolean(),
+  "isReady": zod.boolean(),
+  "chunkCount": zod.number(),
+  "embeddedCount": zod.number(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "updatedAt": zod.string().nullable(),
+  "createdAt": zod.string().nullable()
+}).describe('A curriculum document with its current version status')
+export const ListCurriculumDocumentsResponse = zod.array(ListCurriculumDocumentsResponseItem)
+
+
+/**
+ * @summary Add a new curriculum document from DOCX upload (superadmin only)
+ */
+
+
+
+
+
+export const AddCurriculumDocumentBody = zod.object({
+  "title": zod.string().min(1),
+  "docType": zod.enum(['framework', 'coach_pack', 'session_plans', 'curriculum']),
+  "ageGroup": zod.enum(['All', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16+']),
+  "filename": zod.string().min(1),
+  "base64": zod.string().min(1).describe('Base64-encoded DOCX bytes')
+}).describe('Add a new curriculum document from a DOCX upload')
+
+export const AddCurriculumDocumentResponse = zod.object({
+  "id": zod.string(),
+  "key": zod.string(),
+  "title": zod.string(),
+  "docType": zod.string(),
+  "ageGroup": zod.string(),
+  "activeVersionId": zod.string().nullish(),
+  "activeFilename": zod.string().nullish(),
+  "activeVersionNumber": zod.number().nullish(),
+  "activeChunkCount": zod.number(),
+  "activeEmbeddedCount": zod.number(),
+  "filename": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.string(),
+  "isActive": zod.boolean(),
+  "isReady": zod.boolean(),
+  "chunkCount": zod.number(),
+  "embeddedCount": zod.number(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "updatedAt": zod.string().nullable(),
+  "createdAt": zod.string().nullable()
+}).describe('A curriculum document with its current version status')
+
+
+/**
+ * @summary Replace an existing curriculum document with a new DOCX (superadmin only)
+ */
+export const ReplaceCurriculumDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+
+
+
+export const ReplaceCurriculumDocumentBody = zod.object({
+  "filename": zod.string().min(1),
+  "base64": zod.string().min(1).describe('Base64-encoded DOCX bytes')
+}).describe('Replace a curriculum document with a new DOCX upload')
+
+export const ReplaceCurriculumDocumentResponse = zod.object({
+  "id": zod.string(),
+  "key": zod.string(),
+  "title": zod.string(),
+  "docType": zod.string(),
+  "ageGroup": zod.string(),
+  "activeVersionId": zod.string().nullish(),
+  "activeFilename": zod.string().nullish(),
+  "activeVersionNumber": zod.number().nullish(),
+  "activeChunkCount": zod.number(),
+  "activeEmbeddedCount": zod.number(),
+  "filename": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.string(),
+  "isActive": zod.boolean(),
+  "isReady": zod.boolean(),
+  "chunkCount": zod.number(),
+  "embeddedCount": zod.number(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "updatedAt": zod.string().nullable(),
+  "createdAt": zod.string().nullable()
+}).describe('A curriculum document with its current version status')
+
+
+/**
+ * @summary Re-index active curriculum document content (superadmin only)
+ */
+export const ReindexCurriculumDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReindexCurriculumDocumentBody = zod.object({
+  "_placeholder": zod.string().nullish()
+}).describe('Re-index request (no additional fields required)')
+
+export const ReindexCurriculumDocumentResponse = zod.object({
+  "id": zod.string(),
+  "key": zod.string(),
+  "title": zod.string(),
+  "docType": zod.string(),
+  "ageGroup": zod.string(),
+  "activeVersionId": zod.string().nullish(),
+  "activeFilename": zod.string().nullish(),
+  "activeVersionNumber": zod.number().nullish(),
+  "activeChunkCount": zod.number(),
+  "activeEmbeddedCount": zod.number(),
+  "filename": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.string(),
+  "isActive": zod.boolean(),
+  "isReady": zod.boolean(),
+  "chunkCount": zod.number(),
+  "embeddedCount": zod.number(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "updatedAt": zod.string().nullable(),
+  "createdAt": zod.string().nullable()
+}).describe('A curriculum document with its current version status')
+
+
+/**
+ * @summary Delete a curriculum document and all its versions/chunks (superadmin only)
+ */
+export const DeleteCurriculumDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteCurriculumDocumentBody = zod.object({
+  "confirm": zod.literal(true)
+}).describe('Explicit confirmation for permanent curriculum document deletion')
+
+export const DeleteCurriculumDocumentResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+

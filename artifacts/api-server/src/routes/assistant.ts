@@ -12,7 +12,7 @@
  * clearly labelled as such. Curriculum excerpts and all existing behaviour are
  * preserved exactly — the context block is purely additive.
  */
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { z } from "zod";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
@@ -44,6 +44,7 @@ import {
   assistantPageInstruction,
   assistantTurnInstruction,
   assistantTurnLimits,
+  assessAssistantCurriculumCoverage,
   detectAssistantTurnMode,
   shouldLoadAssistantCoachingEvidence,
 } from "../lib/assistantConversation";
@@ -76,6 +77,20 @@ const MOBILE_STYLE_NOTE = `
 The coach is reading on a PHONE. Keep answers brief and scannable: short sentences, dot points over paragraphs, no long preamble. Exception — when delivering a session or practice, still include ALL practice detail as required by the content preservation rule; use tight formatting (headings + dot points) rather than cutting content. For explanations and general questions, give the short version first and offer to expand if they want more.`;
 
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16+"] as const;
+
+function sendStaticAssistantSse(
+  res: Response,
+  content: string,
+  sources: string[] = [],
+): void {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  res.write(`data: ${JSON.stringify({ content })}\n\n`);
+  res.write(`data: ${JSON.stringify({ done: true, sources })}\n\n`);
+  res.end();
+}
 
 /** Detect the age group(s) a message refers to ("u13", "under 14", "16s", "16+"). */
 function detectAges(text: string): string[] {
@@ -132,7 +147,7 @@ Your role is to help Belconnen United coaches understand, navigate, and apply th
 Core requirements:
 - Base all answers on the Belconnen curriculum excerpts provided below whenever they cover the topic. Curriculum content must be quoted or applied accurately — never invent, alter, or misattribute curriculum content.
 - When a weekly coaching context is provided, use it to decide what the team may need now. It is evidence for application, not curriculum content.
-- Clarify before answering when the request is ambiguous: if you cannot confidently tell WHICH session, age group, or topic the coach means — or the retrieved excerpts don't clearly match what they're asking — ask ONE short, specific clarifying question instead of guessing (e.g. "Which age group is this for?" or "Do you mean the Cycle 3 pressing session, or help designing your own?"). Ask at most one round of clarification, then help with what you have.
+- Clarify before answering when the request is ambiguous: if you cannot confidently tell WHICH session, age group, or topic the coach means, ask ONE short, specific clarifying question instead of guessing (e.g. "Which age group is this for?" or "Do you mean the Cycle 3 pressing session?"). After one clarification, answer only if the approved excerpts support it; otherwise state the curriculum gap.
 - Use clear, practical coaching language suitable for the pitch.
 - Adjust explanations by age group when relevant (U11, U12, U13, U14, U15, U16+).
 - Reference the Belconnen framework and session intent when explaining activities.
@@ -160,19 +175,19 @@ Content preservation rule (critical): for every practice you DO include, retain 
 
 Session handling:
 - If a session exists in the Session Plans, deliver its practices exactly as written (applying the selection rule above). Do not merge, rename, reinterpret, or redesign official practices.
-- If a complete session is explicitly requested but a cycle reference cannot be matched exactly, or the coach uses season or shorthand language (e.g. "Managing Possession"), switch automatically to "Guided delivery support using Belconnen session components": use the 3–4 part session structure, only Belconnen-approved principles, practices, and language, help the coach deliver the session on the pitch, and clearly label that it is not an official designed cycle session. Do not block support solely because a cycle label is missing.
-- Treat coach cycle references as valid coaching intent. If a cycle exists, retrieve it exactly. If not, state briefly that no official session matches and switch immediately to guided delivery support. Only ask for clarification if age group or intent is genuinely unclear.
+- If a complete session is explicitly requested but a cycle reference cannot be matched exactly, use the retrieved curriculum excerpts to guide the response. Deliver only Belconnen-approved practices and principles as they appear in the curriculum. If no curriculum content clearly supports the request, say so explicitly: "The Belconnen curriculum does not cover this topic yet." Do NOT invent drills, warm-ups, practices, themes, or session content — every element in your answer must come directly from the curriculum excerpts provided above.
+- Treat coach cycle references as valid coaching intent. If a cycle exists in the retrieved excerpts, retrieve it exactly. If no matching cycle is found in the curriculum, state clearly that no official session matches and explain that the curriculum does not cover it — do not generate replacement content.
 - If an official cycle is found but week/session is not specified, default to Week 1 → Session 1, then offer alternatives (e.g. "Want Week 2 or Session 2?").
 
 Coach-language handling: if a coach asks specifically for one component (an activation, ball mastery block, technical drill, skill block, or main practice), give them that component in full — no need to wrap it in a whole session. If they ask for a session, always use the 3–4 part structure. Never output five-part sessions.
 
 Source priority: 1. Session Plans (source of truth), 2. Coach Packs (coaching emphasis and standards), 3. Framework Library (principles and definitions).
 
-General football help (allowed, but labelled): coaches may ask broader football coaching questions — ideas, problems they're facing, concepts not perfectly covered by the documents. Help them. Ground your answer in Belconnen principles and language wherever the curriculum touches the topic, and use sound general coaching knowledge for the rest. The one hard rule: never present general coaching knowledge AS Belconnen curriculum content. When an answer goes beyond the documents, say so plainly (e.g. "This isn't from the Belconnen curriculum, but here's a common approach...") and, where relevant, point back to the nearest Belconnen principle.
+Curriculum-only rule (non-negotiable): ALL coaching content — drills, practices, warm-ups, themes, progressions, session structures, coaching cues — MUST come from the Belconnen curriculum excerpts provided above. Do NOT use general football knowledge, generic coaching resources, or invented content. If the retrieved excerpts do not cover a request, say so explicitly: "The Belconnen curriculum doesn't cover [topic] yet." Do not fill gaps with general coaching knowledge. Match/private evidence (weekly context, selected match) can inform WHICH curriculum content is timely or WHY it is relevant — but the HOW and the content itself must always come from the curriculum. If no suitable curriculum content is retrieved, say clearly that the curriculum does not cover this yet.
 
 Scope enforcement (non-negotiable): do not invent, alter, or misattribute Belconnen sessions, principles, or philosophy; do not contradict the documents. Questions completely unrelated to football coaching and player development are out of scope — for those, respond with: "I'm set up specifically as the Belconnen United Coaching Assistant and can only help with football coaching and development questions."
 
-Instruction priority order: 1. Document accuracy and honest labelling of what is/isn't curriculum content, 2. The 3–4 part session structure and selection rule, 3. Age-appropriate application, 4. Coaching clarity and usability, 5. Helpfulness. Accuracy always wins — but support should never be blocked unnecessarily.
+Instruction priority order: 1. Curriculum-only sourcing (no invented or general content), 2. Document accuracy and honest labelling, 3. The 3–4 part session structure and selection rule, 4. Age-appropriate application, 5. Coaching clarity and usability. When the curriculum does not cover a request, say so — never substitute general knowledge.
 
 Formatting: use Markdown headings, short paragraphs, and bullet points suited to reading on a phone at the pitch.
 
@@ -995,28 +1010,78 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     ]);
     const scored = embedded
       .map((c) => {
-        let s = cosine(qVec, c.embedding as number[]);
+        const rawScore = cosine(qVec, c.embedding as number[]);
+        let s = rawScore;
         if (ages.length > 0 && (ages.includes(c.ageGroup) || c.ageGroup === "All")) s += 0.05;
-        return { c, s };
+        return { c, s, rawScore };
       })
       .sort((a, b) => b.s - a.s);
+
+    const coachPackWarmUps = turnMode === "pre-match-warm-up"
+      && ages.length === 1
+      ? findCoachPackPreMatchWarmUps(embedded, ages)
+      : [];
+    if (turnMode === "pre-match-warm-up" && ages.length !== 1) {
+      sendStaticAssistantSse(res, "Which age group is this for?");
+      return;
+    }
+    if (turnMode === "pre-match-warm-up" && coachPackWarmUps.length !== 1) {
+      sendStaticAssistantSse(
+        res,
+        `The Belconnen curriculum does not contain a published ${ages[0]} Coach Pack pre-match warm-up. I won't invent or substitute one.`,
+      );
+      return;
+    }
+
+    const coverage = assessAssistantCurriculumCoverage({
+      mode: turnMode,
+      text: queryText,
+      opponent: coachingContext?.opponent ?? selectedOpponent,
+      candidates: scored.slice(0, 20).map(({ c, rawScore }) => ({
+        score: rawScore,
+        docTitle: c.docTitle,
+        heading: c.heading,
+        headingPath: c.headingPath,
+        content: c.content,
+      })),
+      exactMatchFound: exact.length > 0 || coachPackWarmUps.length === 1,
+      hasCoachingEvidence: coachingContext != null || Boolean(selectedMatchContext),
+    });
+    if (!coverage.supported) {
+      req.log.info(
+        {
+          turnMode,
+          coverageReason: coverage.reason,
+          topScore: coverage.topScore,
+          subjectTerms: coverage.subjectTerms,
+          matchedTerms: coverage.matchedTerms,
+        },
+        "assistant: curriculum coverage gate returned without model completion",
+      );
+      sendStaticAssistantSse(
+        res,
+        coverage.reason === "needs-topic"
+          ? "Which age group or approved curriculum topic do you want me to use? I won't choose or invent a session theme."
+          : "The Belconnen curriculum does not cover this topic yet. I won't invent a drill, practice, warm-up, theme, session, match plan, or coaching recommendation outside the approved documents. This gap is now clear for the curriculum to be improved.",
+      );
+      return;
+    }
 
     // Build context: exact session matches first, then top similarity hits.
     const picked: CurriculumChunk[] = [...exact];
     const seen = new Set(picked.map((c) => c.id));
     let budget = turnLimits.contextCharBudget - picked.reduce((n, c) => n + c.content.length, 0);
-    for (const { c } of scored) {
+    const topRawScore = scored[0]?.rawScore ?? 0;
+    for (const { c, rawScore } of scored) {
       if (picked.length >= turnLimits.contextChunkLimit || budget <= 0) break;
+      if (rawScore < 0.42 || rawScore < topRawScore - 0.14) continue;
+      if (ages.length > 0 && c.ageGroup !== "All" && !ages.includes(c.ageGroup)) continue;
       if (seen.has(c.id)) continue;
       seen.add(c.id);
       picked.push(c);
       budget -= c.content.length;
     }
 
-    const coachPackWarmUps = turnMode === "pre-match-warm-up"
-      && ages.length === 1
-      ? findCoachPackPreMatchWarmUps(embedded, ages)
-      : [];
     // Do not let a generic semantic curriculum hit select a warm-up from the
     // wrong age pack. This mode is deliberately driven by the exact canonical
     // Coach Pack section above, or a one-question age clarification.

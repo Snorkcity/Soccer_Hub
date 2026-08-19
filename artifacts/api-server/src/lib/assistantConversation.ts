@@ -7,6 +7,167 @@ export type AssistantTurnMode =
   | "exact-session"
   | "general";
 
+export interface AssistantCurriculumCandidate {
+  score: number;
+  docTitle: string;
+  heading: string;
+  headingPath: string;
+  content: string;
+}
+
+export interface AssistantCurriculumCoverage {
+  supported: boolean;
+  reason: "not-required" | "exact" | "covered" | "needs-topic" | "weak-match";
+  topScore: number | null;
+  subjectTerms: string[];
+  matchedTerms: string[];
+}
+
+const CURRICULUM_INTENT_PATTERN =
+  /\b(activation|coach(?:ing)?|create|design|drill|explain|formation|framework|full session|game plan|half time|halftime|how should|improve|match plan|practice|pre match|prematch|principle|progression|recommend|session|suggest|tactic|team talk|theme|warm up|work on)\b/;
+const FACTUAL_EVIDENCE_PATTERN =
+  /\b(average|data|how many|how much|most|percentage|percent|rank|recorded|result|score|stat|statistics|total|trend|what was|what were|who has|who had)\b/;
+const COACHING_ACTION_PATTERN =
+  /\b(coach|create|design|drill|explain|game plan|half time|halftime|how should|improve|match plan|practice|prepare|recommend|session|suggest|tactic|team talk|theme|warm up|work on)\b/;
+
+/**
+ * Recorded-data questions can be answered from verified Hub/Veo context alone.
+ * Any request for coaching content or application needs approved curriculum.
+ */
+export function requiresAssistantCurriculum(
+  mode: AssistantTurnMode,
+  text: string,
+): boolean {
+  if (mode !== "general") return true;
+  const normalised = normaliseWords(text);
+  if (FACTUAL_EVIDENCE_PATTERN.test(normalised) && !COACHING_ACTION_PATTERN.test(normalised)) {
+    return false;
+  }
+  return CURRICULUM_INTENT_PATTERN.test(normalised);
+}
+
+const CURRICULUM_QUERY_STOP_WORDS = new Set([
+  "about", "adult", "adults", "after", "against", "all", "also", "and", "another",
+  "approved", "around", "based", "before", "belco", "belconnen", "best", "build",
+  "can", "coach", "coaching", "complete", "content", "create", "current", "curriculum",
+  "design", "detailed", "do", "does", "drill", "football", "for", "from", "full",
+  "game", "give", "help", "how", "improve", "into", "match", "me", "my", "new",
+  "not", "official", "one", "only", "our", "plan", "player", "players", "please",
+  "practice", "practices", "pre", "prepare", "recommend", "run", "senior", "seniors",
+  "session", "sessions", "should", "show", "suggest", "team", "theme", "themes",
+  "this", "through", "time", "talk", "training", "up", "use", "versus", "want",
+  "warm", "week", "what", "when", "which", "with", "would", "write", "yet",
+]);
+
+function stemCurriculumWord(word: string): string {
+  if (word.length > 5 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
+  if (word.length > 5 && word.endsWith("ing")) {
+    let base = word.slice(0, -3);
+    if (base.length > 2 && base.at(-1) === base.at(-2)) base = base.slice(0, -1);
+    if (base.endsWith("v")) base += "e";
+    return base;
+  }
+  if (word.length > 4 && word.endsWith("ed")) {
+    let base = word.slice(0, -2);
+    if (base.length > 2 && base.at(-1) === base.at(-2)) base = base.slice(0, -1);
+    return base;
+  }
+  if (word.length > 4 && /(sses|ches|shes|xes|zes)$/.test(word)) return word.slice(0, -2);
+  if (word.length > 4 && word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
+
+function curriculumWords(text: string): string[] {
+  return normaliseWords(text)
+    .split(" ")
+    .filter((word) => word.length >= 3 && !/^\d+$/.test(word))
+    .map(stemCurriculumWord);
+}
+
+function curriculumSubjectTerms(text: string, opponent?: string | null): string[] {
+  const opponentTerms = new Set(curriculumWords(opponent ?? ""));
+  return [...new Set(
+    curriculumWords(text).filter((term) =>
+      !CURRICULUM_QUERY_STOP_WORDS.has(term)
+      && !opponentTerms.has(term)
+      && !/^u(?:11|12|13|14|15|16)$/.test(term)
+    ),
+  )];
+}
+
+/**
+ * Conservative, deterministic retrieval gate. A chat completion is not called
+ * for coaching requests unless the retrieved approved text covers the coach's
+ * subject terms. This intentionally prefers an honest curriculum gap over a
+ * plausible-but-invented answer.
+ */
+export function assessAssistantCurriculumCoverage(args: {
+  mode: AssistantTurnMode;
+  text: string;
+  opponent?: string | null;
+  candidates: AssistantCurriculumCandidate[];
+  exactMatchFound: boolean;
+  hasCoachingEvidence: boolean;
+}): AssistantCurriculumCoverage {
+  if (!requiresAssistantCurriculum(args.mode, args.text)) {
+    return {
+      supported: true,
+      reason: "not-required",
+      topScore: args.candidates[0]?.score ?? null,
+      subjectTerms: [],
+      matchedTerms: [],
+    };
+  }
+  if (args.exactMatchFound) {
+    return {
+      supported: true,
+      reason: "exact",
+      topScore: args.candidates[0]?.score ?? null,
+      subjectTerms: [],
+      matchedTerms: [],
+    };
+  }
+
+  const topScore = args.candidates[0]?.score ?? null;
+  const subjectTerms = curriculumSubjectTerms(args.text, args.opponent);
+  if (subjectTerms.length === 0) {
+    const contextCanChooseTheme =
+      args.hasCoachingEvidence
+      && (args.mode === "recommendation"
+        || args.mode === "match-plan"
+        || args.mode === "half-time-talk")
+      && topScore != null
+      && topScore >= 0.48;
+    return {
+      supported: contextCanChooseTheme,
+      reason: contextCanChooseTheme ? "covered" : "needs-topic",
+      topScore,
+      subjectTerms,
+      matchedTerms: [],
+    };
+  }
+
+  const vocabulary = new Set(
+    args.candidates
+      .slice(0, 12)
+      .flatMap((candidate) =>
+        curriculumWords(
+          `${candidate.docTitle} ${candidate.heading} ${candidate.headingPath} ${candidate.content}`,
+        )
+      ),
+  );
+  const matchedTerms = subjectTerms.filter((term) => vocabulary.has(term));
+  const lexicalCoverage = matchedTerms.length / subjectTerms.length;
+  const supported = topScore != null && topScore >= 0.42 && lexicalCoverage >= 0.75;
+  return {
+    supported,
+    reason: supported ? "covered" : "weak-match",
+    topScore,
+    subjectTerms,
+    matchedTerms,
+  };
+}
+
 export const ASSISTANT_PAGE_KEYS = [
   "home",
   "group-home",
