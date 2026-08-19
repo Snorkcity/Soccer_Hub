@@ -12,6 +12,7 @@ import {
   UpdateMatchBody,
   UpdateMatchResponse,
 } from "@workspace/api-zod";
+import { manualMatchStatisticSourceUpdates } from "../lib/matchStatisticProvenance";
 
 /** Convert a number|null|undefined to string|null for Drizzle numeric columns */
 const n2s = (v: number | null | undefined): string | null => (v == null ? null : String(v));
@@ -91,13 +92,7 @@ router.patch("/matches/:id", async (req, res): Promise<void> => {
   const { possession, ...rest } = parsed.data;
   // This endpoint is the coach's manual editor. Only fields actually supplied
   // are reclassified as official; untouched Veo values keep their provenance.
-  const statisticSourceUpdates = {
-    ...("possession" in req.body ? { possessionSource: possession == null ? "unknown" : "official" } : {}),
-    ...("shots" in req.body ? { shotsSource: parsed.data.shots == null ? "unknown" : "official" } : {}),
-    ...("passes" in req.body ? { passesSource: parsed.data.passes == null ? "unknown" : "official" } : {}),
-    ...("oppShots" in req.body ? { oppShotsSource: parsed.data.oppShots == null ? "unknown" : "official" } : {}),
-    ...("oppPasses" in req.body ? { oppPassesSource: parsed.data.oppPasses == null ? "unknown" : "official" } : {}),
-  };
+  const statisticSourceUpdates = manualMatchStatisticSourceUpdates(req.body);
   const [match] = await db.update(matchesTable)
     .set({ ...rest, ...statisticSourceUpdates, ...("possession" in req.body ? { possession: n2s(possession) } : {}) })
     .where(eq(matchesTable.id, params.data.id))

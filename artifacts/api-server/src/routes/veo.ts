@@ -44,6 +44,7 @@ import {
   loadAnalytics2MatchIdentityContext,
 } from "../lib/veoAnalytics2Identity";
 import { GetVeoPlayerMatchQueryParams, GetVeoPlayerSeasonQueryParams } from "@workspace/api-zod";
+import { veoMatchStatisticUpdates } from "../lib/matchStatisticProvenance";
 
 const router: IRouter = Router();
 
@@ -1022,16 +1023,9 @@ export async function backfillMatchStatsFromVeo(
       .where(eq(matchesTable.id, r.matchId))
       .limit(1);
     if (cur.length === 0) continue;
-    const set: Record<string, unknown> = {};
-    for (const k of ["shots", "oppShots", "passes", "oppPasses", "possession"] as const) {
-      const sourceKey = `${k}Source` as const;
-      // Re-fetch is allowed to refresh an old Veo/unknown value, but never a
-      // coach-entered official value. A normal sync only fills a blank field.
-      if (fresh[k] != null && cur[0][sourceKey] !== "official" && (opts.overwrite || cur[0][k] == null)) {
-        set[k] = fresh[k];
-        set[sourceKey] = "veo";
-      }
-    }
+    // Re-fetch is allowed to refresh old Veo/unknown values, but never a
+    // coach-entered official value. A normal sync only fills blank fields.
+    const set = veoMatchStatisticUpdates(cur[0], fresh, opts.overwrite);
     if (Object.keys(set).length === 0) continue;
     await db.update(matchesTable).set(set).where(eq(matchesTable.id, r.matchId));
     updated++;
