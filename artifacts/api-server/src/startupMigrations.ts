@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
+import { ensureNplb2026Structure } from "./lib/nplb2026";
 
 /**
  * Idempotent schema upgrades that run on every boot, so deploying new code
@@ -486,6 +487,27 @@ export async function runStartupMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS dribl_no_lineup_unique ON dribl_no_lineup (season_id, match_id, club)`);
 
+  // Season identity: an older create route allowed duplicate league/year rows.
+  // Remove only inactive duplicates that have an active twin AND no references
+  // in any season-scoped table, then enforce the invariant in PostgreSQL.
+  await db.execute(sql`
+    DELETE FROM seasons AS duplicate
+    USING seasons AS keeper
+    WHERE duplicate.league_id = keeper.league_id
+      AND duplicate.year = keeper.year
+      AND duplicate.id <> keeper.id
+      AND duplicate.is_active = false
+      AND keeper.is_active = true
+      AND NOT EXISTS (SELECT 1 FROM league_matches row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM league_goals row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM league_player_stats row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM matches row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM goals row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM dribl_name_map row WHERE row.season_id = duplicate.id)
+      AND NOT EXISTS (SELECT 1 FROM dribl_no_lineup row WHERE row.season_id = duplicate.id)
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS seasons_league_year_unique ON seasons (league_id, year)`);
+
   // ── Paid add-ons become tick boxes (2026-07): Session Planner (+ Library)
   // and Coach Assistant were open to every signed-in user — grant them once to
   // every existing league access row so nobody loses anything, then the coach
@@ -533,6 +555,11 @@ export async function runStartupMigrations(): Promise<void> {
     WHERE l.name = 'ACT NPLM'
       AND NOT EXISTS (SELECT 1 FROM seasons s WHERE s.league_id = l.id AND s.year = '2026')
   `);
+
+  // Four separate 2026 boys grades. This helper is also used by the controlled
+  // Dribl club-setup script, so development and production resolve their own
+  // league/season IDs from stable names rather than copying IDs between DBs.
+  await ensureNplb2026Structure();
 
   // ── Reserves GPS feed (2026-08, per coach): the NPLW GPS uploads already
   // contain the reserves squad's rows ("R7-res"). Instead of double entry, a

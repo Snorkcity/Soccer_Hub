@@ -27,6 +27,7 @@ import {
 import { leagueIdForSeason, mayTouchLeagueRow } from "../middlewares/entryAuth";
 import { pgErrorCode } from "../lib/pgError";
 import { logger } from "../lib/logger";
+import { NPLB_2026_LEAGUES } from "../lib/nplb2026";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -51,7 +52,17 @@ function driblHeaders(tenantSlug: string) {
 // leagues are added. Tenant slugs: capital = Capital Football (ACT),
 // fv = Football Victoria, fdprod = Football NSW (their Match Centre lives at
 // competitions.footballnsw.com.au but the Dribl tenant slug is "fdprod").
-function driblLeagueFor(leagueName: string): { tenant: string; league: string; competition: string } | null {
+export function driblLeagueFor(leagueName: string): { tenant: string; league: string; competition: string } | null {
+  const boysGrade = NPLB_2026_LEAGUES.find(
+    (spec) => spec.localName.localeCompare(leagueName, "en", { sensitivity: "base" }) === 0,
+  );
+  if (boysGrade) {
+    return {
+      tenant: "capital",
+      league: boysGrade.driblLeague,
+      competition: "National Premier League Boys",
+    };
+  }
   if (/VIC.*NPLW|NPLW.*VIC/i.test(leagueName))
     return { tenant: "fv", league: "NPL VIC Women", competition: "Senol NPL Victoria Women" };
   if (/NSW.*NPLW.*U.?23|NPLW.*U.?23.*NSW/i.test(leagueName))
@@ -124,32 +135,42 @@ async function driblSeasonHash(tenant: string, year: string, tenantSlug: string)
 // the ground truth the AI club-setup flow uses instead of guessing from the
 // league name (which can drift to an older season's line-up). Returns null
 // when the league has no Dribl mapping or the feed can't be reached.
-export async function driblClubNamesFor(leagueName: string, year: string): Promise<string[] | null> {
+export async function driblFixtureFeedFor(
+  leagueName: string,
+  year: string,
+): Promise<{ fixtureCount: number; clubNames: string[] }> {
   const dribl = driblLeagueFor(leagueName);
-  if (!dribl) return null;
-  try {
-    const tenant = await driblTenant(dribl.tenant);
-    const { hash: seasonHash } = await driblSeasonHash(tenant, year, dribl.tenant);
-    const competition = await driblCompetitionHash(tenant, dribl.competition, dribl.tenant);
-    const names = new Set<string>();
-    let cursor: string | null = null;
-    for (let page = 0; page < 60; page++) {
-      const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
-      if (cursor) params.cursor = cursor;
-      const data = await driblGet("/fixtures", params, dribl.tenant);
-      const rows = data?.data ?? [];
-      if (rows.length === 0) break;
-      for (const row of rows) {
-        const a = row.attributes ?? {};
-        if (a.league_name === dribl.league && !a.bye_flag) {
-          if (a.home_team_name) names.add(String(a.home_team_name));
-          if (a.away_team_name) names.add(String(a.away_team_name));
-        }
+  if (!dribl) throw new Error(`Dribl sync isn't set up for ${leagueName} yet`);
+  const tenant = await driblTenant(dribl.tenant);
+  const { hash: seasonHash } = await driblSeasonHash(tenant, year, dribl.tenant);
+  const competition = await driblCompetitionHash(tenant, dribl.competition, dribl.tenant);
+  const names = new Set<string>();
+  let fixtureCount = 0;
+  let cursor: string | null = null;
+  for (let page = 0; page < 60; page++) {
+    const params: Record<string, string> = { tenant, season: seasonHash, competition, date_range: "all" };
+    if (cursor) params.cursor = cursor;
+    const data = await driblGet("/fixtures", params, dribl.tenant);
+    const rows = data?.data ?? [];
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      const a = row.attributes ?? {};
+      if (a.league_name === dribl.league && !a.bye_flag) {
+        fixtureCount++;
+        if (a.home_team_name) names.add(String(a.home_team_name));
+        if (a.away_team_name) names.add(String(a.away_team_name));
       }
-      cursor = data?.meta?.next_cursor ?? null;
-      if (!cursor) break;
     }
-    return names.size > 0 ? Array.from(names).sort() : null;
+    cursor = data?.meta?.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return { fixtureCount, clubNames: Array.from(names).sort() };
+}
+
+export async function driblClubNamesFor(leagueName: string, year: string): Promise<string[] | null> {
+  try {
+    const feed = await driblFixtureFeedFor(leagueName, year);
+    return feed.clubNames.length > 0 ? feed.clubNames : null;
   } catch {
     return null; // fall back to the AI's own knowledge
   }
@@ -186,14 +207,15 @@ function matchClub(driblTeamName: string, clubs: string[]): string | null {
 
 /** Suggest a local club name from a Dribl team name, for first-sync club
  * creation on a league with no clubs yet. Cuts the name at the first
- * grade/gender qualifier ("First Grade", "U23", "NPL Women's", …) and drops a
- * trailing bare "FC"/"SFC" token, e.g. "Sydney University SFC NPL Women's
+ * grade/gender qualifier ("First Grade", "U23", "Under 18's", "NPL Women's",
+ * …) and drops a trailing bare "FC"/"SFC"/"SC" token, e.g. "Sydney University SFC NPL Women's
  * First Grade" → "Sydney University". */
-function suggestClubName(driblTeamName: string): string {
-  let n = driblTeamName.replace(/\s+/g, " ").trim();
-  const cut = n.search(/\b(first grade|1st grade|u ?\d{2}|npl[wm]?|reserves|women'?s?|female|male|men'?s?|senior|all age|premier league)\b/i);
+export function suggestClubName(driblTeamName: string): string {
+  let n = driblTeamName.replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
+  const cut = n.search(/\b(first grade|1st grade|under ?\d{2}(?:'s)?|u ?\d{2}|npl[wm]?|reserves|women'?s?|female|male|men'?s?|senior|all age|premier league)\b/i);
   if (cut > 0) n = n.slice(0, cut);
-  n = n.replace(/\b(sfc|fc)\s*$/i, "").trim().replace(/[-–—,·]+$/, "").trim();
+  n = n.replace(/\b(sfc|fc|sc)\s*$/i, "").trim().replace(/[-–—,·]+$/, "").trim();
+  if (/^Belconnen United$/i.test(n)) return "Belconnen";
   return n || driblTeamName.trim();
 }
 
@@ -333,6 +355,9 @@ function computeStatsRows(
   for (const p of players) {
     if (p.roleSlug && p.roleSlug !== "player") continue; // coaching staff etc.
     const full = `${p.firstName} ${p.lastName}`.trim();
+    // Dribl occasionally publishes placeholder member rows with no name.
+    // They are not importable players and must not invalidate the whole sheet.
+    if (!full) continue;
     const matchesPlayer = (jersey: string, name: string): boolean =>
       (jersey !== "" && p.jersey !== "" && jersey === p.jersey) ||
       name.trim().toLowerCase() === full.toLowerCase();

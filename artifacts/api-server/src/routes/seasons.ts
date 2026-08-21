@@ -123,6 +123,10 @@ router.post("/seasons", async (req, res): Promise<void> => {
     const [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.id, season.leagueId));
     res.status(201).json(CreateSeasonResponse.parse({ ...season, leagueName: league?.name ?? "" }));
   } catch (e) {
+    if (pgErrorCode(e) === "23505") {
+      res.status(409).json({ error: "A season for that year already exists in this league" });
+      return;
+    }
     if (pgErrorCode(e) === "23503") {
       res.status(400).json({ error: "That league does not exist" });
       return;

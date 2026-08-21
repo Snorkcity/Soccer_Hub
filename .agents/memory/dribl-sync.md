@@ -35,3 +35,9 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 **Name map must exist in BOTH DBs:** dribl_name_map is claimed during preview against whichever DB the sync runs on — prod sat empty while dev learned pins, risking divergent short-name assignments. Prod was seeded from dev (Jul 2026, verified against prod's saved goal/stat spellings first). Any dev/prod copy of Dribl data must include dribl_name_map or splits like A.Rakic/An.Rakic can re-shuffle.
 
 **Stable name map:** prefix-only variants can't tell Anthony/Andrija apart once A. and An. both exist (names escalated every game). Fix: dribl_name_map table pins full name → display name per club/season permanently; first player (chronological) keeps the short name, later arrival gets next free prefix; unique index on display name too; claims persisted during preview with onConflictDoNothing.
+
+**Capital NPLB team labels:** a single 2026 grade feed can identify teams with either a compact `U##` suffix or a verbose `Under ##'s Division 1` suffix. Club-name cleanup must recognise both forms (plus FC/SFC/SC endings) before matching or creating clubs.
+
+**Why:** Treating only one live label style as canonical creates false clubs or unmatched fixtures when Capital changes the presentation without changing the competition.
+
+**How to apply:** When adding or reviewing Capital boys grades, validate fixture-derived club names across the full feed and keep both qualifier patterns in the shared normaliser.
