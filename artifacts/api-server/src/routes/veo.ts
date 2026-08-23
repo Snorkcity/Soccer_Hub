@@ -43,7 +43,14 @@ import {
   enrichAnalytics2PlayerIdentities,
   loadAnalytics2MatchIdentityContext,
 } from "../lib/veoAnalytics2Identity";
-import { GetVeoPlayerMatchQueryParams, GetVeoPlayerSeasonQueryParams } from "@workspace/api-zod";
+import {
+  GetVeoPlayerMatchQueryParams,
+  GetVeoPlayerSeasonQueryParams,
+  matchTimingForLeague,
+  veoEventMatchMinute,
+  veoPeriodDurationsMinutes,
+  type MatchTimingPolicy,
+} from "@workspace/api-zod";
 import { veoMatchStatisticUpdates } from "../lib/matchStatisticProvenance";
 
 const router: IRouter = Router();
@@ -619,6 +626,12 @@ router.get("/veo/season", async (req, res) => {
 router.get("/veo/season-shots", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
   if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const [league] = await db
+    .select({ name: leaguesTable.name })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const timing = matchTimingForLeague(league?.name);
   const rows = await db
     .select({
       id: veoMatchesTable.id,
@@ -649,18 +662,12 @@ router.get("/veo/season-shots", async (req, res) => {
     const periods = Array.isArray(r.periods)
       ? (r.periods as { duration?: number; own_side?: string }[])
       : [];
-    // Cumulative period offsets in minutes (real durations, 45-min fallback).
-    const offsets: number[] = [0];
-    for (const p of periods) {
-      const durMin = Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45;
-      offsets.push(offsets[offsets.length - 1] + durMin);
-    }
+    const periodDurations = veoPeriodDurationsMinutes(periods, timing);
     const shots: { x: number | null; y: number | null; minute: number; goal: boolean; us: boolean }[] = [];
     for (const e of events) {
       if (e?.event_type !== "FootballShot" && e?.event_type !== "FootballGoal") continue;
       const pid = Number(e.period_id) || 1;
-      const off = offsets[pid - 1] ?? (pid - 1) * 45;
-      const minute = off + (Number(e.period_time_ms) || 0) / 60000;
+      const minute = veoEventMatchMinute(e, periodDurations, timing);
       // own_side = the end our GOAL is at; rotate the whole pitch 180° for
       // periods where our goal is on the right so we always attack right.
       // (Season-scale data confirms this orientation: our shots cluster at
@@ -1291,20 +1298,15 @@ function computeMatchIntel(
   periods: unknown,
   passDetails: unknown,
   opp: string,
+  timing: MatchTimingPolicy,
 ) {
   const evts = (Array.isArray(events) ? events : []) as (VeoEventLite & { x?: number; z?: number })[];
   const isOwn = (e: VeoEventLite) => e.team === "Own";
   const periodRows = Array.isArray(periods)
     ? (periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
-  const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
-  const offsets: number[] = [0];
-  for (let i = 0; i < durMin.length; i++) offsets.push(offsets[i] + durMin[i]);
-  const minuteOf = (e: VeoEventLite) => {
-    const pid = Number(e.period_id) || 1;
-    const off = offsets[pid - 1] ?? (pid - 1) * 45;
-    return off + (Number(e.period_time_ms) || 0) / 60000;
-  };
-  const halfAt = durMin.length > 0 ? durMin[0] : 45;
+  const durMin = veoPeriodDurationsMinutes(periodRows, timing);
+  const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
+  const halfAt = durMin.length > 0 ? Math.min(durMin[0], timing.regulationMinutes) : timing.halfMinutes;
   const playedMin = durMin.reduce((a, b) => a + b, 0);
 
   // Unified moment timeline (goals, shots, corners) on the match clock.
@@ -1321,8 +1323,7 @@ function computeMatchIntel(
   const wEvts = evts
     .map((e) => ({ min: minuteOf(e), w: MOMENTUM_WEIGHT[e.event_type ?? ""] ?? 0, own: isOwn(e) }))
     .filter((e) => e.w > 0);
-  const maxEventMin = wEvts.length ? Math.max(...wEvts.map((e) => e.min)) : 0;
-  const maxMin = periodRows.length > 0 ? Math.max(playedMin, maxEventMin) : Math.max(90, maxEventMin);
+  const maxMin = timing.regulationMinutes;
 
   // Per-half territory from RAS possession-by-thirds when available.
   const halfTilt: { from: number; to: number; tilt: number }[] = [];
@@ -1355,7 +1356,7 @@ function computeMatchIntel(
   const possession = possSecUs + possSecThem > 0
     ? (() => {
         const shareUs = possSecUs / (possSecUs + possSecThem);
-        const base = playedMin > 0 ? playedMin : 90;
+        const base = playedMin > 0 ? Math.min(playedMin, timing.regulationMinutes) : timing.regulationMinutes;
         return {
           usPct: Number((shareUs * 100).toFixed(1)),
           usMin: Number((base * shareUs).toFixed(1)),
@@ -1515,7 +1516,7 @@ function computeMatchIntel(
   };
 }
 
-function computeReportStats(events: unknown[], periods: unknown) {
+function computeReportStats(events: unknown[], periods: unknown, timing: MatchTimingPolicy) {
   const evts = (Array.isArray(events) ? events : []) as VeoEventLite[];
   const isOwn = (e: VeoEventLite) => e.team === "Own";
 
@@ -1525,19 +1526,9 @@ function computeReportStats(events: unknown[], periods: unknown) {
     if (e.event_type === "FootballShot" || e.event_type === "FootballGoal") (isOwn(e) ? shotsUs++ : shotsThem++);
 
   // Minute-of-match using real period durations when Veo provides them.
-  const durMin: number[] = Array.isArray(periods)
-    ? (periods as { duration?: number }[]).map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45))
-    : [];
-  const offsets: number[] = [0];
-  for (let i = 0; i < durMin.length; i++) offsets.push(offsets[i] + durMin[i]);
-  const minuteOf = (e: VeoEventLite) => {
-    const pid = Number(e.period_id) || 1;
-    const off = offsets[pid - 1] ?? (pid - 1) * 45;
-    return off + (Number(e.period_time_ms) || 0) / 60000;
-  };
-
-  const maxMin = Math.max(90, ...evts.map(minuteOf));
-  const bins = Math.ceil(maxMin / BIN_MIN);
+  const durMin = veoPeriodDurationsMinutes(periods, timing);
+  const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
+  const bins = Math.ceil(timing.regulationMinutes / BIN_MIN);
   const momentum = Array.from({ length: bins }, (_, i) => ({ min: i * BIN_MIN, us: 0, them: 0 }));
   for (const e of evts) {
     const w = MOMENTUM_WEIGHT[e.event_type ?? ""];
@@ -1788,9 +1779,23 @@ router.get("/veo/report-stats", async (req, res) => {
   const row = rows[0];
   if (!row || !Array.isArray(row.events) || row.events.length === 0) return res.json({ linked: false });
 
-  const { shots, momentum } = computeReportStats(row.events, row.periods);
-  const intel = computeMatchIntel(row.events, row.periods, row.passDetails, row.opponent ?? "the opposition");
-  return res.json({ linked: true, veoId: row.id, startsAt: row.startsAt, shots, momentum, ...intel });
+  const [league] = await db
+    .select({ name: leaguesTable.name })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  const timing = matchTimingForLeague(league?.name);
+  const { shots, momentum } = computeReportStats(row.events, row.periods, timing);
+  const intel = computeMatchIntel(row.events, row.periods, row.passDetails, row.opponent ?? "the opposition", timing);
+  return res.json({
+    linked: true,
+    veoId: row.id,
+    startsAt: row.startsAt,
+    matchMinutes: timing.regulationMinutes,
+    shots,
+    momentum,
+    ...intel,
+  });
 });
 
 export default router;

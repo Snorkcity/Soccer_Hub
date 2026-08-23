@@ -48,6 +48,14 @@ import { useActiveLeague } from "@/contexts/LeagueContext";
 import { VeoSeasonPlayers } from "@/components/veo/VeoSeasonPlayers";
 import { VeoMatchPlayers } from "@/components/veo/VeoMatchPlayers";
 import { useAssistant } from "@/contexts/AssistantContext";
+import {
+  goalIntervalIndex,
+  matchTimelineTicks,
+  matchTimingForLeague,
+  veoEventMatchMinute,
+  veoPeriodDurationsMinutes,
+  type MatchTimingPolicy,
+} from "@workspace/api-zod";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -87,19 +95,11 @@ const BIN_MIN = 5; // minutes per momentum bar
 
 const isOwn = (e: VeoEvent) => e.team === "Own";
 
-// Overall match minute from period + time-within-period, using real period
-// durations from Veo when available (falls back to 45-min halves).
-function makeMinuteOf(periods: unknown): (e: VeoEvent) => number {
-  const durMin: number[] = Array.isArray(periods)
-    ? (periods as { duration?: number }[]).map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45))
-    : [];
-  const offsets: number[] = [0];
-  for (let i = 0; i < durMin.length; i++) offsets.push(offsets[i] + durMin[i]);
-  return (e: VeoEvent) => {
-    const pid = Number(e.period_id) || 1;
-    const off = offsets[pid - 1] ?? (pid - 1) * 45;
-    return off + (Number(e.period_time_ms) || 0) / 60000;
-  };
+// Overall match minute from period + time-within-period. Real Veo durations
+// win; missing periods fall back to the selected grade's half length.
+function makeMinuteOf(periods: unknown, timing: MatchTimingPolicy): (e: VeoEvent) => number {
+  const durMin = veoPeriodDurationsMinutes(periods, timing);
+  return (event: VeoEvent) => veoEventMatchMinute(event, durMin, timing);
 }
 
 // Old recording titles use club abbreviations — map them to the club names the
@@ -234,7 +234,9 @@ function fmtDate(iso?: string | null): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VeoInsights() {
   const { hasModule, ready, isSuperadmin } = useLeagueModules();
-  const { activeLeagueId } = useActiveLeague();
+  const { activeLeagueId, leagueOptions } = useActiveLeague();
+  const activeLeagueName = leagueOptions.find((league) => league.id === activeLeagueId)?.name;
+  const matchTiming = matchTimingForLeague(activeLeagueName);
   const { setPageMatchContext, setPageContextOverride } = useAssistant();
   const qc = useQueryClient();
 
@@ -472,6 +474,7 @@ export default function VeoInsights() {
                   matches={seasonData.matches}
                   shotMatches={seasonShotsData?.matches ?? []}
                   passingMatches={seasonPassingData?.matches ?? []}
+                  timing={matchTiming}
                 />
               )
             ) : (
@@ -489,6 +492,7 @@ export default function VeoInsights() {
                 match={match}
                 events={events}
                 passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
+                timing={matchTiming}
               />
             )
           ) : (
@@ -747,10 +751,11 @@ function MatchLinksCard({
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches, passingMatches }: {
+function SeasonView({ matches, shotMatches, passingMatches, timing }: {
   matches: VeoSeasonMatch[];
   shotMatches: VeoSeasonShotMatch[];
   passingMatches: VeoSeasonPassingMatch[];
+  timing: MatchTimingPolicy;
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
   // so charts default to the latest year with a year picker to look back.
@@ -844,7 +849,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     });
   }, [filtered]);
 
-  // Season shot map + 15-min threat bands (from /veo/season-shots).
+  // Season shot map + grade-aware threat bands (from /veo/season-shots).
   const [showUs, setShowUs] = useState(true);
   const [showThem, setShowThem] = useState(true);
   const filteredShotMatches = useMemo(() => {
@@ -898,34 +903,32 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
     return { pts, usTotal, themTotal, located };
   }, [mapMatches, showUs, showThem]);
 
-  // Average shots per game in each 15-min band — real counts, not shares, so
+  // Average shots per game in each grade-aware band — real counts, not shares, so
   // our volume and the opponents' volume can be compared honestly. One chart
   // per side (each with its own club toggle) because the raw numbers differ.
   const bandCounts = (ms: VeoSeasonShotMatch[], us: boolean) => {
-    const BANDS = 6;
-    const sum = Array(BANDS).fill(0);
+    const sum = Array(timing.goalIntervals.length).fill(0);
     const n = ms.length;
     for (const m of ms) {
       for (const s of m.shots) {
         if (s.us !== us) continue;
-        // Extra/stoppage time folds into the 75–90 band.
-        sum[Math.min(BANDS - 1, Math.max(0, Math.floor(s.minute / 15)))]++;
+        const index = goalIntervalIndex(s.minute, timing);
+        if (index != null) sum[index]++;
       }
     }
-    const labels = ["0–15", "15–30", "30–45", "45–60", "60–75", "75–90"];
-    return labels.map((label, i) => ({
-      label,
+    return timing.goalIntervals.map((interval, i) => ({
+      label: interval.label,
       avg: n > 0 ? Number((sum[i] / n).toFixed(2)) : 0,
       total: sum[i],
     }));
   };
   const threatUs = useMemo(
     () => bandCounts(filteredShotMatches.filter((m) => !hiddenThreatUsOpps.has(opponentOf(m))), true),
-    [filteredShotMatches, hiddenThreatUsOpps],
+    [filteredShotMatches, hiddenThreatUsOpps, timing],
   );
   const threatThem = useMemo(
     () => bandCounts(filteredShotMatches.filter((m) => !hiddenThreatThemOpps.has(opponentOf(m))), false),
-    [filteredShotMatches, hiddenThreatThemOpps],
+    [filteredShotMatches, hiddenThreatThemOpps, timing],
   );
 
   // Both threat charts share a Y scale so the volumes compare honestly.
@@ -1490,9 +1493,9 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
       <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>When our threat comes — 15-minute bands</CardTitle>
+            <CardTitle>When our threat comes — match intervals</CardTitle>
             <CardDescription>
-              Average shots (incl. goals) we take per game in each 15-minute window — real volumes, so a quiet band means genuinely few shots, not just a smaller share. Stoppage and extra time count in the 75–90 band.
+              Average shots (incl. goals) we take per game in each grade-specific window — real volumes, so a quiet band means genuinely few shots, not just a smaller share. Stoppage time counts in the final interval.
               {threatInsight ? <> {threatInsight}</> : null}
             </CardDescription>
           </CardHeader>
@@ -1520,7 +1523,7 @@ function SeasonView({ matches, shotMatches, passingMatches }: {
 
         <Card>
           <CardHeader>
-            <CardTitle>When their threat comes — 15-minute bands</CardTitle>
+            <CardTitle>When their threat comes — match intervals</CardTitle>
             <CardDescription>
               Average shots per game our opponents take in each window, on the same scale as our chart — so the two can be compared side by side.
             </CardDescription>
@@ -1563,12 +1566,14 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function MatchView({ match, events, passing }: {
+function MatchView({ match, events, passing, timing }: {
   match: { opponent?: string | null; title?: string | null; startsAt?: string | null; periods?: unknown; passDetails?: Record<string, unknown> | null };
   events: VeoEvent[];
   passing: VeoSeasonPassingMatch | null;
+  timing: MatchTimingPolicy;
 }) {
   const opp = opponentOf(match);
+  const timelineTicks = matchTimelineTicks(timing);
 
   // Possession heat map from the RAS 18-zone grid. Veo's raw "passLocations"
   // points turned out NOT to be pitch positions (they form the same centred
@@ -1621,7 +1626,7 @@ function MatchView({ match, events, passing }: {
     const periodRows = Array.isArray(match.periods)
       ? (match.periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[])
       : [];
-    const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
+    const durMin = veoPeriodDurationsMinutes(periodRows, timing);
     const wins: { fromMin: number; toMin: number; us: number[] | null; them: number[] | null }[] = [];
     for (const w of pd.heatWindows) {
       const idx = periodRows.findIndex(
@@ -1637,16 +1642,16 @@ function MatchView({ match, events, passing }: {
         return g?.type === "18_zone_system" && Array.isArray(g.values) && g.values.length === 18 ? g.values : null;
       };
       wins.push({
-        fromMin: offset + (w.start - periodRows[idx].timeframe![0]) / 60,
-        toMin: offset + (w.end - periodRows[idx].timeframe![0]) / 60,
+        fromMin: Math.min(timing.regulationMinutes, offset + (w.start - periodRows[idx].timeframe![0]) / 60),
+        toMin: Math.min(timing.regulationMinutes, offset + (w.end - periodRows[idx].timeframe![0]) / 60),
         us: grab(ownLR),
         them: grab(oppLR),
       });
     }
     if (wins.length === 0) return null;
     wins.sort((a, b) => a.fromMin - b.fromMin);
-    return { wins, maxMin: Math.ceil(wins[wins.length - 1].toMin) };
-  }, [match.passDetails, match.periods]);
+    return { wins, maxMin: timing.regulationMinutes };
+  }, [match.passDetails, match.periods, timing]);
 
   // null = full match. Reset whenever the selected match changes; the clamp
   // below also guards the first render after switching to a shorter match
@@ -1784,9 +1789,8 @@ function MatchView({ match, events, passing }: {
 
   // Field-tilt / momentum: event-weighted, per 5-min bin, us positive / them negative.
   const momentum = useMemo(() => {
-    const minuteOf = makeMinuteOf(match.periods);
-    const maxMin = Math.max(90, ...events.map(minuteOf));
-    const bins = Math.ceil(maxMin / BIN_MIN);
+    const minuteOf = makeMinuteOf(match.periods, timing);
+    const bins = Math.ceil(timing.regulationMinutes / BIN_MIN);
     const arr = Array.from({ length: bins }, (_, i) => ({ min: i * BIN_MIN, us: 0, them: 0 }));
     for (const e of events) {
       const w = MOMENTUM_WEIGHT[e.event_type];
@@ -1796,16 +1800,16 @@ function MatchView({ match, events, passing }: {
       if (isOwn(e)) arr[idx].us += w; else arr[idx].them -= w;
     }
     return arr;
-  }, [events, match.periods]);
+  }, [events, match.periods, timing]);
 
-  // Field-tilt timeline: a 0–90′ line sampled every 5 minutes. Each point is
+  // Field-tilt timeline sampled every 5 minutes through this grade's match.
   // our share of the weighted threat events (shots, goals, corners, frees…)
   // inside a 15-minute window centred on that point — the window smooths out
   // bins that happen to have no events. Stored as tilt−50 so the midline is an
   // even game. A dashed per-half step line adds TERRITORY when RAS possession
   // thirds exist: our share of the attacking-third possession time that half.
   const tiltLine = useMemo(() => {
-    const minuteOf = makeMinuteOf(match.periods);
+    const minuteOf = makeMinuteOf(match.periods, timing);
     const evs = events
       .map((e) => ({ min: minuteOf(e), w: MOMENTUM_WEIGHT[e.event_type] ?? 0, own: isOwn(e) }))
       .filter((e) => e.w > 0);
@@ -1822,12 +1826,8 @@ function MatchView({ match, events, passing }: {
     }> } | null | undefined;
     const periodRows = Array.isArray(match.periods)
       ? (match.periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
-    const durMin = periodRows.map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45));
-    // Chart extent: total played time from real period durations (short halves
-    // exist!); fall back to 90 only when Veo gave us no periods.
-    const playedMin = durMin.reduce((a, b) => a + b, 0);
-    const maxEventMin = Math.max(...evs.map((e) => e.min));
-    const maxMin = periodRows.length > 0 ? Math.max(playedMin, maxEventMin) : Math.max(90, maxEventMin);
+    const durMin = veoPeriodDurationsMinutes(periodRows, timing);
+    const maxMin = timing.regulationMinutes;
     if (pd?.available === true && Array.isArray(pd.items)) {
       pd.items.forEach((item) => {
         const idx = periodRows.findIndex((p) => p.timeframe?.[0] === item.start && p.timeframe?.[1] === item.end);
@@ -1863,14 +1863,14 @@ function MatchView({ match, events, passing }: {
         passDiff: seg ? Number((seg.tilt - 50).toFixed(1)) : null,
       });
     }
-    const halfAt = periodRows.length > 0 && Number(periodRows[0]?.duration) > 0 ? Number(periodRows[0].duration) / 60 : 45;
+    const halfAt = durMin.length > 0 ? Math.min(durMin[0], maxMin) : timing.halfMinutes;
     return { rows, maxMin: rows[rows.length - 1].min, halfAt, hasPass: halfTilt.length > 0 };
-  }, [events, match.periods, match.passDetails]);
+  }, [events, match.periods, match.passDetails, timing]);
 
   // Shot map: normalise so we always attack to the right, them to the left.
   const shots = useMemo(() => {
     const periods = Array.isArray(match.periods) ? (match.periods as { own_side?: string }[]) : [];
-    const minuteOf = makeMinuteOf(match.periods);
+    const minuteOf = makeMinuteOf(match.periods, timing);
     const pts: { x: number; y: number; own: boolean; goal: boolean; min: number }[] = [];
     for (const e of events) {
       if (e.event_type !== "FootballShot" && e.event_type !== "FootballGoal") continue;
@@ -1885,7 +1885,7 @@ function MatchView({ match, events, passing }: {
       pts.push({ x, y, own: isOwn(e), goal: e.event_type === "FootballGoal", min: minuteOf(e) });
     }
     return pts;
-  }, [events, match.periods]);
+  }, [events, match.periods, timing]);
 
   const shotTotals = useMemo(() => {
     let us = 0, them = 0;
@@ -1923,21 +1923,21 @@ function MatchView({ match, events, passing }: {
 
   // Shot timeline: every shot (both teams) placed on the match clock; goals highlighted.
   const timeline = useMemo(() => {
-    const minuteOf = makeMinuteOf(match.periods);
+    const minuteOf = makeMinuteOf(match.periods, timing);
     const pts: { min: number; own: boolean; goal: boolean }[] = [];
     for (const e of events) {
       if (e.event_type !== "FootballShot" && e.event_type !== "FootballGoal") continue;
       pts.push({ min: minuteOf(e), own: isOwn(e), goal: e.event_type === "FootballGoal" });
     }
     pts.sort((a, b) => a.min - b.min);
-    const maxMin = Math.max(90, ...pts.map((p) => p.min));
+    const maxMin = timing.regulationMinutes;
     // Half-time marker from real period durations when available.
     const durs = Array.isArray(match.periods)
-      ? (match.periods as { duration?: number }[]).map((p) => (Number(p?.duration) > 0 ? Number(p.duration) / 60 : 45))
+      ? veoPeriodDurationsMinutes(match.periods, timing)
       : [];
-    const halfAt = durs.length > 0 ? durs[0] : 45;
+    const halfAt = durs.length > 0 ? Math.min(durs[0], maxMin) : timing.halfMinutes;
     return { pts, maxMin, halfAt };
-  }, [events, match.periods]);
+  }, [events, match.periods, timing]);
 
   // Set-piece pressure: corners + free kicks by half, us vs them.
   const setPieces = useMemo(() => {
@@ -2258,7 +2258,7 @@ function MatchView({ match, events, passing }: {
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={tiltLine.rows} margin={{ left: -10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="min" type="number" domain={[0, tiltLine.maxMin]} ticks={[0, 15, 30, 45, 60, 75, 90].filter((t) => t <= tiltLine.maxMin)} {...AXIS} tickFormatter={(m) => `${m}'`} />
+                <XAxis dataKey="min" type="number" domain={[0, tiltLine.maxMin]} ticks={timelineTicks} {...AXIS} tickFormatter={(m) => `${m}'`} />
                 <YAxis {...AXIS} domain={[-50, 50]} ticks={[-50, -25, 0, 25, 50]} tickFormatter={(v: number) => `${v + 50}%`} />
                 <Tooltip
                   content={({ active, payload, label }) => {
@@ -2301,7 +2301,7 @@ function MatchView({ match, events, passing }: {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} halfAt={timeline.halfAt} opp={opp} />
+          <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} halfAt={timeline.halfAt} ticks={timelineTicks} opp={opp} />
         </CardContent>
       </Card>
 
@@ -2378,15 +2378,19 @@ function MatchView({ match, events, passing }: {
   );
 }
 
-function ShotTimeline({ pts, maxMin, halfAt, opp }: { pts: { min: number; own: boolean; goal: boolean }[]; maxMin: number; halfAt: number; opp: string }) {
+function ShotTimeline({ pts, maxMin, halfAt, ticks, opp }: {
+  pts: { min: number; own: boolean; goal: boolean }[];
+  maxMin: number;
+  halfAt: number;
+  ticks: number[];
+  opp: string;
+}) {
   if (pts.length === 0) return null;
   const W = 900, H = 150, padX = 28, padY = 18;
   const midY = H / 2;
   const px = (m: number) => padX + (m / maxMin) * (W - 2 * padX);
   const line = "hsl(var(--border))";
   const muted = "hsl(var(--muted-foreground))";
-  const ticks: number[] = [];
-  for (let m = 0; m <= maxMin; m += 15) ticks.push(m);
   return (
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 170 }}>

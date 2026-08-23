@@ -60,7 +60,13 @@ import {
   type PlayerDnaResponse,
   type FirstSubResponse,
 } from "@workspace/api-client-react";
-import { isActNplbLeague } from "@workspace/api-zod";
+import {
+  clampMatchMinute,
+  goalIntervalIndex,
+  isActNplbLeague,
+  matchTimingForLeague,
+  type MatchTimingPolicy,
+} from "@workspace/api-zod";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
@@ -144,15 +150,6 @@ const GOAL_TYPE_COLORS: Record<string, string> = {
   "SP-T":     "#f97316",                     // orange – throw-ins
   "Unknown":  "#6b7280",
 };
-
-const GOAL_INTERVALS = [
-  { label: "0-15",  start: 0,  end: 15 },
-  { label: "16-30", start: 16, end: 30 },
-  { label: "31-45", start: 31, end: 45 },
-  { label: "46-60", start: 46, end: 60 },
-  { label: "61-75", start: 61, end: 75 },
-  { label: "76-90", start: 76, end: 90 },
-];
 
 // ─── On-Field Impact (plus/minus) chart types ─────────────────────────────────
 interface EffEntry {
@@ -400,17 +397,23 @@ function stackRowsBy(
     opponents.reduce((s, o) => s + (a[o] as number), 0));
 }
 
-function intervalStackRows(goals: ScoredGoalRecord[], opponents: string[]): StackRow[] {
+function intervalStackRows(
+  goals: ScoredGoalRecord[],
+  opponents: string[],
+  timing: MatchTimingPolicy,
+): StackRow[] {
   if (goals.length === 0 || opponents.length === 0) return [];
-  return GOAL_INTERVALS.map(({ label, start, end }) => {
+  const rows = timing.goalIntervals.map(({ label }) => {
     const row: StackRow = { label };
     for (const o of opponents) row[o] = 0;
-    for (const g of goals) {
-      const m = g.minuteScored ?? 0;
-      if (g.opponent && m >= start && m <= end) row[g.opponent] = (row[g.opponent] as number) + 1;
-    }
     return row;
   });
+  for (const goal of goals) {
+    const index = goalIntervalIndex(goal.minuteScored, timing);
+    if (index == null || !goal.opponent) continue;
+    rows[index][goal.opponent] = (rows[index][goal.opponent] as number) + 1;
+  }
+  return rows;
 }
 
 function goalTypeStackRows(goals: ScoredGoalRecord[], opponents: string[]): StackRow[] {
@@ -461,11 +464,19 @@ function passStringData(goals: ScoredGoalRecord[]): { rows: StackRow[]; keys: st
 
 // ── Per-match timelines (scored + conceded merged, sorted by minute) ─────────
 interface TimelineEvent { minute: number; side: "for" | "against"; opponent: string | null }
-function buildTimelines(scored: ScoredGoalRecord[], conceded: ScoredGoalRecord[]): Record<number, TimelineEvent[]> {
+function buildTimelines(
+  scored: ScoredGoalRecord[],
+  conceded: ScoredGoalRecord[],
+  timing: MatchTimingPolicy,
+): Record<number, TimelineEvent[]> {
   const byMatch: Record<number, TimelineEvent[]> = {};
   const add = (g: ScoredGoalRecord, side: "for" | "against") => {
-    if (g.matchId == null) return;
-    (byMatch[g.matchId] ??= []).push({ minute: g.minuteScored ?? 0, side, opponent: g.opponent ?? null });
+    if (g.matchId == null || g.minuteScored == null || !Number.isFinite(g.minuteScored)) return;
+    (byMatch[g.matchId] ??= []).push({
+      minute: clampMatchMinute(g.minuteScored, timing),
+      side,
+      opponent: g.opponent ?? null,
+    });
   };
   for (const g of scored) add(g, "for");
   for (const g of conceded) add(g, "against");
@@ -1296,6 +1307,7 @@ export default function SeasonStats() {
   const leagueDefaultClub = allLeagues?.find(l => l.id === selectedLeagueId)?.focusClub ?? "Belconnen";
   const selectedLeagueName = allLeagues?.find(l => l.id === selectedLeagueId)?.name ?? "";
   const isNplb = isActNplbLeague(selectedLeagueName);
+  const matchTiming = matchTimingForLeague(selectedLeagueName);
   const focusClub = (isSuperadmin && viewClub) || myGrantClub || leagueDefaultClub;
   const leagueClubs = useMemo(
     () => (allClubs ?? []).filter(c => c.leagueId === selectedLeagueId),
@@ -1762,8 +1774,8 @@ export default function SeasonStats() {
   // Per-match goal timelines (scored + conceded merged, ordered by minute) power the
   // 5-minute-response and first-goal-index analytics. Always full season.
   const timelines = useMemo(
-    () => buildTimelines(goalBreakdownFull?.goals ?? [], goalBreakdownFull?.conceded ?? []),
-    [goalBreakdownFull]);
+    () => buildTimelines(goalBreakdownFull?.goals ?? [], goalBreakdownFull?.conceded ?? [], matchTiming),
+    [goalBreakdownFull, matchTiming]);
   const responseByOpp = useMemo(() => responseSituationByOpponent(timelines), [timelines]);
 
   // First Goal Value Index: per-match list built from the chosen source (full or last-3),
@@ -1771,7 +1783,7 @@ export default function SeasonStats() {
   const fgMatches = useMemo(() => {
     const src = l3FgIndex ? goalBreakdownL3 : goalBreakdownFull;
     if (!src) return [];
-    const tl = buildTimelines(src.goals ?? [], src.conceded ?? []);
+    const tl = buildTimelines(src.goals ?? [], src.conceded ?? [], matchTiming);
     const meta: Record<number, { code: string; opponent: string; result: "W" | "D" | "L" | null }> = {};
     for (const g of [...(src.goals ?? []), ...(src.conceded ?? [])]) {
       if (g.matchId == null || meta[g.matchId]) continue;
@@ -1779,7 +1791,7 @@ export default function SeasonStats() {
       meta[g.matchId] = { code: g.matchCode ?? `#${g.matchId}`, opponent: g.opponent ?? "Unknown", result: r };
     }
     return firstGoalMatches(tl, meta);
-  }, [l3FgIndex, goalBreakdownL3, goalBreakdownFull]);
+  }, [l3FgIndex, goalBreakdownL3, goalBreakdownFull, matchTiming]);
 
   // ── Goal-type pies (full season; scored and conceded each have their own opponent filter) ──
   const pieScored = useMemo(() => {
@@ -1796,7 +1808,7 @@ export default function SeasonStats() {
   // Scored charts (stacked by the opponent we scored against):
   const scIntSrc = pick(l3ScInt);
   const teamScIntOpps = scIntSrc?.opponents ?? [];
-  const teamScIntData = intervalStackRows(scIntSrc?.goals ?? [], teamScIntOpps);
+  const teamScIntData = intervalStackRows(scIntSrc?.goals ?? [], teamScIntOpps, matchTiming);
 
   const scTypeSrc = pick(l3ScType);
   const teamScTypeOpps = scTypeSrc?.opponents ?? [];
@@ -1816,7 +1828,7 @@ export default function SeasonStats() {
   const ccIntSrc = pick(l3CcInt);
   const ccIntConceded = ccIntSrc?.conceded ?? [];
   const teamCcIntOpps = oppsOf(ccIntConceded);
-  const teamCcIntData = intervalStackRows(ccIntConceded, teamCcIntOpps);
+  const teamCcIntData = intervalStackRows(ccIntConceded, teamCcIntOpps, matchTiming);
 
   const ccTypeSrc = pick(l3CcType);
   // Blank goal types are sometimes intentional in data entry — leave them out of this chart.
@@ -1841,12 +1853,12 @@ export default function SeasonStats() {
   // Scored charts are computed client-side from the raw goals so each can offer an
   // independent "Last 3 rounds" window (the 3 most recent match dates).
   const scoredIntervalData = useMemo(
-    () => intervalStackRows(mapProfileGoals(lastNRoundsGoals(rawProfileGoals, "scored", l3ProfScInt ? 3 : undefined), "scored"), profileOpponents),
-    [rawProfileGoals, profileOpponents, l3ProfScInt],
+    () => intervalStackRows(mapProfileGoals(lastNRoundsGoals(rawProfileGoals, "scored", l3ProfScInt ? 3 : undefined), "scored"), profileOpponents, matchTiming),
+    [rawProfileGoals, profileOpponents, l3ProfScInt, matchTiming],
   );
   const concededIntervalData = useMemo(
-    () => intervalStackRows(mapProfileGoals(lastNRoundsGoals(rawProfileGoals, "conceded", l3ProfGcInt ? 3 : undefined), "conceded"), profileOpponents),
-    [rawProfileGoals, profileOpponents, l3ProfGcInt],
+    () => intervalStackRows(mapProfileGoals(lastNRoundsGoals(rawProfileGoals, "conceded", l3ProfGcInt ? 3 : undefined), "conceded"), profileOpponents, matchTiming),
+    [rawProfileGoals, profileOpponents, l3ProfGcInt, matchTiming],
   );
   // Order the scored-by-type chart like the Team tab (FT → MT → BT → SP via typeRank);
   // drop the "Unknown"/no-type bucket entirely.

@@ -17,6 +17,7 @@ export interface VeoReportStats {
   linked: boolean;
   veoId?: number | null;
   startsAt?: string | null;
+  matchMinutes?: number;
   shots?: VeoShotTotals;
   momentum?: VeoMomentumBin[];
   findings?: VeoReportFinding[];

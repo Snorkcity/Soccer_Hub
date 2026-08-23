@@ -4210,6 +4210,7 @@ components:
         linked: { type: boolean }
         veoId: { type: integer, nullable: true }
         startsAt: { type: string, nullable: true }
+        matchMinutes: { type: integer }
         shots: { $ref: "#/components/schemas/VeoShotTotals" }
         momentum:
           type: array

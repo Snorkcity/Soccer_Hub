@@ -5285,6 +5285,7 @@ export const GetVeoReportStatsResponse = zod.object({
   "linked": zod.boolean(),
   "veoId": zod.number().nullish(),
   "startsAt": zod.string().nullish(),
+  "matchMinutes": zod.number().optional(),
   "shots": zod.object({
   "us": zod.number(),
   "them": zod.number()

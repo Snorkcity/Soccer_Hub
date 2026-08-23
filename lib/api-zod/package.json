@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test:timing": "node --experimental-strip-types --test test/nplb-timing.test.mjs"
+  },
   "dependencies": {
     "zod": "catalog:"
   }

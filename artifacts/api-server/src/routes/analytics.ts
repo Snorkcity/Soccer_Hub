@@ -60,6 +60,8 @@ import {
   asUnit,
   GetOpponentClutchGoalsQueryParams,
   GetOpponentClutchGoalsResponse,
+  goalIntervalIndex,
+  matchTimingForLeague,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
 import { nplbBorrowDirection, nplbGrade } from "../lib/nplb2026";
@@ -443,6 +445,13 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
   }
   const { teamId, seasonId, lastNMatches } = query.data;
   const focusClub = await focusClubForRequest(req, seasonId);
+  const [seasonLeague] = await db
+    .select({ leagueName: leaguesTable.name })
+    .from(seasonsTable)
+    .leftJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  const timing = matchTimingForLeague(seasonLeague?.leagueName);
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) {
@@ -482,30 +491,19 @@ router.get("/analytics/goals-by-interval", async (req, res): Promise<void> => {
     for (const s of rosterStats) roster.add(s.playerName);
   }
 
-  const intervals = [
-    { label: "0-15", start: 0, end: 15 },
-    { label: "16-30", start: 16, end: 30 },
-    { label: "31-45", start: 31, end: 45 },
-    { label: "46-60", start: 46, end: 60 },
-    { label: "61-75", start: 61, end: 75 },
-    { label: "76-90", start: 76, end: 90 },
-  ];
-
-  const buckets = intervals.map(interval => {
-    const inInterval = filteredGoals.filter(g => {
-      const min = g.minuteScored ?? 0;
-      return min >= interval.start && min <= interval.end;
-    });
-    const scored = inInterval.filter(g => isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub)).length;
-    const conceded = inInterval.filter(g => !isFocusGoal(g.scorer, g.scorerTeam, roster, focusClub)).length;
-    return {
+  const buckets = timing.goalIntervals.map(interval => ({
       interval: interval.label,
-      goalsScored: scored,
-      goalsConceded: conceded,
+      goalsScored: 0,
+      goalsConceded: 0,
       intervalStart: interval.start,
       intervalEnd: interval.end,
-    };
-  });
+  }));
+  for (const goal of filteredGoals) {
+    const index = goalIntervalIndex(goal.minuteScored, timing);
+    if (index == null) continue;
+    if (isFocusGoal(goal.scorer, goal.scorerTeam, roster, focusClub)) buckets[index].goalsScored++;
+    else buckets[index].goalsConceded++;
+  }
 
   res.json(GetGoalsByIntervalResponse.parse(buckets));
 });
