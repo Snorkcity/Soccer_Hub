@@ -62,6 +62,7 @@ import {
   GetOpponentClutchGoalsResponse,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
+import { nplbBorrowDirection, nplbGrade } from "../lib/nplb2026";
 import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, gameVsSeasonReads } from "../lib/goalIntel";
 
@@ -191,6 +192,13 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   }
   const { teamId, seasonId, lastN } = query.data;
   const focusClub = await focusClubForRequest(req, seasonId);
+  const [seasonLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  const currentNplbGrade = nplbGrade(seasonLeague?.name);
 
   // Get all matches for this team+season — need both sides for on-field GD (plus/minus)
   let matches = await db
@@ -220,6 +228,16 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
       inArray(playerStatsTable.matchId, matchIds),
       eq(playerStatsTable.club, focusClub),
     ));
+  const borrowingEvidence = currentNplbGrade == null ? [] : await db
+    .select({
+      driblUserId: leaguePlayerStatsTable.driblUserId,
+      borrowed: leaguePlayerStatsTable.borrowed,
+      leagueName: leaguesTable.name,
+    })
+    .from(leaguePlayerStatsTable)
+    .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(isNotNull(leaguePlayerStatsTable.driblUserId));
 
   // Goals for scorer/assist tallying — filter by matchIds so lastN applies to goals too
   const goalConditions = [eq(goalsTable.teamId, teamId), eq(goalsTable.seasonId, seasonId), inArray(goalsTable.matchId, matchIds)];
@@ -244,6 +262,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   type PlayerEntry = {
     playerId: number; playerName: string; position: string | null;
     goals: number; assists: number; appearances: number; starts: number;
+    borrowedUp: number; borrowedDown: number; borrowedUnknown: number;
     minsPlayed: number; yellowCards: number; redCards: number;
     goalsFor: number; goalsConceded: number;  // team GF/GA while player was on pitch
   };
@@ -254,6 +273,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
       playerMap[s.playerId] = {
         playerId: s.playerId, playerName: s.playerName, position: s.position,
         goals: 0, assists: 0, appearances: 0, starts: 0,
+        borrowedUp: 0, borrowedDown: 0, borrowedUnknown: 0,
         minsPlayed: 0, yellowCards: 0, redCards: 0,
         goalsFor: 0, goalsConceded: 0,
       };
@@ -274,6 +294,12 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
       }
     }
     if (s.started) e.starts++;
+    if (s.borrowed) {
+      const direction = nplbBorrowDirection(currentNplbGrade, s.driblUserId, borrowingEvidence);
+      if (direction === "up") e.borrowedUp++;
+      else if (direction === "down") e.borrowedDown++;
+      else e.borrowedUnknown++;
+    }
     e.minsPlayed += s.minsPlayed ?? 0;
     if (s.discipline?.toLowerCase().includes("yellow")) e.yellowCards++;
     if (s.discipline?.toLowerCase().includes("red")) e.redCards++;

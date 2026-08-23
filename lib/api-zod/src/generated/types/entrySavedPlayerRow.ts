@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { EntrySavedPlayerRowBorrowDirection } from './entrySavedPlayerRowBorrowDirection';
 
 export interface EntrySavedPlayerRow {
   id: number;
@@ -19,4 +20,9 @@ export interface EntrySavedPlayerRow {
   discipline: string | null;
   started: boolean;
   appearance: boolean;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
+  /** @nullable */
+  borrowDirection: EntrySavedPlayerRowBorrowDirection;
 }

@@ -1270,6 +1270,10 @@ async function runUserAccountsMigration(): Promise<void> {
   // screenshot extraction so the Goals tab can look a player up by number in
   // leagues where the analyst doesn't know the names.
   await db.execute(sql`ALTER TABLE league_player_stats ADD COLUMN IF NOT EXISTS shirt_number text`);
+  await db.execute(sql`ALTER TABLE league_player_stats ADD COLUMN IF NOT EXISTS borrowed boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE league_player_stats ADD COLUMN IF NOT EXISTS dribl_user_id text`);
+  await db.execute(sql`ALTER TABLE player_stats ADD COLUMN IF NOT EXISTS borrowed boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE player_stats ADD COLUMN IF NOT EXISTS dribl_user_id text`);
 
   // Last-login tracking (2026-07): stamped on every successful login.
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp`);

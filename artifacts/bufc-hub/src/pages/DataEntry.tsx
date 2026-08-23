@@ -93,6 +93,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Pencil, Plus, Upload, Loader2, ScanText, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { cn } from "@/lib/utils";
 import { NoAccess } from "@/components/NoAccess";
 
 const FOCUS_CLUB = "Belconnen";
@@ -927,6 +928,29 @@ function GoalForm({ teamId, seasonId, fixtures }: {
 
 type EditableRow = EntryPlayerRow;
 
+function BorrowedBadge({ direction }: { direction: "up" | "down" | "unknown" | null }) {
+  const label = direction === "up"
+    ? "Borrowed up from a younger NPLB grade"
+    : direction === "down"
+      ? "Borrowed down from an older NPLB grade"
+      : "Borrowed player — home grade not yet proven";
+  return (
+    <Badge
+      variant="outline"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "h-5 min-w-5 justify-center px-1 text-[10px] font-bold",
+        direction === "up" && "border-emerald-500/70 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        direction === "down" && "border-red-500/70 bg-red-500/10 text-red-600 dark:text-red-400",
+        direction === "unknown" && "border-muted-foreground/40 text-muted-foreground",
+      )}
+    >
+      B
+    </Badge>
+  );
+}
+
 // Position codes + the shared position→unit mapping (same units as the GPS
 // Positions tab) — shared with the API server via @workspace/api-zod.
 import { POSITION_CODES as POSITIONS, unitForPosition, clubCodesFor } from "@workspace/api-zod";
@@ -1221,8 +1245,9 @@ function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
               ) : (
               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                 <span className="font-medium">{p.shirtNumber ? <span className="text-muted-foreground mr-1">#{p.shirtNumber}</span> : null}{p.playerName}</span>
+                {p.borrowed && <BorrowedBadge direction={p.borrowDirection} />}
                 <span className="text-xs text-muted-foreground">
-                  {p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
+                  {p.minsPlayed == null && p.appearance ? "appearance" : p.started ? "started" : p.appearance ? "off bench" : "didn't play"}
                   {p.minsPlayed != null ? ` · ${p.minsPlayed} mins` : ""}
                   {p.position
                     ? (() => { const u = unitFor(p.position); return u && u !== p.position ? ` · ${p.position} (${u})` : ` · ${p.position}`; })()
@@ -2933,6 +2958,8 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                   jersey: String(a.jersey ?? ""),
                   starting: Boolean(a.starting), playing: Boolean(a.playing),
                   isGoalkeeper: Boolean(a.is_goalkeeper), roleSlug: String(a.role_slug ?? "player"),
+                  borrowed: Boolean(a.borrowed),
+                  driblUserId: String(a.user_hash_id ?? "") || null,
                 };
               }),
             });
@@ -3034,6 +3061,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
     setImporting(true); setOk(null); setErr(null);
     let savedMatches = 0, savedGoals = 0, savedSheets = 0;
     const failures: string[] = [];
+    const nplbRefresh = ["NPLB U14", "NPLB U15", "NPLB U16", "NPLB U18"].includes(preview?.driblLeague ?? "");
     for (const m of selectedMatches) {
       setProgress(`Saving ${m.matchId} (${savedMatches + 1} of ${selectedMatches.length})…`);
       try {
@@ -3063,13 +3091,14 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
           }
         }
         for (const ps of m.playerStats) {
-          if (ps.exists || ps.rows.length === 0) continue;
+          if (ps.rows.length === 0) continue;
           try {
             await savePlayerStats.mutateAsync({ data: {
               teamId, seasonId,
               matchId: m.matchId,
               club: ps.club,
-              ifMissing: true,
+              ifMissing: !nplbRefresh && ps.exists,
+              nplbRefresh,
               rows: ps.rows.map(r => ({
                 playerName: r.playerName,
                 shirtNumber: r.shirtNumber ?? null,
@@ -3077,6 +3106,8 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                 position: r.position,
                 started: r.started,
                 appearance: r.appearance,
+                borrowed: r.borrowed,
+                driblUserId: r.driblUserId,
               })),
             } });
             savedSheets++;

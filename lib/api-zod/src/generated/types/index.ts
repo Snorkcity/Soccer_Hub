@@ -88,6 +88,7 @@ export * from './entryPlayerStatsBody';
 export * from './entryPlayerStatsClearResponse';
 export * from './entryPlayerStatsResponse';
 export * from './entrySavedPlayerRow';
+export * from './entrySavedPlayerRowBorrowDirection';
 export * from './entrySavedPlayersResponse';
 export * from './extractClubsBody';
 export * from './extractClubsResponse';

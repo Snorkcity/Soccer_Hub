@@ -92,6 +92,18 @@ async function driblGet(path: string, params: Record<string, string>, tenantSlug
   return JSON.parse(stdout.slice(0, cut));
 }
 
+async function mapLimit<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await work(items[index]);
+    }
+  }));
+  return results;
+}
+
 // Tenant + season hashes never change once issued — cache for the process.
 const tenantCache = new Map<string, string>();
 async function driblTenant(tenantSlug: string): Promise<string> {
@@ -262,6 +274,7 @@ type NormDetail = {
 type NormLineupPlayer = {
   firstName: string; lastName: string; jersey: string;
   starting: boolean; playing: boolean; isGoalkeeper: boolean; roleSlug: string;
+  borrowed: boolean; driblUserId: string | null;
 };
 
 /**
@@ -343,7 +356,8 @@ function computeStatsRows(
   detail: NormDetail | null,
   nameFormat: string,
   book: NameBook,
-): Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> {
+  appearanceOnly = false,
+): Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number | null; started: boolean; appearance: boolean; position: string | null; borrowed: boolean; driblUserId: string | null }> {
   const first = detail?.ftFirstHalf || 45;
   const second = detail?.ftSecondHalf || 45;
   const duration = Math.min(first + second, 130);
@@ -351,13 +365,26 @@ function computeStatsRows(
     .filter(s => s.teamId === teamHashId && s.minute != null)
     .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
 
-  const rows: Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number; started: boolean; appearance: boolean; position: string | null }> = [];
+  const rows: Array<{ playerName: string; shirtNumber: string | null; minsPlayed: number | null; started: boolean; appearance: boolean; position: string | null; borrowed: boolean; driblUserId: string | null }> = [];
   for (const p of players) {
     if (p.roleSlug && p.roleSlug !== "player") continue; // coaching staff etc.
     const full = `${p.firstName} ${p.lastName}`.trim();
     // Dribl occasionally publishes placeholder member rows with no name.
     // They are not importable players and must not invalidate the whole sheet.
     if (!full) continue;
+    if (appearanceOnly) {
+      rows.push({
+        playerName: claimName(book, full, nameFormat),
+        shirtNumber: p.jersey.trim() || null,
+        minsPlayed: null,
+        started: false,
+        appearance: true,
+        position: p.isGoalkeeper ? "GK" : null,
+        borrowed: p.borrowed,
+        driblUserId: p.driblUserId,
+      });
+      continue;
+    }
     const matchesPlayer = (jersey: string, name: string): boolean =>
       (jersey !== "" && p.jersey !== "" && jersey === p.jersey) ||
       name.trim().toLowerCase() === full.toLowerCase();
@@ -376,6 +403,8 @@ function computeStatsRows(
       started: p.starting,
       appearance: appeared,
       position: p.isGoalkeeper ? "GK" : null,
+      borrowed: p.borrowed,
+      driblUserId: p.driblUserId,
     });
   }
   return rows;
@@ -409,6 +438,7 @@ async function buildPreview(
   getLineup?: (matchHash: string, teamHash: string) => Promise<NormLineupPlayer[] | null>,
   recheckNoLineups = false,
 ): Promise<{ matches: Array<Record<string, unknown>>; needDetail: string[]; needLineups: Array<{ match: string; team: string }>; skippedNoLineups: number; suggestedClubs?: string[] }> {
+  const appearanceOnly = NPLB_2026_LEAGUES.some(spec => spec.localName === seasonRow.leagueName);
   const clubs = (await db.select({ name: clubsTable.name }).from(clubsTable)
     .where(eq(clubsTable.leagueId, seasonRow.leagueId))).map(c => c.name);
   if (clubs.length === 0) {
@@ -590,7 +620,7 @@ async function buildPreview(
     const savedStatsClubs = statsByMatch.get(matchId) ?? new Set<string>();
     const statsWanted: Array<{ club: string; side: "home" | "away" }> = [];
     const wantStats = (club: string, side: "home" | "away") => {
-      if (savedStatsClubs.has(club)) return;
+      if (!appearanceOnly && savedStatsClubs.has(club)) return;
       // A previous sync confirmed Dribl has no sheet for this club — skip
       // unless the caller asked to re-check those.
       if (!recheckNoLineups && noLineupSet.has(`${matchId}|${club}`)) { skippedNoLineups++; return; }
@@ -613,8 +643,16 @@ async function buildPreview(
             if (players == null) {
               needLineups.push({ match: f.matchHashId, team: teamHash });
             } else if (players.some(p => !p.roleSlug || p.roleSlug === "player")) {
-              const rows = computeStatsRows(players, detail.subs ?? [], teamHash, detail, seasonRow.nameFormat ?? "initial-surname", bookFor(w.club));
-              if (rows.length > 0) playerStats.push({ club: w.club, exists: false, rows });
+              const rows = computeStatsRows(
+                players,
+                detail.subs ?? [],
+                teamHash,
+                detail,
+                seasonRow.nameFormat ?? "initial-surname",
+                bookFor(w.club),
+                appearanceOnly,
+              );
+              if (rows.length > 0) playerStats.push({ club: w.club, exists: savedStatsClubs.has(w.club), rows });
               // A sheet exists after all — forget any earlier no-lineup marker.
               if (noLineupSet.has(`${matchId}|${w.club}`)) clearedNoLineups.push({ matchId, club: w.club });
             } else {
@@ -973,57 +1011,88 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       if (!cursor) break;
     }
 
+    const fetchDetail = async (hash: string): Promise<NormDetail> => {
+      const mc = await driblGet(`/matchcentre/${hash}`, { tenant }, dribl.tenant);
+      const a = mc?.data?.attributes ?? {};
+      return {
+        homeScoreHt: a.home_score_ht ?? null,
+        awayScoreHt: a.away_score_ht ?? null,
+        homeTeamHashId: String(a.home_team_hash_id ?? ""),
+        awayTeamHashId: String(a.away_team_hash_id ?? ""),
+        ftFirstHalf: typeof a.ft_first_half_duration === "number" ? a.ft_first_half_duration : null,
+        ftSecondHalf: typeof a.ft_second_half_duration === "number" ? a.ft_second_half_duration : null,
+        events: (a.match_events ?? [])
+          .filter((ev: any) => ev.type === "goal")
+          .map((ev: any) => ({
+            teamId: String(ev.team_id ?? ""),
+            minute: typeof ev.minute === "number" ? ev.minute : null,
+            ownGoal: Boolean(ev.own_goal),
+            penalty: Boolean(ev.penalty_kick),
+            name: String(ev.name ?? ""),
+          })),
+        subs: (a.match_events ?? [])
+          .filter((ev: any) => ev.type === "sub")
+          .map((ev: any) => ({
+            teamId: String(ev.team_id ?? ""),
+            minute: typeof ev.minute === "number" ? ev.minute : null,
+            outName: String(ev.out_name ?? ""), inName: String(ev.in_name ?? ""),
+            outJersey: String(ev.out_jersey ?? ""), inJersey: String(ev.in_jersey ?? ""),
+          })),
+      };
+    };
+    const fetchLineup = async (matchHash: string, teamHash: string): Promise<NormLineupPlayer[] | null> => {
+      try {
+        const lu = await driblGet(`/matchcentre-match-members/match/${matchHash}/team/${teamHash}`, { tenant }, dribl.tenant);
+        const rows = Array.isArray(lu) ? lu : lu?.data ?? [];
+        return rows.map((r: any) => {
+          const a = r?.attributes ?? r ?? {};
+          return {
+            firstName: String(a.first_name ?? ""), lastName: String(a.last_name ?? ""),
+            jersey: String(a.jersey ?? ""),
+            starting: Boolean(a.starting), playing: Boolean(a.playing),
+            isGoalkeeper: Boolean(a.is_goalkeeper), roleSlug: String(a.role_slug ?? "player"),
+            borrowed: Boolean(a.borrowed),
+            driblUserId: String(a.user_hash_id ?? "") || null,
+          };
+        });
+      } catch (e) {
+        logger.warn({ matchHash, teamHash, err: String(e) }, "Dribl line-up fetch failed — skipping player rows");
+        return null;
+      }
+    };
+
+    // A full NPLB refresh reads both match cards for every completed fixture.
+    // Prefetch those independent network calls with bounded concurrency so the
+    // request stays inside the preview proxy's two-minute limit.
+    const detailByHash = new Map<string, NormDetail>();
+    const lineupByKey = new Map<string, NormLineupPlayer[] | null>();
+    if (NPLB_2026_LEAGUES.some(spec => spec.localName === seasonRow.leagueName)) {
+      const completed = fixtures.filter(f => f.status === "complete" && f.homeScore != null && f.awayScore != null);
+      await mapLimit(completed, 12, async fixture => {
+        try {
+          detailByHash.set(fixture.matchHashId, await fetchDetail(fixture.matchHashId));
+        } catch (e) {
+          logger.warn({ matchHash: fixture.matchHashId, err: String(e) }, "Dribl match-centre prefetch failed");
+        }
+      });
+      const lineupRequests = completed.flatMap(fixture => {
+        const detail = detailByHash.get(fixture.matchHashId);
+        return [detail?.homeTeamHashId, detail?.awayTeamHashId]
+          .filter((team): team is string => Boolean(team))
+          .map(team => ({ match: fixture.matchHashId, team }));
+      });
+      await mapLimit(lineupRequests, 12, async request => {
+        lineupByKey.set(`${request.match}|${request.team}`, await fetchLineup(request.match, request.team));
+      });
+    }
+
     const { matches, skippedNoLineups, suggestedClubs } = await buildPreview(
       seasonId, seasonRow, fixtures,
-      async (hash) => {
-        const mc = await driblGet(`/matchcentre/${hash}`, { tenant }, dribl.tenant);
-        const a = mc?.data?.attributes ?? {};
-        return {
-          homeScoreHt: a.home_score_ht ?? null,
-          awayScoreHt: a.away_score_ht ?? null,
-          homeTeamHashId: String(a.home_team_hash_id ?? ""),
-          awayTeamHashId: String(a.away_team_hash_id ?? ""),
-          ftFirstHalf: typeof a.ft_first_half_duration === "number" ? a.ft_first_half_duration : null,
-          ftSecondHalf: typeof a.ft_second_half_duration === "number" ? a.ft_second_half_duration : null,
-          events: (a.match_events ?? [])
-            .filter((ev: any) => ev.type === "goal")
-            .map((ev: any) => ({
-              teamId: String(ev.team_id ?? ""),
-              minute: typeof ev.minute === "number" ? ev.minute : null,
-              ownGoal: Boolean(ev.own_goal),
-              penalty: Boolean(ev.penalty_kick),
-              name: String(ev.name ?? ""),
-            })),
-          subs: (a.match_events ?? [])
-            .filter((ev: any) => ev.type === "sub")
-            .map((ev: any) => ({
-              teamId: String(ev.team_id ?? ""),
-              minute: typeof ev.minute === "number" ? ev.minute : null,
-              outName: String(ev.out_name ?? ""), inName: String(ev.in_name ?? ""),
-              outJersey: String(ev.out_jersey ?? ""), inJersey: String(ev.in_jersey ?? ""),
-            })),
-        };
-      },
-      async (matchHash, teamHash) => {
-        try {
-          const lu = await driblGet(`/matchcentre-match-members/match/${matchHash}/team/${teamHash}`, { tenant }, dribl.tenant);
-          const rows = Array.isArray(lu) ? lu : lu?.data ?? [];
-          return rows.map((r: any) => {
-            const a = r?.attributes ?? r ?? {};
-            return {
-              firstName: String(a.first_name ?? ""), lastName: String(a.last_name ?? ""),
-              jersey: String(a.jersey ?? ""),
-              starting: Boolean(a.starting), playing: Boolean(a.playing),
-              isGoalkeeper: Boolean(a.is_goalkeeper), roleSlug: String(a.role_slug ?? "player"),
-            };
-          });
-        } catch (e) {
-          logger.warn({ matchHash, teamHash, err: String(e) }, "Dribl line-up fetch failed — skipping player rows");
-          // null (not []) — a fetch failure must never be recorded as
-          // "Dribl has no sheet for this game".
-          return null;
-        }
-      },
+      async (hash) => detailByHash.get(hash) ?? fetchDetail(hash),
+      async (matchHash, teamHash) =>
+        lineupByKey.has(`${matchHash}|${teamHash}`)
+          ? lineupByKey.get(`${matchHash}|${teamHash}`) ?? null
+          : fetchLineup(matchHash, teamHash),
       // NOTE: don't trust the generated zod coercion here — zod.coerce.boolean()
       // turns ANY non-empty string (including "false") into true. Only the
       // literal string "true" means re-check.
@@ -1081,6 +1150,7 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
     lineupByKey.set(`${lu.matchHashId}|${lu.teamHashId}`, lu.players.map(p => ({
       firstName: p.firstName, lastName: p.lastName, jersey: p.jersey,
       starting: p.starting, playing: p.playing, isGoalkeeper: p.isGoalkeeper, roleSlug: p.roleSlug,
+      borrowed: p.borrowed, driblUserId: p.driblUserId,
     })));
   }
 

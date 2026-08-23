@@ -16,6 +16,9 @@ export interface PlayerLeaderboardEntry {
   appearances: number;
   starts: number;
   minsPlayed: number;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
   /** @nullable */
   minsPerGoal?: number | null;
   /** @nullable */

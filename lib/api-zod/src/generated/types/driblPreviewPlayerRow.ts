@@ -10,9 +10,13 @@ export interface DriblPreviewPlayerRow {
   playerName: string;
   /** @nullable */
   shirtNumber?: string | null;
-  minsPlayed: number;
+  /** @nullable */
+  minsPlayed: number | null;
   started: boolean;
   appearance: boolean;
   /** @nullable */
   position: string | null;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
 }

@@ -60,6 +60,7 @@ import {
   type PlayerDnaResponse,
   type FirstSubResponse,
 } from "@workspace/api-client-react";
+import { isActNplbLeague } from "@workspace/api-zod";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { NoAccess } from "@/components/NoAccess";
@@ -1293,6 +1294,8 @@ export default function SeasonStats() {
   // dropdown pick, else their own club for this league, else the league default.
   const myGrantClub = auth?.user?.leagues?.find(l => l.leagueId === selectedLeagueId)?.club ?? null;
   const leagueDefaultClub = allLeagues?.find(l => l.id === selectedLeagueId)?.focusClub ?? "Belconnen";
+  const selectedLeagueName = allLeagues?.find(l => l.id === selectedLeagueId)?.name ?? "";
+  const isNplb = isActNplbLeague(selectedLeagueName);
   const focusClub = (isSuperadmin && viewClub) || myGrantClub || leagueDefaultClub;
   const leagueClubs = useMemo(
     () => (allClubs ?? []).filter(c => c.leagueId === selectedLeagueId),
@@ -2297,6 +2300,63 @@ export default function SeasonStats() {
 
         {/* ════════════════ PLAYER INSIGHTS ════════════════ */}
         <TabsContent value="player" className="space-y-4 mt-4">
+          {isNplb ? (
+            <>
+              <Card className="border-sky-500/30 bg-sky-500/5">
+                <CardHeader>
+                  <CardTitle>NPLB appearances</CardTitle>
+                  <CardDescription>
+                    Dribl match cards use rolling substitutions in this competition. Every named player counts as an
+                    appearance; starts, bench status, minutes and substitution-impact measures are deliberately not shown.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Squad appearances</CardTitle>
+                  <CardDescription>Goals, assists, cards and match-card appearances for {selectedLeagueName}</CardDescription>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-8 py-1">Player</TableHead>
+                        <TableHead className="h-8 py-1 text-right">Apps</TableHead>
+                        <TableHead className="h-8 py-1 text-right font-bold text-chart-1">G</TableHead>
+                        <TableHead className="h-8 py-1 text-right">A</TableHead>
+                        <TableHead className="h-8 py-1 text-center">Borrowed</TableHead>
+                        <TableHead className="h-8 py-1 text-right text-yellow-400">Y</TableHead>
+                        <TableHead className="h-8 py-1 text-right text-red-500">R</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leaderboard?.slice()
+                        .sort((a, b) => b.appearances - a.appearances || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+                        .map(p => (
+                          <TableRow key={p.playerId} className="text-sm">
+                            <TableCell className="py-2 font-medium">{p.playerName}</TableCell>
+                            <TableCell className="py-2 text-right">{p.appearances}</TableCell>
+                            <TableCell className="py-2 text-right font-bold text-chart-1">{p.goals}</TableCell>
+                            <TableCell className="py-2 text-right">{p.assists}</TableCell>
+                            <TableCell className="py-2">
+                              <div className="flex justify-center gap-1">
+                                {p.borrowedUp > 0 && <span aria-label={`${p.borrowedUp} appearances borrowed up`} title="Borrowed up from a younger grade" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-emerald-500/70 bg-emerald-500/10 px-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">B{p.borrowedUp > 1 ? p.borrowedUp : ""}</span>}
+                                {p.borrowedDown > 0 && <span aria-label={`${p.borrowedDown} appearances borrowed down`} title="Borrowed down from an older grade" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-red-500/70 bg-red-500/10 px-1 text-[10px] font-bold text-red-600 dark:text-red-400">B{p.borrowedDown > 1 ? p.borrowedDown : ""}</span>}
+                                {p.borrowedUnknown > 0 && <span aria-label={`${p.borrowedUnknown} borrowed appearances with an unproven home grade`} title="Borrowed player — home grade not yet proven" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-muted-foreground/40 px-1 text-[10px] font-bold text-muted-foreground">B{p.borrowedUnknown > 1 ? p.borrowedUnknown : ""}</span>}
+                                {p.borrowedUp + p.borrowedDown + p.borrowedUnknown === 0 && <span className="text-muted-foreground">—</span>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2 text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
+                            <TableCell className="py-2 text-right text-red-500">{p.redCards || "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+          <>
 
           {/* 1 — Goals per Minute */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -2665,6 +2725,8 @@ export default function SeasonStats() {
               </Table>
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
 
         {/* ════════════════ OPPONENT INSIGHTS ════════════════ */}
@@ -2710,10 +2772,16 @@ export default function SeasonStats() {
           <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player" | "report")}>
             <TabsList className="h-auto flex-wrap justify-start gap-1">
               <TabsTrigger value="team">Team Charts</TabsTrigger>
-              <TabsTrigger value="player">Player Charts</TabsTrigger>
+              {!isNplb && <TabsTrigger value="player">Player Charts</TabsTrigger>}
               <TabsTrigger value="report" disabled={isAll}>Scouting Report</TabsTrigger>
             </TabsList>
           </Tabs>
+          {isNplb && (
+            <p className="text-sm text-muted-foreground">
+              Opponent player minute, start and substitution-impact charts are not shown for NPLB because rolling
+              substitutions make those measures unreliable.
+            </p>
+          )}
 
           {selectedClub && profile && (
             <>
@@ -2726,7 +2794,7 @@ export default function SeasonStats() {
                 />
               )}
 
-              {oppView === "team" && (
+              {(oppView === "team" || (isNplb && oppView === "player")) && (
               <>
               {isAll ? (
                 <p className="text-sm text-muted-foreground">
@@ -2821,7 +2889,7 @@ export default function SeasonStats() {
               )}
 
               {/* 2. Coach behaviour — first-substitution patterns (any club; club-relative so hidden league-wide) */}
-              {!isAll && <FirstSubCard data={firstSub} club={selectedClub} />}
+              {!isNplb && !isAll && <FirstSubCard data={firstSub} club={selectedClub} />}
 
               {/* 3. Goals scored by interval */}
               <OpponentStackChart
@@ -3018,7 +3086,7 @@ export default function SeasonStats() {
               </>
               )}
 
-              {oppView === "player" && (
+              {!isNplb && oppView === "player" && (
               <>
               {/* 15. Goals by opponent — stacked, clickable legend, Last 3 rounds, Total / Mins-per */}
               <OppPlayerStackChart

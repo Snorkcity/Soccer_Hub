@@ -1252,6 +1252,9 @@ export interface PlayerLeaderboardEntry {
   appearances: number;
   starts: number;
   minsPlayed: number;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
   /** @nullable */
   minsPerGoal?: number | null;
   /** @nullable */
@@ -2850,11 +2853,15 @@ export interface DriblPreviewPlayerRow {
   playerName: string;
   /** @nullable */
   shirtNumber?: string | null;
-  minsPlayed: number;
+  /** @nullable */
+  minsPlayed: number | null;
   started: boolean;
   appearance: boolean;
   /** @nullable */
   position: string | null;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
 }
 
 export interface DriblPreviewClubStats {
@@ -3007,6 +3014,9 @@ export interface DriblRawLineupPlayer {
   playing: boolean;
   isGoalkeeper: boolean;
   roleSlug: string;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
 }
 
 export interface DriblRawLineup {
@@ -3151,6 +3161,9 @@ export interface EntryPlayerRow {
   discipline?: string | null;
   started: boolean;
   appearance: boolean;
+  borrowed?: boolean;
+  /** @nullable */
+  driblUserId?: string | null;
 }
 
 export interface EntryPlayerStatsBody {
@@ -3166,6 +3179,8 @@ export interface EntryPlayerStatsBody {
   ifMissing?: boolean;
   /** Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet */
   append?: boolean;
+  /** Merge a reviewed ACT NPLB Dribl match card into existing rows while preserving coach-entered position and discipline */
+  nplbRefresh?: boolean;
 }
 
 export interface EntryPlayerStatsResponse {
@@ -3174,6 +3189,18 @@ export interface EntryPlayerStatsResponse {
   belconnenCopies: number;
   skipped?: boolean;
 }
+
+/**
+ * @nullable
+ */
+export type EntrySavedPlayerRowBorrowDirection = typeof EntrySavedPlayerRowBorrowDirection[keyof typeof EntrySavedPlayerRowBorrowDirection] | null;
+
+
+export const EntrySavedPlayerRowBorrowDirection = {
+  up: 'up',
+  down: 'down',
+  unknown: 'unknown',
+} as const;
 
 export interface EntrySavedPlayerRow {
   id: number;
@@ -3188,6 +3215,11 @@ export interface EntrySavedPlayerRow {
   discipline: string | null;
   started: boolean;
   appearance: boolean;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
+  /** @nullable */
+  borrowDirection: EntrySavedPlayerRowBorrowDirection;
 }
 
 export interface EntrySavedPlayersResponse {

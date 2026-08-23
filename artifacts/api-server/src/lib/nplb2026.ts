@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db, leaguesTable, seasonsTable } from "@workspace/db";
+import { actNplbGrade } from "@workspace/api-zod";
 
 export const NPLB_2026_LEAGUES = [
   { localName: "ACT NPLB U14", driblLeague: "NPLB U14" },
@@ -10,6 +11,31 @@ export const NPLB_2026_LEAGUES = [
 
 export const NPLB_2026_YEAR = "2026";
 export const NPLB_2026_SEASON_LABEL = "2026 Season";
+
+export type NplbBorrowDirection = "up" | "down" | "unknown";
+
+export function nplbGrade(leagueName: string | null | undefined): number | null {
+  return actNplbGrade(leagueName);
+}
+
+export function nplbBorrowDirection(
+  currentGrade: number | null,
+  driblUserId: string | null | undefined,
+  evidence: Array<{ driblUserId: string | null; borrowed: boolean; leagueName: string }>,
+): NplbBorrowDirection {
+  if (currentGrade == null || !driblUserId) return "unknown";
+  const homeGrades = new Set(
+    evidence
+      .filter(row => row.driblUserId === driblUserId && !row.borrowed)
+      .map(row => nplbGrade(row.leagueName))
+      .filter((grade): grade is number => grade != null),
+  );
+  if (homeGrades.size !== 1) return "unknown";
+  const [homeGrade] = homeGrades;
+  if (homeGrade < currentGrade) return "up";
+  if (homeGrade > currentGrade) return "down";
+  return "unknown";
+}
 
 /**
  * Name-keyed setup shared by startup migration and the controlled club-import

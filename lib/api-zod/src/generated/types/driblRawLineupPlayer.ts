@@ -14,4 +14,7 @@ export interface DriblRawLineupPlayer {
   playing: boolean;
   isGoalkeeper: boolean;
   roleSlug: string;
+  borrowed: boolean;
+  /** @nullable */
+  driblUserId: string | null;
 }

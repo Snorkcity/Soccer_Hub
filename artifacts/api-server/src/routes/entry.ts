@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request } from "express";
 import { getSessionUser, hasModule, leagueIdForSeason } from "../middlewares/entryAuth";
-import { eq, and, desc, isNull, inArray, sql, type AnyColumn } from "drizzle-orm";
+import { eq, and, desc, isNull, isNotNull, inArray, sql, type AnyColumn } from "drizzle-orm";
 import {
   db,
   leagueMatchesTable,
@@ -18,6 +18,7 @@ import {
   goalVocabTable,
 } from "@workspace/db";
 import { driblClubNamesFor } from "./dribl";
+import { nplbBorrowDirection, nplbGrade } from "../lib/nplb2026";
 import {
   ListLeagueMatchesQueryParams,
   ListLeagueMatchesResponse,
@@ -66,6 +67,7 @@ import {
   SaveEntryGpsSessionsResponse,
   ListEntryGpsFixturesQueryParams,
   ListEntryGpsFixturesResponse,
+  isActNplbLeague,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { focusClubForRequest } from "../lib/focusClub";
@@ -673,6 +675,61 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
 
   const year = b.year ?? (fixture.matchDate ? fixture.matchDate.slice(0, 4) : null);
   const focusClub = await focusClubForRequest(req, b.seasonId);
+  const [seasonLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, b.seasonId))
+    .limit(1);
+  const isNplb = isActNplbLeague(seasonLeague?.name);
+  if (b.nplbRefresh && !isNplb) {
+    res.status(400).json({ error: "NPLB refresh mode is only valid for the four ACT NPLB leagues" });
+    return;
+  }
+
+  type SaveRow = (typeof b.rows)[number];
+  const normalize = (row: SaveRow): SaveRow => isNplb
+    ? { ...row, minsPlayed: null, started: false, appearance: true }
+    : row;
+  let rowsToSave: SaveRow[] = b.rows.map(normalize);
+  if (isNplb && b.nplbRefresh) {
+    const existingRows = await db
+      .select()
+      .from(leaguePlayerStatsTable)
+      .where(and(
+        eq(leaguePlayerStatsTable.matchId, b.matchId),
+        eq(leaguePlayerStatsTable.seasonId, b.seasonId),
+        eq(leaguePlayerStatsTable.club, b.club),
+      ));
+    const existingByName = new Map(existingRows.map(row => [row.playerName.trim().toLowerCase(), row]));
+    const incomingNames = new Set(rowsToSave.map(row => row.playerName.trim().toLowerCase()));
+    rowsToSave = [
+      ...rowsToSave.map(row => {
+        const existing = existingByName.get(row.playerName.trim().toLowerCase());
+        return normalize({
+          ...row,
+          shirtNumber: row.shirtNumber ?? existing?.shirtNumber ?? null,
+          position: existing?.position ?? row.position ?? null,
+          discipline: existing?.discipline ?? row.discipline ?? null,
+        });
+      }),
+      ...existingRows
+        .filter(row => !incomingNames.has(row.playerName.trim().toLowerCase()))
+        .map(row => normalize({
+          playerName: row.playerName,
+          shirtNumber: row.shirtNumber,
+          minsPlayed: row.minsPlayed,
+          position: row.position,
+          discipline: row.discipline,
+          started: row.started ?? false,
+          appearance: row.appearance ?? false,
+          borrowed: row.borrowed,
+          driblUserId: row.driblUserId,
+        })),
+    ];
+  }
+  const saveNameKeys = rowsToSave.map(row => row.playerName.trim().toLowerCase());
+  const append = Boolean(b.append && !b.nplbRefresh);
 
   // Dribl imports send ifMissing so a sync can never overwrite rows that were
   // hand-entered (or imported) between preview and import.
@@ -703,11 +760,11 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         eq(leaguePlayerStatsTable.matchId, b.matchId),
         eq(leaguePlayerStatsTable.seasonId, b.seasonId),
         eq(leaguePlayerStatsTable.club, b.club),
-        ...(b.append ? [inArray(sql`lower(${leaguePlayerStatsTable.playerName})`, nameKeys)] : []),
+        ...(append ? [inArray(sql`lower(${leaguePlayerStatsTable.playerName})`, saveNameKeys)] : []),
       ))
       .returning({ id: leaguePlayerStatsTable.id })).length;
 
-    await tx.insert(leaguePlayerStatsTable).values(b.rows.map(r => ({
+    await tx.insert(leaguePlayerStatsTable).values(rowsToSave.map(r => ({
       matchId: b.matchId,
       playerName: r.playerName.trim(),
       shirtNumber: r.shirtNumber?.trim() || null,
@@ -716,6 +773,8 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
       discipline: r.discipline ?? null,
       started: r.started,
       appearance: r.appearance,
+      borrowed: r.borrowed ?? false,
+      driblUserId: r.driblUserId ?? null,
       club: b.club,
       year,
       seasonId: b.seasonId,
@@ -737,9 +796,9 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
         await tx.delete(playerStatsTable).where(and(
           eq(playerStatsTable.matchId, match.id),
           eq(playerStatsTable.club, b.club),
-          ...(b.append ? [inArray(sql`lower(${playerStatsTable.playerName})`, nameKeys)] : []),
+          ...(append ? [inArray(sql`lower(${playerStatsTable.playerName})`, saveNameKeys)] : []),
         ));
-        for (const r of b.rows) {
+        for (const r of rowsToSave) {
           const name = r.playerName.trim();
           let [player] = await tx
             .select({ id: playersTable.id })
@@ -761,6 +820,8 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
             discipline: r.discipline ?? null,
             started: r.started,
             appearance: r.appearance,
+            borrowed: r.borrowed ?? false,
+            driblUserId: r.driblUserId ?? null,
             club: b.club,
             year,
           });
@@ -774,7 +835,7 @@ router.post("/entry/player-stats", async (req, res): Promise<void> => {
   });
 
   res.json(SaveEntryPlayerStatsResponse.parse({
-    saved: b.rows.length,
+    saved: rowsToSave.length,
     replaced,
     belconnenCopies,
   }));
@@ -798,6 +859,8 @@ router.get("/entry/player-stats", async (req, res): Promise<void> => {
       discipline: leaguePlayerStatsTable.discipline,
       started: leaguePlayerStatsTable.started,
       appearance: leaguePlayerStatsTable.appearance,
+      borrowed: leaguePlayerStatsTable.borrowed,
+      driblUserId: leaguePlayerStatsTable.driblUserId,
     })
     .from(leaguePlayerStatsTable)
     .where(and(
@@ -806,7 +869,34 @@ router.get("/entry/player-stats", async (req, res): Promise<void> => {
       eq(leaguePlayerStatsTable.club, club),
     ))
     .orderBy(leaguePlayerStatsTable.playerName);
-  res.json(ListEntryPlayerStatsResponse.parse({ rows }));
+  const [league] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  const currentGrade = nplbGrade(league?.name);
+  let evidence: Array<{ driblUserId: string | null; borrowed: boolean; leagueName: string }> = [];
+  if (currentGrade != null && rows.some(row => row.borrowed && row.driblUserId)) {
+    evidence = await db
+      .select({
+        driblUserId: leaguePlayerStatsTable.driblUserId,
+        borrowed: leaguePlayerStatsTable.borrowed,
+        leagueName: leaguesTable.name,
+      })
+      .from(leaguePlayerStatsTable)
+      .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
+      .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+      .where(isNotNull(leaguePlayerStatsTable.driblUserId));
+  }
+  res.json(ListEntryPlayerStatsResponse.parse({
+    rows: rows.map(row => ({
+      ...row,
+      borrowDirection: row.borrowed
+        ? nplbBorrowDirection(currentGrade, row.driblUserId, evidence)
+        : null,
+    })),
+  }));
 });
 
 // ── Remove ALL saved player rows for one club in a fixture ───────────────────
@@ -918,12 +1008,19 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
   }
 
   const focusClub = await focusClubForRequest(req, row.seasonId);
+  const [rowLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, row.seasonId))
+    .limit(1);
+  const rowIsNplb = isActNplbLeague(rowLeague?.name);
 
   // Status invariant: a starter always counts as an appearance. Check against
   // the row's final (merged) values so partial patches can't sneak in an
   // impossible combination.
-  const finalStarted = edit.started ?? row.started ?? false;
-  const finalAppearance = edit.appearance ?? row.appearance ?? false;
+  const finalStarted = rowIsNplb ? false : edit.started ?? row.started ?? false;
+  const finalAppearance = rowIsNplb ? true : edit.appearance ?? row.appearance ?? false;
   if (finalStarted && !finalAppearance) {
     res.status(400).json({ error: "A player who started must also count as an appearance" });
     return;
@@ -936,6 +1033,11 @@ router.patch("/entry/player-stat/:rowId", async (req, res): Promise<void> => {
   if (edit.position !== undefined) patch.position = edit.position === null ? null : edit.position.trim() || null;
   if (edit.started !== undefined) patch.started = edit.started;
   if (edit.appearance !== undefined) patch.appearance = edit.appearance;
+  if (rowIsNplb) {
+    patch.minsPlayed = null;
+    patch.started = false;
+    patch.appearance = true;
+  }
 
   const belconnenUpdated = await db.transaction(async (tx) => {
     await tx.update(leaguePlayerStatsTable).set(patch).where(eq(leaguePlayerStatsTable.id, rowId));

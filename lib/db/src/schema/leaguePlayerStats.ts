@@ -15,6 +15,8 @@ export const leaguePlayerStatsTable = pgTable("league_player_stats", {
   discipline: text("discipline"),
   started: boolean("started"),
   appearance: boolean("appearance"),
+  borrowed: boolean("borrowed").notNull().default(false),
+  driblUserId: text("dribl_user_id"),
   club: text("country"),   // DB column stays "country"; TS property renamed to "club"
   shirtNumber: text("shirt_number"),
   year: text("year"),

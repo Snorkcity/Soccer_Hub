@@ -958,6 +958,9 @@ export const GetPlayerLeaderboardResponseItem = zod.object({
   "appearances": zod.number(),
   "starts": zod.number(),
   "minsPlayed": zod.number(),
+  "borrowedUp": zod.number(),
+  "borrowedDown": zod.number(),
+  "borrowedUnknown": zod.number(),
   "minsPerGoal": zod.number().nullish(),
   "minsPerAssist": zod.number().nullish(),
   "yellowCards": zod.number(),
@@ -2907,7 +2910,9 @@ export const AssembleDriblPreviewBody = zod.object({
   "starting": zod.boolean(),
   "playing": zod.boolean(),
   "isGoalkeeper": zod.boolean(),
-  "roleSlug": zod.string()
+  "roleSlug": zod.string(),
+  "borrowed": zod.boolean(),
+  "driblUserId": zod.string().nullable()
 }))
 })).max(assembleDriblPreviewBodyLineupsMax).optional()
 })
@@ -2943,10 +2948,12 @@ export const AssembleDriblPreviewResponse = zod.object({
   "rows": zod.array(zod.object({
   "playerName": zod.string(),
   "shirtNumber": zod.string().nullish(),
-  "minsPlayed": zod.number(),
+  "minsPlayed": zod.number().nullable(),
   "started": zod.boolean(),
   "appearance": zod.boolean(),
-  "position": zod.string().nullable()
+  "position": zod.string().nullable(),
+  "borrowed": zod.boolean(),
+  "driblUserId": zod.string().nullable()
 })),
   "newNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync (no prior mapping) — review them in the player name map before\/after importing')
 })),
@@ -3001,10 +3008,12 @@ export const GetDriblPreviewResponse = zod.object({
   "rows": zod.array(zod.object({
   "playerName": zod.string(),
   "shirtNumber": zod.string().nullish(),
-  "minsPlayed": zod.number(),
+  "minsPlayed": zod.number().nullable(),
   "started": zod.boolean(),
   "appearance": zod.boolean(),
-  "position": zod.string().nullable()
+  "position": zod.string().nullable(),
+  "borrowed": zod.boolean(),
+  "driblUserId": zod.string().nullable()
 })),
   "newNames": zod.array(zod.string()).optional().describe('Display names claimed fresh this sync (no prior mapping) — review them in the player name map before\/after importing')
 })),
@@ -3092,7 +3101,10 @@ export const ListEntryPlayerStatsResponse = zod.object({
   "position": zod.string().nullable(),
   "discipline": zod.string().nullable(),
   "started": zod.boolean(),
-  "appearance": zod.boolean()
+  "appearance": zod.boolean(),
+  "borrowed": zod.boolean(),
+  "driblUserId": zod.string().nullable(),
+  "borrowDirection": zod.union([zod.literal('up'),zod.literal('down'),zod.literal('unknown'),zod.literal(null)]).nullable()
 }))
 })
 
@@ -3136,10 +3148,13 @@ export const SaveEntryPlayerStatsBody = zod.object({
   "position": zod.string().nullish(),
   "discipline": zod.string().nullish(),
   "started": zod.boolean(),
-  "appearance": zod.boolean()
+  "appearance": zod.boolean(),
+  "borrowed": zod.boolean().optional(),
+  "driblUserId": zod.string().nullish()
 })),
   "ifMissing": zod.boolean().optional(),
-  "append": zod.boolean().optional().describe('Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet')
+  "append": zod.boolean().optional().describe('Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet'),
+  "nplbRefresh": zod.boolean().optional().describe('Merge a reviewed ACT NPLB Dribl match card into existing rows while preserving coach-entered position and discipline')
 })
 
 export const SaveEntryPlayerStatsResponse = zod.object({
@@ -3221,7 +3236,9 @@ export const ExtractPlayersFromImageResponse = zod.object({
   "position": zod.string().nullish(),
   "discipline": zod.string().nullish(),
   "started": zod.boolean(),
-  "appearance": zod.boolean()
+  "appearance": zod.boolean(),
+  "borrowed": zod.boolean().optional(),
+  "driblUserId": zod.string().nullish()
 })),
   "warnings": zod.array(zod.string())
 })

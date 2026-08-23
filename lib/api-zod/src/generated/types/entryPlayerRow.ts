@@ -23,4 +23,7 @@ export interface EntryPlayerRow {
   discipline?: string | null;
   started: boolean;
   appearance: boolean;
+  borrowed?: boolean;
+  /** @nullable */
+  driblUserId?: string | null;
 }

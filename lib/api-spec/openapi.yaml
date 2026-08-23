@@ -4779,6 +4779,9 @@ components:
         appearances:          { type: integer }
         starts:               { type: integer }
         minsPlayed:           { type: integer }
+        borrowedUp:           { type: integer }
+        borrowedDown:         { type: integer }
+        borrowedUnknown:      { type: integer }
         minsPerGoal:          { type: ["number", "null"] }
         minsPerAssist:        { type: ["number", "null"] }
         yellowCards:          { type: integer }
@@ -4786,7 +4789,7 @@ components:
         goalsFor:             { type: integer }
         goalsConceded:        { type: integer }
         minsPerGoalConceded:  { type: ["number", "null"] }
-      required: [playerId, playerName, goals, assists, appearances, starts, minsPlayed, yellowCards, redCards, goalsFor, goalsConceded]
+      required: [playerId, playerName, goals, assists, appearances, starts, minsPlayed, borrowedUp, borrowedDown, borrowedUnknown, yellowCards, redCards, goalsFor, goalsConceded]
 
     OpponentLeaderboardEntry:
       type: object
@@ -6340,11 +6343,13 @@ components:
       properties:
         playerName:  { type: string }
         shirtNumber: { type: ["string", "null"] }
-        minsPlayed:  { type: integer }
+        minsPlayed:  { type: ["integer", "null"] }
         started:     { type: boolean }
         appearance:  { type: boolean }
         position:    { type: ["string", "null"] }
-      required: [playerName, minsPlayed, started, appearance, position]
+        borrowed:    { type: boolean }
+        driblUserId: { type: ["string", "null"] }
+      required: [playerName, minsPlayed, started, appearance, position, borrowed, driblUserId]
 
     DriblPreviewClubStats:
       type: object
@@ -6504,7 +6509,9 @@ components:
         playing:      { type: boolean }
         isGoalkeeper: { type: boolean }
         roleSlug:     { type: string }
-      required: [firstName, lastName, jersey, starting, playing, isGoalkeeper, roleSlug]
+        borrowed:     { type: boolean }
+        driblUserId:  { type: ["string", "null"] }
+      required: [firstName, lastName, jersey, starting, playing, isGoalkeeper, roleSlug, borrowed, driblUserId]
 
     DriblRawLineup:
       type: object
@@ -6627,6 +6634,8 @@ components:
         discipline: { type: ["string", "null"] }
         started:    { type: boolean }
         appearance: { type: boolean }
+        borrowed:   { type: boolean }
+        driblUserId: { type: ["string", "null"] }
       required: [playerName, started, appearance]
 
     EntryPlayerStatsBody:
@@ -6644,6 +6653,9 @@ components:
         append:
           type: boolean
           description: Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet
+        nplbRefresh:
+          type: boolean
+          description: Merge a reviewed ACT NPLB Dribl match card into existing rows while preserving coach-entered position and discipline
       required: [teamId, seasonId, matchId, club, rows]
 
     EntryPlayerStatsResponse:
@@ -6666,7 +6678,12 @@ components:
         discipline:  { type: ["string", "null"] }
         started:     { type: boolean }
         appearance:  { type: boolean }
-      required: [id, playerName, shirtNumber, minsPlayed, position, discipline, started, appearance]
+        borrowed:    { type: boolean }
+        driblUserId: { type: ["string", "null"] }
+        borrowDirection:
+          type: ["string", "null"]
+          enum: [up, down, unknown, null]
+      required: [id, playerName, shirtNumber, minsPlayed, position, discipline, started, appearance, borrowed, driblUserId, borrowDirection]
 
     EntrySavedPlayersResponse:
       type: object

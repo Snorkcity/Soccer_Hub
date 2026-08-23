@@ -20,4 +20,6 @@ export interface EntryPlayerStatsBody {
   ifMissing?: boolean;
   /** Add these rows to any already saved for the match+club (replacing only same-named players) instead of replacing the whole sheet */
   append?: boolean;
+  /** Merge a reviewed ACT NPLB Dribl match card into existing rows while preserving coach-entered position and discipline */
+  nplbRefresh?: boolean;
 }
