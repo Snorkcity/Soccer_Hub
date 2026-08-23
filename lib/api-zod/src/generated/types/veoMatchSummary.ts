@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoMatchSummaryProcessingStatus } from './veoMatchSummaryProcessingStatus';
 
 export interface VeoMatchSummary {
   id: number;
@@ -20,5 +21,6 @@ export interface VeoMatchSummary {
   hasMomentum?: boolean;
   synced: boolean;
   syncedAt?: string | null;
+  processingStatus?: VeoMatchSummaryProcessingStatus;
   pendingAnalytics?: boolean;
 }

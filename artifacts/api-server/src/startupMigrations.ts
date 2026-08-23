@@ -1315,6 +1315,25 @@ async function runUserAccountsMigration(): Promise<void> {
     UPDATE leagues SET veo_club_slug = 'scott-conlon', veo_team_slug = '2024-nplw-reserves'
     WHERE name = 'ACT NPLW Reserves' AND veo_team_slug IS NULL
   `);
+  // Boys/men's Veo Clubhouse (2026-08): exact stable Hub league names map to
+  // their actual Veo teams. IDs differ between dev/prod, so never key on them.
+  // Existing NPLW mappings above remain untouched.
+  await db.execute(sql`
+    UPDATE leagues AS league
+    SET veo_club_slug = 'belconnen-united-1b1e785d',
+        veo_team_slug = mapping.team_slug
+    FROM (
+      VALUES
+        ('ACT NPLM', 'bufc-1st-grade'),
+        ('ACT NPLM U23', 'bufc-u23s'),
+        ('ACT NPLB U18', 'bufc-u18s-c0defbf5'),
+        ('ACT NPLB U16', 'bufc-u16s'),
+        ('ACT NPLB U15', 'bufc-u15s'),
+        ('ACT NPLB U14', 'bufc-u14s')
+    ) AS mapping(league_name, team_slug)
+    WHERE league.name = mapping.league_name
+      AND league.veo_team_slug IS NULL
+  `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS veo_matches (
       id serial PRIMARY KEY,
@@ -1324,6 +1343,7 @@ async function runUserAccountsMigration(): Promise<void> {
       title text,
       opponent text,
       starts_at text,
+      processing_status jsonb,
       has_analytics boolean NOT NULL DEFAULT false,
       has_events boolean NOT NULL DEFAULT false,
       has_tracking boolean NOT NULL DEFAULT false,
@@ -1333,38 +1353,87 @@ async function runUserAccountsMigration(): Promise<void> {
       periods jsonb,
       roster jsonb,
       match_id integer,
-      synced_at text
+      synced_at text,
+      removed_at text
     )
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_match_idx ON veo_matches (league_id, veo_match_id)`);
-  // A Hub fixture can have only one active Veo link. Clear any historical
-  // duplicates deterministically before adding the database-level guarantee.
+  await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS processing_status jsonb`);
+  // The first development pass captured Veo's object-valued status into a text
+  // column. Preserve that data while normalising the field to verbatim JSON.
   await db.execute(sql`
-    WITH ranked AS (
-      SELECT id,
-             row_number() OVER (
-               PARTITION BY league_id, match_id
-               ORDER BY synced_at DESC NULLS LAST, id DESC
-             ) AS rn
-      FROM veo_matches
-      WHERE match_id IS NOT NULL
-    )
-    UPDATE veo_matches
-    SET match_id = NULL
-    FROM ranked
-    WHERE veo_matches.id = ranked.id AND ranked.rn > 1
+    DO $$
+    DECLARE
+      status_row record;
+      parsed_status jsonb;
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'veo_matches'
+          AND column_name = 'processing_status'
+          AND data_type <> 'jsonb'
+      ) THEN
+        ALTER TABLE veo_matches DROP COLUMN IF EXISTS processing_status_jsonb_upgrade;
+        ALTER TABLE veo_matches ADD COLUMN processing_status_jsonb_upgrade jsonb;
+        FOR status_row IN SELECT id, processing_status FROM veo_matches LOOP
+          IF status_row.processing_status IS NULL OR btrim(status_row.processing_status) = '' THEN
+            parsed_status := NULL;
+          ELSE
+            BEGIN
+              parsed_status := status_row.processing_status::jsonb;
+            EXCEPTION WHEN invalid_text_representation THEN
+              parsed_status := to_jsonb(status_row.processing_status);
+            END;
+          END IF;
+          UPDATE veo_matches
+          SET processing_status_jsonb_upgrade = parsed_status
+          WHERE id = status_row.id;
+        END LOOP;
+        ALTER TABLE veo_matches DROP COLUMN processing_status;
+        ALTER TABLE veo_matches RENAME COLUMN processing_status_jsonb_upgrade TO processing_status;
+      END IF;
+    END
+    $$
   `);
-  await db.execute(sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS veo_matches_league_hub_match_idx
-    ON veo_matches (league_id, match_id)
-    WHERE match_id IS NOT NULL
-  `);
+  await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS removed_at text`);
+  // A Hub fixture can have only one ACTIVE Veo link. Removed archive rows keep
+  // their old match_id for reference but must not block a replacement.
+  const activeVeoLinkIndexMarker = await db.execute(
+    sql`SELECT 1 FROM seed_markers WHERE key = 'veo-active-hub-link-index-v1'`,
+  );
+  if (activeVeoLinkIndexMarker.rows.length === 0) {
+    await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               row_number() OVER (
+                 PARTITION BY league_id, match_id
+                 ORDER BY synced_at DESC NULLS LAST, id DESC
+               ) AS rn
+        FROM veo_matches
+        WHERE match_id IS NOT NULL AND removed_at IS NULL
+      )
+      UPDATE veo_matches
+      SET match_id = NULL
+      FROM ranked
+      WHERE veo_matches.id = ranked.id AND ranked.rn > 1
+    `);
+    await db.execute(sql`DROP INDEX IF EXISTS veo_matches_league_hub_match_idx`);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX veo_matches_league_hub_match_idx
+      ON veo_matches (league_id, match_id)
+      WHERE match_id IS NOT NULL AND removed_at IS NULL
+    `);
+    await db.execute(
+      sql`INSERT INTO seed_markers (key) VALUES ('veo-active-hub-link-index-v1') ON CONFLICT (key) DO NOTHING`,
+    );
+  }
   // Pass/possession analytics from Veo's RAS service (2026-08, task: pass strings).
   await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS pass_details jsonb`);
   // Soft delete for Veo games (2026-08): once synced the Hub keeps the row as
   // the archive (Veo drops old recordings from the portal over time); the coach
   // removes/restores games manually and reads skip removed rows.
-  await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS removed_at text`);
   // Grant the "veo" module to everyone who already has "gps" (same clubs that
   // record on Veo), once. Nav + read gating use this module.
   const veoModuleMarker = await db.execute(sql`SELECT 1 FROM seed_markers WHERE key = 'veo-module-grant-v1'`);

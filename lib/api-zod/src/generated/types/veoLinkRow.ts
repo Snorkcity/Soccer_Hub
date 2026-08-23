@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoLinkRowProcessingStatus } from './veoLinkRowProcessingStatus';
 import type { VeoScoreMismatch } from './veoScoreMismatch';
 
 export interface VeoLinkRow {
@@ -15,6 +16,8 @@ export interface VeoLinkRow {
   startsAt?: string | null;
   matchId?: number | null;
   synced: boolean;
+  syncedAt?: string | null;
+  processingStatus?: VeoLinkRowProcessingStatus;
   removed?: boolean;
   pendingAnalytics?: boolean;
   scoreMismatch?: VeoScoreMismatch | null;

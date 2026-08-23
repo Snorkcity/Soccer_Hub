@@ -235,7 +235,9 @@ export interface VeoRecording {
   start?: string;
   team?: string;
   team__name?: string;
-  processing_status?: string;
+  // Veo currently returns an object here (often {} once processing is done),
+  // despite older responses/documentation describing it as a string.
+  processing_status?: unknown;
   thumbnail?: string;
 }
 export interface VeoMatchDetail {

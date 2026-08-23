@@ -231,6 +231,20 @@ function fmtDate(iso?: string | null): string {
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function processingStatusLabel(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed && trimmed !== "{}" ? trimmed : null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const parts = Object.entries(value)
+    .filter((entry): entry is [string, string | number | boolean] =>
+      ["string", "number", "boolean"].includes(typeof entry[1]),
+    )
+    .map(([key, status]) => `${key}: ${String(status)}`);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VeoInsights() {
   const { hasModule, ready, isSuperadmin } = useLeagueModules();
@@ -590,7 +604,11 @@ function MatchLinksCard({
       // the links list — refetch the lot.
       qc.invalidateQueries();
     } catch {
-      setMsg(removed ? "Couldn't remove that game — try again." : "Couldn't restore that game — try again.");
+      setMsg(
+        removed
+          ? "Couldn't remove that game — try again."
+          : "Couldn't restore that game — another active recording may already use its match. Unlink that recording first.",
+      );
     }
   }
 
@@ -642,7 +660,7 @@ function MatchLinksCard({
               <div className="flex flex-wrap items-center gap-3">
                 <Button size="sm" variant="outline" onClick={runAutoLink} disabled={autoMut.isPending} className="gap-1.5">
                   {autoMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                  Auto-link by date & opponent
+                  Auto-link exact date
                 </Button>
                 {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
               </div>
@@ -669,7 +687,13 @@ function MatchLinksCard({
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
-                    {[fmtDate(l.startsAt), l.title].filter(Boolean).join(" · ")}
+                    {[
+                      fmtDate(l.startsAt),
+                      l.title,
+                      processingStatusLabel(l.processingStatus)
+                        ? `Veo: ${processingStatusLabel(l.processingStatus)}`
+                        : null,
+                    ].filter(Boolean).join(" · ")}
                   </div>
                   {l.scoreMismatch && (
                     <div className="flex items-center gap-1 mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">

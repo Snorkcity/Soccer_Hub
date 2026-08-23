@@ -9,7 +9,8 @@
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "test:veo-link-invariants": "node scripts/test-veo-link-invariants.mjs"
   },
   "dependencies": {
     "csv-parse": "^7.0.1",

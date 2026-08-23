@@ -4820,6 +4820,7 @@ export const ListVeoMatchesResponse = zod.object({
   "hasMomentum": zod.boolean().optional(),
   "synced": zod.boolean(),
   "syncedAt": zod.string().nullish(),
+  "processingStatus": zod.union([zod.string(),zod.record(zod.string(), zod.unknown())]).nullish(),
   "pendingAnalytics": zod.boolean().optional()
 }))
 })
@@ -4985,6 +4986,8 @@ export const ListVeoLinksResponse = zod.object({
   "startsAt": zod.string().nullish(),
   "matchId": zod.number().nullish(),
   "synced": zod.boolean(),
+  "syncedAt": zod.string().nullish(),
+  "processingStatus": zod.union([zod.string(),zod.record(zod.string(), zod.unknown())]).nullish(),
   "removed": zod.boolean().optional(),
   "pendingAnalytics": zod.boolean().optional(),
   "scoreMismatch": zod.object({
@@ -5006,7 +5009,7 @@ export const ListVeoLinksResponse = zod.object({
 
 
 /**
- * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ * @summary Auto-link unlinked Veo matches by exact Sydney date, using opponent/title only for same-day ties
  */
 export const VeoAutoLinkBody = zod.object({
   "leagueId": zod.number()

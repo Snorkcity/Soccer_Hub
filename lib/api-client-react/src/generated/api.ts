@@ -12845,7 +12845,7 @@ export const getVeoAutoLinkUrl = () => {
 }
 
 /**
- * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ * @summary Auto-link unlinked Veo matches by exact Sydney date, using opponent/title only for same-day ties
  */
 export const veoAutoLink = async (veoAutoLinkInput: VeoAutoLinkInput, options?: RequestInit): Promise<VeoAutoLinkResult> => {
 
@@ -12894,7 +12894,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type VeoAutoLinkMutationError = ErrorType<unknown>
 
     /**
- * @summary Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+ * @summary Auto-link unlinked Veo matches by exact Sydney date, using opponent/title only for same-day ties
  */
 export const useVeoAutoLink = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoAutoLink>>, TError,{data: BodyType<VeoAutoLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

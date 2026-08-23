@@ -3435,7 +3435,7 @@ paths:
     post:
       operationId: veoAutoLink
       tags: [veo]
-      summary: Auto-link unlinked Veo matches to Hub matches by kickoff date (±1 day) and opponent
+      summary: Auto-link unlinked Veo matches by exact Sydney date, using opponent/title only for same-day ties
       requestBody:
         required: true
         content:
@@ -3963,6 +3963,11 @@ components:
         hasMomentum: { type: boolean }
         synced: { type: boolean }
         syncedAt: { type: string, nullable: true }
+        processingStatus:
+          nullable: true
+          oneOf:
+            - { type: string }
+            - { type: object, additionalProperties: true }
         pendingAnalytics: { type: boolean }
     VeoEvent:
       type: object
@@ -4127,6 +4132,12 @@ components:
         startsAt: { type: string, nullable: true }
         matchId: { type: integer, nullable: true }
         synced: { type: boolean }
+        syncedAt: { type: string, nullable: true }
+        processingStatus:
+          nullable: true
+          oneOf:
+            - { type: string }
+            - { type: object, additionalProperties: true }
         removed: { type: boolean }
         pendingAnalytics: { type: boolean }
         scoreMismatch:

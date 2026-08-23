@@ -294,6 +294,8 @@ export interface VeoLeague {
   veoTeamSlug?: string | null;
 }
 
+export type VeoMatchSummaryProcessingStatus = string | { [key: string]: unknown } | null;
+
 export interface VeoMatchSummary {
   id: number;
   veoMatchId: string;
@@ -308,6 +310,7 @@ export interface VeoMatchSummary {
   hasMomentum?: boolean;
   synced: boolean;
   syncedAt?: string | null;
+  processingStatus?: VeoMatchSummaryProcessingStatus;
   pendingAnalytics?: boolean;
 }
 
@@ -434,6 +437,8 @@ export interface VeoScoreMismatch {
   hubAgainst: number;
 }
 
+export type VeoLinkRowProcessingStatus = string | { [key: string]: unknown } | null;
+
 export interface VeoLinkRow {
   id: number;
   veoMatchId: string;
@@ -442,6 +447,8 @@ export interface VeoLinkRow {
   startsAt?: string | null;
   matchId?: number | null;
   synced: boolean;
+  syncedAt?: string | null;
+  processingStatus?: VeoLinkRowProcessingStatus;
   removed?: boolean;
   pendingAnalytics?: boolean;
   scoreMismatch?: VeoScoreMismatch | null;

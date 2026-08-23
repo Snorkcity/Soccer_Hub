@@ -7,7 +7,7 @@
 // The client loops until { remaining } hits 0. See routes/dribl.ts for the
 // sibling pattern and .agents/memory/veo-integration.md for the API map.
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db, veoMatchesTable, veoAnalytics2Table, leaguesTable, matchesTable, seasonsTable } from "@workspace/db";
 import {
@@ -52,6 +52,7 @@ import {
   type MatchTimingPolicy,
 } from "@workspace/api-zod";
 import { veoMatchStatisticUpdates } from "../lib/matchStatisticProvenance";
+import { planExactDateAutoLinks } from "../lib/veoLinking";
 
 const router: IRouter = Router();
 
@@ -152,6 +153,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         title: rec.title ?? null,
         opponent: opponentFromVeoTitle(rec.title),
         startsAt: rec.start ?? null,
+        processingStatus: rec.processing_status ?? null,
         syncedAt: nowIso,
       })
       .onConflictDoUpdate({
@@ -163,6 +165,10 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
           opponent: opponentFromVeoTitle(rec.title),
           startsAt: rec.start ?? null,
           veoTeamSlug: mapping.veoTeamSlug,
+          processingStatus: rec.processing_status ?? null,
+          // This is "last observed in Veo", even when the heavy payload was
+          // already present and no download was needed.
+          syncedAt: nowIso,
         },
       });
   }
@@ -561,6 +567,7 @@ router.get("/veo/matches", async (req, res) => {
       hasMomentum: veoMatchesTable.hasMomentum,
       synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
       syncedAt: veoMatchesTable.syncedAt,
+      processingStatus: veoMatchesTable.processingStatus,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
       // True when events are present but the RAS pass-analytics pipeline hasn't
@@ -853,9 +860,10 @@ router.get("/veo/match", async (req, res) => {
 
 // ── Veo ↔ Hub match linking ─────────────────────────────────────────────────
 // veo_matches.match_id points at our own matches.id once reconciled. Auto-link
-// pairs by kickoff date (±1 day) + opponent name; messy Veo titles get fixed
-// via the manual link endpoint. The report-stats endpoint then serves shots +
-// momentum for a Hub match so the Match Report can show video stats.
+// pairs by exact Australia/Sydney calendar date within the selected league;
+// opponent/title metadata only breaks a genuine same-day tie. Messy or
+// ambiguous recordings stay in the manual link workflow. The report-stats
+// endpoint then serves shots + momentum for a Hub match.
 
 // All Hub matches belonging to a league (via its seasons), newest first.
 async function hubMatchesForLeague(leagueId: number) {
@@ -879,34 +887,6 @@ async function hubMatchesForLeague(leagueId: number) {
     .orderBy(sql`${matchesTable.matchDate} DESC NULLS LAST`);
 }
 
-// "2026/07/26" | "2026-07-26" → ms at local noon (AEST) so timezone wobble on
-// either side can't shift the calendar day.
-function hubDateMs(matchDate: string | null): number | null {
-  if (!matchDate) return null;
-  const m = matchDate.trim().match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-  if (!m) return null;
-  const t = Date.parse(`${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}T12:00:00+10:00`);
-  return Number.isFinite(t) ? t : null;
-}
-
-const DAY_MS = 86_400_000;
-
-function normName(s: string | null | undefined): string {
-  return (s ?? "").toLowerCase().replace(/[^a-z]/g, "");
-}
-
-// Loose opponent-name match: exact after normalisation, or one contains the
-// other (min 4 chars so "fc"/"utd" fragments don't false-positive).
-function opponentsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
-  const na = normName(a);
-  const nb = normName(b);
-  if (!na || !nb) return false;
-  if (na === nb) return true;
-  if (na.length >= 4 && nb.includes(na)) return true;
-  if (nb.length >= 4 && na.includes(nb)) return true;
-  return false;
-}
-
 // GET /veo/links?leagueId= — link state per Veo match + Hub matches to pick from.
 router.get("/veo/links", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
@@ -920,6 +900,8 @@ router.get("/veo/links", async (req, res) => {
         opponent: veoMatchesTable.opponent,
         startsAt: veoMatchesTable.startsAt,
         matchId: veoMatchesTable.matchId,
+        processingStatus: veoMatchesTable.processingStatus,
+        syncedAt: veoMatchesTable.syncedAt,
         synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
         // Manage list shows removed games too, so they can be restored.
         removed: sql<boolean>`${veoMatchesTable.removedAt} IS NOT NULL`,
@@ -1059,45 +1041,41 @@ export async function autoLinkVeoLeague(leagueId: number) {
     hubMatchesForLeague(leagueId),
   ]);
 
-  // Hub matches already claimed by a Veo recording can't be auto-claimed again.
-  const taken = new Set(veoRows.map((v) => v.matchId).filter((x): x is number => x != null));
-
+  const plan = planExactDateAutoLinks(veoRows, hubMatches);
   let linked = 0;
-  let ambiguous = 0;
-  let unmatched = 0;
+  let ambiguous = plan.ambiguous;
+  let unmatched = plan.unmatched;
 
-  for (const v of veoRows) {
-    if (v.matchId != null) continue; // already linked — leave alone
-    const kickoff = v.startsAt ? Date.parse(v.startsAt) : NaN;
-    if (!Number.isFinite(kickoff)) {
-      unmatched++;
-      continue;
-    }
-    const candidates = hubMatches.filter((h) => {
-      if (taken.has(h.id)) return false;
-      const hm = hubDateMs(h.matchDate);
-      return hm != null && Math.abs(hm - kickoff) <= 1.5 * DAY_MS; // ±1 day + kickoff-time slack
-    });
-    let pick: (typeof candidates)[number] | null = null;
-    if (candidates.length === 1) {
-      pick = candidates[0];
-    } else if (candidates.length > 1) {
-      // Same weekend, multiple squads: only link when the opponent name settles it.
-      const byOpp = candidates.filter(
-        (h) => opponentsMatch(v.opponent, h.opponent) || opponentsMatch(v.title, h.opponent),
-      );
-      if (byOpp.length === 1) pick = byOpp[0];
-      else {
+  for (const link of plan.links) {
+    try {
+      const updated = await db
+        .update(veoMatchesTable)
+        .set({ matchId: link.matchId })
+        .where(
+          and(
+            eq(veoMatchesTable.id, link.veoId),
+            eq(veoMatchesTable.leagueId, leagueId),
+            isNull(veoMatchesTable.matchId),
+          ),
+        )
+        .returning({ id: veoMatchesTable.id });
+      // A concurrent manual action may have linked this recording since the
+      // plan was built. Never overwrite it.
+      if (updated.length === 0) unmatched++;
+      else linked++;
+    } catch (error) {
+      // The partial unique index is the final guard if concurrent link passes
+      // target the same Hub fixture. Leave the loser visibly unlinked.
+      if ((error as { code?: string })?.code === "23505") {
         ambiguous++;
-        continue;
+        logger.warn(
+          { leagueId, veoId: link.veoId, matchId: link.matchId },
+          "veo: auto-link target was claimed concurrently",
+        );
+      } else {
+        throw error;
       }
-    } else {
-      unmatched++;
-      continue;
     }
-    await db.update(veoMatchesTable).set({ matchId: pick.id }).where(eq(veoMatchesTable.id, v.id));
-    taken.add(pick.id);
-    linked++;
   }
 
   logger.info({ leagueId, linked, ambiguous, unmatched }, "veo: auto-link pass");
@@ -1131,11 +1109,13 @@ router.post("/entry/veo-link", async (req, res) => {
     return res.status(400).json({ error: "matchId must be a number or null" });
 
   const veoRow = await db
-    .select({ id: veoMatchesTable.id })
+    .select({ id: veoMatchesTable.id, removedAt: veoMatchesTable.removedAt })
     .from(veoMatchesTable)
     .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
     .limit(1);
   if (veoRow.length === 0) return res.status(404).json({ error: "Veo match not found in this league" });
+  if (veoRow[0].removedAt != null)
+    return res.status(409).json({ error: "Restore this Veo recording before changing its match link" });
 
   if (matchId != null) {
     // The Hub match must belong to one of this league's seasons.
@@ -1150,18 +1130,39 @@ router.post("/entry/veo-link", async (req, res) => {
 
   // Replace a link atomically. The partial unique index on
   // (league_id, match_id) is the final guard against concurrent assignments.
-  await db.transaction(async (tx) => {
-    if (matchId != null) {
-      await tx
+  try {
+    await db.transaction(async (tx) => {
+      if (matchId != null) {
+        await tx
+          .update(veoMatchesTable)
+          .set({ matchId: null })
+          .where(
+            and(
+              eq(veoMatchesTable.leagueId, leagueId),
+              eq(veoMatchesTable.matchId, matchId),
+              isNull(veoMatchesTable.removedAt),
+            ),
+          );
+      }
+      const updated = await tx
         .update(veoMatchesTable)
-        .set({ matchId: null })
-        .where(and(eq(veoMatchesTable.leagueId, leagueId), eq(veoMatchesTable.matchId, matchId)));
+        .set({ matchId })
+        .where(
+          and(
+            eq(veoMatchesTable.id, veoId),
+            eq(veoMatchesTable.leagueId, leagueId),
+            isNull(veoMatchesTable.removedAt),
+          ),
+        )
+        .returning({ id: veoMatchesTable.id });
+      if (updated.length === 0) throw new Error("VEO_LINK_TARGET_REMOVED");
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "VEO_LINK_TARGET_REMOVED") {
+      return res.status(409).json({ error: "Restore this Veo recording before changing its match link" });
     }
-    await tx
-      .update(veoMatchesTable)
-      .set({ matchId })
-      .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
-  });
+    throw error;
+  }
   if (matchId != null) {
     try {
       await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId });
@@ -1257,11 +1258,24 @@ router.post("/entry/veo-remove", async (req, res) => {
     return res.status(400).json({ error: "leagueId and veoId required" });
   if (typeof removed !== "boolean") return res.status(400).json({ error: "removed must be true or false" });
 
-  const updated = await db
-    .update(veoMatchesTable)
-    .set({ removedAt: removed ? new Date().toISOString() : null })
-    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
-    .returning({ id: veoMatchesTable.id });
+  let updated: Array<{ id: number }>;
+  try {
+    updated = await db
+      .update(veoMatchesTable)
+      .set({ removedAt: removed ? new Date().toISOString() : null })
+      .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
+      .returning({ id: veoMatchesTable.id });
+  } catch (error) {
+    const code =
+      (error as { code?: string })?.code ??
+      (error as { cause?: { code?: string } })?.cause?.code;
+    if (!removed && code === "23505") {
+      return res.status(409).json({
+        error: "Another active Veo recording is already linked to that Hub match. Unlink it before restoring this recording.",
+      });
+    }
+    throw error;
+  }
   if (updated.length === 0) return res.status(404).json({ error: "Veo match not found in this league" });
   return res.json({ ok: true });
 });

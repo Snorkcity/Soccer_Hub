@@ -23,6 +23,9 @@ export const veoMatchesTable = pgTable(
     opponent: text("opponent"),
     // ISO datetime string of kick-off (Veo recording `start`).
     startsAt: text("starts_at"),
+    // Veo recording pipeline state retained verbatim for sync audits. Veo has
+    // returned both strings and structured objects from this field.
+    processingStatus: jsonb("processing_status").$type<unknown>(),
     hasAnalytics: boolean("has_analytics").default(false).notNull(),
     hasEvents: boolean("has_events").default(false).notNull(),
     hasTracking: boolean("has_tracking").default(false).notNull(),
@@ -50,7 +53,7 @@ export const veoMatchesTable = pgTable(
     byLeagueMatch: uniqueIndex("veo_matches_league_match_idx").on(t.leagueId, t.veoMatchId),
     oneRecordingPerHubMatch: uniqueIndex("veo_matches_league_hub_match_idx")
       .on(t.leagueId, t.matchId)
-      .where(sql`${t.matchId} IS NOT NULL`),
+      .where(sql`${t.matchId} IS NOT NULL AND ${t.removedAt} IS NULL`),
   }),
 );
 

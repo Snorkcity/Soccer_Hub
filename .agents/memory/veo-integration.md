@@ -28,6 +28,8 @@ Design generalisable: future clubs supply their own Veo login → same flow, per
 - **Match list per team (THE gap, now solved):** `GET /clubs/{club}/recordings/?filter=own&team={team-slug}`.
   NOT the global `/api/app/matches/` firehose (ignores all team filters, returns other clubs worldwide).
   Recording objects carry identifier, title, team, start, thumbnail, processing_status, etc.
+  `processing_status` is object-valued in current responses (often `{}` when done), despite older
+  response typing describing a string; preserve it verbatim as JSON.
 - **Match detail:** `GET /matches/{id}/` → has_analytics_enabled, has_events_enabled, has_tracking_data,
   has_momentum_data, opponent_team_name, title, identifier(=id, a uuid).
 
@@ -67,8 +69,8 @@ with Veo team match_count of 81). Dribl pattern reference: artifacts/api-server/
 
 
 ## Veo ↔ Hub match linking (match reports)
-- `veo_matches.match_id` → `matches.id`; one recording per Hub match (manual link steals from any other row holding it).
-- Auto-link: kickoff ±1.5 days; single candidate wins on date alone, multiple candidates need an opponent-name match (normalised containment, min 4 chars) or the row is left for manual fixing. Veo opponents are often abbreviations (TUFC, WCW, COFC) that never fuzzy-match Hub names — the manual Select on the Veo Insights "Match links" card is the real workhorse for those.
+- `veo_matches.match_id` → `matches.id`; one ACTIVE recording per Hub match. Removed archive rows retain their old link for reference but do not block an active replacement.
+- Auto-link is league/team-scoped and compares exact `Australia/Sydney` calendar dates. A sole same-date fixture wins; opponent then title may break only a genuine same-day tie. Missing/ambiguous cases remain manual. Never use a UTC-duration window or title-first identity.
 - `/veo/report-stats?leagueId&matchRowId` serves shots + 5-min momentum bins for a linked Hub match; maths deliberately mirrors the client-side VeoInsights MatchView (same weights/bins) — change them in both places.
 ## Sync stays MANUAL (coach decision)
 Veo recordings upload from hardware weekly and finish processing anywhere Sunday night–Tuesday
