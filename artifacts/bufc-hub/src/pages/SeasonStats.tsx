@@ -2347,7 +2347,9 @@ export default function SeasonStats() {
                         <TableHead className="h-8 py-1 text-right">Apps</TableHead>
                         <TableHead className="h-8 py-1 text-right font-bold text-chart-1">G</TableHead>
                         <TableHead className="h-8 py-1 text-right">A</TableHead>
-                        <TableHead className="h-8 py-1 text-center">Borrowed</TableHead>
+                        <TableHead className="h-8 py-1 text-right whitespace-nowrap text-emerald-600 dark:text-emerald-400" title="Appearances borrowed up from a younger grade">Borrowed ↑</TableHead>
+                        <TableHead className="h-8 py-1 text-right whitespace-nowrap text-red-600 dark:text-red-400" title="Appearances borrowed down from an older grade">Borrowed ↓</TableHead>
+                        <TableHead className="h-8 py-1 text-right whitespace-nowrap text-muted-foreground" title="Borrowed appearances where the player's home grade is not yet proven">Borrowed ?</TableHead>
                         <TableHead className="h-8 py-1 text-right text-yellow-400">Y</TableHead>
                         <TableHead className="h-8 py-1 text-right text-red-500">R</TableHead>
                       </TableRow>
@@ -2361,13 +2363,14 @@ export default function SeasonStats() {
                             <TableCell className="py-2 text-right">{p.appearances}</TableCell>
                             <TableCell className="py-2 text-right font-bold text-chart-1">{p.goals}</TableCell>
                             <TableCell className="py-2 text-right">{p.assists}</TableCell>
-                            <TableCell className="py-2">
-                              <div className="flex justify-center gap-1">
-                                {p.borrowedUp > 0 && <span aria-label={`${p.borrowedUp} appearances borrowed up`} title="Borrowed up from a younger grade" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-emerald-500/70 bg-emerald-500/10 px-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">B{p.borrowedUp > 1 ? p.borrowedUp : ""}</span>}
-                                {p.borrowedDown > 0 && <span aria-label={`${p.borrowedDown} appearances borrowed down`} title="Borrowed down from an older grade" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-red-500/70 bg-red-500/10 px-1 text-[10px] font-bold text-red-600 dark:text-red-400">B{p.borrowedDown > 1 ? p.borrowedDown : ""}</span>}
-                                {p.borrowedUnknown > 0 && <span aria-label={`${p.borrowedUnknown} borrowed appearances with an unproven home grade`} title="Borrowed player — home grade not yet proven" className="inline-flex min-w-5 h-5 items-center justify-center rounded border border-muted-foreground/40 px-1 text-[10px] font-bold text-muted-foreground">B{p.borrowedUnknown > 1 ? p.borrowedUnknown : ""}</span>}
-                                {p.borrowedUp + p.borrowedDown + p.borrowedUnknown === 0 && <span className="text-muted-foreground">—</span>}
-                              </div>
+                            <TableCell className="py-2 text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400" aria-label={`${p.borrowedUp} appearances borrowed up`}>
+                              {p.borrowedUp || "—"}
+                            </TableCell>
+                            <TableCell className="py-2 text-right font-semibold tabular-nums text-red-600 dark:text-red-400" aria-label={`${p.borrowedDown} appearances borrowed down`}>
+                              {p.borrowedDown || "—"}
+                            </TableCell>
+                            <TableCell className="py-2 text-right tabular-nums text-muted-foreground" aria-label={`${p.borrowedUnknown} borrowed appearances with an unproven home grade`}>
+                              {p.borrowedUnknown || "—"}
                             </TableCell>
                             <TableCell className="py-2 text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
                             <TableCell className="py-2 text-right text-red-500">{p.redCards || "—"}</TableCell>
@@ -4845,6 +4848,64 @@ function NplbOpponentPlayerCharts({
   );
 }
 
+type NplbAppearanceDatum = {
+  name: string;
+  fullName: string;
+  club: string | null;
+  appearances: number;
+  [opponent: string]: string | number | null;
+};
+
+function NplbAppearanceTooltip({ active, payload, opponents, hidden, colorMap }: {
+  active?: boolean;
+  payload?: Array<{ payload?: NplbAppearanceDatum }>;
+  opponents: string[];
+  hidden: Set<string>;
+  colorMap: Record<string, string>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  const items = opponents
+    .filter(opponent => !hidden.has(opponent))
+    .map(opponent => ({ opponent, value: Number(row[opponent] ?? 0) }))
+    .filter(item => item.value > 0)
+    .sort((a, b) => b.value - a.value || a.opponent.localeCompare(b.opponent));
+  if (!items.length) return null;
+  const visibleTotal = items.reduce((sum, item) => sum + item.value, 0);
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[210px] max-w-[300px] space-y-2">
+      <div>
+        <div className="font-semibold text-sm leading-tight">{row.fullName}</div>
+        {row.club && <div className="mt-0.5 text-muted-foreground">{row.club}</div>}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        {items.map(item => (
+          <div key={item.opponent} className="flex justify-between gap-6">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: colorMap[item.opponent] ?? "#888888" }} />
+              <span className="truncate">vs {item.opponent}</span>
+            </span>
+            <span className="font-medium tabular-nums">{item.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        {visibleTotal !== row.appearances && (
+          <div className="flex justify-between gap-6">
+            <span className="text-muted-foreground">Visible opponents</span>
+            <span className="tabular-nums">{visibleTotal}</span>
+          </div>
+        )}
+        <div className="flex justify-between gap-6 font-semibold">
+          <span className="text-muted-foreground">Total appearances</span>
+          <span className="tabular-nums">{row.appearances}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NplbAppearanceChart({
   clubLabel,
   srcFull,
@@ -4878,7 +4939,7 @@ function NplbAppearanceChart({
 
   const data = useMemo(() => {
     const rows = (src?.players ?? []).map(player => {
-      const row: Record<string, unknown> = {
+      const row: NplbAppearanceDatum = {
         name: sn[player.playerName] ?? player.playerName,
         fullName: player.playerName,
         club: player.club ?? null,
@@ -4920,7 +4981,10 @@ function NplbAppearanceChart({
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
             <YAxis {...AXIS_STYLE} allowDecimals={false} />
-            <Tooltip cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            <Tooltip
+              content={<NplbAppearanceTooltip opponents={opponents} hidden={hidden} colorMap={colorMap} />}
+              cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+            />
             {opponents.map(opponent => (
               <Bar
                 key={opponent}
@@ -4935,29 +4999,6 @@ function NplbAppearanceChart({
         </ResponsiveContainer>
       )}
     </ChartCard>
-  );
-}
-
-function NplbBorrowingBadges({ up, down, unknown }: { up: number; down: number; unknown: number }) {
-  if (up + down + unknown === 0) return <span className="text-muted-foreground">—</span>;
-  return (
-    <div className="flex flex-wrap justify-end gap-1">
-      {up > 0 && (
-        <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
-          ↑ {up}
-        </span>
-      )}
-      {down > 0 && (
-        <span className="rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
-          ↓ {down}
-        </span>
-      )}
-      {unknown > 0 && (
-        <span className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
-          ? {unknown}
-        </span>
-      )}
-    </div>
   );
 }
 
@@ -4988,7 +5029,7 @@ function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
           <div className="px-6 pb-6 text-sm text-muted-foreground">No player appearances recorded for this selection.</div>
         ) : (
           <div className="max-h-[34rem] overflow-auto">
-            <Table className="min-w-[620px]">
+            <Table className="min-w-[760px]">
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead>Player</TableHead>
@@ -4997,7 +5038,9 @@ function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
                   <TableHead className="text-right">Goals</TableHead>
                   <TableHead className="text-right">Assists</TableHead>
                   <TableHead className="text-right">G+A</TableHead>
-                  <TableHead className="text-right">Borrowed ↑ / ↓ / ?</TableHead>
+                  <TableHead className="text-right whitespace-nowrap text-emerald-600 dark:text-emerald-400" title="Appearances borrowed up from a younger grade">Borrowed ↑</TableHead>
+                  <TableHead className="text-right whitespace-nowrap text-red-600 dark:text-red-400" title="Appearances borrowed down from an older grade">Borrowed ↓</TableHead>
+                  <TableHead className="text-right whitespace-nowrap text-muted-foreground" title="Borrowed appearances where the player's home grade is not yet proven">Borrowed ?</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -5009,12 +5052,14 @@ function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
                     <TableCell className="text-right tabular-nums">{player.totalGoals}</TableCell>
                     <TableCell className="text-right tabular-nums">{player.totalAssists}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{player.totalGoals + player.totalAssists}</TableCell>
-                    <TableCell className="text-right">
-                      <NplbBorrowingBadges
-                        up={player.borrowedUp}
-                        down={player.borrowedDown}
-                        unknown={player.borrowedUnknown}
-                      />
+                    <TableCell className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400" aria-label={`${player.borrowedUp} appearances borrowed up`}>
+                      {player.borrowedUp || "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-red-600 dark:text-red-400" aria-label={`${player.borrowedDown} appearances borrowed down`}>
+                      {player.borrowedDown || "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground" aria-label={`${player.borrowedUnknown} borrowed appearances with an unproven home grade`}>
+                      {player.borrowedUnknown || "—"}
                     </TableCell>
                   </TableRow>
                 ))}

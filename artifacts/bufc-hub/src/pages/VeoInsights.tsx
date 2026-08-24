@@ -239,6 +239,48 @@ function VeoSeasonTooltip({ active, payload }: {
   );
 }
 
+function PassingDataState({ pending, unavailable, compact = false, detail, loading = false }: {
+  pending: number;
+  unavailable: number;
+  compact?: boolean;
+  detail?: string;
+  loading?: boolean;
+}) {
+  const missing = pending + unavailable;
+  const title = loading
+    ? "Loading Veo passing data…"
+    : detail
+    ?? (pending > 0
+      ? "Veo passing data is still processing"
+      : "Veo passing data is unavailable");
+  const guidance = loading
+    ? "Checking the selected recordings for usable possession and passing analytics."
+    : [
+    pending > 0
+      ? `Sync from Veo retries ${pending === 1 ? "this feed" : `the ${pending} pending feeds`} when Veo finishes processing.`
+      : null,
+    unavailable > 0
+      ? `${unavailable === 1 ? "This recording has" : `${unavailable} recordings have`} no usable Veo/RAS passing feed. If Veo now shows the analytics, use Re-fetch in Match links above.`
+      : null,
+  ].filter(Boolean).join(" ");
+  return (
+    <div className={`flex flex-col items-center justify-center text-center text-sm text-muted-foreground ${compact ? "min-h-[220px] px-5 py-8" : "rounded-lg border border-amber-500/25 bg-amber-500/5 px-5 py-4"}`}>
+      <div className="flex items-center gap-2 font-medium text-foreground">
+        {loading
+          ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          : pending > 0
+            ? <Clock className="h-4 w-4 text-amber-500" />
+            : <AlertTriangle className="h-4 w-4 text-muted-foreground" />}
+        {title}
+      </div>
+      {guidance && <p className="mt-1.5 max-w-2xl leading-relaxed">{guidance}</p>}
+      {!guidance && missing === 0 && (
+        <p className="mt-1.5 max-w-2xl leading-relaxed">There is not enough tracked evidence to draw this chart.</p>
+      )}
+    </div>
+  );
+}
+
 function fmtDate(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -365,7 +407,7 @@ export default function VeoInsights() {
 
   // Possession & passing summaries (Veo RAS analytics) — used by the season
   // trend charts AND the match view (looked up by veo row id).
-  const { data: seasonPassingData } = useGetVeoSeasonPassing(seasonParams, {
+  const { data: seasonPassingData, isLoading: seasonPassingLoading } = useGetVeoSeasonPassing(seasonParams, {
     query: {
       enabled: activeLeagueId != null,
       queryKey: getGetVeoSeasonPassingQueryKey(seasonParams),
@@ -527,6 +569,8 @@ export default function VeoInsights() {
                   matches={seasonData.matches}
                   shotMatches={seasonShotsData?.matches ?? []}
                   passingMatches={seasonPassingData?.matches ?? []}
+                  matchSummaries={synced}
+                  passingLoading={seasonPassingLoading}
                   timing={matchTiming}
                 />
               )
@@ -545,6 +589,7 @@ export default function VeoInsights() {
                 match={match}
                 events={events}
                 passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
+                passingLoading={seasonPassingLoading}
                 timing={matchTiming}
               />
             )
@@ -913,10 +958,12 @@ function MatchLinksCard({
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches, passingMatches, timing }: {
+function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, timing }: {
   matches: VeoSeasonMatch[];
   shotMatches: VeoSeasonShotMatch[];
   passingMatches: VeoSeasonPassingMatch[];
+  matchSummaries: VeoMatchSummary[];
+  passingLoading: boolean;
   timing: MatchTimingPolicy;
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
@@ -1229,6 +1276,19 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
     };
   }, [passRows]);
 
+  const passAvailability = useMemo(() => {
+    const availableIds = new Set(passingMatches.map((match) => match.id));
+    const summaries = new Map(matchSummaries.map((match) => [match.id, match]));
+    let pending = 0;
+    let unavailable = 0;
+    for (const match of filtered) {
+      if (availableIds.has(match.id)) continue;
+      if (summaries.get(match.id)?.pendingAnalytics) pending++;
+      else unavailable++;
+    }
+    return { pending, unavailable };
+  }, [filtered, matchSummaries, passingMatches]);
+
   // Hedged progress line for the team talk: first third vs last third of games.
   const passInsight = useMemo(() => {
     const withPct = passRowsWithRolling.filter((r) => r.possPct != null);
@@ -1404,7 +1464,7 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
         </Card>
       </div>
 
-      {passRowsWithRolling.length > 0 && (
+      {(
         <>
           <div className="pt-2">
             <h2 className="text-xl font-semibold tracking-tight">Possession &amp; passing</h2>
@@ -1413,11 +1473,18 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
               {passInsight ? <> {passInsight}</> : null}
             </p>
           </div>
+          {(passingLoading || passAvailability.pending + passAvailability.unavailable > 0) && (
+            <PassingDataState
+              pending={passAvailability.pending}
+              unavailable={passAvailability.unavailable}
+              loading={passingLoading}
+            />
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Avg possession"
               value={passTotals.avgPoss != null ? `${passTotals.avgPoss.toFixed(0)}%` : "—"}
-              sub={`${passTotals.games} games with tracking`}
+              sub={passingLoading ? "Loading tracking data…" : `${passTotals.games} games with tracking`}
             />
             <StatCard
               label="Passes per game"
@@ -1447,24 +1514,28 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                    <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                    {tooltip}
-                    <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
-                    {passTotals.avgPoss != null && (
-                      <ReferenceLine y={passTotals.avgPoss} stroke={C_US} strokeDasharray="5 4" />
-                    )}
-                    <Bar dataKey="possPct" name="Possession %">
-                      {passRowsWithRolling.map((r, i) => (
-                        <Cell key={i} fill={(r.possPct ?? 0) >= 50 ? C_US : C_THEM} />
-                      ))}
-                    </Bar>
-                    <Line dataKey="possRoll" name="3-game trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {passRowsWithRolling.length === 0 ? (
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                      <YAxis {...AXIS} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                      {tooltip}
+                      <ReferenceLine y={50} stroke="hsl(var(--muted-foreground))" />
+                      {passTotals.avgPoss != null && (
+                        <ReferenceLine y={passTotals.avgPoss} stroke={C_US} strokeDasharray="5 4" />
+                      )}
+                      <Bar dataKey="possPct" name="Possession %">
+                        {passRowsWithRolling.map((r, i) => (
+                          <Cell key={i} fill={(r.possPct ?? 0) >= 50 ? C_US : C_THEM} />
+                        ))}
+                      </Bar>
+                      <Line dataKey="possRoll" name="3-game trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1474,18 +1545,22 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 <CardDescription>Minutes of ball-in-possession time, us vs opponents, with our 3-game rolling average.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                    <YAxis {...AXIS} />
-                    {tooltip}
-                    {legend}
-                    <Bar dataKey="possMinUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="possMinThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                    <Line dataKey="minsRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {passRowsWithRolling.length === 0 ? (
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                      <YAxis {...AXIS} />
+                      {tooltip}
+                      {legend}
+                      <Bar dataKey="possMinUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="possMinThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                      <Line dataKey="minsRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1495,18 +1570,22 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 <CardDescription>Completed passes for and against, with our 3-game rolling average.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                    <YAxis {...AXIS} allowDecimals={false} />
-                    {tooltip}
-                    {legend}
-                    <Bar dataKey="passesUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="passesThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                    <Line dataKey="passesRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {passRowsWithRolling.length === 0 ? (
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                      <YAxis {...AXIS} allowDecimals={false} />
+                      {tooltip}
+                      {legend}
+                      <Bar dataKey="passesUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="passesThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                      <Line dataKey="passesRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1518,19 +1597,23 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                    <YAxis {...AXIS} allowDecimals={false} />
-                    {tooltip}
-                    {legend}
-                    <Bar dataKey="strings2" name="2 passes" stackId="s" fill={C_US} fillOpacity={0.35} />
-                    <Bar dataKey="strings35" name="3–5 passes" stackId="s" fill={C_US} fillOpacity={0.7} />
-                    <Bar dataKey="strings6" name="6+ passes" stackId="s" fill={C_US} radius={[3, 3, 0, 0]} />
-                    <Line dataKey="longRoll" name="6+ trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {passRowsWithRolling.length === 0 ? (
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                      <YAxis {...AXIS} allowDecimals={false} />
+                      {tooltip}
+                      {legend}
+                      <Bar dataKey="strings2" name="2 passes" stackId="s" fill={C_US} fillOpacity={0.35} />
+                      <Bar dataKey="strings35" name="3–5 passes" stackId="s" fill={C_US} fillOpacity={0.7} />
+                      <Bar dataKey="strings6" name="6+ passes" stackId="s" fill={C_US} radius={[3, 3, 0, 0]} />
+                      <Line dataKey="longRoll" name="6+ trend" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1542,18 +1625,22 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                    <YAxis {...AXIS} allowDecimals={false} />
-                    {tooltip}
-                    {legend}
-                    <Bar dataKey="possWonUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="possWonThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
-                    <Line dataKey="wonRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {passRowsWithRolling.length === 0 ? (
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                      <YAxis {...AXIS} allowDecimals={false} />
+                      {tooltip}
+                      {legend}
+                      <Bar dataKey="possWonUs" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="possWonThem" name="Opponents" fill={C_THEM} radius={[3, 3, 0, 0]} />
+                      <Line dataKey="wonRoll" name="3-game trend (us)" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1566,22 +1653,26 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={passRowsWithRolling} stackOffset="expand" margin={{ left: -10, right: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
-                  <YAxis {...AXIS} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
-                  {tooltip}
-                  {legend}
-                  <Bar dataKey="thirdDef" name="Defensive third" stackId="t" fill={C_THEM} fillOpacity={0.6} />
-                  <Bar dataKey="thirdMid" name="Middle third" stackId="t" fill={C_US} fillOpacity={0.45} />
-                  <Bar dataKey="thirdAtt" name="Attacking third" stackId="t" fill={C_US} radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {passRowsWithRolling.length === 0 ? (
+                <PassingDataState {...passAvailability} compact loading={passingLoading} />
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={passRowsWithRolling} stackOffset="expand" margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="opp" {...AXIS} interval={0} angle={-55} textAnchor="end" height={90} />
+                    <YAxis {...AXIS} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
+                    {tooltip}
+                    {legend}
+                    <Bar dataKey="thirdDef" name="Defensive third" stackId="t" fill={C_THEM} fillOpacity={0.6} />
+                    <Bar dataKey="thirdMid" name="Middle third" stackId="t" fill={C_US} fillOpacity={0.45} />
+                    <Bar dataKey="thirdAtt" name="Attacking third" stackId="t" fill={C_US} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
-          {clubStyle.length >= 2 && (
+          {(
             <Card>
               <CardHeader>
                 <CardTitle>Passing style by club</CardTitle>
@@ -1592,35 +1683,44 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Two panels with independent scales — long-pass share is a %
-                    of passes, the length index is unitless; one shared axis
-                    would invite false comparisons between the two. */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    { key: "longPct" as const, title: "Long passes — share of all passes", fmt: (v: number, n: number) => `${v.toFixed(1)}% (${n} passes sampled)` },
-                    { key: "avgIdx" as const, title: "Average pass length (index)", fmt: (v: number, n: number) => `${v.toFixed(1)} (${n} passes sampled)` },
-                  ].map(({ key, title, fmt }) => (
-                    <div key={key}>
-                      <div className="text-xs font-medium text-muted-foreground mb-1">{title}</div>
-                      <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={clubStyle} margin={{ left: -10, right: 10 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="club" {...AXIS} interval={0} angle={-35} textAnchor="end" height={70} />
-                          <YAxis {...AXIS} />
-                          <Tooltip
-                            contentStyle={TOOLTIP_BOX}
-                            cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-                            formatter={(v: number, _name, item) => [
-                              fmt(Number(v), (item?.payload as { n?: number })?.n ?? 0),
-                              title,
-                            ]}
-                          />
-                          <Bar dataKey={key} name={title} fill={C_US} radius={[3, 3, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ))}
-                </div>
+                {clubStyle.length < 2 ? (
+                  <PassingDataState
+                    {...passAvailability}
+                    compact
+                    loading={passingLoading}
+                    detail={passRowsWithRolling.length > 0 ? "Passing style needs more evidence" : undefined}
+                  />
+                ) : (
+                  /* Two panels with independent scales — long-pass share is a %
+                     of passes, the length index is unitless; one shared axis
+                     would invite false comparisons between the two. */
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { key: "longPct" as const, title: "Long passes — share of all passes", fmt: (v: number, n: number) => `${v.toFixed(1)}% (${n} passes sampled)` },
+                      { key: "avgIdx" as const, title: "Average pass length (index)", fmt: (v: number, n: number) => `${v.toFixed(1)} (${n} passes sampled)` },
+                    ].map(({ key, title, fmt }) => (
+                      <div key={key}>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">{title}</div>
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={clubStyle} margin={{ left: -10, right: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis dataKey="club" {...AXIS} interval={0} angle={-35} textAnchor="end" height={70} />
+                            <YAxis {...AXIS} />
+                            <Tooltip
+                              contentStyle={TOOLTIP_BOX}
+                              cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                              formatter={(v: number, _name, item) => [
+                                fmt(Number(v), (item?.payload as { n?: number })?.n ?? 0),
+                                title,
+                              ]}
+                            />
+                            <Bar dataKey={key} name={title} fill={C_US} radius={[3, 3, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1734,7 +1834,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function MatchView({ match, events, passing, timing }: {
+function MatchView({ match, events, passing, passingLoading, timing }: {
   match: {
     opponent?: string | null;
     title?: string | null;
@@ -1751,6 +1851,7 @@ function MatchView({ match, events, passing, timing }: {
   };
   events: VeoEvent[];
   passing: VeoSeasonPassingMatch | null;
+  passingLoading: boolean;
   timing: MatchTimingPolicy;
 }) {
   const opp = opponentOf(match);
@@ -1951,6 +2052,12 @@ function MatchView({ match, events, passing, timing }: {
       thirdsThem: thirds(passing.thirdsThem),
     };
   }, [passing]);
+  const passDetailsStatus = match.passDetails as { available?: boolean; pending?: boolean } | null | undefined;
+  const matchPassAvailability = passStats
+    ? { pending: 0, unavailable: 0 }
+    : (!passDetailsStatus || (passDetailsStatus.available === false && passDetailsStatus.pending !== false))
+      ? { pending: 1, unavailable: 0 }
+      : { pending: 0, unavailable: 1 };
 
   const goals = useMemo(() => {
     return { us: match.score.goalsFor, them: match.score.goalsAgainst };
@@ -2241,13 +2348,14 @@ function MatchView({ match, events, passing, timing }: {
         </Card>
       )}
 
-      {passStats && (
+      {(
         <>
+          {!passStats && <PassingDataState {...matchPassAvailability} loading={passingLoading} />}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Possession" value={`${passStats.possPctUs.toFixed(0)}%`} sub="of ball-in-possession time" />
-            <StatCard label="Possession minutes" value={`${passStats.possMinUs.toFixed(1)} – ${passStats.possMinThem.toFixed(1)}`} sub="us – them" />
-            <StatCard label="Completed passes" value={`${passStats.passesUs} – ${passStats.passesThem}`} sub="us – them" />
-            <StatCard label="Possession won" value={`${passStats.possWonUs} – ${passStats.possWonThem}`} sub="regains, us – them" />
+            <StatCard label="Possession" value={passStats ? `${passStats.possPctUs.toFixed(0)}%` : "—"} sub={passStats ? "of ball-in-possession time" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
+            <StatCard label="Possession minutes" value={passStats ? `${passStats.possMinUs.toFixed(1)} – ${passStats.possMinThem.toFixed(1)}` : "—"} sub={passStats ? "us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
+            <StatCard label="Completed passes" value={passStats ? `${passStats.passesUs} – ${passStats.passesThem}` : "—"} sub={passStats ? "us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
+            <StatCard label="Possession won" value={passStats ? `${passStats.possWonUs} – ${passStats.possWonThem}` : "—"} sub={passStats ? "regains, us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
           </div>
 
           <div className="grid grid-cols-1 gap-6">
@@ -2259,17 +2367,21 @@ function MatchView({ match, events, passing, timing }: {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={passStats.hist} margin={{ left: -10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="len" {...AXIS} label={{ value: "passes in string", position: "insideBottom", offset: -2, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} height={36} />
-                    <YAxis {...AXIS} allowDecimals={false} />
-                    <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} labelFormatter={(l) => `${l}-pass strings`} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="them" name={opp} fill={C_THEM} radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {!passStats ? (
+                  <PassingDataState {...matchPassAvailability} compact loading={passingLoading} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={passStats.hist} margin={{ left: -10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="len" {...AXIS} label={{ value: "passes in string", position: "insideBottom", offset: -2, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} height={36} />
+                      <YAxis {...AXIS} allowDecimals={false} />
+                      <Tooltip contentStyle={TOOLTIP_BOX} cursor={{ fill: "hsl(var(--muted)/0.3)" }} labelFormatter={(l) => `${l}-pass strings`} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="us" name="Belconnen" fill={C_US} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="them" name={opp} fill={C_THEM} radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -2279,7 +2391,7 @@ function MatchView({ match, events, passing, timing }: {
                 <CardDescription>Where each side's possession happened — defensive, middle and attacking thirds.</CardDescription>
               </CardHeader>
               <CardContent>
-                {passStats.thirdsUs && passStats.thirdsThem ? (
+                {passStats?.thirdsUs && passStats.thirdsThem ? (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart
                       data={[
@@ -2299,13 +2411,18 @@ function MatchView({ match, events, passing, timing }: {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="text-sm text-muted-foreground py-8 text-center">No possession-location data for this match.</p>
+                  <PassingDataState
+                    {...matchPassAvailability}
+                    compact
+                    loading={passingLoading}
+                    detail={passStats ? "No possession-location data for this match" : undefined}
+                  />
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {possHeat && (
+          {possHeat ? (
             <Card>
               <CardHeader>
                 <CardTitle>Possession heat map</CardTitle>
@@ -2350,9 +2467,26 @@ function MatchView({ match, events, passing, timing }: {
                 )}
               </CardContent>
             </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Possession heat map</CardTitle>
+                <CardDescription>
+                  Where each side spent its time on the ball, from Veo's 18-zone possession tracking.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PassingDataState
+                  {...matchPassAvailability}
+                  compact
+                  loading={passingLoading}
+                  detail={passStats ? "Veo supplied passing totals but no 18-zone possession grid for this match" : undefined}
+                />
+              </CardContent>
+            </Card>
           )}
 
-          {passStyle && (
+          {passStyle ? (
             <Card>
               <CardHeader>
                 <CardTitle>Passing style</CardTitle>
@@ -2392,6 +2526,23 @@ function MatchView({ match, events, passing, timing }: {
                     )}
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Passing style</CardTitle>
+                <CardDescription>
+                  The length of every recorded pass, split short / medium / long for the two sides.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PassingDataState
+                  {...matchPassAvailability}
+                  compact
+                  loading={passingLoading}
+                  detail={passStats ? "Passing style needs at least 20 recorded pass vectors for one side" : undefined}
+                />
               </CardContent>
             </Card>
           )}
