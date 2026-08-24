@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:veo-a2": "node scripts/test-veo-analytics2.mjs",
     "test:veo-direction": "node scripts/test-veo-direction.mjs",
+    "test:veo-score": "node scripts/test-veo-score.mjs",
     "test:veo-linking": "node scripts/test-veo-linking.mjs",
     "test:match-stat-provenance": "node scripts/test-match-stat-provenance.mjs",
     "test:assistant-coaching": "node scripts/test-assistant-coaching.mjs",

@@ -460,6 +460,8 @@ export * from './veoReportPossession';
 export * from './veoReportRadarRow';
 export * from './veoReportStats';
 export * from './veoReportTiltPoint';
+export * from './veoResolvedScore';
+export * from './veoResolvedScoreSource';
 export * from './veoScoreMismatch';
 export * from './veoSeasonMatch';
 export * from './veoSeasonMatchCountsAgainst';

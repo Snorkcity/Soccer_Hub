@@ -4031,7 +4031,7 @@ components:
         z: { type: number, nullable: true }
     VeoSeasonMatch:
       type: object
-      required: [id, veoMatchId, countsFor, countsAgainst]
+      required: [id, veoMatchId, score, countsFor, countsAgainst]
       properties:
         id: { type: integer }
         veoMatchId: { type: string }
@@ -4040,6 +4040,7 @@ components:
         startsAt: { type: string, nullable: true }
         matchCode: { type: string, nullable: true }
         hubOpponent: { type: string, nullable: true }
+        score: { $ref: "#/components/schemas/VeoResolvedScore" }
         countsFor:
           type: object
           additionalProperties: { type: number }
@@ -4071,7 +4072,7 @@ components:
           items: { $ref: "#/components/schemas/VeoSeasonShot" }
     VeoMatchDetail:
       type: object
-      required: [id, veoMatchId]
+      required: [id, veoMatchId, score]
       properties:
         id: { type: integer }
         leagueId: { type: integer }
@@ -4084,6 +4085,7 @@ components:
         hasEvents: { type: boolean }
         hasTracking: { type: boolean }
         hasMomentum: { type: boolean }
+        score: { $ref: "#/components/schemas/VeoResolvedScore" }
         events:
           type: array
           nullable: true
@@ -4120,6 +4122,17 @@ components:
           additionalProperties: true
         matchId: { type: integer, nullable: true }
         syncedAt: { type: string, nullable: true }
+    VeoResolvedScore:
+      type: object
+      required: [goalsFor, goalsAgainst, veoGoalsFor, veoGoalsAgainst, source]
+      properties:
+        goalsFor: { type: integer, minimum: 0 }
+        goalsAgainst: { type: integer, minimum: 0 }
+        veoGoalsFor: { type: integer, minimum: 0 }
+        veoGoalsAgainst: { type: integer, minimum: 0 }
+        source:
+          type: string
+          enum: [official, veo-events]
     VeoPassStringBucket:
       type: object
       required: [len, count]

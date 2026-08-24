@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoResolvedScore } from './veoResolvedScore';
 import type { VeoSeasonMatchCountsAgainst } from './veoSeasonMatchCountsAgainst';
 import type { VeoSeasonMatchCountsFor } from './veoSeasonMatchCountsFor';
 
@@ -16,6 +17,7 @@ export interface VeoSeasonMatch {
   startsAt?: string | null;
   matchCode?: string | null;
   hubOpponent?: string | null;
+  score: VeoResolvedScore;
   countsFor: VeoSeasonMatchCountsFor;
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }

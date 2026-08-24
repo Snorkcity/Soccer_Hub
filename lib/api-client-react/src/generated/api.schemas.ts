@@ -332,6 +332,26 @@ export type VeoSeasonMatchCountsFor = {[key: string]: number};
 
 export type VeoSeasonMatchCountsAgainst = {[key: string]: number};
 
+export type VeoResolvedScoreSource = typeof VeoResolvedScoreSource[keyof typeof VeoResolvedScoreSource];
+
+
+export const VeoResolvedScoreSource = {
+  official: 'official',
+  'veo-events': 'veo-events',
+} as const;
+
+export interface VeoResolvedScore {
+  /** @minimum 0 */
+  goalsFor: number;
+  /** @minimum 0 */
+  goalsAgainst: number;
+  /** @minimum 0 */
+  veoGoalsFor: number;
+  /** @minimum 0 */
+  veoGoalsAgainst: number;
+  source: VeoResolvedScoreSource;
+}
+
 export interface VeoSeasonMatch {
   id: number;
   veoMatchId: string;
@@ -340,6 +360,7 @@ export interface VeoSeasonMatch {
   startsAt?: string | null;
   matchCode?: string | null;
   hubOpponent?: string | null;
+  score: VeoResolvedScore;
   countsFor: VeoSeasonMatchCountsFor;
   countsAgainst: VeoSeasonMatchCountsAgainst;
 }
@@ -458,6 +479,7 @@ export interface VeoMatchDetail {
   hasEvents?: boolean;
   hasTracking?: boolean;
   hasMomentum?: boolean;
+  score: VeoResolvedScore;
   events?: VeoEvent[] | null;
   stats?: VeoMatchDetailStats;
   /** Effective Hub periods with confirmed direction overrides applied */

@@ -4880,6 +4880,16 @@ export const GetVeoSeasonQueryParams = zod.object({
   "leagueId": zod.coerce.number()
 })
 
+export const getVeoSeasonResponseMatchesItemScoreGoalsForMin = 0;
+
+export const getVeoSeasonResponseMatchesItemScoreGoalsAgainstMin = 0;
+
+export const getVeoSeasonResponseMatchesItemScoreVeoGoalsForMin = 0;
+
+export const getVeoSeasonResponseMatchesItemScoreVeoGoalsAgainstMin = 0;
+
+
+
 export const GetVeoSeasonResponse = zod.object({
   "matches": zod.array(zod.object({
   "id": zod.number(),
@@ -4889,6 +4899,13 @@ export const GetVeoSeasonResponse = zod.object({
   "startsAt": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
   "hubOpponent": zod.string().nullish(),
+  "score": zod.object({
+  "goalsFor": zod.number().min(getVeoSeasonResponseMatchesItemScoreGoalsForMin),
+  "goalsAgainst": zod.number().min(getVeoSeasonResponseMatchesItemScoreGoalsAgainstMin),
+  "veoGoalsFor": zod.number().min(getVeoSeasonResponseMatchesItemScoreVeoGoalsForMin),
+  "veoGoalsAgainst": zod.number().min(getVeoSeasonResponseMatchesItemScoreVeoGoalsAgainstMin),
+  "source": zod.enum(['official', 'veo-events'])
+}),
   "countsFor": zod.record(zod.string(), zod.number()),
   "countsAgainst": zod.record(zod.string(), zod.number())
 }))
@@ -4983,6 +5000,14 @@ export const GetVeoMatchQueryParams = zod.object({
   "leagueId": zod.coerce.number()
 })
 
+export const getVeoMatchResponseScoreGoalsForMin = 0;
+
+export const getVeoMatchResponseScoreGoalsAgainstMin = 0;
+
+export const getVeoMatchResponseScoreVeoGoalsForMin = 0;
+
+export const getVeoMatchResponseScoreVeoGoalsAgainstMin = 0;
+
 export const getVeoMatchResponseDirectionReviewItemConfidenceMin = 0;
 export const getVeoMatchResponseDirectionReviewItemConfidenceMax = 1;
 
@@ -5002,6 +5027,13 @@ export const GetVeoMatchResponse = zod.object({
   "hasEvents": zod.boolean().optional(),
   "hasTracking": zod.boolean().optional(),
   "hasMomentum": zod.boolean().optional(),
+  "score": zod.object({
+  "goalsFor": zod.number().min(getVeoMatchResponseScoreGoalsForMin),
+  "goalsAgainst": zod.number().min(getVeoMatchResponseScoreGoalsAgainstMin),
+  "veoGoalsFor": zod.number().min(getVeoMatchResponseScoreVeoGoalsForMin),
+  "veoGoalsAgainst": zod.number().min(getVeoMatchResponseScoreVeoGoalsAgainstMin),
+  "source": zod.enum(['official', 'veo-events'])
+}),
   "events": zod.array(zod.object({
   "id": zod.string().optional(),
   "event_type": zod.string(),

@@ -176,6 +176,9 @@ type SeasonRow = {
   label?: string; opp?: string; date?: string;
   goalsFor?: number; goalsAgainst?: number; shotsFor?: number; shotsAgainst?: number;
   cornersFor?: number; cornersAgainst?: number; tilt?: number | null;
+  scoreSource?: "official" | "veo-events";
+  veoGoalsFor?: number;
+  veoGoalsAgainst?: number;
 };
 function VeoSeasonTooltip({ active, payload }: {
   active?: boolean;
@@ -196,6 +199,14 @@ function VeoSeasonTooltip({ active, payload }: {
   pair("Score", row.goalsFor, row.goalsAgainst);
   pair("Shots", row.shotsFor, row.shotsAgainst);
   pair("Corners", row.cornersFor, row.cornersAgainst);
+  if (
+    row.scoreSource === "official" &&
+    row.veoGoalsFor != null &&
+    row.veoGoalsAgainst != null &&
+    (row.veoGoalsFor !== row.goalsFor || row.veoGoalsAgainst !== row.goalsAgainst)
+  ) {
+    ctx.push({ label: "Veo event goals", value: `${row.veoGoalsFor} – ${row.veoGoalsAgainst}` });
+  }
   if (row.tilt != null && !shownNames.has("Field tilt")) ctx.push({ label: "Field tilt", value: `${row.tilt.toFixed(0)}% us` });
   return (
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-2">
@@ -219,7 +230,9 @@ function VeoSeasonTooltip({ active, payload }: {
               <span>{c.value}</span>
             </div>
           ))}
-          <div className="text-[10px] text-muted-foreground pt-1">us – them, from Veo events</div>
+          <div className="text-[10px] text-muted-foreground pt-1">
+            us – them · official score when linked; other figures from Veo events
+          </div>
         </div>
       )}
     </div>
@@ -988,7 +1001,11 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
           ? `${m.matchCode} · ${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`
           : `${opponentOf(m)}${fmtDate(m.startsAt) ? ` · ${fmtDate(m.startsAt)}` : ""}`,
         shotsFor, shotsAgainst,
-        goalsFor: n(f, "FootballGoal"), goalsAgainst: n(a, "FootballGoal"),
+        goalsFor: m.score.goalsFor,
+        goalsAgainst: m.score.goalsAgainst,
+        scoreSource: m.score.source,
+        veoGoalsFor: m.score.veoGoalsFor,
+        veoGoalsAgainst: m.score.veoGoalsAgainst,
         cornersFor: n(f, "FootballCornerKick"), cornersAgainst: n(a, "FootballCornerKick"),
         tilt,
         // Diverging view: distance from an even 50/50 game, so "better than
@@ -1312,7 +1329,9 @@ function SeasonView({ matches, shotMatches, passingMatches, timing }: {
         <Card>
           <CardHeader>
             <CardTitle>Goals per match</CardTitle>
-            <CardDescription>Season so far: {totals.goalsFor} scored, {totals.goalsAgainst} conceded (from Veo events).</CardDescription>
+            <CardDescription>
+              Season so far: {totals.goalsFor} scored, {totals.goalsAgainst} conceded. Official Hub/Dribl results override Veo event scores.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -1716,7 +1735,20 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 }
 
 function MatchView({ match, events, passing, timing }: {
-  match: { opponent?: string | null; title?: string | null; startsAt?: string | null; periods?: unknown; passDetails?: Record<string, unknown> | null };
+  match: {
+    opponent?: string | null;
+    title?: string | null;
+    startsAt?: string | null;
+    periods?: unknown;
+    passDetails?: Record<string, unknown> | null;
+    score: {
+      goalsFor: number;
+      goalsAgainst: number;
+      veoGoalsFor: number;
+      veoGoalsAgainst: number;
+      source: "official" | "veo-events";
+    };
+  };
   events: VeoEvent[];
   passing: VeoSeasonPassingMatch | null;
   timing: MatchTimingPolicy;
@@ -1921,20 +1953,26 @@ function MatchView({ match, events, passing, timing }: {
   }, [passing]);
 
   const goals = useMemo(() => {
-    let us = 0, them = 0;
-    for (const e of events) if (e.event_type === "FootballGoal") (isOwn(e) ? us++ : them++);
-    return { us, them };
-  }, [events]);
+    return { us: match.score.goalsFor, them: match.score.goalsAgainst };
+  }, [match.score.goalsFor, match.score.goalsAgainst]);
 
   // Own vs Opp counts per event type.
   const compare = useMemo(() => {
     const rows = COMPARE_ORDER.map((type) => {
+      if (type === "FootballGoal") {
+        return {
+          type,
+          label: EVENT_LABELS[type] ?? type,
+          us: match.score.goalsFor,
+          them: match.score.goalsAgainst,
+        };
+      }
       let us = 0, them = 0;
       for (const e of events) if (e.event_type === type) (isOwn(e) ? us++ : them++);
       return { type, label: EVENT_LABELS[type] ?? type, us, them };
     }).filter((r) => r.us > 0 || r.them > 0);
     return rows;
-  }, [events]);
+  }, [events, match.score.goalsFor, match.score.goalsAgainst]);
 
   // Field-tilt / momentum: event-weighted, per 5-min bin, us positive / them negative.
   const momentum = useMemo(() => {
@@ -2142,7 +2180,16 @@ function MatchView({ match, events, passing, timing }: {
             <div className="text-xs text-muted-foreground">{opp}</div>
             <div className="text-3xl font-bold" style={{ color: C_THEM }}>{goals.them}</div>
           </div>
-          <div className="w-full text-xs text-muted-foreground">{fmtDate(match.startsAt)} · from Veo events</div>
+          <div className="w-full text-xs text-muted-foreground">
+            {fmtDate(match.startsAt)} · {match.score.source === "official" ? "official Hub/Dribl result" : "from Veo events"}
+          </div>
+          {match.score.source === "official" &&
+            (match.score.veoGoalsFor !== match.score.goalsFor ||
+              match.score.veoGoalsAgainst !== match.score.goalsAgainst) && (
+              <div className="w-full text-xs text-amber-600 dark:text-amber-400">
+                Veo events detected {match.score.veoGoalsFor}–{match.score.veoGoalsAgainst}; event-based shot and timeline charts keep the raw Veo events.
+              </div>
+            )}
         </CardContent>
       </Card>
 

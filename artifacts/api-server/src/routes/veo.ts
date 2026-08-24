@@ -59,6 +59,7 @@ import {
   reviewVeoDirections,
   type VeoOwnSide,
 } from "../lib/veoDirection";
+import { countVeoEventGoals, resolveVeoScore } from "../lib/veoScore";
 
 const router: IRouter = Router();
 
@@ -604,6 +605,8 @@ router.get("/veo/season", async (req, res) => {
       events: veoMatchesTable.events,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
+      hubGoalsScored: matchesTable.goalsScored,
+      hubGoalsConceded: matchesTable.goalsConceded,
     })
     .from(veoMatchesTable)
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
@@ -626,6 +629,7 @@ router.get("/veo/season", async (req, res) => {
       startsAt: r.startsAt,
       matchCode: r.matchCode ?? null,
       hubOpponent: r.hubOpponent ?? null,
+      score: resolveVeoScore(r.events, r.hubGoalsScored, r.hubGoalsConceded),
       countsFor,
       countsAgainst,
     };
@@ -868,8 +872,19 @@ router.get("/veo/match", async (req, res) => {
     .limit(1);
   if (rows.length === 0) return res.status(404).json({ error: "Not found" });
   const row = rows[0];
+  const [hubResult] = row.matchId == null
+    ? []
+    : await db
+        .select({
+          goalsScored: matchesTable.goalsScored,
+          goalsConceded: matchesTable.goalsConceded,
+        })
+        .from(matchesTable)
+        .where(eq(matchesTable.id, row.matchId))
+        .limit(1);
   return res.json({
     ...row,
+    score: resolveVeoScore(row.events, hubResult?.goalsScored, hubResult?.goalsConceded),
     rawPeriods: row.periods,
     periods: effectiveVeoPeriods(row.periods, row.directionOverrides),
     directionOverrides: normaliseVeoDirectionOverrides(row.directionOverrides),
@@ -947,14 +962,7 @@ router.get("/veo/links", async (req, res) => {
     const hubFor = r.hubGoalsScored;
     const hubAgainst = r.hubGoalsConceded;
     if (r.matchId != null && hubFor != null && hubAgainst != null && Array.isArray(r.events)) {
-      const events = r.events as { event_type?: string; team?: string }[];
-      let veoFor = 0;
-      let veoAgainst = 0;
-      for (const e of events) {
-        if (e?.event_type !== "FootballGoal") continue;
-        // team === "Own" means a goal credited to our team in Veo.
-        if (e.team === "Own") veoFor++; else veoAgainst++;
-      }
+      const { goalsFor: veoFor, goalsAgainst: veoAgainst } = countVeoEventGoals(r.events);
       if (veoFor !== hubFor || veoAgainst !== hubAgainst) {
         scoreMismatch = { veoFor, veoAgainst, hubFor, hubAgainst };
       }

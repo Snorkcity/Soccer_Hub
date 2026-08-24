@@ -13,6 +13,7 @@ import type { VeoMatchDetailPeriodsItem } from './veoMatchDetailPeriodsItem';
 import type { VeoMatchDetailRawPeriodsItem } from './veoMatchDetailRawPeriodsItem';
 import type { VeoMatchDetailRoster } from './veoMatchDetailRoster';
 import type { VeoMatchDetailStats } from './veoMatchDetailStats';
+import type { VeoResolvedScore } from './veoResolvedScore';
 
 export interface VeoMatchDetail {
   id: number;
@@ -26,6 +27,7 @@ export interface VeoMatchDetail {
   hasEvents?: boolean;
   hasTracking?: boolean;
   hasMomentum?: boolean;
+  score: VeoResolvedScore;
   events?: VeoEvent[] | null;
   stats?: VeoMatchDetailStats;
   /** Effective Hub periods with confirmed direction overrides applied */
