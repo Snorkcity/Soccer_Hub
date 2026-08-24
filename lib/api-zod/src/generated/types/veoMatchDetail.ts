@@ -5,9 +5,12 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoDirectionReview } from './veoDirectionReview';
 import type { VeoEvent } from './veoEvent';
+import type { VeoMatchDetailDirectionOverrides } from './veoMatchDetailDirectionOverrides';
 import type { VeoMatchDetailPassDetails } from './veoMatchDetailPassDetails';
 import type { VeoMatchDetailPeriodsItem } from './veoMatchDetailPeriodsItem';
+import type { VeoMatchDetailRawPeriodsItem } from './veoMatchDetailRawPeriodsItem';
 import type { VeoMatchDetailRoster } from './veoMatchDetailRoster';
 import type { VeoMatchDetailStats } from './veoMatchDetailStats';
 
@@ -25,7 +28,12 @@ export interface VeoMatchDetail {
   hasMomentum?: boolean;
   events?: VeoEvent[] | null;
   stats?: VeoMatchDetailStats;
+  /** Effective Hub periods with confirmed direction overrides applied */
   periods?: VeoMatchDetailPeriodsItem[] | null;
+  /** Raw periods exactly as received from Veo */
+  rawPeriods?: VeoMatchDetailRawPeriodsItem[] | null;
+  directionOverrides?: VeoMatchDetailDirectionOverrides;
+  directionReview?: VeoDirectionReview[];
   roster?: VeoMatchDetailRoster;
   passDetails?: VeoMatchDetailPassDetails;
   matchId?: number | null;

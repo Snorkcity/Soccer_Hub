@@ -34,6 +34,10 @@ export const veoMatchesTable = pgTable(
     events: jsonb("events").$type<unknown[]>(),
     stats: jsonb("stats").$type<Record<string, unknown>>(),
     periods: jsonb("periods").$type<unknown[]>(),
+    // Hub-confirmed own_side values keyed by 1-based period number. Kept
+    // separately so Veo re-fetches can replace raw periods without erasing the
+    // coach's correction or compromising the raw payload for audit.
+    directionOverrides: jsonb("direction_overrides").$type<Record<string, "left" | "right">>(),
     roster: jsonb("roster").$type<Record<string, unknown>>(),
     // Pass/possession analytics from Veo's RAS service (pass strings, pass
     // locations, possession thirds + 18-zone grid, per period). Stored as the

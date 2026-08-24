@@ -755,6 +755,34 @@ paths:
                 items:
                   $ref: "#/components/schemas/PlayerLeaderboardEntry"
 
+  /analytics/nplb-player-leaderboard:
+    get:
+      operationId: getNplbPlayerLeaderboard
+      tags: [analytics]
+      summary: Get the NPLB-safe player leaderboard from match-card evidence
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: seasonId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: lastN
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Appearance-only NPLB player leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NplbPlayerLeaderboardEntry"
+
   /analytics/league-ladder:
     get:
       operationId: getLeagueLadder
@@ -1128,7 +1156,7 @@ paths:
     get:
       operationId: getOpponentPlayersByOpponent
       tags: [analytics]
-      summary: Per-player goals/assists/minutes for a club, broken down by the opponent they faced
+      summary: Per-player goal, assist and appearance evidence for a club, broken down by the opponent they faced
       parameters:
         - name: teamId
           in: query
@@ -3482,6 +3510,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
 
+  /entry/veo-direction:
+    post:
+      operationId: veoSetDirection
+      tags: [veo]
+      summary: Confirm or revert the Hub direction used for one Veo match period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoDirectionInput" }
+      responses:
+        "200":
+          description: Direction updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoSetLinkResult" }
+
   /entry/veo-remove:
     post:
       operationId: veoRemoveMatch
@@ -4050,7 +4095,21 @@ components:
         periods:
           type: array
           nullable: true
+          description: Effective Hub periods with confirmed direction overrides applied
           items: { type: object, additionalProperties: true }
+        rawPeriods:
+          type: array
+          nullable: true
+          description: Raw periods exactly as received from Veo
+          items: { type: object, additionalProperties: true }
+        directionOverrides:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [left, right]
+        directionReview:
+          type: array
+          items: { $ref: "#/components/schemas/VeoDirectionReview" }
         roster:
           type: object
           nullable: true
@@ -4121,9 +4180,31 @@ components:
         veoAgainst: { type: integer }
         hubFor:     { type: integer }
         hubAgainst: { type: integer }
+    VeoDirectionReview:
+      type: object
+      required: [periodId, rawSide, overrideSide, effectiveSide, suggestedSide, status, confidence, evidenceCount]
+      properties:
+        periodId: { type: integer }
+        rawSide:
+          type: [string, "null"]
+          enum: [left, right, null]
+        overrideSide:
+          type: [string, "null"]
+          enum: [left, right, null]
+        effectiveSide:
+          type: string
+          enum: [left, right]
+        suggestedSide:
+          type: [string, "null"]
+          enum: [left, right, null]
+        status:
+          type: string
+          enum: [confirmed, consistent, looks_reversed, uncertain, no_evidence]
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidenceCount: { type: integer, minimum: 0 }
     VeoLinkRow:
       type: object
-      required: [id, veoMatchId, synced]
+      required: [id, veoMatchId, synced, directionReview]
       properties:
         id: { type: integer }
         veoMatchId: { type: string }
@@ -4144,6 +4225,9 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/VeoScoreMismatch"
+        directionReview:
+          type: array
+          items: { $ref: "#/components/schemas/VeoDirectionReview" }
     HubMatchOption:
       type: object
       required: [id, matchId, opponent, teamId, seasonId]
@@ -4189,6 +4273,16 @@ components:
       properties:
         leagueId: { type: integer }
         veoId: { type: integer }
+    VeoDirectionInput:
+      type: object
+      required: [leagueId, veoId, periodId, ownSide]
+      properties:
+        leagueId: { type: integer }
+        veoId: { type: integer }
+        periodId: { type: integer, minimum: 1 }
+        ownSide:
+          type: [string, "null"]
+          enum: [left, right, null]
     VeoRemoveInput:
       type: object
       required: [leagueId, veoId, removed]
@@ -4802,6 +4896,21 @@ components:
         goalsConceded:        { type: integer }
         minsPerGoalConceded:  { type: ["number", "null"] }
       required: [playerId, playerName, goals, assists, appearances, starts, minsPlayed, borrowedUp, borrowedDown, borrowedUnknown, yellowCards, redCards, goalsFor, goalsConceded]
+
+    NplbPlayerLeaderboardEntry:
+      type: object
+      properties:
+        playerId:        { type: integer }
+        playerName:      { type: string }
+        goals:           { type: integer }
+        assists:         { type: integer }
+        appearances:     { type: integer }
+        borrowedUp:      { type: integer }
+        borrowedDown:    { type: integer }
+        borrowedUnknown: { type: integer }
+        yellowCards:     { type: integer }
+        redCards:        { type: integer }
+      required: [playerId, playerName, goals, assists, appearances, borrowedUp, borrowedDown, borrowedUnknown, yellowCards, redCards]
 
     OpponentLeaderboardEntry:
       type: object
@@ -5461,17 +5570,26 @@ components:
             $ref: "#/components/schemas/AssistsByOpponentPlayer"
       required: [opponents, players]
 
-    # ── Opponent Players by Opponent (club-scoped goals/assists/mins) ───────────
+    # ── Opponent Players by Opponent (club-scoped player evidence) ─────────────
 
-    OpponentPlayerByOpponentEntry:
+    OpponentPlayerByOpponentFullEntry:
       type: object
       properties:
         goals:      { type: integer }
         assists:    { type: integer }
         minsPlayed: { type: integer }
-      required: [goals, assists, minsPlayed]
+        appearances: { type: integer }
+      required: [goals, assists, minsPlayed, appearances]
 
-    OpponentPlayerByOpponentPlayer:
+    OpponentPlayerByOpponentAppearanceEntry:
+      type: object
+      properties:
+        goals:       { type: integer }
+        assists:     { type: integer }
+        appearances: { type: integer }
+      required: [goals, assists, appearances]
+
+    OpponentPlayerByOpponentFullPlayer:
       type: object
       properties:
         playerName:   { type: string }
@@ -5481,23 +5599,67 @@ components:
         totalAssists: { type: integer }
         totalStarts:  { type: integer }
         totalApps:    { type: integer }
+        borrowedUp:      { type: integer }
+        borrowedDown:    { type: integer }
+        borrowedUnknown: { type: integer }
         byOpponent:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/OpponentPlayerByOpponentEntry"
-      required: [playerName, totalMins, totalGoals, totalAssists, totalStarts, totalApps, byOpponent]
+            $ref: "#/components/schemas/OpponentPlayerByOpponentFullEntry"
+      required: [playerName, totalMins, totalGoals, totalAssists, totalStarts, totalApps, borrowedUp, borrowedDown, borrowedUnknown, byOpponent]
 
-    OpponentPlayersByOpponentResponse:
+    OpponentPlayerByOpponentAppearancePlayer:
       type: object
       properties:
+        playerName:   { type: string }
+        club:         { type: string, nullable: true }
+        totalGoals:   { type: integer }
+        totalAssists: { type: integer }
+        totalApps:    { type: integer }
+        borrowedUp:      { type: integer }
+        borrowedDown:    { type: integer }
+        borrowedUnknown: { type: integer }
+        byOpponent:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/OpponentPlayerByOpponentAppearanceEntry"
+      required: [playerName, totalGoals, totalAssists, totalApps, borrowedUp, borrowedDown, borrowedUnknown, byOpponent]
+
+    OpponentPlayersByOpponentFullResponse:
+      type: object
+      properties:
+        metricProfile: { type: string, enum: [full] }
         opponents:
           type: array
           items: { type: string }
         players:
           type: array
           items:
-            $ref: "#/components/schemas/OpponentPlayerByOpponentPlayer"
-      required: [opponents, players]
+            $ref: "#/components/schemas/OpponentPlayerByOpponentFullPlayer"
+      required: [metricProfile, opponents, players]
+
+    OpponentPlayersByOpponentAppearanceResponse:
+      type: object
+      properties:
+        metricProfile: { type: string, enum: [appearance-only] }
+        opponents:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpponentPlayerByOpponentAppearancePlayer"
+      required: [metricProfile, opponents, players]
+
+    OpponentPlayersByOpponentResponse:
+      oneOf:
+        - $ref: "#/components/schemas/OpponentPlayersByOpponentFullResponse"
+        - $ref: "#/components/schemas/OpponentPlayersByOpponentAppearanceResponse"
+      discriminator:
+        propertyName: metricProfile
+        mapping:
+          full: "#/components/schemas/OpponentPlayersByOpponentFullResponse"
+          appearance-only: "#/components/schemas/OpponentPlayersByOpponentAppearanceResponse"
 
     # ── Player Impact (team record when player starts vs doesn't) ─────────────
 

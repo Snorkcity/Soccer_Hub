@@ -1351,6 +1351,7 @@ async function runUserAccountsMigration(): Promise<void> {
       events jsonb,
       stats jsonb,
       periods jsonb,
+       direction_overrides jsonb,
       roster jsonb,
       match_id integer,
       synced_at text,
@@ -1398,6 +1399,7 @@ async function runUserAccountsMigration(): Promise<void> {
     $$
   `);
   await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS removed_at text`);
+  await db.execute(sql`ALTER TABLE veo_matches ADD COLUMN IF NOT EXISTS direction_overrides jsonb`);
   // A Hub fixture can have only one ACTIVE Veo link. Removed archive rows keep
   // their old match_id for reference but must not block a replacement.
   const activeVeoLinkIndexMarker = await db.execute(

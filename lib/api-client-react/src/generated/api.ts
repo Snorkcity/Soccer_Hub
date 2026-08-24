@@ -94,6 +94,7 @@ import type {
   GetLastMeetingFactsParams,
   GetLeagueLadderParams,
   GetMatchReportParams,
+  GetNplbPlayerLeaderboardParams,
   GetOpponentClubsParams,
   GetOpponentClutchGoalsParams,
   GetOpponentFirstSubParams,
@@ -213,6 +214,7 @@ import type {
   MatchReportCoachEmailsSaveRequest,
   MatchReportResponse,
   MatchUpdate,
+  NplbPlayerLeaderboardEntry,
   OkResponse,
   OpponentGoalBreakdownResponse,
   OpponentLeaderboardResponse,
@@ -266,6 +268,7 @@ import type {
   UserInfo,
   VeoAutoLinkInput,
   VeoAutoLinkResult,
+  VeoDirectionInput,
   VeoLinksResponse,
   VeoMatchDetail,
   VeoPlayerMatchResponse,
@@ -2897,6 +2900,90 @@ export function useGetPlayerLeaderboard<TData = Awaited<ReturnType<typeof getPla
 
 
 
+export const getGetNplbPlayerLeaderboardUrl = (params: GetNplbPlayerLeaderboardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/analytics/nplb-player-leaderboard?${stringifiedParams}` : `/api/analytics/nplb-player-leaderboard`
+}
+
+/**
+ * @summary Get the NPLB-safe player leaderboard from match-card evidence
+ */
+export const getNplbPlayerLeaderboard = async (params: GetNplbPlayerLeaderboardParams, options?: RequestInit): Promise<NplbPlayerLeaderboardEntry[]> => {
+
+  return customFetch<NplbPlayerLeaderboardEntry[]>(getGetNplbPlayerLeaderboardUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNplbPlayerLeaderboardQueryKey = (params?: GetNplbPlayerLeaderboardParams,) => {
+    return [
+    `/api/analytics/nplb-player-leaderboard`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNplbPlayerLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>, TError = ErrorType<unknown>>(params: GetNplbPlayerLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNplbPlayerLeaderboardQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>> = ({ signal }) => getNplbPlayerLeaderboard(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNplbPlayerLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>>
+export type GetNplbPlayerLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the NPLB-safe player leaderboard from match-card evidence
+ */
+
+export function useGetNplbPlayerLeaderboard<TData = Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>, TError = ErrorType<unknown>>(
+ params: GetNplbPlayerLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNplbPlayerLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNplbPlayerLeaderboardQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetLeagueLadderUrl = (params: GetLeagueLadderParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4089,7 +4176,7 @@ export const getGetOpponentPlayersByOpponentUrl = (params: GetOpponentPlayersByO
 }
 
 /**
- * @summary Per-player goals/assists/minutes for a club, broken down by the opponent they faced
+ * @summary Per-player goal, assist and appearance evidence for a club, broken down by the opponent they faced
  */
 export const getOpponentPlayersByOpponent = async (params: GetOpponentPlayersByOpponentParams, options?: RequestInit): Promise<OpponentPlayersByOpponentResponse> => {
 
@@ -4136,7 +4223,7 @@ export type GetOpponentPlayersByOpponentQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Per-player goals/assists/minutes for a club, broken down by the opponent they faced
+ * @summary Per-player goal, assist and appearance evidence for a club, broken down by the opponent they faced
  */
 
 export function useGetOpponentPlayersByOpponent<TData = Awaited<ReturnType<typeof getOpponentPlayersByOpponent>>, TError = ErrorType<unknown>>(
@@ -13049,6 +13136,77 @@ export const useVeoRefetchMatch = <TError = ErrorType<unknown>,
       return useMutation(getVeoRefetchMatchMutationOptions(options));
     }
 
+export const getVeoSetDirectionUrl = () => {
+
+
+
+
+  return `/api/entry/veo-direction`
+}
+
+/**
+ * @summary Confirm or revert the Hub direction used for one Veo match period
+ */
+export const veoSetDirection = async (veoDirectionInput: VeoDirectionInput, options?: RequestInit): Promise<VeoSetLinkResult> => {
+
+  return customFetch<VeoSetLinkResult>(getVeoSetDirectionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoDirectionInput)
+  }
+);}
+
+
+
+
+
+export const getVeoSetDirectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSetDirection>>, TError,{data: BodyType<VeoDirectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof veoSetDirection>>, TError,{data: BodyType<VeoDirectionInput>}, TContext> => {
+
+const mutationKey = ['veoSetDirection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof veoSetDirection>>, {data: BodyType<VeoDirectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  veoSetDirection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VeoSetDirectionMutationResult = NonNullable<Awaited<ReturnType<typeof veoSetDirection>>>
+    export type VeoSetDirectionMutationBody = BodyType<VeoDirectionInput>
+    export type VeoSetDirectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Confirm or revert the Hub direction used for one Veo match period
+ */
+export const useVeoSetDirection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof veoSetDirection>>, TError,{data: BodyType<VeoDirectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof veoSetDirection>>,
+        TError,
+        {data: BodyType<VeoDirectionInput>},
+        TContext
+      > => {
+      return useMutation(getVeoSetDirectionMutationOptions(options));
+    }
+
 export const getVeoRemoveMatchUrl = () => {
 
 
@@ -13819,4 +13977,3 @@ export const useDeleteCurriculumDocument = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteCurriculumDocumentMutationOptions(options));
     }
-

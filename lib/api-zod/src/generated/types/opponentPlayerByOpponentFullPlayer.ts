@@ -5,9 +5,9 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
-import type { OpponentPlayerByOpponentPlayerByOpponent } from './opponentPlayerByOpponentPlayerByOpponent';
+import type { OpponentPlayerByOpponentFullPlayerByOpponent } from './opponentPlayerByOpponentFullPlayerByOpponent';
 
-export interface OpponentPlayerByOpponentPlayer {
+export interface OpponentPlayerByOpponentFullPlayer {
   playerName: string;
   club?: string | null;
   totalMins: number;
@@ -15,5 +15,8 @@ export interface OpponentPlayerByOpponentPlayer {
   totalAssists: number;
   totalStarts: number;
   totalApps: number;
-  byOpponent: OpponentPlayerByOpponentPlayerByOpponent;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
+  byOpponent: OpponentPlayerByOpponentFullPlayerByOpponent;
 }

@@ -367,9 +367,84 @@ export type VeoMatchDetailStats = { [key: string]: unknown } | null;
 
 export type VeoMatchDetailPeriodsItem = { [key: string]: unknown };
 
+export type VeoMatchDetailRawPeriodsItem = { [key: string]: unknown };
+
+export type VeoMatchDetailDirectionOverrides = {[key: string]: 'left' | 'right'};
+
 export type VeoMatchDetailRoster = { [key: string]: unknown } | null;
 
 export type VeoMatchDetailPassDetails = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type VeoDirectionReviewRawSide = typeof VeoDirectionReviewRawSide[keyof typeof VeoDirectionReviewRawSide] | null;
+
+
+export const VeoDirectionReviewRawSide = {
+  left: 'left',
+  right: 'right',
+} as const;
+
+/**
+ * @nullable
+ */
+export type VeoDirectionReviewOverrideSide = typeof VeoDirectionReviewOverrideSide[keyof typeof VeoDirectionReviewOverrideSide] | null;
+
+
+export const VeoDirectionReviewOverrideSide = {
+  left: 'left',
+  right: 'right',
+} as const;
+
+export type VeoDirectionReviewEffectiveSide = typeof VeoDirectionReviewEffectiveSide[keyof typeof VeoDirectionReviewEffectiveSide];
+
+
+export const VeoDirectionReviewEffectiveSide = {
+  left: 'left',
+  right: 'right',
+} as const;
+
+/**
+ * @nullable
+ */
+export type VeoDirectionReviewSuggestedSide = typeof VeoDirectionReviewSuggestedSide[keyof typeof VeoDirectionReviewSuggestedSide] | null;
+
+
+export const VeoDirectionReviewSuggestedSide = {
+  left: 'left',
+  right: 'right',
+} as const;
+
+export type VeoDirectionReviewStatus = typeof VeoDirectionReviewStatus[keyof typeof VeoDirectionReviewStatus];
+
+
+export const VeoDirectionReviewStatus = {
+  confirmed: 'confirmed',
+  consistent: 'consistent',
+  looks_reversed: 'looks_reversed',
+  uncertain: 'uncertain',
+  no_evidence: 'no_evidence',
+} as const;
+
+export interface VeoDirectionReview {
+  periodId: number;
+  /** @nullable */
+  rawSide: VeoDirectionReviewRawSide;
+  /** @nullable */
+  overrideSide: VeoDirectionReviewOverrideSide;
+  effectiveSide: VeoDirectionReviewEffectiveSide;
+  /** @nullable */
+  suggestedSide: VeoDirectionReviewSuggestedSide;
+  status: VeoDirectionReviewStatus;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  confidence: number;
+  /** @minimum 0 */
+  evidenceCount: number;
+}
 
 export interface VeoMatchDetail {
   id: number;
@@ -385,7 +460,12 @@ export interface VeoMatchDetail {
   hasMomentum?: boolean;
   events?: VeoEvent[] | null;
   stats?: VeoMatchDetailStats;
+  /** Effective Hub periods with confirmed direction overrides applied */
   periods?: VeoMatchDetailPeriodsItem[] | null;
+  /** Raw periods exactly as received from Veo */
+  rawPeriods?: VeoMatchDetailRawPeriodsItem[] | null;
+  directionOverrides?: VeoMatchDetailDirectionOverrides;
+  directionReview?: VeoDirectionReview[];
   roster?: VeoMatchDetailRoster;
   passDetails?: VeoMatchDetailPassDetails;
   matchId?: number | null;
@@ -452,6 +532,7 @@ export interface VeoLinkRow {
   removed?: boolean;
   pendingAnalytics?: boolean;
   scoreMismatch?: VeoScoreMismatch | null;
+  directionReview: VeoDirectionReview[];
 }
 
 export interface HubMatchOption {
@@ -487,6 +568,26 @@ export interface VeoSetLinkInput {
 export interface VeoRefetchInput {
   leagueId: number;
   veoId: number;
+}
+
+/**
+ * @nullable
+ */
+export type VeoDirectionInputOwnSide = typeof VeoDirectionInputOwnSide[keyof typeof VeoDirectionInputOwnSide] | null;
+
+
+export const VeoDirectionInputOwnSide = {
+  left: 'left',
+  right: 'right',
+} as const;
+
+export interface VeoDirectionInput {
+  leagueId: number;
+  veoId: number;
+  /** @minimum 1 */
+  periodId: number;
+  /** @nullable */
+  ownSide: VeoDirectionInputOwnSide;
 }
 
 export interface VeoRemoveInput {
@@ -1275,6 +1376,19 @@ export interface PlayerLeaderboardEntry {
   minsPerGoalConceded?: number | null;
 }
 
+export interface NplbPlayerLeaderboardEntry {
+  playerId: number;
+  playerName: string;
+  goals: number;
+  assists: number;
+  appearances: number;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
+  yellowCards: number;
+  redCards: number;
+}
+
 export interface OpponentLeaderboardEntry {
   playerName: string;
   /** @nullable */
@@ -1977,15 +2091,22 @@ export interface AssistsByOpponentResponse {
   players: AssistsByOpponentPlayer[];
 }
 
-export interface OpponentPlayerByOpponentEntry {
+export interface OpponentPlayerByOpponentFullEntry {
   goals: number;
   assists: number;
   minsPlayed: number;
+  appearances: number;
 }
 
-export type OpponentPlayerByOpponentPlayerByOpponent = {[key: string]: OpponentPlayerByOpponentEntry};
+export interface OpponentPlayerByOpponentAppearanceEntry {
+  goals: number;
+  assists: number;
+  appearances: number;
+}
 
-export interface OpponentPlayerByOpponentPlayer {
+export type OpponentPlayerByOpponentFullPlayerByOpponent = {[key: string]: OpponentPlayerByOpponentFullEntry};
+
+export interface OpponentPlayerByOpponentFullPlayer {
   playerName: string;
   club?: string | null;
   totalMins: number;
@@ -1993,13 +2114,53 @@ export interface OpponentPlayerByOpponentPlayer {
   totalAssists: number;
   totalStarts: number;
   totalApps: number;
-  byOpponent: OpponentPlayerByOpponentPlayerByOpponent;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
+  byOpponent: OpponentPlayerByOpponentFullPlayerByOpponent;
 }
 
-export interface OpponentPlayersByOpponentResponse {
-  opponents: string[];
-  players: OpponentPlayerByOpponentPlayer[];
+export type OpponentPlayerByOpponentAppearancePlayerByOpponent = {[key: string]: OpponentPlayerByOpponentAppearanceEntry};
+
+export interface OpponentPlayerByOpponentAppearancePlayer {
+  playerName: string;
+  club?: string | null;
+  totalGoals: number;
+  totalAssists: number;
+  totalApps: number;
+  borrowedUp: number;
+  borrowedDown: number;
+  borrowedUnknown: number;
+  byOpponent: OpponentPlayerByOpponentAppearancePlayerByOpponent;
 }
+
+export type OpponentPlayersByOpponentFullResponseMetricProfile = typeof OpponentPlayersByOpponentFullResponseMetricProfile[keyof typeof OpponentPlayersByOpponentFullResponseMetricProfile];
+
+
+export const OpponentPlayersByOpponentFullResponseMetricProfile = {
+  full: 'full',
+} as const;
+
+export interface OpponentPlayersByOpponentFullResponse {
+  metricProfile: OpponentPlayersByOpponentFullResponseMetricProfile;
+  opponents: string[];
+  players: OpponentPlayerByOpponentFullPlayer[];
+}
+
+export type OpponentPlayersByOpponentAppearanceResponseMetricProfile = typeof OpponentPlayersByOpponentAppearanceResponseMetricProfile[keyof typeof OpponentPlayersByOpponentAppearanceResponseMetricProfile];
+
+
+export const OpponentPlayersByOpponentAppearanceResponseMetricProfile = {
+  'appearance-only': 'appearance-only',
+} as const;
+
+export interface OpponentPlayersByOpponentAppearanceResponse {
+  metricProfile: OpponentPlayersByOpponentAppearanceResponseMetricProfile;
+  opponents: string[];
+  players: OpponentPlayerByOpponentAppearancePlayer[];
+}
+
+export type OpponentPlayersByOpponentResponse = OpponentPlayersByOpponentFullResponse | OpponentPlayersByOpponentAppearanceResponse;
 
 export type PlayerImpactGameResult = typeof PlayerImpactGameResult[keyof typeof PlayerImpactGameResult];
 
@@ -4280,6 +4441,12 @@ seasonId: number;
 lastN?: number;
 };
 
+export type GetNplbPlayerLeaderboardParams = {
+teamId: number;
+seasonId: number;
+lastN?: number;
+};
+
 export type GetLeagueLadderParams = {
 teamId: number;
 seasonId: number;
@@ -4648,4 +4815,3 @@ matchRowId: number;
 export type ListAssistantMatchesParams = {
 leagueId: number;
 };
-

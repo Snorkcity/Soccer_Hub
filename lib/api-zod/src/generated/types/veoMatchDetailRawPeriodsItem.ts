@@ -6,8 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface OpponentPlayerByOpponentEntry {
-  goals: number;
-  assists: number;
-  minsPlayed: number;
-}
+export type VeoMatchDetailRawPeriodsItem = { [key: string]: unknown };

@@ -5,9 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
-import type { OpponentPlayerByOpponentPlayer } from './opponentPlayerByOpponentPlayer';
+import type { OpponentPlayersByOpponentAppearanceResponse } from './opponentPlayersByOpponentAppearanceResponse';
+import type { OpponentPlayersByOpponentFullResponse } from './opponentPlayersByOpponentFullResponse';
 
-export interface OpponentPlayersByOpponentResponse {
-  opponents: string[];
-  players: OpponentPlayerByOpponentPlayer[];
-}
+export type OpponentPlayersByOpponentResponse = OpponentPlayersByOpponentFullResponse | OpponentPlayersByOpponentAppearanceResponse;

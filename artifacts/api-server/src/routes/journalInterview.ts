@@ -29,6 +29,7 @@ import {
 import { focusClubForLeagueRequest, focusClubForRequest, focusClubForSeason } from "../lib/focusClub";
 import { canSeeLeague, getSessionUser, hasModule } from "../middlewares/entryAuth";
 import { summarisePassDetails } from "./veo";
+import { effectiveVeoPeriods } from "../lib/veoDirection";
 import { dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, type IntelGoal } from "../lib/goalIntel";
 import { recentResultLines, resolveAssistantOpponent } from "../lib/assistantConversation";
@@ -795,6 +796,7 @@ export async function recentPassingContext(
       opponent: veoMatchesTable.opponent,
       passDetails: veoMatchesTable.passDetails,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
     })
     .from(veoMatchesTable)
     .where(
@@ -808,7 +810,10 @@ export async function recentPassingContext(
   const summaries: { opponent: string | null; s: PassSummary }[] = [];
   for (const r of rows) {
     if (summaries.length >= lastN) break;
-    const s = summarisePassDetails(r.passDetails, r.periods);
+    const s = summarisePassDetails(
+      r.passDetails,
+      effectiveVeoPeriods(r.periods, r.directionOverrides),
+    );
     if (s) summaries.push({ opponent: r.opponent, s });
   }
   if (!summaries.length) return null;
@@ -887,6 +892,7 @@ export async function opponentPassingContext(
       opponent: veoMatchesTable.opponent,
       passDetails: veoMatchesTable.passDetails,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
     })
     .from(veoMatchesTable)
     .where(
@@ -899,7 +905,10 @@ export async function opponentPassingContext(
     .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
 
   for (const r of rows) {
-    const s = summarisePassDetails(r.passDetails, r.periods);
+    const s = summarisePassDetails(
+      r.passDetails,
+      effectiveVeoPeriods(r.periods, r.directionOverrides),
+    );
     if (!s) continue;
 
     const theirPct = (() => {

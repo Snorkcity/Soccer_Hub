@@ -5,6 +5,7 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoDirectionReview } from './veoDirectionReview';
 import type { VeoLinkRowProcessingStatus } from './veoLinkRowProcessingStatus';
 import type { VeoScoreMismatch } from './veoScoreMismatch';
 
@@ -21,4 +22,5 @@ export interface VeoLinkRow {
   removed?: boolean;
   pendingAnalytics?: boolean;
   scoreMismatch?: VeoScoreMismatch | null;
+  directionReview: VeoDirectionReview[];
 }

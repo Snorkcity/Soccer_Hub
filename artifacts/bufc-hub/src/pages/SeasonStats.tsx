@@ -11,6 +11,7 @@ import {
   useGetLeagueLadder,
   useGetGoalBreakdown,
   useGetPlayerLeaderboard,
+  useGetNplbPlayerLeaderboard,
   useGetOpponentClubs,
   useGetGoalsByOpponent,
   useGetAssistsByOpponent,
@@ -1306,7 +1307,11 @@ export default function SeasonStats() {
   const myGrantClub = auth?.user?.leagues?.find(l => l.leagueId === selectedLeagueId)?.club ?? null;
   const leagueDefaultClub = allLeagues?.find(l => l.id === selectedLeagueId)?.focusClub ?? "Belconnen";
   const selectedLeagueName = allLeagues?.find(l => l.id === selectedLeagueId)?.name ?? "";
-  const isNplb = isActNplbLeague(selectedLeagueName);
+  const selectedSeasonLeagueName = seasons?.find(s => s.id === selectedSeasonId)?.leagueName ?? "";
+  // Metric safety follows the season actually sent to the API, not a league
+  // selector that can briefly be one render ahead during persisted-state load.
+  const seasonIsNplb = isActNplbLeague(selectedSeasonLeagueName);
+  const isNplb = isActNplbLeague(selectedSeasonLeagueName || selectedLeagueName);
   const matchTiming = matchTimingForLeague(selectedLeagueName);
   const focusClub = (isSuperadmin && viewClub) || myGrantClub || leagueDefaultClub;
   const leagueClubs = useMemo(
@@ -1337,6 +1342,9 @@ export default function SeasonStats() {
   // Leave any player timeline drill-down when the team/season context changes
   useEffect(() => { setTlPlayer(null); }, [tId, sId]);
   const isReady = !!tId && !!sId;
+  // Do not assume "not NPLB" while league metadata is still loading. That
+  // transient state must not start senior-only player metric requests.
+  const fullPlayerMetricsEnabled = isReady && selectedSeasonLeagueName !== "" && !seasonIsNplb;
 
   const analyticsParams = { teamId: tId, seasonId: sId };
   const { data: summary }     = useGetSeasonSummary(analyticsParams,       { query: { enabled: isReady, queryKey: getGetSeasonSummaryQueryKey(analyticsParams) } });
@@ -1346,22 +1354,23 @@ export default function SeasonStats() {
   const { data: goalBreakdownFull } = useGetGoalBreakdown(analyticsParams,   { query: { enabled: isReady, queryKey: getGetGoalBreakdownQueryKey(analyticsParams) } });
   const gbL3Params = { ...analyticsParams, lastN: 3 };
   const { data: goalBreakdownL3 } = useGetGoalBreakdown(gbL3Params,          { query: { enabled: isReady, queryKey: getGetGoalBreakdownQueryKey(gbL3Params) } });
-  const { data: leaderboard } = useGetPlayerLeaderboard(analyticsParams,   { query: { enabled: isReady, queryKey: getGetPlayerLeaderboardQueryKey(analyticsParams) } });
+  const { data: leaderboard } = useGetPlayerLeaderboard(analyticsParams,   { query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetPlayerLeaderboardQueryKey(analyticsParams) } });
+  const { data: nplbLeaderboard } = useGetNplbPlayerLeaderboard(analyticsParams, { query: { enabled: isReady && seasonIsNplb, queryKey: ["/api/analytics/nplb-player-leaderboard", analyticsParams] } });
 
   // ── Stats by unit (game-day positions, GPS-assigned fallback): full + last-3 ─
   const unitL3Params = { ...analyticsParams, lastN: 3 };
-  const { data: unitBreakdownFull } = useGetUnitBreakdown(analyticsParams, { query: { enabled: isReady, queryKey: getGetUnitBreakdownQueryKey(analyticsParams) } });
-  const { data: unitBreakdownL3 } = useGetUnitBreakdown(unitL3Params, { query: { enabled: isReady, queryKey: getGetUnitBreakdownQueryKey(unitL3Params) } });
+  const { data: unitBreakdownFull } = useGetUnitBreakdown(analyticsParams, { query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetUnitBreakdownQueryKey(analyticsParams) } });
+  const { data: unitBreakdownL3 } = useGetUnitBreakdown(unitL3Params, { query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetUnitBreakdownQueryKey(unitL3Params) } });
   const unitBreakdown = l3Units ? unitBreakdownL3 : unitBreakdownFull;
 
   // ── Combo threat (our assist→scorer partnerships): full season + last-3-rounds ─
-  const { data: goalCombosFull } = useGetGoalCombos(analyticsParams, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(analyticsParams) } });
+  const { data: goalCombosFull } = useGetGoalCombos(analyticsParams, { query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetGoalCombosQueryKey(analyticsParams) } });
   const goalCombosL3Params = { ...analyticsParams, lastN: 3 };
-  const { data: goalCombosL3 } = useGetGoalCombos(goalCombosL3Params, { query: { enabled: isReady, queryKey: getGetGoalCombosQueryKey(goalCombosL3Params) } });
+  const { data: goalCombosL3 } = useGetGoalCombos(goalCombosL3Params, { query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetGoalCombosQueryKey(goalCombosL3Params) } });
 
   // ── Scoring DNA (radar) for the selected focus-team player: full season + last-3 ─
   const dnaParams = { teamId: tId, seasonId: sId, player: dnaPlayer };
-  const dnaEnabled = isReady && !!dnaPlayer;
+  const dnaEnabled = fullPlayerMetricsEnabled && !!dnaPlayer;
   const { data: dnaFull } = useGetPlayerDna(dnaParams, { query: { enabled: dnaEnabled, queryKey: getGetPlayerDnaQueryKey(dnaParams) } });
   const dnaL3Params = { ...dnaParams, lastN: 3 };
   const { data: dnaL3 } = useGetPlayerDna(dnaL3Params, { query: { enabled: dnaEnabled, queryKey: getGetPlayerDnaQueryKey(dnaL3Params) } });
@@ -1391,7 +1400,7 @@ export default function SeasonStats() {
   // Game state & "first change" are club-relative, so there is no __ALL__ view.
   const firstSubParams = { teamId: tId, seasonId: sId, club: selectedClub };
   const { data: firstSub } = useGetOpponentFirstSub(firstSubParams, {
-    query: { enabled: isReady && !!selectedClub && !isAll, queryKey: getGetOpponentFirstSubQueryKey(firstSubParams) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub && !isAll, queryKey: getGetOpponentFirstSubQueryKey(firstSubParams) },
   });
 
   // Per-player goals/assists/mins for the selected club, broken down by opponent faced.
@@ -1408,36 +1417,36 @@ export default function SeasonStats() {
   // On-field impact (team GD while a player appeared), per opponent (full + L3)
   const oppImpactParams = { teamId: tId, seasonId: sId, club: selectedClub };
   const { data: oppImpactFull } = useGetOpponentOnfieldImpact(oppImpactParams, {
-    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactParams) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactParams) },
   });
   const oppImpactL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
   const { data: oppImpactL3Data } = useGetOpponentOnfieldImpact(oppImpactL3Params, {
-    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactL3Params) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub, queryKey: getGetOpponentOnfieldImpactQueryKey(oppImpactL3Params) },
   });
 
   // Clutch goals — big goals in close matches (team + league versions)
   const clutchParams = { teamId: tId, seasonId: sId };
   const { data: clutchData } = useGetClutchGoals(clutchParams, {
-    query: { enabled: isReady, queryKey: getGetClutchGoalsQueryKey(clutchParams) },
+    query: { enabled: fullPlayerMetricsEnabled, queryKey: getGetClutchGoalsQueryKey(clutchParams) },
   });
   const oppClutchParams = { teamId: tId, seasonId: sId, club: selectedClub };
   const { data: oppClutchData } = useGetOpponentClutchGoals(oppClutchParams, {
-    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentClutchGoalsQueryKey(oppClutchParams) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub, queryKey: getGetOpponentClutchGoalsQueryKey(oppClutchParams) },
   });
 
   // Combo threat for the selected club: their assist→scorer partnerships (full + L3)
   const oppCombosParams = { teamId: tId, seasonId: sId, club: selectedClub };
   const { data: oppCombosFull } = useGetOpponentGoalCombos(oppCombosParams, {
-    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosParams) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosParams) },
   });
   const oppCombosL3Params = { teamId: tId, seasonId: sId, club: selectedClub, lastN: 3 };
   const { data: oppCombosL3 } = useGetOpponentGoalCombos(oppCombosL3Params, {
-    query: { enabled: isReady && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosL3Params) },
+    query: { enabled: fullPlayerMetricsEnabled && !!selectedClub, queryKey: getGetOpponentGoalCombosQueryKey(oppCombosL3Params) },
   });
 
   // Scoring DNA for a selected player of the selected club (league tables; full + L3)
   const oppDnaParams = { teamId: tId, seasonId: sId, club: selectedClub, player: oppDnaPlayer };
-  const oppDnaEnabled = isReady && !!selectedClub && !!oppDnaPlayer;
+  const oppDnaEnabled = fullPlayerMetricsEnabled && !!selectedClub && !!oppDnaPlayer;
   const { data: oppDnaFull } = useGetOpponentPlayerDna(oppDnaParams, {
     query: { enabled: oppDnaEnabled, queryKey: getGetOpponentPlayerDnaQueryKey(oppDnaParams) },
   });
@@ -2303,11 +2312,13 @@ export default function SeasonStats() {
           </ChartCard>
 
           {/* ═══ Stats by Unit (game-day positions) ═══ */}
-          <UnitBreakdownCard
-            data={unitBreakdown}
-            lastThree={l3Units}
-            onToggleLastThree={() => setL3Units(v => !v)}
-          />
+          {!isNplb && (
+            <UnitBreakdownCard
+              data={unitBreakdown}
+              lastThree={l3Units}
+              onToggleLastThree={() => setL3Units(v => !v)}
+            />
+          )}
         </TabsContent>
 
         {/* ════════════════ PLAYER INSIGHTS ════════════════ */}
@@ -2342,7 +2353,7 @@ export default function SeasonStats() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {leaderboard?.slice()
+                      {nplbLeaderboard?.slice()
                         .sort((a, b) => b.appearances - a.appearances || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
                         .map(p => (
                           <TableRow key={p.playerId} className="text-sm">
@@ -2691,8 +2702,8 @@ export default function SeasonStats() {
           </div>
 
           {/* Player Impact — win % when starting vs not */}
-          <PlayerImpactChart seasonId={sId} club={focusClub} enabled={isReady && !!focusClub} />
-          <SubImpactChart seasonId={sId} club={focusClub} enabled={isReady && !!focusClub} />
+          <PlayerImpactChart seasonId={sId} club={focusClub} enabled={fullPlayerMetricsEnabled && !!focusClub} />
+          <SubImpactChart seasonId={sId} club={focusClub} enabled={fullPlayerMetricsEnabled && !!focusClub} />
 
           {/* Full Leaderboard Table */}
           <Card>
@@ -2784,16 +2795,10 @@ export default function SeasonStats() {
           <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player" | "report")}>
             <TabsList className="h-auto flex-wrap justify-start gap-1">
               <TabsTrigger value="team">Team Charts</TabsTrigger>
-              {!isNplb && <TabsTrigger value="player">Player Charts</TabsTrigger>}
+              <TabsTrigger value="player">Player Charts</TabsTrigger>
               <TabsTrigger value="report" disabled={isAll}>Scouting Report</TabsTrigger>
             </TabsList>
           </Tabs>
-          {isNplb && (
-            <p className="text-sm text-muted-foreground">
-              Opponent player minute, start and substitution-impact charts are not shown for NPLB because rolling
-              substitutions make those measures unreliable.
-            </p>
-          )}
 
           {selectedClub && profile && (
             <>
@@ -2806,7 +2811,7 @@ export default function SeasonStats() {
                 />
               )}
 
-              {(oppView === "team" || (isNplb && oppView === "player")) && (
+              {oppView === "team" && (
               <>
               {isAll ? (
                 <p className="text-sm text-muted-foreground">
@@ -3098,6 +3103,31 @@ export default function SeasonStats() {
               </>
               )}
 
+              {isNplb && oppView === "player" && (
+                <NplbOpponentPlayerCharts
+                  clubLabel={isAll ? "League" : selectedClub}
+                  isAll={isAll}
+                  srcFull={oppPlayersFull}
+                  srcL3={oppPlayersL3}
+                  appearanceLastN={oppStartsL3}
+                  onAppearanceLastN={() => setOppStartsL3(v => !v)}
+                  goalLastN={oppGoalL3}
+                  onGoalLastN={() => setOppGoalL3(v => !v)}
+                  assistLastN={oppAssistL3}
+                  onAssistLastN={() => setOppAssistL3(v => !v)}
+                  contributionLastN={oppContribL3}
+                  onContributionLastN={() => setOppContribL3(v => !v)}
+                  hiddenGoals={hiddenOppGoalOpp}
+                  onToggleGoal={toggleOppGoalOpp}
+                  hiddenAssists={hiddenOppAssistOpp}
+                  onToggleAssist={toggleOppAssistOpp}
+                  hiddenContributions={hiddenOppContribOpp}
+                  onToggleContribution={toggleOppContribOpp}
+                  colorMap={clubColorMap}
+                  maxBars={isAll ? 30 : undefined}
+                />
+              )}
+
               {!isNplb && oppView === "player" && (
               <>
               {/* 15. Goals by opponent — stacked, clickable legend, Last 3 rounds, Total / Mins-per */}
@@ -3147,8 +3177,8 @@ export default function SeasonStats() {
               />
 
               {/* 17f. Player Impact — team record when player starts vs not */}
-              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} colorMap={clubColorMap} />
-              <SubImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={isReady && !!selectedClub} />
+              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} colorMap={clubColorMap} />
+              <SubImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} />
 
               {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
               <ClutchChart
@@ -4658,11 +4688,13 @@ function MinutesTooltip({ active, payload }: {
 
 // ─── Opponent Insights: per-player stacked-by-opponent chart (goals/assists/G+A) ─
 type OppPlayerSrc = {
+  metricProfile: "full" | "appearance-only";
   opponents: string[];
   players: Array<{
-    playerName: string; club?: string | null; totalMins: number; totalGoals: number; totalAssists: number;
-    totalStarts: number; totalApps: number;
-    byOpponent: Record<string, { goals: number; assists: number; minsPlayed: number }>;
+    playerName: string; club?: string | null; totalMins?: number; totalGoals: number; totalAssists: number;
+    totalStarts?: number; totalApps: number;
+    borrowedUp: number; borrowedDown: number; borrowedUnknown: number;
+    byOpponent: Record<string, { goals: number; assists: number; appearances: number; minsPlayed?: number }>;
   }>;
 };
 
@@ -4671,17 +4703,328 @@ type OppPlayerSrc = {
 // window. Unlike the stacked goal/assist charts, these include the whole roster.
 function oppStartsAppsData(src?: OppPlayerSrc): PlayerBarDatum[] {
   return (src?.players ?? [])
-    .map(p => ({ name: p.playerName, value: p.totalApps, mins: p.totalMins, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts, appearances: p.totalApps, sub: Math.max(p.totalApps - p.totalStarts, 0) }))
+    .map(p => ({ name: p.playerName, value: p.totalApps, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.appearances > 0)
     .sort((a, b) => b.appearances - a.appearances || b.starts - a.starts)
     .slice(0, 18);
 }
 function oppMinutesData(src?: OppPlayerSrc): PlayerBarDatum[] {
   return (src?.players ?? [])
-    .map(p => ({ name: p.playerName, value: p.totalMins, mins: p.totalMins, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts, appearances: p.totalApps, sub: Math.max(p.totalApps - p.totalStarts, 0) }))
+    .map(p => ({ name: p.playerName, value: p.totalMins ?? 0, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.mins > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, 15);
+}
+
+function NplbOpponentPlayerCharts({
+  clubLabel,
+  isAll,
+  srcFull,
+  srcL3,
+  appearanceLastN,
+  onAppearanceLastN,
+  goalLastN,
+  onGoalLastN,
+  assistLastN,
+  onAssistLastN,
+  contributionLastN,
+  onContributionLastN,
+  hiddenGoals,
+  onToggleGoal,
+  hiddenAssists,
+  onToggleAssist,
+  hiddenContributions,
+  onToggleContribution,
+  colorMap,
+  maxBars,
+}: {
+  clubLabel: string;
+  isAll: boolean;
+  srcFull?: OppPlayerSrc;
+  srcL3?: OppPlayerSrc;
+  appearanceLastN: boolean;
+  onAppearanceLastN: () => void;
+  goalLastN: boolean;
+  onGoalLastN: () => void;
+  assistLastN: boolean;
+  onAssistLastN: () => void;
+  contributionLastN: boolean;
+  onContributionLastN: () => void;
+  hiddenGoals: Set<string>;
+  onToggleGoal: (opponent: string) => void;
+  hiddenAssists: Set<string>;
+  onToggleAssist: (opponent: string) => void;
+  hiddenContributions: Set<string>;
+  onToggleContribution: (opponent: string) => void;
+  colorMap: Record<string, string>;
+  maxBars?: number;
+}) {
+  const sn = useMemo(() => buildShortNames(srcFull?.players ?? []), [srcFull]);
+
+  return (
+    <>
+      <div
+        role="note"
+        className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100"
+      >
+        <div className="flex items-start gap-2">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">What an NPLB appearance means</p>
+            <p className="mt-1 leading-relaxed">
+              A Dribl match-card appearance means the named player appeared in that match. Rolling substitutions
+              prevent reliable minutes, starts, bench appearances or substitution timing, so those measures and
+              any per-minute or on-field impact rates are intentionally not shown here.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <NplbAppearanceChart
+        clubLabel={clubLabel}
+        srcFull={srcFull}
+        srcL3={srcL3}
+        lastN={appearanceLastN}
+        onLastN={onAppearanceLastN}
+        colorMap={colorMap}
+        sn={sn}
+        maxBars={maxBars}
+      />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <OppPlayerStackChart
+          metric="goals"
+          clubLabel={clubLabel}
+          srcFull={srcFull}
+          srcL3={srcL3}
+          lastN={goalLastN}
+          onLastN={onGoalLastN}
+          sort="total"
+          onSort={() => undefined}
+          hidden={hiddenGoals}
+          onToggle={onToggleGoal}
+          colorMap={colorMap}
+          sn={sn}
+          maxBars={maxBars}
+        />
+        <OppPlayerStackChart
+          metric="assists"
+          clubLabel={clubLabel}
+          srcFull={srcFull}
+          srcL3={srcL3}
+          lastN={assistLastN}
+          onLastN={onAssistLastN}
+          sort="total"
+          onSort={() => undefined}
+          hidden={hiddenAssists}
+          onToggle={onToggleAssist}
+          colorMap={colorMap}
+          sn={sn}
+          maxBars={maxBars}
+        />
+      </div>
+
+      <OppPlayerStackChart
+        metric="contrib"
+        clubLabel={clubLabel}
+        srcFull={srcFull}
+        srcL3={srcL3}
+        lastN={contributionLastN}
+        onLastN={onContributionLastN}
+        sort="total"
+        onSort={() => undefined}
+        hidden={hiddenContributions}
+        onToggle={onToggleContribution}
+        colorMap={colorMap}
+        sn={sn}
+        maxBars={maxBars}
+      />
+
+      <NplbPlayerEvidenceTable clubLabel={clubLabel} isAll={isAll} src={srcFull} />
+    </>
+  );
+}
+
+function NplbAppearanceChart({
+  clubLabel,
+  srcFull,
+  srcL3,
+  lastN,
+  onLastN,
+  colorMap,
+  sn,
+  maxBars,
+}: {
+  clubLabel: string;
+  srcFull?: OppPlayerSrc;
+  srcL3?: OppPlayerSrc;
+  lastN: boolean;
+  onLastN: () => void;
+  colorMap: Record<string, string>;
+  sn: Record<string, string>;
+  maxBars?: number;
+}) {
+  const src = lastN ? srcL3 : srcFull;
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const opponents = useMemo(() => {
+    const found = new Set<string>();
+    for (const player of src?.players ?? []) {
+      for (const [opponent, values] of Object.entries(player.byOpponent)) {
+        if (values.appearances > 0) found.add(opponent);
+      }
+    }
+    return Array.from(found).sort();
+  }, [src]);
+
+  const data = useMemo(() => {
+    const rows = (src?.players ?? []).map(player => {
+      const row: Record<string, unknown> = {
+        name: sn[player.playerName] ?? player.playerName,
+        fullName: player.playerName,
+        club: player.club ?? null,
+        appearances: player.totalApps,
+      };
+      for (const [opponent, values] of Object.entries(player.byOpponent)) {
+        if (values.appearances > 0) row[opponent] = values.appearances;
+      }
+      return row;
+    }).filter(row => (row.appearances as number) > 0);
+    rows.sort((a, b) => (b.appearances as number) - (a.appearances as number));
+    return maxBars ? rows.slice(0, maxBars) : rows;
+  }, [src, sn, maxBars]);
+  const toggleOpponent = (opponent: string) => {
+    setHidden(current => {
+      const next = new Set(current);
+      if (next.has(opponent)) next.delete(opponent);
+      else next.add(opponent);
+      return next;
+    });
+  };
+
+  return (
+    <ChartCard
+      tall
+      title={`${clubLabel} — Appearances${lastN ? " — Last 3 Rounds" : ""}`}
+      description="One count for each match card on which the player appeared"
+      tooltip="Each stack segment is the number of imported player-match appearances against that opponent. Duplicate match/player rows are counted once. This is appearance evidence only: it does not classify starts, bench appearances or playing time."
+      controls={<Last3Toggle active={lastN} onToggle={onLastN} />}
+      footer={data.length === 0 ? undefined : <ClubToggleLegend opponents={opponents} hidden={hidden} onToggle={toggleOpponent} colorMap={colorMap} />}
+    >
+      {data.length === 0 ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          No appearances recorded for this selection.
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 20, left: -20, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+            <YAxis {...AXIS_STYLE} allowDecimals={false} />
+            <Tooltip cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+            {opponents.map(opponent => (
+              <Bar
+                key={opponent}
+                dataKey={opponent}
+                name={opponent}
+                stackId="oppAppearances"
+                fill={colorMap[opponent] ?? "#888888"}
+                hide={hidden.has(opponent)}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+function NplbBorrowingBadges({ up, down, unknown }: { up: number; down: number; unknown: number }) {
+  if (up + down + unknown === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="flex flex-wrap justify-end gap-1">
+      {up > 0 && (
+        <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+          ↑ {up}
+        </span>
+      )}
+      {down > 0 && (
+        <span className="rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
+          ↓ {down}
+        </span>
+      )}
+      {unknown > 0 && (
+        <span className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+          ? {unknown}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
+  clubLabel: string;
+  isAll: boolean;
+  src?: OppPlayerSrc;
+}) {
+  const players = useMemo(
+    () => [...(src?.players ?? [])]
+      .filter(player => player.totalApps > 0)
+      .sort((a, b) => b.totalApps - a.totalApps
+        || (b.totalGoals + b.totalAssists) - (a.totalGoals + a.totalAssists)
+        || a.playerName.localeCompare(b.playerName)),
+    [src],
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{clubLabel} — Player Evidence</CardTitle>
+        <CardDescription>
+          Appearance and scoring totals, plus borrowing only where stable Dribl identity evidence proves a direction
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {players.length === 0 ? (
+          <div className="px-6 pb-6 text-sm text-muted-foreground">No player appearances recorded for this selection.</div>
+        ) : (
+          <div className="max-h-[34rem] overflow-auto">
+            <Table className="min-w-[620px]">
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Player</TableHead>
+                  {isAll && <TableHead>Club</TableHead>}
+                  <TableHead className="text-right">Apps</TableHead>
+                  <TableHead className="text-right">Goals</TableHead>
+                  <TableHead className="text-right">Assists</TableHead>
+                  <TableHead className="text-right">G+A</TableHead>
+                  <TableHead className="text-right">Borrowed ↑ / ↓ / ?</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {players.map((player, index) => (
+                  <TableRow key={`${player.playerName}-${player.club ?? "unknown"}-${index}`}>
+                    <TableCell className="font-medium">{player.playerName}</TableCell>
+                    {isAll && <TableCell className="text-muted-foreground">{player.club ?? "—"}</TableCell>}
+                    <TableCell className="text-right tabular-nums">{player.totalApps}</TableCell>
+                    <TableCell className="text-right tabular-nums">{player.totalGoals}</TableCell>
+                    <TableCell className="text-right tabular-nums">{player.totalAssists}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{player.totalGoals + player.totalAssists}</TableCell>
+                    <TableCell className="text-right">
+                      <NplbBorrowingBadges
+                        up={player.borrowedUp}
+                        down={player.borrowedDown}
+                        unknown={player.borrowedUnknown}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function OppPlayerStackChart({
@@ -4696,6 +5039,8 @@ function OppPlayerStackChart({
   colorMap: Record<string, string>; sn: Record<string, string>; maxBars?: number;
 }) {
   const src = lastN ? srcL3 : srcFull;
+  const appearanceOnly = src?.metricProfile === "appearance-only";
+  const effectiveSort = appearanceOnly ? "total" : sort;
   const val = (v: { goals: number; assists: number }) =>
     metric === "goals" ? v.goals : metric === "assists" ? v.assists : v.goals + v.assists;
 
@@ -4710,23 +5055,23 @@ function OppPlayerStackChart({
   const data = useMemo(() => {
     if (!src?.players.length) return [];
     const rows = src.players.map(p => {
-      const byOpponent: Record<string, { goals: number; assists: number; minsPlayed: number }> = {};
+      const byOpponent: Record<string, { goals: number; assists: number; appearances: number; minsPlayed?: number }> = {};
       for (const [opp, v] of Object.entries(p.byOpponent)) if (val(v) > 0) byOpponent[opp] = v;
       const visible = Object.entries(byOpponent).filter(([o]) => !hidden.has(o));
       const filteredGoals   = visible.reduce((s, [, v]) => s + v.goals, 0);
       const filteredAssists = visible.reduce((s, [, v]) => s + v.assists, 0);
-      const filteredMins    = visible.reduce((s, [, v]) => s + v.minsPlayed, 0);
+      const filteredMins    = visible.reduce((s, [, v]) => s + (v.minsPlayed ?? 0), 0);
       const filteredContribs = filteredGoals + filteredAssists;
       const filteredValue = metric === "goals" ? filteredGoals : metric === "assists" ? filteredAssists : filteredContribs;
       const row: Record<string, unknown> = {
-        name: sn[p.playerName] ?? p.playerName, fullName: p.playerName, club: p.club ?? null, totalMins: p.totalMins,
+        name: sn[p.playerName] ?? p.playerName, fullName: p.playerName, club: p.club ?? null, totalMins: p.totalMins ?? 0,
         filteredGoals, filteredAssists, filteredContribs, filteredMins, filteredValue, byOpponent,
       };
       for (const [opp, v] of Object.entries(byOpponent)) row[opp] = val(v);
       return row;
     }).filter(r => (r.filteredValue as number) > 0);
     rows.sort((a, b) => {
-      if (sort === "mpg") {
+      if (effectiveSort === "mpg") {
         const am = (a.filteredValue as number) > 0 ? (a.totalMins as number) / (a.filteredValue as number) : Infinity;
         const bm = (b.filteredValue as number) > 0 ? (b.totalMins as number) / (b.filteredValue as number) : Infinity;
         return am - bm;
@@ -4735,28 +5080,32 @@ function OppPlayerStackChart({
     });
     return maxBars ? rows.slice(0, maxBars) : rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, metric, hidden, sort, sn, maxBars]);
+  }, [src, metric, hidden, effectiveSort, sn, maxBars]);
 
   const cfg = {
     goals:   { noun: "Goals",         total: "Total Goals",  mpg: "Mins / Goal",         stackId: "oppGoals" },
     assists: { noun: "Assists",       total: "Total Assists", mpg: "Mins / Assist",       stackId: "oppAssists" },
     contrib: { noun: "Contributions", total: "Total G+A",    mpg: "Mins / Contribution", stackId: "oppContrib" },
   }[metric];
-  const title = `${clubLabel} — ${sort === "mpg" ? cfg.mpg : cfg.noun}${lastN ? " — Last 3 Rounds" : ""}`;
+  const title = `${clubLabel} — ${effectiveSort === "mpg" ? cfg.mpg : cfg.noun}${lastN ? " — Last 3 Rounds" : ""}`;
 
   return (
     <ChartCard
       tall
       title={title}
       description={`${cfg.noun} broken down by the opponent each player faced — click legend to include/exclude clubs`}
-      tooltip={`Stacked by the opponent each player came up against. Each segment = ${cfg.noun.toLowerCase()} in games vs that club. Click a club in the legend to remove it; the ${cfg.mpg} figure recalculates from the visible clubs. Rates use total season minutes.`}
+      tooltip={appearanceOnly
+        ? `Stacked by the opponent each player faced. Each segment shows ${cfg.noun.toLowerCase()} recorded in those matches. NPLB rolling substitutions make minutes and per-minute rates unreliable, so this chart uses totals only.`
+        : `Stacked by the opponent each player came up against. Each segment = ${cfg.noun.toLowerCase()} in games vs that club. Click a club in the legend to remove it; the ${cfg.mpg} figure recalculates from the visible clubs. Rates use total season minutes.`}
       controls={
         <div className="flex flex-wrap items-center gap-3">
-          <PillGroup
-            options={[{ value: "total", label: cfg.total }, { value: "mpg", label: cfg.mpg }]}
-            value={sort}
-            onChange={v => onSort(v as "total" | "mpg")}
-          />
+          {!appearanceOnly && (
+            <PillGroup
+              options={[{ value: "total", label: cfg.total }, { value: "mpg", label: cfg.mpg }]}
+              value={sort}
+              onChange={v => onSort(v as "total" | "mpg")}
+            />
+          )}
           <button
             onClick={onLastN}
             className={cn(
@@ -4784,7 +5133,9 @@ function OppPlayerStackChart({
             <YAxis {...AXIS_STYLE} allowDecimals={false} />
             <Tooltip
               content={
-                metric === "goals"
+                appearanceOnly
+                  ? undefined
+                  : metric === "goals"
                   ? <MinsPerGoalTooltip hiddenOpponents={hidden} />
                   : metric === "assists"
                     ? <AssistStackedTooltip hiddenOpponents={hidden} />

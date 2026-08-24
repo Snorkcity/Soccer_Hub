@@ -973,6 +973,30 @@ export const GetPlayerLeaderboardResponse = zod.array(GetPlayerLeaderboardRespon
 
 
 /**
+ * @summary Get the NPLB-safe player leaderboard from match-card evidence
+ */
+export const GetNplbPlayerLeaderboardQueryParams = zod.object({
+  "teamId": zod.coerce.number(),
+  "seasonId": zod.coerce.number(),
+  "lastN": zod.coerce.number().optional()
+})
+
+export const GetNplbPlayerLeaderboardResponseItem = zod.object({
+  "playerId": zod.number(),
+  "playerName": zod.string(),
+  "goals": zod.number(),
+  "assists": zod.number(),
+  "appearances": zod.number(),
+  "borrowedUp": zod.number(),
+  "borrowedDown": zod.number(),
+  "borrowedUnknown": zod.number(),
+  "yellowCards": zod.number(),
+  "redCards": zod.number()
+})
+export const GetNplbPlayerLeaderboardResponse = zod.array(GetNplbPlayerLeaderboardResponseItem)
+
+
+/**
  * @summary Get current league ladder standings
  */
 export const GetLeagueLadderQueryParams = zod.object({
@@ -1731,7 +1755,7 @@ export const GetPlayerTimelineResponse = zod.object({
 
 
 /**
- * @summary Per-player goals/assists/minutes for a club, broken down by the opponent they faced
+ * @summary Per-player goal, assist and appearance evidence for a club, broken down by the opponent they faced
  */
 export const GetOpponentPlayersByOpponentQueryParams = zod.object({
   "teamId": zod.coerce.number(),
@@ -1740,7 +1764,8 @@ export const GetOpponentPlayersByOpponentQueryParams = zod.object({
   "lastN": zod.coerce.number().optional()
 })
 
-export const GetOpponentPlayersByOpponentResponse = zod.object({
+export const GetOpponentPlayersByOpponentResponse = zod.union([zod.object({
+  "metricProfile": zod.enum(['full']),
   "opponents": zod.array(zod.string()),
   "players": zod.array(zod.object({
   "playerName": zod.string(),
@@ -1750,13 +1775,35 @@ export const GetOpponentPlayersByOpponentResponse = zod.object({
   "totalAssists": zod.number(),
   "totalStarts": zod.number(),
   "totalApps": zod.number(),
+  "borrowedUp": zod.number(),
+  "borrowedDown": zod.number(),
+  "borrowedUnknown": zod.number(),
   "byOpponent": zod.record(zod.string(), zod.object({
   "goals": zod.number(),
   "assists": zod.number(),
-  "minsPlayed": zod.number()
+  "minsPlayed": zod.number(),
+  "appearances": zod.number()
 }))
 }))
-})
+}),zod.object({
+  "metricProfile": zod.enum(['appearance-only']),
+  "opponents": zod.array(zod.string()),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "club": zod.string().nullish(),
+  "totalGoals": zod.number(),
+  "totalAssists": zod.number(),
+  "totalApps": zod.number(),
+  "borrowedUp": zod.number(),
+  "borrowedDown": zod.number(),
+  "borrowedUnknown": zod.number(),
+  "byOpponent": zod.record(zod.string(), zod.object({
+  "goals": zod.number(),
+  "assists": zod.number(),
+  "appearances": zod.number()
+}))
+}))
+})])
 
 
 /**
@@ -4936,6 +4983,13 @@ export const GetVeoMatchQueryParams = zod.object({
   "leagueId": zod.coerce.number()
 })
 
+export const getVeoMatchResponseDirectionReviewItemConfidenceMin = 0;
+export const getVeoMatchResponseDirectionReviewItemConfidenceMax = 1;
+
+export const getVeoMatchResponseDirectionReviewItemEvidenceCountMin = 0;
+
+
+
 export const GetVeoMatchResponse = zod.object({
   "id": zod.number(),
   "leagueId": zod.number().optional(),
@@ -4962,7 +5016,19 @@ export const GetVeoMatchResponse = zod.object({
   "z": zod.number().nullish()
 })).nullish(),
   "stats": zod.record(zod.string(), zod.unknown()).nullish(),
-  "periods": zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
+  "periods": zod.array(zod.record(zod.string(), zod.unknown())).nullish().describe('Effective Hub periods with confirmed direction overrides applied'),
+  "rawPeriods": zod.array(zod.record(zod.string(), zod.unknown())).nullish().describe('Raw periods exactly as received from Veo'),
+  "directionOverrides": zod.record(zod.string(), zod.enum(['left', 'right'])).optional(),
+  "directionReview": zod.array(zod.object({
+  "periodId": zod.number(),
+  "rawSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "overrideSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "effectiveSide": zod.enum(['left', 'right']),
+  "suggestedSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "status": zod.enum(['confirmed', 'consistent', 'looks_reversed', 'uncertain', 'no_evidence']),
+  "confidence": zod.number().min(getVeoMatchResponseDirectionReviewItemConfidenceMin).max(getVeoMatchResponseDirectionReviewItemConfidenceMax),
+  "evidenceCount": zod.number().min(getVeoMatchResponseDirectionReviewItemEvidenceCountMin)
+})).optional(),
   "roster": zod.record(zod.string(), zod.unknown()).nullish(),
   "passDetails": zod.record(zod.string(), zod.unknown()).nullish(),
   "matchId": zod.number().nullish(),
@@ -4976,6 +5042,13 @@ export const GetVeoMatchResponse = zod.object({
 export const ListVeoLinksQueryParams = zod.object({
   "leagueId": zod.coerce.number()
 })
+
+export const listVeoLinksResponseLinksItemDirectionReviewItemConfidenceMin = 0;
+export const listVeoLinksResponseLinksItemDirectionReviewItemConfidenceMax = 1;
+
+export const listVeoLinksResponseLinksItemDirectionReviewItemEvidenceCountMin = 0;
+
+
 
 export const ListVeoLinksResponse = zod.object({
   "links": zod.array(zod.object({
@@ -4995,7 +5068,17 @@ export const ListVeoLinksResponse = zod.object({
   "veoAgainst": zod.number(),
   "hubFor": zod.number(),
   "hubAgainst": zod.number()
-}).nullish()
+}).nullish(),
+  "directionReview": zod.array(zod.object({
+  "periodId": zod.number(),
+  "rawSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "overrideSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "effectiveSide": zod.enum(['left', 'right']),
+  "suggestedSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable(),
+  "status": zod.enum(['confirmed', 'consistent', 'looks_reversed', 'uncertain', 'no_evidence']),
+  "confidence": zod.number().min(listVeoLinksResponseLinksItemDirectionReviewItemConfidenceMin).max(listVeoLinksResponseLinksItemDirectionReviewItemConfidenceMax),
+  "evidenceCount": zod.number().min(listVeoLinksResponseLinksItemDirectionReviewItemEvidenceCountMin)
+}))
 })),
   "hubMatches": zod.array(zod.object({
   "id": zod.number(),
@@ -5045,6 +5128,24 @@ export const VeoRefetchMatchBody = zod.object({
 })
 
 export const VeoRefetchMatchResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Confirm or revert the Hub direction used for one Veo match period
+ */
+
+
+
+export const VeoSetDirectionBody = zod.object({
+  "leagueId": zod.number(),
+  "veoId": zod.number(),
+  "periodId": zod.number().min(1),
+  "ownSide": zod.union([zod.literal('left'),zod.literal('right'),zod.literal(null)]).nullable()
+})
+
+export const VeoSetDirectionResponse = zod.object({
   "ok": zod.boolean()
 })
 
@@ -5515,5 +5616,3 @@ export const DeleteCurriculumDocumentBody = zod.object({
 export const DeleteCurriculumDocumentResponse = zod.object({
   "ok": zod.boolean()
 })
-
-

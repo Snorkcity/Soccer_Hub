@@ -61,3 +61,4 @@
 - [Hub front-door full-bleed layout](hub-frontdoor-layout.md) — Hub pages escape Shell's max-w-7xl via location check; only the flex-1 chain (not % min-heights) makes the hex fill tall/wide desktops.
 - [Veo stats integration](veo-integration.md) — Veo internal API (PKCE auth, events endpoint = source of truth); pass strings/possession live on the separate RAS service (L/R = pitch sides); slugs on leagues rows.
 - [Match-stat provenance](match-stat-provenance.md) — possession, shots and passes retain a per-value official/Veo/unknown source; legacy values are unknown and official values always win.
+- [NPLB rolling-sub player evidence](nplb-player-evidence.md) — U14/U15/U16/U18 may use appearances/contributions/borrowing, never minute/start/sub-derived metrics.

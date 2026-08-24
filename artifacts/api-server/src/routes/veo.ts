@@ -53,6 +53,12 @@ import {
 } from "@workspace/api-zod";
 import { veoMatchStatisticUpdates } from "../lib/matchStatisticProvenance";
 import { planExactDateAutoLinks } from "../lib/veoLinking";
+import {
+  effectiveVeoPeriods,
+  normaliseVeoDirectionOverrides,
+  reviewVeoDirections,
+  type VeoOwnSide,
+} from "../lib/veoDirection";
 
 const router: IRouter = Router();
 
@@ -648,6 +654,7 @@ router.get("/veo/season-shots", async (req, res) => {
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
     })
@@ -666,9 +673,10 @@ router.get("/veo/season-shots", async (req, res) => {
           z?: number | null;
         }[])
       : [];
-    const periods = Array.isArray(r.periods)
-      ? (r.periods as { duration?: number; own_side?: string }[])
-      : [];
+    const periods = effectiveVeoPeriods(r.periods, r.directionOverrides) as {
+      duration?: number;
+      own_side?: string;
+    }[];
     const periodDurations = veoPeriodDurationsMinutes(periods, timing);
     const shots: { x: number | null; y: number | null; minute: number; goal: boolean; us: boolean }[] = [];
     for (const e of events) {
@@ -819,6 +827,7 @@ router.get("/veo/season-passing", async (req, res) => {
       opponent: veoMatchesTable.opponent,
       startsAt: veoMatchesTable.startsAt,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
       passDetails: veoMatchesTable.passDetails,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
@@ -828,7 +837,10 @@ router.get("/veo/season-passing", async (req, res) => {
     .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.passDetails} IS NOT NULL`, sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
   const matches = rows.flatMap((r) => {
-    const summary = summarisePassDetails(r.passDetails, r.periods);
+    const summary = summarisePassDetails(
+      r.passDetails,
+      effectiveVeoPeriods(r.periods, r.directionOverrides),
+    );
     if (!summary) return [];
     return [{
       id: r.id,
@@ -855,7 +867,14 @@ router.get("/veo/match", async (req, res) => {
     .where(and(eq(veoMatchesTable.id, id), eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .limit(1);
   if (rows.length === 0) return res.status(404).json({ error: "Not found" });
-  return res.json(rows[0]);
+  const row = rows[0];
+  return res.json({
+    ...row,
+    rawPeriods: row.periods,
+    periods: effectiveVeoPeriods(row.periods, row.directionOverrides),
+    directionOverrides: normaliseVeoDirectionOverrides(row.directionOverrides),
+    directionReview: reviewVeoDirections(row.events, row.periods, row.directionOverrides),
+  });
 });
 
 // ── Veo ↔ Hub match linking ─────────────────────────────────────────────────
@@ -909,6 +928,8 @@ router.get("/veo/links", async (req, res) => {
         pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
         // Events JSON so we can count Veo goals for the mismatch check.
         events: veoMatchesTable.events,
+        periods: veoMatchesTable.periods,
+        directionOverrides: veoMatchesTable.directionOverrides,
         // Hub result (null when not linked or result not entered).
         hubGoalsScored: matchesTable.goalsScored,
         hubGoalsConceded: matchesTable.goalsConceded,
@@ -939,8 +960,16 @@ router.get("/veo/links", async (req, res) => {
       }
     }
     // Strip heavy events payload before sending to client.
-    const { events: _events, hubGoalsScored: _hs, hubGoalsConceded: _hc, ...rest } = r;
-    return { ...rest, scoreMismatch };
+    const directionReview = reviewVeoDirections(r.events, r.periods, r.directionOverrides);
+    const {
+      events: _events,
+      periods: _periods,
+      directionOverrides: _directionOverrides,
+      hubGoalsScored: _hs,
+      hubGoalsConceded: _hc,
+      ...rest
+    } = r;
+    return { ...rest, scoreMismatch, directionReview };
   });
 
   return res.json({ links, hubMatches });
@@ -969,6 +998,7 @@ export async function backfillMatchStatsFromVeo(
       matchId: veoMatchesTable.matchId,
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
       passDetails: veoMatchesTable.passDetails,
     })
     .from(veoMatchesTable)
@@ -984,7 +1014,10 @@ export async function backfillMatchStatsFromVeo(
       if (e?.event_type !== "FootballShot" && e?.event_type !== "FootballGoal") continue;
       if (e.team === "Own") shotsUs++; else shotsThem++;
     }
-    const pd = summarisePassDetails(r.passDetails, r.periods);
+    const pd = summarisePassDetails(
+      r.passDetails,
+      effectiveVeoPeriods(r.periods, r.directionOverrides),
+    );
     const possTot = pd ? pd.possessionSecUs + pd.possessionSecThem : 0;
     // A non-empty events payload makes the shot counts meaningful (0 included);
     // passes/possession only when the RAS analytics actually produced numbers.
@@ -1169,6 +1202,51 @@ router.post("/entry/veo-link", async (req, res) => {
     } catch (e) {
       logger.warn({ err: e, veoId }, "veo: match-stat backfill failed after manual link");
     }
+  }
+  return res.json({ ok: true });
+});
+
+// POST /entry/veo-direction { leagueId, veoId, periodId, ownSide|null }
+// Saves one coach-confirmed half direction without altering Veo's raw period
+// payload. null reverts to raw Veo (or the established right-side fallback).
+router.post("/entry/veo-direction", async (req, res) => {
+  const leagueId = Number(req.body?.leagueId);
+  const veoId = Number(req.body?.veoId);
+  const periodId = Number(req.body?.periodId);
+  const ownSide = req.body?.ownSide as VeoOwnSide | null | undefined;
+  if (!Number.isFinite(leagueId) || !Number.isFinite(veoId))
+    return res.status(400).json({ error: "leagueId and veoId required" });
+  if (!Number.isInteger(periodId) || periodId < 1)
+    return res.status(400).json({ error: "periodId must be a positive integer" });
+  if (ownSide !== null && ownSide !== "left" && ownSide !== "right")
+    return res.status(400).json({ error: "ownSide must be left, right, or null" });
+
+  const existing = await db
+    .select({
+      directionOverrides: veoMatchesTable.directionOverrides,
+      removedAt: veoMatchesTable.removedAt,
+    })
+    .from(veoMatchesTable)
+    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
+    .limit(1);
+  if (existing.length === 0) return res.status(404).json({ error: "Veo match not found in this league" });
+  if (existing[0].removedAt != null)
+    return res.status(409).json({ error: "Restore this Veo recording before changing its directions" });
+
+  const directionOverrides = normaliseVeoDirectionOverrides(existing[0].directionOverrides);
+  if (ownSide === null) delete directionOverrides[String(periodId)];
+  else directionOverrides[String(periodId)] = ownSide;
+  await db
+    .update(veoMatchesTable)
+    .set({ directionOverrides })
+    .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)));
+
+  // Direction changes can swap RAS L/R ownership. Refresh only Veo/unknown
+  // match fields; official coach-entered values remain protected.
+  try {
+    await backfillMatchStatsFromVeo(leagueId, { veoRowId: veoId, overwrite: true });
+  } catch (error) {
+    logger.warn({ err: error, veoId }, "veo: match-stat backfill failed after direction correction");
   }
   return res.json({ ok: true });
 });
@@ -1783,6 +1861,7 @@ router.get("/veo/report-stats", async (req, res) => {
       startsAt: veoMatchesTable.startsAt,
       events: veoMatchesTable.events,
       periods: veoMatchesTable.periods,
+      directionOverrides: veoMatchesTable.directionOverrides,
       passDetails: veoMatchesTable.passDetails,
       opponent: matchesTable.opponent,
     })
@@ -1799,8 +1878,9 @@ router.get("/veo/report-stats", async (req, res) => {
     .where(eq(leaguesTable.id, leagueId))
     .limit(1);
   const timing = matchTimingForLeague(league?.name);
-  const { shots, momentum } = computeReportStats(row.events, row.periods, timing);
-  const intel = computeMatchIntel(row.events, row.periods, row.passDetails, row.opponent ?? "the opposition", timing);
+  const effectivePeriods = effectiveVeoPeriods(row.periods, row.directionOverrides);
+  const { shots, momentum } = computeReportStats(row.events, effectivePeriods, timing);
+  const intel = computeMatchIntel(row.events, effectivePeriods, row.passDetails, row.opponent ?? "the opposition", timing);
   return res.json({
     linked: true,
     veoId: row.id,

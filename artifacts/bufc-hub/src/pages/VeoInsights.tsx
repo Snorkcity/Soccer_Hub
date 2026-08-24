@@ -19,6 +19,7 @@ import {
   getListVeoLinksQueryKey,
   useVeoAutoLink,
   useVeoSetLink,
+  useVeoSetDirection,
   useVeoRemoveMatch,
   useVeoRefetchMatch,
   type VeoMatchSummary,
@@ -26,6 +27,7 @@ import {
   type VeoSeasonShotMatch,
   type VeoEvent,
   type VeoLinkRow,
+  type VeoDirectionReview,
   type HubMatchOption,
   type VeoScoreMismatch,
   useGetClubs,
@@ -243,6 +245,30 @@ function processingStatusLabel(value: unknown): string | null {
     )
     .map(([key, status]) => `${key}: ${String(status)}`);
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function directionReviewLabel(review: VeoDirectionReview): string {
+  if (review.status === "confirmed") return "Coach confirmed";
+  if (review.status === "consistent") return "Events support Veo";
+  if (review.status === "looks_reversed") return "Events suggest reversal";
+  if (review.status === "uncertain") return "Mixed evidence";
+  return "No reliable spatial evidence";
+}
+
+function directionReviewTone(review: VeoDirectionReview): string {
+  if (review.status === "confirmed") return "bg-blue-500/15 text-blue-700 dark:text-blue-300";
+  if (review.status === "consistent") return "bg-green-500/15 text-green-700 dark:text-green-300";
+  if (review.status === "looks_reversed") return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+  return "bg-muted text-muted-foreground";
+}
+
+function scoreMismatchText(mismatch: VeoScoreMismatch): string {
+  const oneMissingGoal =
+    (mismatch.hubFor === mismatch.veoFor + 1 && mismatch.hubAgainst === mismatch.veoAgainst) ||
+    (mismatch.hubAgainst === mismatch.veoAgainst + 1 && mismatch.hubFor === mismatch.veoFor);
+  return oneMissingGoal
+    ? `Veo detected ${mismatch.veoFor}–${mismatch.veoAgainst} · Official ${mismatch.hubFor}–${mismatch.hubAgainst} — Veo likely missed one goal; direction is checked separately`
+    : `Veo event score ${mismatch.veoFor}–${mismatch.veoAgainst} differs from Official ${mismatch.hubFor}–${mismatch.hubAgainst} — the official result is kept; direction is checked separately`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -589,9 +615,32 @@ function MatchLinksCard({
         qc.invalidateQueries({ queryKey: getGetVeoPlayerSeasonQueryKey({ leagueId }) }),
         qc.invalidateQueries({ queryKey: getListAssistantMatchesQueryKey({ leagueId }) }),
       ]);
-      qc.invalidateQueries();
+      await qc.invalidateQueries();
     } catch {
       setMsg("Couldn't save that link — try again.");
+    }
+  }
+
+  const directionMut = useVeoSetDirection();
+  const [savingDirection, setSavingDirection] = useState<string | null>(null);
+  async function setDirection(
+    veoId: number,
+    periodId: number,
+    ownSide: "left" | "right" | null,
+  ) {
+    const key = `${veoId}-${periodId}`;
+    setSavingDirection(key);
+    setMsg(null);
+    try {
+      await directionMut.mutateAsync({ data: { leagueId, veoId, periodId, ownSide } });
+      setMsg(ownSide == null ? "Direction confirmation cleared." : `Period ${periodId} direction saved.`);
+      // Directions feed match maps, season charts, reports and reflection
+      // context, so refresh all active views together.
+      qc.invalidateQueries();
+    } catch {
+      setMsg("Couldn't save that direction — try again.");
+    } finally {
+      setSavingDirection(null);
     }
   }
 
@@ -615,7 +664,7 @@ function MatchLinksCard({
   const [refetchingId, setRefetchingId] = useState<number | null>(null);
   const refetchMut = useVeoRefetchMatch();
   async function refetchStats(veoId: number, label: string) {
-    if (!window.confirm(`Re-fetch stats for "${label}" from Veo?\n\nThis refreshes the video data and its Veo/unknown match stats — useful after fixing team directions or other settings in Veo. Official/manual stats stay unchanged.`)) return;
+    if (!window.confirm(`Re-fetch stats for "${label}" from Veo?\n\nThis refreshes the raw video data and its Veo/unknown match stats. Hub direction confirmations stay saved, and official/manual stats stay unchanged.`)) return;
     setRefetchingId(veoId);
     try {
       await refetchMut.mutateAsync({ data: { leagueId, veoId } });
@@ -668,7 +717,7 @@ function MatchLinksCard({
           )}
           <div className="space-y-2">
             {links.map((l) => (
-              <div key={l.id} className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5 ${l.removed ? "opacity-60" : ""} ${highlightVeoId === l.id ? "border-primary ring-1 ring-primary/30" : ""}`}>
+              <div key={l.id} className={`flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 sm:gap-3 rounded-md border p-2.5 ${l.removed ? "opacity-60" : ""} ${highlightVeoId === l.id ? "border-primary ring-1 ring-primary/30" : ""}`}>
                 <div className="min-w-0 sm:w-1/2">
                   <div className="text-sm font-medium truncate flex items-center gap-1.5">
                     {!l.removed && l.matchId != null && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
@@ -698,7 +747,7 @@ function MatchLinksCard({
                   {l.scoreMismatch && (
                     <div className="flex items-center gap-1 mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
-                      Veo: {l.scoreMismatch.veoFor}–{l.scoreMismatch.veoAgainst} · Hub: {l.scoreMismatch.hubFor}–{l.scoreMismatch.hubAgainst} — check the result
+                      {scoreMismatchText(l.scoreMismatch)}
                     </div>
                   )}
                 </div>
@@ -739,7 +788,7 @@ function MatchLinksCard({
                     onClick={() =>
                       refetchStats(l.id, `${opponentOf(l)}${fmtDate(l.startsAt) ? ` · ${fmtDate(l.startsAt)}` : ""}`)
                     }
-                    title="Clear and re-download stats from Veo (e.g. after fixing team directions)"
+                    title="Clear and re-download the raw stats from Veo; Hub direction confirmations stay saved"
                   >
                     {refetchingId === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                     Re-fetch
@@ -758,6 +807,82 @@ function MatchLinksCard({
                     {l.removed ? <Undo2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                     {l.removed ? "Restore" : "Remove"}
                   </Button>
+                )}
+                {!l.removed && l.synced && l.directionReview.length > 0 && (
+                  <div className="basis-full w-full border-t pt-2 mt-1 space-y-1.5">
+                    <div className="text-[11px] font-medium text-muted-foreground">
+                      Pitch direction review
+                    </div>
+                    {l.directionReview.map((review) => {
+                      const key = `${l.id}-${review.periodId}`;
+                      const busy = savingDirection === key;
+                      const switched: "left" | "right" =
+                        review.effectiveSide === "left" ? "right" : "left";
+                      const actionSide =
+                        review.suggestedSide && review.suggestedSide !== review.effectiveSide
+                          ? review.suggestedSide
+                          : switched;
+                      return (
+                        <div key={review.periodId} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-[11px]">
+                          <div className="flex items-center gap-1.5 min-w-0 sm:flex-1">
+                            <span className="font-semibold shrink-0">
+                              {review.periodId === 1 ? "1st half" : review.periodId === 2 ? "2nd half" : `Period ${review.periodId}`}
+                            </span>
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${directionReviewTone(review)}`}>
+                              {directionReviewLabel(review)}
+                            </span>
+                            <span className="text-muted-foreground">
+                              defending {review.effectiveSide}
+                              {review.evidenceCount > 0
+                                ? ` · ${review.evidenceCount} located event${review.evidenceCount === 1 ? "" : "s"} · ${Math.round(review.confidence * 100)}% agreement`
+                                : ""}
+                            </span>
+                          </div>
+                          {canLink && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {review.overrideSide ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[11px]"
+                                  disabled={busy}
+                                  onClick={() => setDirection(l.id, review.periodId, null)}
+                                >
+                                  {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                  Revert to Veo
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[11px]"
+                                  disabled={busy}
+                                  onClick={() => setDirection(l.id, review.periodId, review.effectiveSide)}
+                                >
+                                  {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                  Confirm current
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant={review.status === "looks_reversed" ? "default" : "outline"}
+                                className="h-6 px-2 text-[11px]"
+                                disabled={busy}
+                                onClick={() => setDirection(l.id, review.periodId, actionSide)}
+                              >
+                                {review.suggestedSide && review.suggestedSide !== review.effectiveSide
+                                  ? "Apply suggestion"
+                                  : "Reverse half"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <p className="text-[10px] text-muted-foreground">
+                      Suggestions use located shots and goals only. They never change the official score, and nothing is corrected until a coach confirms it.
+                    </p>
+                  </div>
                 )}
               </div>
             ))}

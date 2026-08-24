@@ -7,6 +7,8 @@ import {
   GetSeasonSummaryResponse,
   GetPlayerLeaderboardQueryParams,
   GetPlayerLeaderboardResponse,
+  GetNplbPlayerLeaderboardQueryParams,
+  GetNplbPlayerLeaderboardResponse,
   GetLeagueLadderQueryParams,
   GetLeagueLadderResponse,
   GetTeamFormQueryParams,
@@ -61,6 +63,7 @@ import {
   GetOpponentClutchGoalsQueryParams,
   GetOpponentClutchGoalsResponse,
   goalIntervalIndex,
+  isActNplbLeague,
   matchTimingForLeague,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
@@ -84,6 +87,19 @@ const isFocusGoal = (
   roster: Set<string>,
   focusClub: string,
 ): boolean => (!!scorer && roster.has(scorer)) || scorerTeam === focusClub;
+
+async function isNplbSeason(seasonId: number): Promise<boolean> {
+  const [seasonLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  return isActNplbLeague(seasonLeague?.name);
+}
+
+const NPLB_ROLLING_SUBS_ERROR =
+  "This metric is unavailable for NPLB because rolling substitutions make minutes, starts and substitution timing unreliable";
 
 /**
  * Aggregates assist->scorer partnerships ("combo threat") from a set of goals.
@@ -201,6 +217,10 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     .where(eq(seasonsTable.id, seasonId))
     .limit(1);
   const currentNplbGrade = nplbGrade(seasonLeague?.name);
+  if (isActNplbLeague(seasonLeague?.name)) {
+    res.status(422).json({ error: NPLB_ROLLING_SUBS_ERROR });
+    return;
+  }
 
   // Get all matches for this team+season — need both sides for on-field GD (plus/minus)
   let matches = await db
@@ -326,6 +346,138 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   })).sort((a, b) => b.goals - a.goals || b.assists - a.assists || b.minsPlayed - a.minsPlayed);
 
   res.json(GetPlayerLeaderboardResponse.parse(leaderboard));
+});
+
+// NPLB match cards prove that a named player appeared, but rolling substitutions
+// make minutes, starts, bench status and on-field windows unsafe. Keep that
+// evidence on a separate response contract so those fields cannot leak to the UI.
+router.get("/analytics/nplb-player-leaderboard", async (req, res): Promise<void> => {
+  const query = GetNplbPlayerLeaderboardQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const { teamId, seasonId, lastN } = query.data;
+  const focusClub = await focusClubForRequest(req, seasonId);
+  const [seasonLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  const currentNplbGrade = nplbGrade(seasonLeague?.name);
+  if (currentNplbGrade == null || !isActNplbLeague(seasonLeague?.name)) {
+    res.status(422).json({ error: "This endpoint is available only for ACT NPLB U14, U15, U16 and U18" });
+    return;
+  }
+
+  let matches = await db
+    .select({ id: matchesTable.id, matchDate: matchesTable.matchDate })
+    .from(matchesTable)
+    .where(and(eq(matchesTable.teamId, teamId), eq(matchesTable.seasonId, seasonId)));
+  if (lastN != null && lastN > 0) {
+    matches = matches
+      .slice()
+      .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""))
+      .slice(0, lastN);
+  }
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) {
+    res.json(GetNplbPlayerLeaderboardResponse.parse([]));
+    return;
+  }
+
+  const [stats, goals, borrowingEvidence] = await Promise.all([
+    db
+      .select()
+      .from(playerStatsTable)
+      .where(and(inArray(playerStatsTable.matchId, matchIds), eq(playerStatsTable.club, focusClub))),
+    db
+      .select()
+      .from(goalsTable)
+      .where(and(
+        eq(goalsTable.teamId, teamId),
+        eq(goalsTable.seasonId, seasonId),
+        inArray(goalsTable.matchId, matchIds),
+      )),
+    db
+      .select({
+        driblUserId: leaguePlayerStatsTable.driblUserId,
+        borrowed: leaguePlayerStatsTable.borrowed,
+        leagueName: leaguesTable.name,
+      })
+      .from(leaguePlayerStatsTable)
+      .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
+      .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+      .where(isNotNull(leaguePlayerStatsTable.driblUserId)),
+  ]);
+
+  type SafePlayerEntry = {
+    playerId: number;
+    playerName: string;
+    goals: number;
+    assists: number;
+    appearances: number;
+    borrowedUp: number;
+    borrowedDown: number;
+    borrowedUnknown: number;
+    yellowCards: number;
+    redCards: number;
+  };
+  const playerMap = new Map<number, SafePlayerEntry>();
+  const seenPlayerMatches = new Set<string>();
+  for (const stat of stats) {
+    if (!stat.appearance) continue;
+    const playerMatchKey = `${stat.matchId}:${stat.playerId}`;
+    if (seenPlayerMatches.has(playerMatchKey)) continue;
+    seenPlayerMatches.add(playerMatchKey);
+    const player = playerMap.get(stat.playerId) ?? {
+      playerId: stat.playerId,
+      playerName: stat.playerName,
+      goals: 0,
+      assists: 0,
+      appearances: 0,
+      borrowedUp: 0,
+      borrowedDown: 0,
+      borrowedUnknown: 0,
+      yellowCards: 0,
+      redCards: 0,
+    };
+    player.appearances += 1;
+    if (stat.borrowed) {
+      const direction = nplbBorrowDirection(currentNplbGrade, stat.driblUserId, borrowingEvidence);
+      if (direction === "up") player.borrowedUp += 1;
+      else if (direction === "down") player.borrowedDown += 1;
+      else player.borrowedUnknown += 1;
+    }
+    if (stat.discipline?.toLowerCase().includes("yellow")) player.yellowCards += 1;
+    if (stat.discipline?.toLowerCase().includes("red")) player.redCards += 1;
+    playerMap.set(stat.playerId, player);
+  }
+
+  const idsByName = new Map<string, number[]>();
+  for (const player of playerMap.values()) {
+    const ids = idsByName.get(player.playerName) ?? [];
+    ids.push(player.playerId);
+    idsByName.set(player.playerName, ids);
+  }
+  const roster = new Set(idsByName.keys());
+  for (const goal of goals) {
+    if (!isFocusGoal(goal.scorer, goal.scorerTeam, roster, focusClub)) continue;
+    const scorerIds = goal.scorer ? idsByName.get(goal.scorer) : undefined;
+    if (scorerIds?.length === 1) playerMap.get(scorerIds[0])!.goals += 1;
+    const assistIds = goal.assist ? idsByName.get(goal.assist) : undefined;
+    if (assistIds?.length === 1) playerMap.get(assistIds[0])!.assists += 1;
+  }
+
+  const leaderboard = Array.from(playerMap.values()).sort(
+    (a, b) =>
+      b.appearances - a.appearances ||
+      b.goals - a.goals ||
+      b.assists - a.assists ||
+      a.playerName.localeCompare(b.playerName),
+  );
+  res.json(GetNplbPlayerLeaderboardResponse.parse(leaderboard));
 });
 
 // ─── League Ladder ────────────────────────────────────────────────────────────
@@ -847,6 +999,10 @@ router.get("/analytics/player-dna", async (req, res): Promise<void> => {
   const query = GetPlayerDnaQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, player, lastN } = query.data;
+  if (await isNplbSeason(seasonId)) {
+    res.status(422).json({ error: NPLB_ROLLING_SUBS_ERROR });
+    return;
+  }
   const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
@@ -1380,6 +1536,10 @@ router.get("/analytics/player-impact", async (req, res): Promise<void> => {
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, lastN, sort } = query.data;
   const isAll = club === "__ALL__";
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetPlayerImpactResponse.parse({ totalMatches: 0, players: [] }));
+    return;
+  }
 
   const matches = await db
     .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate, homeGoals: leagueMatchesTable.homeGoals, awayGoals: leagueMatchesTable.awayGoals })
@@ -1499,9 +1659,11 @@ router.get("/analytics/player-impact", async (req, res): Promise<void> => {
   res.json(GetPlayerImpactResponse.parse({ totalMatches: windowedIds.length, players }));
 });
 
-// ─── Opponent Players by Opponent (club-scoped goals/assists/mins per opponent) ─
+// ─── Opponent Players by Opponent (club-scoped player evidence per opponent) ───
 // Powers the Opponent Insights player charts: for the selected club, each player's
-// goals + assists broken down by the opponent CLUB they came against, plus minutes.
+// goals, assists and appearances broken down by the opponent CLUB they faced.
+// Exact ACT NPLB grades use Dribl's rolling-sub match cards, so their response is
+// deliberately appearance-only: it never exposes invented start or minute data.
 // Built from the whole-league tables so it works for any club (or __ALL__).
 
 router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<void> => {
@@ -1509,6 +1671,15 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, lastN } = query.data;
   const isAll = club === "__ALL__";
+  const [seasonLeague] = await db
+    .select({ name: leaguesTable.name })
+    .from(seasonsTable)
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(eq(seasonsTable.id, seasonId))
+    .limit(1);
+  const isNplb = isActNplbLeague(seasonLeague?.name);
+  const currentNplbGrade = nplbGrade(seasonLeague?.name);
+  const metricProfile = isNplb ? "appearance-only" as const : "full" as const;
 
   // League matches for the season → match-id → { home, away, date }
   const matches = await db
@@ -1516,7 +1687,10 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     .from(leagueMatchesTable)
     .where(eq(leagueMatchesTable.seasonId, seasonId));
 
-  if (!matches.length) { res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents: [], players: [] })); return; }
+  if (!matches.length) {
+    res.json(GetOpponentPlayersByOpponentResponse.parse({ metricProfile, opponents: [], players: [] }));
+    return;
+  }
 
   const matchInfo = new Map<string, { home: string | null; away: string | null; date: string | null }>();
   for (const m of matches) matchInfo.set(m.matchId, { home: m.homeTeam, away: m.awayTeam, date: m.matchDate ?? null });
@@ -1541,7 +1715,10 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     relevantIds = new Set(relevant.map(m => m.matchId));
   }
 
-  if (relevantIds.size === 0) { res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents: [], players: [] })); return; }
+  if (relevantIds.size === 0) {
+    res.json(GetOpponentPlayersByOpponentResponse.parse({ metricProfile, opponents: [], players: [] }));
+    return;
+  }
   const relevantList = Array.from(relevantIds);
 
   // opponent club a given owning club faced in a match
@@ -1553,9 +1730,20 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     return null;
   };
 
-  // Minutes: player → opponent → mins, and player → total mins (club's players only)
+  // Player-match rows. NPLB's normalised importer sets appearance=true but retains
+  // no minutes or start status. We dedupe the natural imported-row identity before
+  // aggregation so an accidental duplicate cannot inflate a player's appearances.
   const ps = await db
-    .select({ playerName: leaguePlayerStatsTable.playerName, matchId: leaguePlayerStatsTable.matchId, minsPlayed: leaguePlayerStatsTable.minsPlayed, started: leaguePlayerStatsTable.started, appearance: leaguePlayerStatsTable.appearance, club: leaguePlayerStatsTable.club })
+    .select({
+      playerName: leaguePlayerStatsTable.playerName,
+      matchId: leaguePlayerStatsTable.matchId,
+      minsPlayed: leaguePlayerStatsTable.minsPlayed,
+      started: leaguePlayerStatsTable.started,
+      appearance: leaguePlayerStatsTable.appearance,
+      borrowed: leaguePlayerStatsTable.borrowed,
+      driblUserId: leaguePlayerStatsTable.driblUserId,
+      club: leaguePlayerStatsTable.club,
+    })
     .from(leaguePlayerStatsTable)
     .where(and(eq(leaguePlayerStatsTable.seasonId, seasonId), inArray(leaguePlayerStatsTable.matchId, relevantList)));
 
@@ -1563,6 +1751,10 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   const totalMinsByPlayer: Record<string, number> = {};
   const totalStartsByPlayer: Record<string, number> = {};
   const totalAppsByPlayer: Record<string, number> = {};
+  const appsByPlayerOpp: Record<string, Record<string, number>> = {};
+  const borrowedByPlayer: Record<string, { up: number; down: number; unknown: number }> = {};
+  const displayNamesByPlayer: Record<string, string> = {};
+  const playerKeysByClubAndName = new Map<string, Set<string>>();
   // Full roster (everyone who featured), not just scorers — powers the Starts &
   // Appearances + Total Minutes charts, which must include non-scoring players.
   const roster = new Set<string>();
@@ -1570,17 +1762,57 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   // clubs already collapse into one row (name-keyed aggregation, pre-existing);
   // if that happens, show no club rather than a wrong one.
   const clubsByPlayer: Record<string, Set<string>> = {};
+  const seenNplbRows = new Set<string>();
+  const borrowingEvidence = !isNplb ? [] : await db
+    .select({
+      driblUserId: leaguePlayerStatsTable.driblUserId,
+      borrowed: leaguePlayerStatsTable.borrowed,
+      leagueName: leaguesTable.name,
+    })
+    .from(leaguePlayerStatsTable)
+    .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
+    .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
+    .where(isNotNull(leaguePlayerStatsTable.driblUserId));
   for (const r of ps) {
     if (!r.playerName) continue;
     if (!isAll && r.club !== club) continue;
+    const normalName = r.playerName.trim().toLowerCase();
+    const normalClub = r.club?.trim().toLowerCase() ?? "";
+    const stableIdentity = r.driblUserId?.trim()
+      ? `id:${r.driblUserId.trim()}`
+      : `name:${normalName}`;
+    const playerKey = isNplb
+      ? `${isAll ? `${normalClub}\u0000` : ""}${stableIdentity}`
+      : r.playerName;
+    displayNamesByPlayer[playerKey] ??= r.playerName.trim();
+    if (isNplb) {
+      const duplicateKey = `${r.matchId}\u0000${normalClub}\u0000${stableIdentity}`;
+      if (seenNplbRows.has(duplicateKey)) continue;
+      seenNplbRows.add(duplicateKey);
+      if (!r.appearance) continue;
+    }
     const opp = opponentOf(r.matchId, r.club);
     if (!opp) continue;
-    roster.add(r.playerName);
-    if (r.club) (clubsByPlayer[r.playerName] ??= new Set()).add(r.club);
-    (minsByPlayerOpp[r.playerName] ??= {})[opp] = (minsByPlayerOpp[r.playerName][opp] ?? 0) + (r.minsPlayed ?? 0);
-    totalMinsByPlayer[r.playerName] = (totalMinsByPlayer[r.playerName] ?? 0) + (r.minsPlayed ?? 0);
-    if (r.started) totalStartsByPlayer[r.playerName] = (totalStartsByPlayer[r.playerName] ?? 0) + 1;
-    if (r.appearance) totalAppsByPlayer[r.playerName] = (totalAppsByPlayer[r.playerName] ?? 0) + 1;
+    if (isNplb) {
+      const lookupKey = `${normalClub}\u0000${normalName}`;
+      (playerKeysByClubAndName.get(lookupKey) ?? playerKeysByClubAndName.set(lookupKey, new Set()).get(lookupKey)!).add(playerKey);
+    }
+    roster.add(playerKey);
+    if (r.club) (clubsByPlayer[playerKey] ??= new Set()).add(r.club);
+    if (r.appearance) totalAppsByPlayer[playerKey] = (totalAppsByPlayer[playerKey] ?? 0) + 1;
+    if (r.appearance) (appsByPlayerOpp[playerKey] ??= {})[opp] = (appsByPlayerOpp[playerKey][opp] ?? 0) + 1;
+    if (!isNplb) {
+      (minsByPlayerOpp[playerKey] ??= {})[opp] = (minsByPlayerOpp[playerKey][opp] ?? 0) + (r.minsPlayed ?? 0);
+      totalMinsByPlayer[playerKey] = (totalMinsByPlayer[playerKey] ?? 0) + (r.minsPlayed ?? 0);
+      if (r.started) totalStartsByPlayer[playerKey] = (totalStartsByPlayer[playerKey] ?? 0) + 1;
+    }
+    if (isNplb && r.borrowed) {
+      const tally = borrowedByPlayer[playerKey] ??= { up: 0, down: 0, unknown: 0 };
+      const direction = nplbBorrowDirection(currentNplbGrade, r.driblUserId, borrowingEvidence);
+      if (direction === "up") tally.up++;
+      else if (direction === "down") tally.down++;
+      else tally.unknown++;
+    }
   }
 
   // Goals + assists: player → opponent → count (attributed to the SCORING club's players)
@@ -1591,6 +1823,17 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
 
   const goalsByPlayerOpp: Record<string, Record<string, number>> = {};
   const assistsByPlayerOpp: Record<string, Record<string, number>> = {};
+  const playerKeyForGoalName = (scoringClub: string, playerName: string): string => {
+    if (!isNplb) return playerName;
+    const normalName = playerName.trim().toLowerCase();
+    const normalClub = scoringClub.trim().toLowerCase();
+    const candidates = playerKeysByClubAndName.get(`${normalClub}\u0000${normalName}`);
+    if (candidates?.size === 1) return candidates.values().next().value!;
+    // Goal rows carry names but no Dribl user ID. If a same-name collision is
+    // genuinely ambiguous, keep the goal as a separate evidence row rather than
+    // guessing which stable identity earned it.
+    return `${isAll ? `${normalClub}\u0000` : ""}goal-name:${normalName}`;
+  };
   for (const g of goals) {
     const scoring = g.scorerTeam;
     if (!scoring) continue;
@@ -1599,45 +1842,61 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     if (!opp) continue;
     // "OG" = own goal — credited to the team, not an individual player, so exclude it.
     if (g.scorer && g.scorer !== "OG") {
-      (goalsByPlayerOpp[g.scorer] ??= {})[opp] = (goalsByPlayerOpp[g.scorer][opp] ?? 0) + 1;
-      (clubsByPlayer[g.scorer] ??= new Set()).add(scoring);
+      const playerKey = playerKeyForGoalName(scoring, g.scorer);
+      displayNamesByPlayer[playerKey] ??= g.scorer.trim();
+      (goalsByPlayerOpp[playerKey] ??= {})[opp] = (goalsByPlayerOpp[playerKey][opp] ?? 0) + 1;
+      (clubsByPlayer[playerKey] ??= new Set()).add(scoring);
     }
     if (g.assist && g.assist !== "OG") {
-      (assistsByPlayerOpp[g.assist] ??= {})[opp] = (assistsByPlayerOpp[g.assist][opp] ?? 0) + 1;
-      (clubsByPlayer[g.assist] ??= new Set()).add(scoring);
+      const playerKey = playerKeyForGoalName(scoring, g.assist);
+      displayNamesByPlayer[playerKey] ??= g.assist.trim();
+      (assistsByPlayerOpp[playerKey] ??= {})[opp] = (assistsByPlayerOpp[playerKey][opp] ?? 0) + 1;
+      (clubsByPlayer[playerKey] ??= new Set()).add(scoring);
     }
   }
 
-  // Build per-player rows for everyone with a goal/assist OR who featured on the roster.
-  // Roster-only players (non-scorers) carry starts/apps/minutes for the squad charts;
-  // the stacked goal/assist charts filter them out client-side (metric total = 0).
+  // Build per-player rows for everyone with a goal/assist OR who appeared. NPLB
+  // roster-only players must remain visible — a non-scoring match-card appearance
+  // is still meaningful evidence.
   const contributors = new Set([...Object.keys(goalsByPlayerOpp), ...Object.keys(assistsByPlayerOpp), ...roster]);
   const allOpponentsSet = new Set<string>();
-  const players = Array.from(contributors).map(playerName => {
-    const g = goalsByPlayerOpp[playerName] ?? {};
-    const a = assistsByPlayerOpp[playerName] ?? {};
-    const mins = minsByPlayerOpp[playerName] ?? {};
-    const opps = new Set([...Object.keys(g), ...Object.keys(a)]);
-    const byOpponent: Record<string, { goals: number; assists: number; minsPlayed: number }> = {};
+  const players = Array.from(contributors).map(playerKey => {
+    const g = goalsByPlayerOpp[playerKey] ?? {};
+    const a = assistsByPlayerOpp[playerKey] ?? {};
+    const mins = minsByPlayerOpp[playerKey] ?? {};
+    const apps = appsByPlayerOpp[playerKey] ?? {};
+    const opps = new Set([...Object.keys(g), ...Object.keys(a), ...Object.keys(apps)]);
+    const byOpponent: Record<string, { goals: number; assists: number; appearances: number; minsPlayed?: number }> = {};
     for (const opp of opps) {
       allOpponentsSet.add(opp);
-      byOpponent[opp] = { goals: g[opp] ?? 0, assists: a[opp] ?? 0, minsPlayed: mins[opp] ?? 0 };
+      byOpponent[opp] = {
+        goals: g[opp] ?? 0,
+        assists: a[opp] ?? 0,
+        appearances: apps[opp] ?? 0,
+        ...(!isNplb ? { minsPlayed: mins[opp] ?? 0 } : {}),
+      };
     }
     const totalGoals = Object.values(g).reduce((s, v) => s + v, 0);
     const totalAssists = Object.values(a).reduce((s, v) => s + v, 0);
+    const borrowed = borrowedByPlayer[playerKey] ?? { up: 0, down: 0, unknown: 0 };
     return {
-      playerName,
-      club: clubsByPlayer[playerName]?.size === 1 ? [...clubsByPlayer[playerName]][0] : null,
-      totalMins: totalMinsByPlayer[playerName] ?? 0,
+      playerName: displayNamesByPlayer[playerKey] ?? playerKey,
+      club: clubsByPlayer[playerKey]?.size === 1 ? [...clubsByPlayer[playerKey]][0] : null,
       totalGoals, totalAssists,
-      totalStarts: totalStartsByPlayer[playerName] ?? 0,
-      totalApps: totalAppsByPlayer[playerName] ?? 0,
+      totalApps: totalAppsByPlayer[playerKey] ?? 0,
+      borrowedUp: borrowed.up,
+      borrowedDown: borrowed.down,
+      borrowedUnknown: borrowed.unknown,
+      ...(!isNplb ? {
+        totalMins: totalMinsByPlayer[playerKey] ?? 0,
+        totalStarts: totalStartsByPlayer[playerKey] ?? 0,
+      } : {}),
       byOpponent,
     };
   }).sort((x, y) => (y.totalGoals + y.totalAssists) - (x.totalGoals + x.totalAssists));
 
   const opponents = Array.from(allOpponentsSet).sort();
-  res.json(GetOpponentPlayersByOpponentResponse.parse({ opponents, players }));
+  res.json(GetOpponentPlayersByOpponentResponse.parse({ metricProfile, opponents, players }));
 });
 
 // ─── Unit breakdown (stats by GK / Defence / Midfield / Attack) ────────────────
@@ -1651,6 +1910,10 @@ router.get("/analytics/unit-breakdown", async (req, res): Promise<void> => {
   const query = GetUnitBreakdownQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetUnitBreakdownResponse.parse({ units: [], gameDayRows: 0, assignedRows: 0, unknownRows: 0 }));
+    return;
+  }
   const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
@@ -1774,6 +2037,10 @@ router.get("/analytics/sub-impact", async (req, res): Promise<void> => {
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, lastN } = query.data;
   const isAll = club === "__ALL__";
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetSubImpactResponse.parse({ players: [] }));
+    return;
+  }
 
   const matches = await db
     .select({
@@ -1891,6 +2158,12 @@ router.get("/analytics/opponent-onfield-impact", async (req, res): Promise<void>
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, lastN } = query.data;
   const isAll = club === "__ALL__";
+  // NPLB match cards permit rolling substitutions. Do not manufacture on-field
+  // windows from that data, even if a caller bypasses the NPLB-safe UI.
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetOpponentOnfieldImpactResponse.parse({ opponents: [], players: [] }));
+    return;
+  }
 
   const matches = await db
     .select({
@@ -2081,6 +2354,10 @@ router.get("/analytics/clutch-goals", async (req, res): Promise<void> => {
   const query = GetClutchGoalsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { teamId, seasonId, lastN } = query.data;
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetClutchGoalsResponse.parse({ closeMatches: 0, players: [] }));
+    return;
+  }
   const focusClub = await focusClubForRequest(req, seasonId);
 
   let matches = await db
@@ -2132,6 +2409,10 @@ router.get("/analytics/opponent-clutch-goals", async (req, res): Promise<void> =
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, lastN } = query.data;
   const isAll = club === "__ALL__";
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetOpponentClutchGoalsResponse.parse({ closeMatches: 0, players: [] }));
+    return;
+  }
 
   const matches = await db
     .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate, homeGoals: leagueMatchesTable.homeGoals, awayGoals: leagueMatchesTable.awayGoals })
@@ -2240,6 +2521,10 @@ router.get("/analytics/opponent-player-dna", async (req, res): Promise<void> => 
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
   const { seasonId, club, player, lastN } = query.data;
   const isAll = club === "__ALL__";
+  if (await isNplbSeason(seasonId)) {
+    res.status(422).json({ error: NPLB_ROLLING_SUBS_ERROR });
+    return;
+  }
 
   const matches = await db
     .select({ matchId: leagueMatchesTable.matchId, homeTeam: leagueMatchesTable.homeTeam, awayTeam: leagueMatchesTable.awayTeam, matchDate: leagueMatchesTable.matchDate })
@@ -2317,6 +2602,10 @@ router.get("/analytics/opponent-first-sub", async (req, res): Promise<void> => {
   const { seasonId, club } = query.data;
 
   const empty = { matchesTracked: 0, avgFirstSubMinute: null, subsPerMatch: null, preferredPlayer: null, preferredCount: 0, entries: [], byState: [] };
+  if (await isNplbSeason(seasonId)) {
+    res.json(GetOpponentFirstSubResponse.parse(empty));
+    return;
+  }
   // Game state & first-change logic are club-relative, so no __ALL__ view here.
   if (club === "__ALL__") { res.json(GetOpponentFirstSubResponse.parse(empty)); return; }
 
