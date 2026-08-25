@@ -1270,12 +1270,13 @@ export default function SeasonStats() {
   const [hiddenImpactOpp, setHiddenImpactOpp] = useState<Set<string>>(new Set());
   const [hiddenImpactClubs, setHiddenImpactClubs] = useState<Set<string>>(new Set()); // __ALL__ view: hide a club's players
   const [oppImpactMetric, setOppImpactMetric] = useState<"per90" | "total">("per90");
-  const [oppImpactMinMins, setOppImpactMinMins] = useState<0 | 90 | 150 | 180>(150);
+  const [oppImpactMinMins, setOppImpactMinMins] = useState<0 | 90 | 180 | 300 | 500>(180);
   const [oppImpactL3, setOppImpactL3] = useState(false);
   const [oppAssistL3, setOppAssistL3]   = useState(false);
   const [oppContribL3, setOppContribL3] = useState(false);
   const [oppStartsL3, setOppStartsL3]   = useState(false); // squad: starts & appearances
   const [oppMinsL3, setOppMinsL3]       = useState(false); // squad: total minutes
+  const [oppMinsLimit, setOppMinsLimit] = useState<30 | 50>(30);
   const [comboLastN, setComboLastN]       = useState(false); // team: combo threat
   const [oppComboLastN, setOppComboLastN] = useState(false); // opponent: combo threat
 
@@ -3231,12 +3232,26 @@ export default function SeasonStats() {
               {/* 19. Total minutes played */}
               <PlayerBarCard
                 title={`${isAll ? "League" : selectedClub} — Total Minutes${oppMinsL3 ? " — Last 3 Rounds" : ""}`}
-                description={`Total minutes played${oppMinsL3 ? " over the last 3 rounds" : " this season"} (top 15)`}
-                tooltip="Total minutes played across their league season, top 15 by minutes."
-                data={oppMinutesData(oppMinsL3 ? oppPlayersL3 : oppPlayersFull)}
+                description={`Total minutes played${oppMinsL3 ? " over the last 3 rounds" : " this season"} (top ${isAll ? oppMinsLimit : 15})`}
+                tooltip={`Total minutes played across their league season, top ${isAll ? oppMinsLimit : 15} by minutes.`}
+                data={oppMinutesData(oppMinsL3 ? oppPlayersL3 : oppPlayersFull, isAll ? oppMinsLimit : 15)}
                 color="#0ea5e9"
                 valueLabel="Minutes"
-                controls={<Last3Toggle active={oppMinsL3} onToggle={() => setOppMinsL3(v => !v)} />}
+                controls={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAll && (
+                      <PillGroup
+                        options={[
+                          { value: "30", label: "Top 30" },
+                          { value: "50", label: "Top 50" },
+                        ]}
+                        value={String(oppMinsLimit)}
+                        onChange={v => setOppMinsLimit(Number(v) as 30 | 50)}
+                      />
+                    )}
+                    <Last3Toggle active={oppMinsL3} onToggle={() => setOppMinsL3(v => !v)} />
+                  </div>
+                }
               />
 
               {/* Top scorers */}
@@ -4346,6 +4361,7 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
 }) {
   const [win, setWin] = useState<"4" | "10" | "all">("all");
   const [sort, setSort] = useState<"start" | "gap">("start");
+  const [sample, setSample] = useState<"all" | "3">("3");
   const [hiddenClubs, setHiddenClubs] = useState<Set<string>>(new Set());
   const toggleClub = (c: string) => setHiddenClubs(prev => {
     const next = new Set(prev);
@@ -4364,7 +4380,13 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
 
   const rows = useMemo(() => {
     let list = data?.players ?? [];
-    if (isAll) list = list.filter(p => !hiddenClubs.has(p.club)).slice(0, 30);
+    if (isAll) {
+      list = list.filter(p => !hiddenClubs.has(p.club));
+      if (sample === "3") {
+        list = list.filter(p => p.started.matches >= 3 && p.notStarted.matches >= 3);
+      }
+      list = list.slice(0, 30);
+    }
     return list.map(p => {
       const s = p.started.winPct;
       const n = p.notStarted.winPct;
@@ -4377,12 +4399,12 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
         showClub: !!isAll,
       };
     });
-  }, [data, isAll, hiddenClubs]);
+  }, [data, isAll, hiddenClubs, sample]);
 
   return (
     <ChartCard
       title={`${isAll ? "League" : club} — Player Impact — Win % Starting vs Not`}
-      description={`Team results when each player starts vs when they don't (bench or out)${isAll ? " — top 30 league-wide by win rate when starting" : ""}. Hover a player for the full record.`}
+      description={`Team results when each player starts vs when they don't (bench or out)${isAll ? ` — top 30 league-wide${sample === "3" ? ", requiring at least 3 games in each group" : ""}` : ""}. Hover a player for the full record.`}
       tooltip="For each player: the team's win percentage in games they started (blue dot) vs games they didn't start (amber dot — includes bench appearances and games out of the squad). The bigger the gap, the more the results swing with their selection. Correlation, not proof — strong starters often start together. Short windows are volatile; the hover flags small samples."
       controls={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -4403,6 +4425,16 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
             value={sort}
             onChange={v => setSort(v as "start" | "gap")}
           />
+          {isAll && (
+            <PillGroup
+              options={[
+                { value: "3", label: "3+ starts & 3+ non-starts" },
+                { value: "all", label: "All samples" },
+              ]}
+              value={sample}
+              onChange={v => setSample(v as "all" | "3")}
+            />
+          )}
         </div>
       }
       footer={isAll && playerClubs.length > 0 ? (
@@ -4430,7 +4462,9 @@ function PlayerImpactChart({ seasonId, club, isAll, enabled, colorMap = {} }: {
       {isLoading ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No line-up data for this window</div>
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          {isAll && sample === "3" ? "No players have at least 3 starts and 3 non-starts in this window" : "No line-up data for this window"}
+        </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 10, right: 10, left: -20, bottom: 55 }}>
@@ -4711,12 +4745,12 @@ function oppStartsAppsData(src?: OppPlayerSrc): PlayerBarDatum[] {
     .sort((a, b) => b.appearances - a.appearances || b.starts - a.starts)
     .slice(0, 18);
 }
-function oppMinutesData(src?: OppPlayerSrc): PlayerBarDatum[] {
+function oppMinutesData(src?: OppPlayerSrc, limit = 15): PlayerBarDatum[] {
   return (src?.players ?? [])
     .map(p => ({ name: p.playerName, value: p.totalMins ?? 0, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.mins > 0)
     .sort((a, b) => b.value - a.value)
-    .slice(0, 15);
+    .slice(0, limit);
 }
 
 function NplbOpponentPlayerCharts({
@@ -5309,7 +5343,7 @@ function OppImpactChart({
   srcFull?: OppImpactSrc; srcL3?: OppImpactSrc;
   lastN: boolean; onLastN: () => void;
   metric: "per90" | "total"; onMetric: (v: "per90" | "total") => void;
-  minMins: 0 | 90 | 150 | 180; onMinMins: (v: 0 | 90 | 150 | 180) => void;
+  minMins: 0 | 90 | 180 | 300 | 500; onMinMins: (v: 0 | 90 | 180 | 300 | 500) => void;
   hidden: Set<string>; onToggle: (opp: string) => void;
   hiddenClubs: Set<string>; onToggleClub: (clubName: string) => void;
   colorMap: Record<string, string>; sn: Record<string, string>; maxBars?: number;
@@ -5365,11 +5399,12 @@ function OppImpactChart({
             options={[
               { value: "0",   label: "All" },
               { value: "90",  label: "90+ mins" },
-              { value: "150", label: "150+ mins" },
               { value: "180", label: "180+ mins" },
+              { value: "300", label: "300+ mins" },
+              { value: "500", label: "500+ mins" },
             ]}
             value={String(minMins)}
-            onChange={v => onMinMins(Number(v) as 0 | 90 | 150 | 180)}
+            onChange={v => onMinMins(Number(v) as 0 | 90 | 180 | 300 | 500)}
           />
           <button
             onClick={onLastN}
