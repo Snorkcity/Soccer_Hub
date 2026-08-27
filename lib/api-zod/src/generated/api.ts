@@ -1791,6 +1791,9 @@ export const GetOpponentPlayersByOpponentResponse = zod.union([zod.object({
   "players": zod.array(zod.object({
   "playerName": zod.string(),
   "club": zod.string().nullish(),
+  "homeGrade": zod.number().nullable().describe('The one proven non-borrowed NPLB registration grade for this stable Dribl identity; null when missing or contradictory.'),
+  "identityKey": zod.string().describe('Opaque deterministic identity used to deduplicate and stably order report rows.'),
+  "identityProven": zod.boolean().describe('True when identityKey is backed by a stable Dribl user ID rather than a normalised-name fallback.'),
   "totalGoals": zod.number(),
   "totalAssists": zod.number(),
   "totalApps": zod.number(),

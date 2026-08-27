@@ -13,6 +13,11 @@ export const NPLB_2026_YEAR = "2026";
 export const NPLB_2026_SEASON_LABEL = "2026 Season";
 
 export type NplbBorrowDirection = "up" | "down" | "unknown";
+export type NplbBorrowingEvidence = {
+  driblUserId: string | null;
+  borrowed: boolean;
+  leagueName: string;
+};
 
 export function nplbGrade(leagueName: string | null | undefined): number | null {
   return actNplbGrade(leagueName);
@@ -21,20 +26,29 @@ export function nplbGrade(leagueName: string | null | undefined): number | null 
 export function nplbBorrowDirection(
   currentGrade: number | null,
   driblUserId: string | null | undefined,
-  evidence: Array<{ driblUserId: string | null; borrowed: boolean; leagueName: string }>,
+  evidence: NplbBorrowingEvidence[],
 ): NplbBorrowDirection {
-  if (currentGrade == null || !driblUserId) return "unknown";
+  const homeGrade = nplbHomeGrade(driblUserId, evidence);
+  if (currentGrade == null || homeGrade == null) return "unknown";
+  if (homeGrade < currentGrade) return "up";
+  if (homeGrade > currentGrade) return "down";
+  return "unknown";
+}
+
+export function nplbHomeGrade(
+  driblUserId: string | null | undefined,
+  evidence: NplbBorrowingEvidence[],
+): number | null {
+  if (!driblUserId) return null;
   const homeGrades = new Set(
     evidence
       .filter(row => row.driblUserId === driblUserId && !row.borrowed)
       .map(row => nplbGrade(row.leagueName))
       .filter((grade): grade is number => grade != null),
   );
-  if (homeGrades.size !== 1) return "unknown";
+  if (homeGrades.size !== 1) return null;
   const [homeGrade] = homeGrades;
-  if (homeGrade < currentGrade) return "up";
-  if (homeGrade > currentGrade) return "down";
-  return "unknown";
+  return homeGrade;
 }
 
 /**

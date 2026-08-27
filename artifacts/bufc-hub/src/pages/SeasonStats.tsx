@@ -84,8 +84,9 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   LineChart, Line,
 } from "recharts";
-import { Info, ArrowLeft, MousePointerClick } from "lucide-react";
+import { Info, ArrowLeft, MousePointerClick, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { NplbBorrowingReport } from "@/components/NplbBorrowingReport";
 
 // ─── Position helpers ─────────────────────────────────────────────────────────
 const DEFENSIVE_POSITIONS = ["GK", "CB", "RCB", "LCB", "RB", "LB", "RWB", "LWB", "SW", "DF", "CD"];
@@ -3110,6 +3111,7 @@ export default function SeasonStats() {
               {isNplb && oppView === "player" && (
                 <NplbOpponentPlayerCharts
                   clubLabel={isAll ? "League" : selectedClub}
+                  leagueName={selectedSeasonLeagueName || selectedLeagueName}
                   isAll={isAll}
                   srcFull={oppPlayersFull}
                   srcL3={oppPlayersL3}
@@ -4730,6 +4732,9 @@ type OppPlayerSrc = {
   players: Array<{
     playerName: string; club?: string | null; totalMins?: number; totalGoals: number; totalAssists: number;
     totalStarts?: number; totalApps: number;
+    homeGrade?: number | null;
+    identityKey?: string;
+    identityProven?: boolean;
     borrowedUp: number; borrowedDown: number; borrowedUnknown: number;
     byOpponent: Record<string, { goals: number; assists: number; appearances: number; minsPlayed?: number }>;
   }>;
@@ -4755,6 +4760,7 @@ function oppMinutesData(src?: OppPlayerSrc, limit = 15): PlayerBarDatum[] {
 
 function NplbOpponentPlayerCharts({
   clubLabel,
+  leagueName,
   isAll,
   srcFull,
   srcL3,
@@ -4776,6 +4782,7 @@ function NplbOpponentPlayerCharts({
   maxBars,
 }: {
   clubLabel: string;
+  leagueName: string;
   isAll: boolean;
   srcFull?: OppPlayerSrc;
   srcL3?: OppPlayerSrc;
@@ -4877,6 +4884,7 @@ function NplbOpponentPlayerCharts({
         maxBars={maxBars}
       />
 
+      {isAll && <NplbBorrowingReport leagueName={leagueName} src={srcFull} />}
       <NplbPlayerEvidenceTable clubLabel={clubLabel} isAll={isAll} src={srcFull} />
     </>
   );
@@ -5036,26 +5044,108 @@ function NplbAppearanceChart({
   );
 }
 
+type NplbEvidenceSortKey =
+  | "player"
+  | "club"
+  | "apps"
+  | "goals"
+  | "assists"
+  | "contributions"
+  | "borrowedUp"
+  | "borrowedDown"
+  | "borrowedUnknown";
+
+type NplbEvidenceSort = {
+  key: NplbEvidenceSortKey;
+  direction: "asc" | "desc";
+};
+
+function NplbSortIndicator({ active, direction }: {
+  active: boolean;
+  direction: "asc" | "desc";
+}) {
+  if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-45" aria-hidden="true" />;
+  return direction === "asc"
+    ? <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+    : <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />;
+}
+
+function NplbSortableHeader({ label, sortKey, sort, onSort, align = "right", className = "" }: {
+  label: string;
+  sortKey: NplbEvidenceSortKey;
+  sort: NplbEvidenceSort;
+  onSort: (key: NplbEvidenceSortKey) => void;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <TableHead
+      className={`${align === "right" ? "text-right" : ""} ${className}`}
+      aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex w-full items-center gap-1 rounded-sm py-1 font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          align === "right" ? "justify-end" : "justify-start"
+        }`}
+      >
+        {label}
+        <NplbSortIndicator active={active} direction={sort.direction} />
+      </button>
+    </TableHead>
+  );
+}
+
 function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
   clubLabel: string;
   isAll: boolean;
   src?: OppPlayerSrc;
 }) {
-  const players = useMemo(
-    () => [...(src?.players ?? [])]
+  const [sort, setSort] = useState<NplbEvidenceSort>({ key: "apps", direction: "desc" });
+  const players = useMemo(() => {
+    const valueFor = (player: OppPlayerSrc["players"][number], key: NplbEvidenceSortKey): string | number => {
+      switch (key) {
+        case "player": return player.playerName;
+        case "club": return player.club ?? "";
+        case "apps": return player.totalApps;
+        case "goals": return player.totalGoals;
+        case "assists": return player.totalAssists;
+        case "contributions": return player.totalGoals + player.totalAssists;
+        case "borrowedUp": return player.borrowedUp;
+        case "borrowedDown": return player.borrowedDown;
+        case "borrowedUnknown": return player.borrowedUnknown;
+      }
+    };
+    return [...(src?.players ?? [])]
       .filter(player => player.totalApps > 0)
-      .sort((a, b) => b.totalApps - a.totalApps
-        || (b.totalGoals + b.totalAssists) - (a.totalGoals + a.totalAssists)
-        || a.playerName.localeCompare(b.playerName)),
-    [src],
-  );
+      .sort((a, b) => {
+        const aValue = valueFor(a, sort.key);
+        const bValue = valueFor(b, sort.key);
+        const comparison = typeof aValue === "number" && typeof bValue === "number"
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue), undefined, { sensitivity: "base" });
+        if (comparison !== 0) return sort.direction === "asc" ? comparison : -comparison;
+        return a.playerName.localeCompare(b.playerName, undefined, { sensitivity: "base" })
+          || (a.club ?? "").localeCompare(b.club ?? "", undefined, { sensitivity: "base" })
+          || (a.identityKey ?? "").localeCompare(b.identityKey ?? "");
+      });
+  }, [src, sort]);
+
+  const updateSort = (key: NplbEvidenceSortKey) => {
+    setSort(current => current.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: key === "player" || key === "club" ? "asc" : "desc" });
+  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{clubLabel} — Player Evidence</CardTitle>
         <CardDescription>
-          Appearance and scoring totals, plus borrowing only where stable Dribl identity evidence proves a direction
+          Appearance and scoring totals, plus borrowing only where stable Dribl identity evidence proves a direction.
+          Select any column heading to sort it.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -5066,15 +5156,15 @@ function NplbPlayerEvidenceTable({ clubLabel, isAll, src }: {
             <Table className="min-w-[760px]">
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
-                  <TableHead>Player</TableHead>
-                  {isAll && <TableHead>Club</TableHead>}
-                  <TableHead className="text-right">Apps</TableHead>
-                  <TableHead className="text-right">Goals</TableHead>
-                  <TableHead className="text-right">Assists</TableHead>
-                  <TableHead className="text-right">G+A</TableHead>
-                  <TableHead className="text-right whitespace-nowrap text-emerald-600 dark:text-emerald-400" title="Appearances borrowed up from a younger grade">Borrowed ↑</TableHead>
-                  <TableHead className="text-right whitespace-nowrap text-red-600 dark:text-red-400" title="Appearances borrowed down from an older grade">Borrowed ↓</TableHead>
-                  <TableHead className="text-right whitespace-nowrap text-muted-foreground" title="Borrowed appearances where the player's home grade is not yet proven">Borrowed ?</TableHead>
+                  <NplbSortableHeader label="Player" sortKey="player" sort={sort} onSort={updateSort} align="left" />
+                  {isAll && <NplbSortableHeader label="Club" sortKey="club" sort={sort} onSort={updateSort} align="left" />}
+                  <NplbSortableHeader label="Apps" sortKey="apps" sort={sort} onSort={updateSort} />
+                  <NplbSortableHeader label="Goals" sortKey="goals" sort={sort} onSort={updateSort} />
+                  <NplbSortableHeader label="Assists" sortKey="assists" sort={sort} onSort={updateSort} />
+                  <NplbSortableHeader label="G+A" sortKey="contributions" sort={sort} onSort={updateSort} />
+                  <NplbSortableHeader label="Borrowed ↑" sortKey="borrowedUp" sort={sort} onSort={updateSort} className="whitespace-nowrap text-emerald-600 dark:text-emerald-400" />
+                  <NplbSortableHeader label="Borrowed ↓" sortKey="borrowedDown" sort={sort} onSort={updateSort} className="whitespace-nowrap text-red-600 dark:text-red-400" />
+                  <NplbSortableHeader label="Borrowed ?" sortKey="borrowedUnknown" sort={sort} onSort={updateSort} className="whitespace-nowrap text-muted-foreground" />
                 </TableRow>
               </TableHeader>
               <TableBody>

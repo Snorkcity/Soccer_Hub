@@ -2147,6 +2147,12 @@ export type OpponentPlayerByOpponentAppearancePlayerByOpponent = {[key: string]:
 export interface OpponentPlayerByOpponentAppearancePlayer {
   playerName: string;
   club?: string | null;
+  /** The one proven non-borrowed NPLB registration grade for this stable Dribl identity; null when missing or contradictory. */
+  homeGrade: number | null;
+  /** Opaque deterministic identity used to deduplicate and stably order report rows. */
+  identityKey: string;
+  /** True when identityKey is backed by a stable Dribl user ID rather than a normalised-name fallback. */
+  identityProven: boolean;
   totalGoals: number;
   totalAssists: number;
   totalApps: number;

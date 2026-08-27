@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { createHash } from "node:crypto";
 import { eq, and, sql, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { db, matchesTable, goalsTable, playerStatsTable, gpsSessionsTable, gpsPlayerAliasesTable, gpsPlayerPositionsTable, teamsTable, seasonsTable, leaguesTable, leagueMatchesTable, leagueGoalsTable, leaguePlayerStatsTable } from "@workspace/db";
 import { GetGoalsByOpponentQueryParams, GetGoalsByOpponentResponse } from "@workspace/api-zod"; // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -67,7 +68,7 @@ import {
   matchTimingForLeague,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
-import { nplbBorrowDirection, nplbGrade } from "../lib/nplb2026";
+import { nplbBorrowDirection, nplbGrade, nplbHomeGrade } from "../lib/nplb2026";
 import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, gameVsSeasonReads } from "../lib/goalIntel";
 
@@ -1672,7 +1673,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   const { seasonId, club, lastN } = query.data;
   const isAll = club === "__ALL__";
   const [seasonLeague] = await db
-    .select({ name: leaguesTable.name })
+    .select({ name: leaguesTable.name, year: seasonsTable.year })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId))
@@ -1753,6 +1754,8 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   const totalAppsByPlayer: Record<string, number> = {};
   const appsByPlayerOpp: Record<string, Record<string, number>> = {};
   const borrowedByPlayer: Record<string, { up: number; down: number; unknown: number }> = {};
+  const homeGradeByPlayer: Record<string, number | null> = {};
+  const identityProvenByPlayer: Record<string, boolean> = {};
   const displayNamesByPlayer: Record<string, string> = {};
   const playerKeysByClubAndName = new Map<string, Set<string>>();
   // Full roster (everyone who featured), not just scorers — powers the Starts &
@@ -1772,7 +1775,10 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     .from(leaguePlayerStatsTable)
     .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
-    .where(isNotNull(leaguePlayerStatsTable.driblUserId));
+    .where(and(
+      isNotNull(leaguePlayerStatsTable.driblUserId),
+      eq(seasonsTable.year, seasonLeague?.year ?? ""),
+    ));
   for (const r of ps) {
     if (!r.playerName) continue;
     if (!isAll && r.club !== club) continue;
@@ -1786,6 +1792,10 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
       : `name:${normalName}`;
     displayNamesByPlayer[playerKey] = preferPlayerDisplayName(displayNamesByPlayer[playerKey], r.playerName);
     if (isNplb) {
+      identityProvenByPlayer[playerKey] = Boolean(r.driblUserId?.trim());
+      if (!(playerKey in homeGradeByPlayer)) {
+        homeGradeByPlayer[playerKey] = nplbHomeGrade(r.driblUserId, borrowingEvidence);
+      }
       const duplicateKey = `${r.matchId}\u0000${normalClub}\u0000${stableIdentity}`;
       if (seenNplbRows.has(duplicateKey)) continue;
       seenNplbRows.add(duplicateKey);
@@ -1887,6 +1897,11 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
       borrowedUp: borrowed.up,
       borrowedDown: borrowed.down,
       borrowedUnknown: borrowed.unknown,
+      ...(isNplb ? {
+        homeGrade: homeGradeByPlayer[playerKey] ?? null,
+        identityKey: createHash("sha256").update(playerKey).digest("hex").slice(0, 16),
+        identityProven: identityProvenByPlayer[playerKey] ?? false,
+      } : {}),
       ...(!isNplb ? {
         totalMins: totalMinsByPlayer[playerKey] ?? 0,
         totalStarts: totalStartsByPlayer[playerKey] ?? 0,
