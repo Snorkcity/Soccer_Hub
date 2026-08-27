@@ -1783,8 +1783,8 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
       : `name:${normalName}`;
     const playerKey = isNplb
       ? `${isAll ? `${normalClub}\u0000` : ""}${stableIdentity}`
-      : r.playerName;
-    displayNamesByPlayer[playerKey] ??= r.playerName.trim();
+      : `name:${normalName}`;
+    displayNamesByPlayer[playerKey] = preferPlayerDisplayName(displayNamesByPlayer[playerKey], r.playerName);
     if (isNplb) {
       const duplicateKey = `${r.matchId}\u0000${normalClub}\u0000${stableIdentity}`;
       if (seenNplbRows.has(duplicateKey)) continue;
@@ -1824,8 +1824,8 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
   const goalsByPlayerOpp: Record<string, Record<string, number>> = {};
   const assistsByPlayerOpp: Record<string, Record<string, number>> = {};
   const playerKeyForGoalName = (scoringClub: string, playerName: string): string => {
-    if (!isNplb) return playerName;
     const normalName = playerName.trim().toLowerCase();
+    if (!isNplb) return `name:${normalName}`;
     const normalClub = scoringClub.trim().toLowerCase();
     const candidates = playerKeysByClubAndName.get(`${normalClub}\u0000${normalName}`);
     if (candidates?.size === 1) return candidates.values().next().value!;
@@ -1843,13 +1843,13 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     // "OG" = own goal — credited to the team, not an individual player, so exclude it.
     if (g.scorer && g.scorer !== "OG") {
       const playerKey = playerKeyForGoalName(scoring, g.scorer);
-      displayNamesByPlayer[playerKey] ??= g.scorer.trim();
+      displayNamesByPlayer[playerKey] = preferPlayerDisplayName(displayNamesByPlayer[playerKey], g.scorer);
       (goalsByPlayerOpp[playerKey] ??= {})[opp] = (goalsByPlayerOpp[playerKey][opp] ?? 0) + 1;
       (clubsByPlayer[playerKey] ??= new Set()).add(scoring);
     }
     if (g.assist && g.assist !== "OG") {
       const playerKey = playerKeyForGoalName(scoring, g.assist);
-      displayNamesByPlayer[playerKey] ??= g.assist.trim();
+      displayNamesByPlayer[playerKey] = preferPlayerDisplayName(displayNamesByPlayer[playerKey], g.assist);
       (assistsByPlayerOpp[playerKey] ??= {})[opp] = (assistsByPlayerOpp[playerKey][opp] ?? 0) + 1;
       (clubsByPlayer[playerKey] ??= new Set()).add(scoring);
     }
@@ -2717,6 +2717,23 @@ router.get("/analytics/opponent-first-sub", async (req, res): Promise<void> => {
 // ─── Opponent Profile (club-centric scouting across ALL their league games) ────
 
 const INTERVAL_LABELS = ["1-15", "16-30", "31-45", "46-60", "61-75", "76-90", "90+"];
+
+function playerNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase("en-AU");
+}
+
+function simplePlayerTitleCase(name: string): string {
+  return playerNameKey(name).replace(/(^|[\s\-'’])(\p{L})/gu, (_, boundary: string, letter: string) => `${boundary}${letter.toLocaleUpperCase("en-AU")}`);
+}
+
+function preferPlayerDisplayName(existing: string | undefined, candidate: string): string {
+  const cleanCandidate = candidate.trim();
+  if (!existing) return cleanCandidate;
+  const ideal = simplePlayerTitleCase(cleanCandidate);
+  if (cleanCandidate === ideal && existing !== ideal) return cleanCandidate;
+  return existing;
+}
+
 function intervalLabel(minute: number | null): string | null {
   if (minute == null) return null;
   if (minute > 90) return "90+";
@@ -2729,8 +2746,13 @@ function intervalLabel(minute: number | null): string | null {
 type LeaguePlayerRow = typeof leaguePlayerStatsTable.$inferSelect;
 type LeagueGoalRow = typeof leagueGoalsTable.$inferSelect;
 function buildOpponentPlayers(lps: LeaguePlayerRow[], goals: LeagueGoalRow[], club: string | null) {
-  const agg: Record<string, { club: string | null; mins: number; starts: number; apps: number; goals: number; assists: number }> = {};
-  const ensure = (name: string, c: string | null) => (agg[name] ??= { club: c, mins: 0, starts: 0, apps: 0, goals: 0, assists: 0 });
+  const agg: Record<string, { playerName: string; club: string | null; mins: number; starts: number; apps: number; goals: number; assists: number }> = {};
+  const ensure = (name: string, c: string | null) => {
+    const key = playerNameKey(name);
+    const entry = agg[key] ??= { playerName: name.trim(), club: c, mins: 0, starts: 0, apps: 0, goals: 0, assists: 0 };
+    entry.playerName = preferPlayerDisplayName(entry.playerName, name);
+    return entry;
+  };
   for (const r of lps) {
     if (club && r.club !== club) continue;
     if (!r.playerName) continue;
@@ -2745,7 +2767,7 @@ function buildOpponentPlayers(lps: LeaguePlayerRow[], goals: LeagueGoalRow[], cl
     if (g.assist) ensure(g.assist, g.scorerTeam).assists++;
   }
   return Object.entries(agg)
-    .map(([playerName, e]) => ({ playerName, club: e.club, minsPlayed: e.mins, starts: e.starts, appearances: e.apps, goals: e.goals, assists: e.assists }))
+    .map(([, e]) => ({ playerName: e.playerName, club: e.club, minsPlayed: e.mins, starts: e.starts, appearances: e.apps, goals: e.goals, assists: e.assists }))
     .sort((a, b) => b.minsPlayed - a.minsPlayed);
 }
 
@@ -2769,7 +2791,7 @@ router.get("/analytics/player-timeline", async (req, res): Promise<void> => {
     .where(and(
       eq(leaguePlayerStatsTable.seasonId, seasonId),
       eq(leaguePlayerStatsTable.club, club),
-      eq(leaguePlayerStatsTable.playerName, player),
+      sql<boolean>`lower(trim(${leaguePlayerStatsTable.playerName})) = ${playerNameKey(player)}`,
       inArray(leaguePlayerStatsTable.matchId, fixtures.map(f => f.matchId)),
     ));
   const byMatch = new Map(rows.map(r => [r.matchId, r]));

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, pgTable, serial, text, integer, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -27,6 +27,10 @@ export const leaguesTable = pgTable("leagues", {
   // this league. See .agents/memory/veo-integration.md.
   veoClubSlug:  text("veo_club_slug"),
   veoTeamSlug:  text("veo_team_slug"),
+  // Explicit subscription entitlement for the separate Veo RAS possession /
+  // passing feed. False means the league's plan cannot produce these charts;
+  // it must not be treated as a temporary per-match processing delay.
+  veoAnalyticsEnabled: boolean("veo_analytics_enabled").notNull().default(true),
 });
 
 export const insertLeagueSchema = createInsertSchema(leaguesTable).omit({ id: true });

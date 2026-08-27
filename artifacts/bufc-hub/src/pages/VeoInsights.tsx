@@ -239,21 +239,26 @@ function VeoSeasonTooltip({ active, payload }: {
   );
 }
 
-function PassingDataState({ pending, unavailable, compact = false, detail, loading = false }: {
+function PassingDataState({ pending, unavailable, analyticsEnabled = true, compact = false, detail, loading = false }: {
   pending: number;
   unavailable: number;
+  analyticsEnabled?: boolean;
   compact?: boolean;
   detail?: string;
   loading?: boolean;
 }) {
   const missing = pending + unavailable;
-  const title = loading
+  const title = !analyticsEnabled
+    ? "Veo Analytics is not included in this league’s plan"
+    : loading
     ? "Loading Veo passing data…"
     : detail
     ?? (pending > 0
       ? "Veo passing data is still processing"
       : "Veo passing data is unavailable");
-  const guidance = loading
+  const guidance = !analyticsEnabled
+    ? "Possession and passing charts are unavailable for this league. The match and season cards remain here so it is clear which insights the current Veo plan does not provide."
+    : loading
     ? "Checking the selected recordings for usable possession and passing analytics."
     : [
     pending > 0
@@ -413,6 +418,7 @@ export default function VeoInsights() {
       queryKey: getGetVeoSeasonPassingQueryKey(seasonParams),
     },
   });
+  const analyticsEnabled = seasonPassingData?.analyticsEnabled ?? true;
 
   const syncMut = useVeoSync();
   async function runSync() {
@@ -571,6 +577,7 @@ export default function VeoInsights() {
                   passingMatches={seasonPassingData?.matches ?? []}
                   matchSummaries={synced}
                   passingLoading={seasonPassingLoading}
+                  analyticsEnabled={analyticsEnabled}
                   timing={matchTiming}
                 />
               )
@@ -590,6 +597,7 @@ export default function VeoInsights() {
                 events={events}
                 passing={seasonPassingData?.matches.find((p) => p.id === currentId) ?? null}
                 passingLoading={seasonPassingLoading}
+                analyticsEnabled={analyticsEnabled}
                 timing={matchTiming}
               />
             )
@@ -958,12 +966,13 @@ function MatchLinksCard({
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, timing }: {
+function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, analyticsEnabled, timing }: {
   matches: VeoSeasonMatch[];
   shotMatches: VeoSeasonShotMatch[];
   passingMatches: VeoSeasonPassingMatch[];
   matchSummaries: VeoMatchSummary[];
   passingLoading: boolean;
+  analyticsEnabled: boolean;
   timing: MatchTimingPolicy;
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
@@ -1473,11 +1482,12 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               {passInsight ? <> {passInsight}</> : null}
             </p>
           </div>
-          {(passingLoading || passAvailability.pending + passAvailability.unavailable > 0) && (
+          {(!analyticsEnabled || passingLoading || passAvailability.pending + passAvailability.unavailable > 0) && (
             <PassingDataState
               pending={passAvailability.pending}
               unavailable={passAvailability.unavailable}
               loading={passingLoading}
+              analyticsEnabled={analyticsEnabled}
             />
           )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1515,7 +1525,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               </CardHeader>
               <CardContent>
                 {passRowsWithRolling.length === 0 ? (
-                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
@@ -1546,7 +1556,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               </CardHeader>
               <CardContent>
                 {passRowsWithRolling.length === 0 ? (
-                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
@@ -1571,7 +1581,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               </CardHeader>
               <CardContent>
                 {passRowsWithRolling.length === 0 ? (
-                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
@@ -1598,7 +1608,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               </CardHeader>
               <CardContent>
                 {passRowsWithRolling.length === 0 ? (
-                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
@@ -1626,7 +1636,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
               </CardHeader>
               <CardContent>
                 {passRowsWithRolling.length === 0 ? (
-                  <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={passRowsWithRolling} margin={{ left: -10, right: 10 }}>
@@ -1654,7 +1664,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
             </CardHeader>
             <CardContent>
               {passRowsWithRolling.length === 0 ? (
-                <PassingDataState {...passAvailability} compact loading={passingLoading} />
+                <PassingDataState {...passAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={passRowsWithRolling} stackOffset="expand" margin={{ left: -10, right: 10 }}>
@@ -1688,6 +1698,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
                     {...passAvailability}
                     compact
                     loading={passingLoading}
+                    analyticsEnabled={analyticsEnabled}
                     detail={passRowsWithRolling.length > 0 ? "Passing style needs more evidence" : undefined}
                   />
                 ) : (
@@ -1834,7 +1845,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function MatchView({ match, events, passing, passingLoading, timing }: {
+function MatchView({ match, events, passing, passingLoading, analyticsEnabled, timing }: {
   match: {
     opponent?: string | null;
     title?: string | null;
@@ -1852,6 +1863,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
   events: VeoEvent[];
   passing: VeoSeasonPassingMatch | null;
   passingLoading: boolean;
+  analyticsEnabled: boolean;
   timing: MatchTimingPolicy;
 }) {
   const opp = opponentOf(match);
@@ -2350,7 +2362,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
 
       {(
         <>
-          {!passStats && <PassingDataState {...matchPassAvailability} loading={passingLoading} />}
+          {!passStats && <PassingDataState {...matchPassAvailability} loading={passingLoading} analyticsEnabled={analyticsEnabled} />}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Possession" value={passStats ? `${passStats.possPctUs.toFixed(0)}%` : "—"} sub={passStats ? "of ball-in-possession time" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
             <StatCard label="Possession minutes" value={passStats ? `${passStats.possMinUs.toFixed(1)} – ${passStats.possMinThem.toFixed(1)}` : "—"} sub={passStats ? "us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
@@ -2368,7 +2380,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
               </CardHeader>
               <CardContent>
                 {!passStats ? (
-                  <PassingDataState {...matchPassAvailability} compact loading={passingLoading} />
+                  <PassingDataState {...matchPassAvailability} compact loading={passingLoading} analyticsEnabled={analyticsEnabled} />
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={passStats.hist} margin={{ left: -10, right: 10 }}>
@@ -2415,6 +2427,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
                     {...matchPassAvailability}
                     compact
                     loading={passingLoading}
+                    analyticsEnabled={analyticsEnabled}
                     detail={passStats ? "No possession-location data for this match" : undefined}
                   />
                 )}
@@ -2480,6 +2493,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
                   {...matchPassAvailability}
                   compact
                   loading={passingLoading}
+                  analyticsEnabled={analyticsEnabled}
                   detail={passStats ? "Veo supplied passing totals but no 18-zone possession grid for this match" : undefined}
                 />
               </CardContent>
@@ -2541,6 +2555,7 @@ function MatchView({ match, events, passing, passingLoading, timing }: {
                   {...matchPassAvailability}
                   compact
                   loading={passingLoading}
+                  analyticsEnabled={analyticsEnabled}
                   detail={passStats ? "Passing style needs at least 20 recorded pass vectors for one side" : undefined}
                 />
               </CardContent>

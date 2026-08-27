@@ -72,6 +72,7 @@ interface LeagueVeo {
   veoTeamSlug: string;
   // Focus club for identity matching (from leagues.focus_club; fallback "Belconnen").
   focusClub: string;
+  analyticsEnabled: boolean;
 }
 
 async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
@@ -82,6 +83,7 @@ async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
       veoClubSlug: leaguesTable.veoClubSlug,
       veoTeamSlug: leaguesTable.veoTeamSlug,
       focusClub: leaguesTable.focusClub,
+      analyticsEnabled: leaguesTable.veoAnalyticsEnabled,
     })
     .from(leaguesTable)
     .where(eq(leaguesTable.id, leagueId))
@@ -94,6 +96,7 @@ async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
     veoClubSlug: r.veoClubSlug,
     veoTeamSlug: r.veoTeamSlug,
     focusClub: r.focusClub ?? "Belconnen",
+    analyticsEnabled: r.analyticsEnabled,
   };
 }
 
@@ -209,7 +212,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         getRoster(creds, veoMatchId).catch(() => ({})),
         // Network hiccups return null (→ retried by the backfill pass below);
         // a definitive "no analytics for this match" is stored as available:false.
-        getPassDetails(creds, veoMatchId).catch(() => null),
+        mapping.analyticsEnabled ? getPassDetails(creds, veoMatchId).catch(() => null) : Promise.resolve(null),
       ]);
       await db
         .update(veoMatchesTable)
@@ -240,7 +243,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
   // pipeline was still running last time (available:false + pending:true) —
   // Veo's analytics finish hours after upload, so these must be re-checked on
   // every manual sync until they resolve either way.
-  const passPending = await db
+  const passPending = mapping.analyticsEnabled ? await db
     .select({ veoMatchId: veoMatchesTable.veoMatchId })
     .from(veoMatchesTable)
     .where(
@@ -253,7 +256,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true') OR (${veoMatchesTable.passDetails}->>'available' = 'true' AND NOT jsonb_exists(${veoMatchesTable.passDetails}, 'heatWindows')))`,
         sql`${veoMatchesTable.removedAt} IS NULL`,
       ),
-    );
+    ) : [];
   let passFetched = 0;
   await mapPool(passPending.slice(0, batch), 4, async ({ veoMatchId }) => {
     try {
@@ -270,7 +273,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
 
   // Count matches whose RAS analytics pipeline is still running after this
   // backfill pass (available:false + pending:true). These need a re-sync later.
-  const stillPendingRows = await db
+  const stillPendingRows = mapping.analyticsEnabled ? await db
     .select({ count: sql<number>`count(*)` })
     .from(veoMatchesTable)
     .where(
@@ -280,7 +283,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
         sql`${veoMatchesTable.removedAt} IS NULL`,
       ),
-    );
+    ) : [];
   const analyticsPending = Number(stillPendingRows[0]?.count ?? 0);
 
   // Push the basic metrics of any linked game into the Data Entry fields
@@ -579,9 +582,10 @@ router.get("/veo/matches", async (req, res) => {
       hubOpponent: matchesTable.opponent,
       // True when events are present but the RAS pass-analytics pipeline hasn't
       // resolved yet — the coach should sync again later to pick up the data.
-      pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
+      pendingAnalytics: sql<boolean>`(${leaguesTable.veoAnalyticsEnabled} AND ${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
     })
     .from(veoMatchesTable)
+    .innerJoin(leaguesTable, eq(veoMatchesTable.leagueId, leaguesTable.id))
     .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
     .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
     .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`);
@@ -823,6 +827,13 @@ function lenStats(arr: number[]) {
 router.get("/veo/season-passing", async (req, res) => {
   const leagueId = Number(req.query.leagueId);
   if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const [league] = await db
+    .select({ analyticsEnabled: leaguesTable.veoAnalyticsEnabled })
+    .from(leaguesTable)
+    .where(eq(leaguesTable.id, leagueId))
+    .limit(1);
+  if (!league) return res.status(404).json({ error: "League not found" });
+
   const rows = await db
     .select({
       id: veoMatchesTable.id,
@@ -856,7 +867,7 @@ router.get("/veo/season-passing", async (req, res) => {
       ...summary,
     }];
   });
-  return res.json({ matches });
+  return res.json({ analyticsEnabled: league.analyticsEnabled, matches });
 });
 
 // GET /veo/match?id=&leagueId= — one match with its raw events/stats/periods.
@@ -940,7 +951,7 @@ router.get("/veo/links", async (req, res) => {
         // Manage list shows removed games too, so they can be restored.
         removed: sql<boolean>`${veoMatchesTable.removedAt} IS NOT NULL`,
         // True when events are present but RAS pass analytics are still processing.
-        pendingAnalytics: sql<boolean>`(${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
+        pendingAnalytics: sql<boolean>`(${leaguesTable.veoAnalyticsEnabled} AND ${veoMatchesTable.events} IS NOT NULL AND (${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true')))`,
         // Events JSON so we can count Veo goals for the mismatch check.
         events: veoMatchesTable.events,
         periods: veoMatchesTable.periods,
@@ -950,6 +961,7 @@ router.get("/veo/links", async (req, res) => {
         hubGoalsConceded: matchesTable.goalsConceded,
       })
       .from(veoMatchesTable)
+      .innerJoin(leaguesTable, eq(veoMatchesTable.leagueId, leaguesTable.id))
       .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
       .where(eq(veoMatchesTable.leagueId, leagueId))
       .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`),

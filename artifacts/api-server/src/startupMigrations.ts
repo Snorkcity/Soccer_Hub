@@ -1307,6 +1307,14 @@ async function runUserAccountsMigration(): Promise<void> {
   // events/stats/periods/roster as jsonb). See .agents/memory/veo-integration.md.
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_club_slug text`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_team_slug text`);
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_analytics_enabled boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`
+    UPDATE leagues
+    SET veo_analytics_enabled = false
+    WHERE name = 'ACT NPLM'
+       OR name = 'ACT NPLM U23'
+       OR name LIKE 'ACT NPLB %'
+  `);
   await db.execute(sql`
     UPDATE leagues SET veo_club_slug = 'scott-conlon', veo_team_slug = '2024-nplw-firsts'
     WHERE name = 'ACT NPLW' AND veo_team_slug IS NULL

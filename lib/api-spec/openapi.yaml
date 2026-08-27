@@ -3415,8 +3415,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [matches]
+                required: [analyticsEnabled, matches]
                 properties:
+                  analyticsEnabled:
+                    type: boolean
+                    description: Whether this league's Veo subscription includes the RAS possession and passing feed
                   matches:
                     type: array
                     items: { $ref: "#/components/schemas/VeoSeasonPassingMatch" }

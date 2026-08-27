@@ -13977,3 +13977,4 @@ export const useDeleteCurriculumDocument = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteCurriculumDocumentMutationOptions(options));
     }
+

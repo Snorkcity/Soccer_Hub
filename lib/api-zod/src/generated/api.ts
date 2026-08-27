@@ -4947,6 +4947,7 @@ export const GetVeoSeasonPassingQueryParams = zod.object({
 })
 
 export const GetVeoSeasonPassingResponse = zod.object({
+  "analyticsEnabled": zod.boolean().describe('Whether this league\'s Veo subscription includes the RAS possession and passing feed'),
   "matches": zod.array(zod.object({
   "id": zod.number(),
   "veoMatchId": zod.string(),
@@ -5648,3 +5649,5 @@ export const DeleteCurriculumDocumentBody = zod.object({
 export const DeleteCurriculumDocumentResponse = zod.object({
   "ok": zod.boolean()
 })
+
+

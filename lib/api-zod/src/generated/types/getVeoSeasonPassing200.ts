@@ -8,5 +8,7 @@
 import type { VeoSeasonPassingMatch } from './veoSeasonPassingMatch';
 
 export type GetVeoSeasonPassing200 = {
+  /** Whether this league's Veo subscription includes the RAS possession and passing feed */
+  analyticsEnabled: boolean;
   matches: VeoSeasonPassingMatch[];
 };
