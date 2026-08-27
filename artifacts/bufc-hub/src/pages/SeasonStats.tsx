@@ -5213,7 +5213,7 @@ function OppPlayerStackChart({
             <Tooltip
               content={
                 appearanceOnly
-                  ? undefined
+                  ? <NplbPlayerMetricTooltip metric={metric} hiddenOpponents={hidden} colorMap={colorMap} />
                   : metric === "goals"
                   ? <MinsPerGoalTooltip hiddenOpponents={hidden} />
                   : metric === "assists"
@@ -5297,6 +5297,84 @@ function ClutchChart({ title, src, sn, showClub, maxBars }: {
         </ResponsiveContainer>
       )}
     </ChartCard>
+  );
+}
+
+type NplbPlayerMetricDatum = {
+  fullName: string;
+  club: string | null;
+  byOpponent: Record<string, { goals: number; assists: number; appearances: number; minsPlayed?: number }>;
+};
+
+function NplbPlayerMetricTooltip({ active, payload, metric, hiddenOpponents, colorMap }: {
+  active?: boolean;
+  payload?: Array<{ payload?: NplbPlayerMetricDatum }>;
+  metric: "goals" | "assists" | "contrib";
+  hiddenOpponents: Set<string>;
+  colorMap: Record<string, string>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  const metricValue = (values: { goals: number; assists: number }) =>
+    metric === "goals" ? values.goals : metric === "assists" ? values.assists : values.goals + values.assists;
+  const allItems = Object.entries(row.byOpponent)
+    .map(([opponent, values]) => ({ opponent, values, value: metricValue(values) }))
+    .filter(item => item.value > 0);
+  const visibleItems = allItems
+    .filter(item => !hiddenOpponents.has(item.opponent))
+    .sort((a, b) => b.value - a.value || a.opponent.localeCompare(b.opponent));
+  if (!visibleItems.length) return null;
+
+  const sum = (items: typeof allItems) => items.reduce(
+    (totals, item) => ({
+      goals: totals.goals + item.values.goals,
+      assists: totals.assists + item.values.assists,
+      value: totals.value + item.value,
+    }),
+    { goals: 0, assists: 0, value: 0 },
+  );
+  const visible = sum(visibleItems);
+  const total = sum(allItems);
+  const formatValue = (values: { goals: number; assists: number; value: number }) => {
+    if (metric === "contrib") return `${values.goals}G + ${values.assists}A = ${values.value}`;
+    const noun = metric === "goals" ? "goal" : "assist";
+    return `${values.value} ${noun}${values.value === 1 ? "" : "s"}`;
+  };
+  const totalLabel = metric === "goals" ? "Total goals" : metric === "assists" ? "Total assists" : "Total contributions";
+
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[210px] max-w-[300px] space-y-2">
+      <div>
+        <div className="font-semibold text-sm leading-tight">{row.fullName}</div>
+        {row.club && <div className="mt-0.5 text-muted-foreground">{row.club}</div>}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        {visibleItems.map(item => (
+          <div key={item.opponent} className="flex justify-between gap-6">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: colorMap[item.opponent] ?? "#888888" }} />
+              <span className="truncate">vs {item.opponent}</span>
+            </span>
+            <span className="font-medium tabular-nums whitespace-nowrap">
+              {formatValue({ goals: item.values.goals, assists: item.values.assists, value: item.value })}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="border-t pt-2 space-y-1">
+        {visible.value !== total.value && (
+          <div className="flex justify-between gap-6">
+            <span className="text-muted-foreground">Visible opponents</span>
+            <span className="tabular-nums whitespace-nowrap">{formatValue(visible)}</span>
+          </div>
+        )}
+        <div className="flex justify-between gap-6 font-semibold">
+          <span className="text-muted-foreground">{totalLabel}</span>
+          <span className="tabular-nums whitespace-nowrap">{formatValue(total)}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
