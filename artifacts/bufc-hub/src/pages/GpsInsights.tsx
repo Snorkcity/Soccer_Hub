@@ -326,7 +326,7 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
             {
               id: "running-load",
               title: "Running Load",
-              summary: "3 charts",
+              summary: "3 charts · Distance, intensity & player load",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   {RUNNING_LOAD_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
@@ -336,7 +336,7 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
             {
               id: "high-speed-sprint",
               title: "High-Speed & Sprint",
-              summary: "4 charts",
+              summary: "4 charts · HSM, VHS, top speed & power plays",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   {HIGH_SPEED_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
@@ -346,7 +346,7 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
             {
               id: "acceleration-braking",
               title: "Acceleration & Braking",
-              summary: "2 charts",
+              summary: "2 charts · Counts & directional balance",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   <PlayerAccelCountCard bundles={bundles} player={player} />
@@ -1371,7 +1371,7 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
             {
               id: "running-load",
               title: "Running Load",
-              summary: "3 charts",
+              summary: "3 charts · Distance, intensity & player load",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   {RUNNING_LOAD_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
@@ -1381,7 +1381,7 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
             {
               id: "high-speed-sprint",
               title: "High-Speed & Sprint",
-              summary: "4 charts",
+              summary: "4 charts · HSM, VHS, top speed & power plays",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   {HIGH_SPEED_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
@@ -1391,7 +1391,7 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
             {
               id: "acceleration-braking",
               title: "Acceleration & Braking",
-              summary: "2 charts",
+              summary: "2 charts · Counts & directional balance",
               content: (
                 <div className="grid gap-6 xl:grid-cols-2">
                   <TeamAccelCountCard bundles={bundles} />

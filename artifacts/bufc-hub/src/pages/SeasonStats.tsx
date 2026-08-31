@@ -1983,7 +1983,9 @@ export default function SeasonStats() {
               {
                 id: "ladder",
                 title: "League Ladder",
-                summary: ladder != null ? `1 table · ${ladder.length} teams` : "1 table",
+                summary: ladder != null
+                  ? `1 table · ${ladder.length} teams · Form, points & goal difference`
+                  : "1 table · Form, points & goal difference",
                 content: (
                   <div className="space-y-4">
           {/* League Ladder — always on its own row: sharing a half-width column
@@ -2071,7 +2073,7 @@ export default function SeasonStats() {
               {
                 id: "scored",
                 title: "Goals Scored",
-                summary: `9 charts${goalBreakdownFull?.goals != null ? ` · ${goalBreakdownFull.goals.length} goals` : ""}`,
+                summary: `9 charts${goalBreakdownFull?.goals != null ? ` · ${goalBreakdownFull.goals.length} goals` : ""} · Timing, type, location & combinations`,
                 content: (
                   <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
@@ -2223,7 +2225,7 @@ export default function SeasonStats() {
               {
                 id: "conceded",
                 title: "Goals Conceded",
-                summary: `5 charts${goalBreakdownFull?.conceded != null ? ` · ${goalBreakdownFull.conceded.length} goals` : ""}`,
+                summary: `5 charts${goalBreakdownFull?.conceded != null ? ` · ${goalBreakdownFull.conceded.length} goals` : ""} · Timing, type, location & patterns`,
                 content: (
                   <div className="space-y-4">
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
@@ -2328,7 +2330,7 @@ export default function SeasonStats() {
               {
                 id: "additional",
                 title: "Additional Charts",
-                summary: `${isNplb ? 2 : 3} charts · First Goal, Philosophy${isNplb ? "" : ", Units"}`,
+                summary: `${isNplb ? 2 : 3} charts · First-goal impact, philosophy${isNplb ? "" : " & unit output"}`,
                 content: (
                   <div className="space-y-4">
           {/* ═══ First Goal Value Index ═══ */}
