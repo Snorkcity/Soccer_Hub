@@ -3164,8 +3164,7 @@ export default function SeasonStats() {
 
                             </div>
                       )
-                    }
-                    ] : []),
+                    },
                     {
                       id: "additional",
                       title: "Additional Charts",
@@ -3218,7 +3217,8 @@ export default function SeasonStats() {
 
                         </div>
                       )
-                    }
+                    },
+                    ] : [])
                   ]}
                 />
               )}
