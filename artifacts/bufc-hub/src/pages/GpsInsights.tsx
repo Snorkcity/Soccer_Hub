@@ -34,6 +34,7 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
+import { SectionGroup } from "@/components/SectionGroup";
 import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ const M_DPM: GpsMetric = { id: "dpm", title: "Distance Per Minute", unit: "m/min
 const M_LOAD: GpsMetric = { id: "load", title: "Player Load", unit: "", decimals: 0, additive: true, value: r => r.playerLoad ?? null };
 
 const PLAYER_METRICS = [M_DISTANCE, M_HSM, M_VHS, M_TOPSPEED, M_POWERPLAYS, M_DPM, M_LOAD];
+const RUNNING_LOAD_METRICS = [M_DISTANCE, M_DPM, M_LOAD];
+const HIGH_SPEED_METRICS = [M_HSM, M_VHS, M_TOPSPEED, M_POWERPLAYS];
 const fmtV = (v: number | null | undefined, d: number, unit: string) =>
   v == null ? "—" : `${v.toFixed(d)}${unit ? ` ${unit}` : ""}`;
 
@@ -315,11 +318,44 @@ function PlayerGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[]
       {bundles.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">No games recorded for {player} in {year}.</CardContent></Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          {PLAYER_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
-          <PlayerAccelCountCard bundles={bundles} player={player} />
-          <PlayerAccelCard bundles={bundles} player={player} />
-        </div>
+        <SectionGroup
+          id="gps-player-charts"
+          defaultExpandedDesktop={["running-load"]}
+          defaultExpandedMobile={["running-load"]}
+          sections={[
+            {
+              id: "running-load",
+              title: "Running Load",
+              summary: "3 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  {RUNNING_LOAD_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
+                </div>
+              ),
+            },
+            {
+              id: "high-speed-sprint",
+              title: "High-Speed & Sprint",
+              summary: "4 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  {HIGH_SPEED_METRICS.map(m => <PlayerChartCard key={m.id} metric={m} bundles={bundles} player={player} />)}
+                </div>
+              ),
+            },
+            {
+              id: "acceleration-braking",
+              title: "Acceleration & Braking",
+              summary: "2 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <PlayerAccelCountCard bundles={bundles} player={player} />
+                  <PlayerAccelCard bundles={bundles} player={player} />
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
     </div>
   );
@@ -1327,11 +1363,44 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
       {bundles.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for this round.</CardContent></Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          {PLAYER_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
-          <TeamAccelCountCard bundles={bundles} />
-          <TeamAccelCard bundles={bundles} />
-        </div>
+        <SectionGroup
+          id="gps-team-charts"
+          defaultExpandedDesktop={["running-load"]}
+          defaultExpandedMobile={["running-load"]}
+          sections={[
+            {
+              id: "running-load",
+              title: "Running Load",
+              summary: "3 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  {RUNNING_LOAD_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
+                </div>
+              ),
+            },
+            {
+              id: "high-speed-sprint",
+              title: "High-Speed & Sprint",
+              summary: "4 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  {HIGH_SPEED_METRICS.map(m => <TeamChartCard key={m.id} metric={m} bundles={bundles} />)}
+                </div>
+              ),
+            },
+            {
+              id: "acceleration-braking",
+              title: "Acceleration & Braking",
+              summary: "2 charts",
+              content: (
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <TeamAccelCountCard bundles={bundles} />
+                  <TeamAccelCard bundles={bundles} />
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
     </div>
   );

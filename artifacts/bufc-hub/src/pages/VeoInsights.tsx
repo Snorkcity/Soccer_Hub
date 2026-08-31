@@ -502,14 +502,18 @@ export default function VeoInsights() {
             openRequest={linkFocusRequest}
           />
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+          <div
+            className="flex w-full flex-wrap items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground"
+            aria-label="Veo insight view"
+          >
+            <div className="flex items-center gap-1">
               {(["season", "match"] as const).map((v) => (
                 <button
                   key={v}
+                  type="button"
                   onClick={() => setView(v)}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    view === v ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+                  className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    view === v ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50 hover:text-foreground"
                   }`}
                 >
                   {v === "season" ? "Season" : "Match"}
@@ -517,13 +521,16 @@ export default function VeoInsights() {
               ))}
             </div>
 
-            <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+            <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+
+            <div className="flex items-center gap-1">
               {(["team", "players"] as const).map((v) => (
                 <button
                   key={v}
+                  type="button"
                   onClick={() => setSubView(v)}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    subView === v ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+                  className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    subView === v ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50 hover:text-foreground"
                   }`}
                 >
                   {v === "team" ? "Team" : "Players"}
@@ -533,7 +540,7 @@ export default function VeoInsights() {
 
             {view === "match" && (
               <Select value={String(currentId ?? "")} onValueChange={(v) => setSelectedId(Number(v))}>
-                <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Pick a match" /></SelectTrigger>
+                <SelectTrigger className="ml-auto w-full bg-background sm:max-w-md"><SelectValue placeholder="Pick a match" /></SelectTrigger>
                 <SelectContent>
                   {synced.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
