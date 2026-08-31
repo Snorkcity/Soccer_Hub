@@ -1983,7 +1983,7 @@ export default function SeasonStats() {
               {
                 id: "ladder",
                 title: "League Ladder",
-                summary: ladder != null ? `${ladder.length} teams` : null,
+                summary: ladder != null ? `1 table · ${ladder.length} teams` : "1 table",
                 content: (
                   <div className="space-y-4">
           {/* League Ladder — always on its own row: sharing a half-width column
@@ -2071,7 +2071,7 @@ export default function SeasonStats() {
               {
                 id: "scored",
                 title: "Goals Scored",
-                summary: goalBreakdownFull?.goals != null ? `${goalBreakdownFull.goals.length} goals` : null,
+                summary: `9 charts${goalBreakdownFull?.goals != null ? ` · ${goalBreakdownFull.goals.length} goals` : ""}`,
                 content: (
                   <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
@@ -2223,7 +2223,7 @@ export default function SeasonStats() {
               {
                 id: "conceded",
                 title: "Goals Conceded",
-                summary: goalBreakdownFull?.conceded != null ? `${goalBreakdownFull.conceded.length} goals` : null,
+                summary: `5 charts${goalBreakdownFull?.conceded != null ? ` · ${goalBreakdownFull.conceded.length} goals` : ""}`,
                 content: (
                   <div className="space-y-4">
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
@@ -2328,7 +2328,7 @@ export default function SeasonStats() {
               {
                 id: "additional",
                 title: "Additional Charts",
-                summary: "First Goal, Philosophy, Units",
+                summary: `${isNplb ? 2 : 3} charts · First Goal, Philosophy${isNplb ? "" : ", Units"}`,
                 content: (
                   <div className="space-y-4">
           {/* ═══ First Goal Value Index ═══ */}
