@@ -8,6 +8,7 @@
 import type { DriblRawFixture } from './driblRawFixture';
 import type { DriblRawLineup } from './driblRawLineup';
 import type { DriblRawMatchCentre } from './driblRawMatchCentre';
+import type { DriblRoundOption } from './driblRoundOption';
 
 export interface DriblAssembleBody {
   seasonId: number;
@@ -16,6 +17,8 @@ export interface DriblAssembleBody {
   recheckNoLineups?: boolean;
   /** @maxItems 2000 */
   fixtures: DriblRawFixture[];
+  /** @maxItems 500 */
+  driblRoundOptions?: DriblRoundOption[];
   /** @maxItems 500 */
   matchCentres?: DriblRawMatchCentre[];
   /** @maxItems 1000 */

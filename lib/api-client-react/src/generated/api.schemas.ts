@@ -3136,6 +3136,11 @@ export interface DriblNeedLineup {
   team: string;
 }
 
+export interface DriblRoundOption {
+  value: string;
+  title: string;
+}
+
 export interface DriblPreviewResponse {
   driblSeason: string;
   driblLeague: string;
@@ -3146,6 +3151,8 @@ export interface DriblPreviewResponse {
   skippedNoLineups: number;
   /** Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation */
   suggestedClubs?: string[];
+  /** Round values published by Dribl, retained for safe discovery of new finals stages */
+  driblRoundOptions: DriblRoundOption[];
 }
 
 export interface DriblConfigResponse {
@@ -3157,6 +3164,7 @@ export interface DriblConfigResponse {
 }
 
 export interface DriblRawFixture {
+  fixtureRound?: string;
   fullRound: string;
   date: string;
   status: string;
@@ -3234,6 +3242,8 @@ export interface DriblAssembleBody {
   recheckNoLineups?: boolean;
   /** @maxItems 2000 */
   fixtures: DriblRawFixture[];
+  /** @maxItems 500 */
+  driblRoundOptions?: DriblRoundOption[];
   /** @maxItems 500 */
   matchCentres?: DriblRawMatchCentre[];
   /** @maxItems 1000 */

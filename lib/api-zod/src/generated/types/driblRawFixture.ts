@@ -7,6 +7,7 @@
  */
 
 export interface DriblRawFixture {
+  fixtureRound?: string;
   fullRound: string;
   date: string;
   status: string;

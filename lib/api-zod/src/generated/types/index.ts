@@ -61,6 +61,7 @@ export * from './driblRawLineup';
 export * from './driblRawLineupPlayer';
 export * from './driblRawMatchCentre';
 export * from './driblRawSub';
+export * from './driblRoundOption';
 export * from './entryAthleticTestRow';
 export * from './entryAthleticTestsSaveRequest';
 export * from './entryAthleticTestsSaveResponse';

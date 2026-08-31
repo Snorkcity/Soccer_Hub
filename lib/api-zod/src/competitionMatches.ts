@@ -21,12 +21,7 @@ const numberedFinal = (
   countsTowardLadder: false,
 });
 
-/**
- * Classify Dribl's `full_round` without treating arbitrary digits as a round.
- * Finals must be checked first because labels such as "Finals 1#1" contain
- * numbers but are not regular-season Round 11.
- */
-export function classifyDriblCompetitionStage(raw: string | null | undefined): DriblCompetitionStage {
+function classifyDriblStageLabel(raw: string | null | undefined): DriblCompetitionStage {
   const value = raw?.trim().replace(/\s+/g, " ") ?? "";
   let match = /^finals?\s*([1-9]\d*)\s*#\s*([1-9]\d*)$/i.exec(value);
   if (match) {
@@ -74,6 +69,51 @@ export function classifyDriblCompetitionStage(raw: string | null | undefined): D
     round: null,
     countsTowardLadder: false,
   };
+}
+
+/**
+ * Classify a Dribl fixture stage. The fixture's machine-oriented `round` is
+ * authoritative when it is a verified finals code; `full_round` remains the
+ * coach-facing label and backward-compatible fallback.
+ *
+ * A finals-looking native code that we have not verified is deliberately
+ * blocked rather than guessed from its display label.
+ */
+export function classifyDriblCompetitionStage(
+  fixtureRoundOrFullRound: string | null | undefined,
+  fullRound?: string | null,
+): DriblCompetitionStage {
+  if (fullRound === undefined) return classifyDriblStageLabel(fixtureRoundOrFullRound);
+
+  const fixtureRound = fixtureRoundOrFullRound?.trim() ?? "";
+  const visibleLabel = fullRound?.trim().replace(/\s+/g, " ") ?? "";
+  // Verified in the live 2026 Capital NPLM feed: Finals Round 1 currently
+  // contains four fixtures, F1#1 through F1#4.
+  const liveFinals = /^F1#([1-4])$/i.exec(fixtureRound);
+  if (liveFinals) {
+    const game = Number(liveFinals[1]);
+    return {
+      kind: "finals",
+      code: `FW1G${game}`,
+      label: `Finals Week 1 · Game ${game}`,
+      round: null,
+      countsTowardLadder: false,
+    };
+  }
+
+  if (fixtureRound) {
+    const nativeStage = classifyDriblStageLabel(fixtureRound);
+    if (nativeStage.kind === "round") return nativeStage;
+    return {
+      kind: "unknown",
+      code: null,
+      label: visibleLabel || fixtureRound || "Unlabelled stage",
+      round: null,
+      countsTowardLadder: false,
+    };
+  }
+
+  return classifyDriblStageLabel(visibleLabel);
 }
 
 export function isRegularSeasonMatchId(matchId: string | null | undefined): boolean {

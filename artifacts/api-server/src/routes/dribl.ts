@@ -145,6 +145,25 @@ async function driblSeasonHash(tenant: string, year: string, tenantSlug: string)
   return { hash: pick.id, title: pick.title };
 }
 
+const leagueHashCache = new Map<string, string>();
+async function driblLeagueHash(
+  tenant: string,
+  season: string,
+  competition: string,
+  name: string,
+  tenantSlug: string,
+): Promise<string> {
+  const key = `${tenant}:${season}:${competition}:${name}`;
+  const cached = leagueHashCache.get(key);
+  if (cached) return cached;
+  const data = await driblGet("/list/leagues", { tenant, season, competition }, tenantSlug);
+  const rows: Array<{ id: string; name?: string; title?: string }> = data?.data ?? [];
+  const pick = rows.find(league => (league.name ?? league.title) === name);
+  if (!pick) throw new Error(`Dribl has no "${name}" league for tenant ${tenantSlug}`);
+  leagueHashCache.set(key, pick.id);
+  return pick.id;
+}
+
 // Definitive club list for a league straight from the Dribl fixtures feed —
 // the ground truth the AI club-setup flow uses instead of guessing from the
 // league name (which can drift to an older season's line-up). Returns null
@@ -258,7 +277,7 @@ function formatPlayerName(full: string, nameFormat: string): string {
 type SeasonRow = { year: string; leagueId: number; leagueName: string; nameFormat: string | null };
 
 type NormFixture = {
-  fullRound: string; date: string; status: string;
+  fixtureRound?: string; fullRound: string; date: string; status: string;
   homeTeamName: string; awayTeamName: string;
   homeScore: number | null; awayScore: number | null;
   homeScoreHt?: number | null; awayScoreHt?: number | null;
@@ -583,7 +602,7 @@ async function buildPreview(
     if (v == null) {
       const home = matchClub(f.homeTeamName, clubs);
       const away = matchClub(f.awayTeamName, clubs);
-      const stage = classifyDriblCompetitionStage(f.fullRound);
+      const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound);
       v = home != null && away != null &&
         (stage.code ? existingByKey.get(`c${stage.code}|${home}|${away}`) : undefined) != null;
       recordedCache.set(f, v);
@@ -598,7 +617,7 @@ async function buildPreview(
     const unmatched: string[] = [];
     if (!home) unmatched.push(f.homeTeamName);
     if (!away) unmatched.push(f.awayTeamName);
-    const stage = classifyDriblCompetitionStage(f.fullRound);
+    const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound);
     if (stage.kind === "unknown") {
       unmatched.push(`Unrecognised Dribl stage: "${stage.label}"`);
     }
@@ -999,6 +1018,16 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     const tenant = await driblTenant(dribl.tenant);
     const { hash: seasonHash, title: seasonTitle } = await driblSeasonHash(tenant, seasonRow.year, dribl.tenant);
     const competition = await driblCompetitionHash(tenant, dribl.competition, dribl.tenant);
+    const league = await driblLeagueHash(tenant, seasonHash, competition, driblLeague, dribl.tenant);
+    const roundData = await driblGet(
+      "/list/rounds",
+      { tenant, season: seasonHash, competition, league },
+      dribl.tenant,
+    );
+    const driblRoundOptions = (Array.isArray(roundData) ? roundData : roundData?.data ?? []).map((round: any) => ({
+      value: String(round.value ?? ""),
+      title: String(round.title ?? "").trim(),
+    })).filter((round: { value: string; title: string }) => round.value || round.title);
 
     // Page through the whole season's fixtures and keep only this league's
     // games. NOTE: the /results feed silently drops early-season rounds —
@@ -1015,7 +1044,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
         const a = row.attributes ?? {};
         if (a.league_name === driblLeague && !a.bye_flag) {
           fixtures.push({
-            fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
+            fixtureRound: String(a.round ?? ""), fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
             homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
             homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
             homeScoreHt: a.home_score_half ?? null, awayScoreHt: a.away_score_half ?? null,
@@ -1115,7 +1144,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
       String(req.query.recheckNoLineups ?? "") === "true",
     );
 
-    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [], skippedNoLineups, suggestedClubs }));
+    res.json(GetDriblPreviewResponse.parse({ driblSeason: seasonTitle, driblLeague, matches, needDetail: [], needLineups: [], skippedNoLineups, suggestedClubs, driblRoundOptions }));
   } catch (e) {
     logger.error({ err: String(e) }, "Dribl preview failed");
     res.status(502).json({ error: `Couldn't reach Dribl: ${e instanceof Error ? e.message : String(e)}` });
@@ -1180,6 +1209,7 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
   res.json(GetDriblPreviewResponse.parse({
     driblSeason: b.driblSeason ?? seasonRow.year,
     driblLeague, matches, needDetail, needLineups, skippedNoLineups, suggestedClubs,
+    driblRoundOptions: b.driblRoundOptions ?? [],
   }));
 });
 

@@ -2895,6 +2895,25 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
       (await driblJson("/list/competitions", { tenant }))?.data ?? [];
     const competition = comps.find(c => (c.name ?? c.title) === cfg.driblCompetition);
     if (!competition) throw new Error(`Dribl has no "${cfg.driblCompetition}" competition`);
+    const leagues: Array<{ id: string; name?: string; title?: string }> =
+      (await driblJson("/list/leagues", {
+        tenant,
+        season: driblSeason.id,
+        competition: competition.id,
+      }))?.data ?? [];
+    const league = leagues.find(item => (item.name ?? item.title) === cfg.driblLeague);
+    if (!league) throw new Error(`Dribl has no "${cfg.driblLeague}" league`);
+    const roundData = await driblJson("/list/rounds", {
+      tenant,
+      season: driblSeason.id,
+      competition: competition.id,
+      league: league.id,
+    });
+    const driblRoundOptions: Array<{ value: string; title: string }> =
+      (Array.isArray(roundData) ? roundData : roundData?.data ?? []).map((round: { value?: unknown; title?: unknown }) => ({
+        value: String(round.value ?? ""),
+        title: String(round.title ?? "").trim(),
+      })).filter((round: { value: string; title: string }) => round.value || round.title);
 
     const fixtures: DriblRawFixture[] = [];
     let cursor: string | null = null;
@@ -2909,7 +2928,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
         const a = row.attributes ?? {};
         if (a.league_name === cfg.driblLeague && !a.bye_flag) {
           fixtures.push({
-            fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
+            fixtureRound: String(a.round ?? ""), fullRound: String(a.full_round ?? ""), date: String(a.date ?? ""), status: String(a.status ?? ""),
             homeTeamName: String(a.home_team_name ?? ""), awayTeamName: String(a.away_team_name ?? ""),
             homeScore: a.home_score ?? null, awayScore: a.away_score ?? null,
             homeScoreHt: a.home_score_half ?? null, awayScoreHt: a.away_score_half ?? null,
@@ -2921,7 +2940,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
       if (!cursor) break;
     }
 
-    let result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, recheckNoLineups: recheck });
+    let result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, driblRoundOptions, recheckNoLineups: recheck });
     if (result.needDetail.length > 0) {
       const matchCentres: DriblRawMatchCentre[] = [];
       for (let i = 0; i < result.needDetail.length; i++) {
@@ -2959,7 +2978,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
           // skip — that match imports as scoreline only
         }
       }
-      result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, recheckNoLineups: recheck });
+      result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, driblRoundOptions, matchCentres, recheckNoLineups: recheck });
 
       // Third pass: fetch line-ups for teams that still need player rows.
       if (result.needLineups.length > 0) {
@@ -2989,7 +3008,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
             // skip — that team imports without player rows
           }
         }
-        result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, matchCentres, lineups, recheckNoLineups: recheck });
+        result = await assembleDriblPreview({ seasonId, driblSeason: driblSeason.title, fixtures, driblRoundOptions, matchCentres, lineups, recheckNoLineups: recheck });
       }
     }
     return result;
@@ -3069,6 +3088,15 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
     () => (preview?.matches ?? []).filter(m => (!m.exists || m.goalsOnly || m.statsOnly) && m.unmatched.length === 0),
     [preview],
   );
+  const publishedFinalsRounds = useMemo(
+    () => (preview?.driblRoundOptions ?? []).filter(round =>
+      /final/i.test(`${round.value} ${round.title}`),
+    ),
+    [preview],
+  );
+  // /list/rounds publishes series-level values (currently finals_1), while
+  // fixtures publish game values (F1#1/F1#2). They are separate native fields.
+  const unfamiliarFinalsRounds = publishedFinalsRounds.filter(round => round.value.toLowerCase() !== "finals_1");
   const selectedMatches = importable.filter(m => !deselected.has(m.matchId));
 
   const toggle = (matchId: string) => {
@@ -3194,6 +3222,28 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
               )}
               <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={importing}>Refresh</Button>
             </div>
+
+            {publishedFinalsRounds.length > 0 && (
+              <div className={cn(
+                "rounded-md border px-3 py-2 text-xs",
+                unfamiliarFinalsRounds.length > 0
+                  ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+                  : "bg-muted/40 text-muted-foreground",
+              )}>
+                <span className="font-medium">Finals stages published by Dribl:</span>{" "}
+                {publishedFinalsRounds.map((round, index) => (
+                  <Fragment key={`${round.value}-${round.title}`}>
+                    {index > 0 && " · "}
+                    {round.title || round.value} <code>({round.value})</code>
+                  </Fragment>
+                ))}
+                {unfamiliarFinalsRounds.length > 0 && (
+                  <span className="block mt-1 font-medium">
+                    New finals codes are blocked from import until their fixture values have been verified.
+                  </span>
+                )}
+              </div>
+            )}
 
             {preview.skippedNoLineups > 0 && (
               <p className="text-xs text-muted-foreground">

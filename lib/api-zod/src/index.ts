@@ -6,3 +6,5 @@ export * from "./nplb";
 export * from "./gps";
 export * from "./gpsPeriods";
 export * from "./competitionMatches";
+export * from './generated/api';
+export * from './generated/types';

@@ -6639,7 +6639,11 @@ components:
           type: array
           items: { type: string }
           description: Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation
-      required: [driblSeason, driblLeague, matches, needDetail, needLineups, skippedNoLineups]
+        driblRoundOptions:
+          type: array
+          items: { $ref: "#/components/schemas/DriblRoundOption" }
+          description: Round values published by Dribl, retained for safe discovery of new finals stages
+      required: [driblSeason, driblLeague, matches, needDetail, needLineups, skippedNoLineups, driblRoundOptions]
 
     DriblConfigResponse:
       type: object
@@ -6655,6 +6659,7 @@ components:
     DriblRawFixture:
       type: object
       properties:
+        fixtureRound: { type: string }
         fullRound:    { type: string }
         date:         { type: string }
         status:       { type: string }
@@ -6666,6 +6671,13 @@ components:
         awayScoreHt:  { type: ["integer", "null"] }
         matchHashId:  { type: string }
       required: [fullRound, date, status, homeTeamName, awayTeamName, homeScore, awayScore, matchHashId]
+
+    DriblRoundOption:
+      type: object
+      properties:
+        value: { type: string }
+        title: { type: string }
+      required: [value, title]
 
     DriblRawEvent:
       type: object
@@ -6740,6 +6752,10 @@ components:
           type: array
           maxItems: 2000
           items: { $ref: "#/components/schemas/DriblRawFixture" }
+        driblRoundOptions:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/DriblRoundOption" }
         matchCentres:
           type: array
           maxItems: 500

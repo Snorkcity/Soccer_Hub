@@ -7,6 +7,7 @@
  */
 import type { DriblNeedLineup } from './driblNeedLineup';
 import type { DriblPreviewMatch } from './driblPreviewMatch';
+import type { DriblRoundOption } from './driblRoundOption';
 
 export interface DriblPreviewResponse {
   driblSeason: string;
@@ -18,4 +19,6 @@ export interface DriblPreviewResponse {
   skippedNoLineups: number;
   /** Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation */
   suggestedClubs?: string[];
+  /** Round values published by Dribl, retained for safe discovery of new finals stages */
+  driblRoundOptions: DriblRoundOption[];
 }

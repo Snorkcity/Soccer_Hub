@@ -41,3 +41,9 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 **Why:** Treating only one live label style as canonical creates false clubs or unmatched fixtures when Capital changes the presentation without changing the competition.
 
 **How to apply:** When adding or reviewing Capital boys grades, validate fixture-derived club names across the full feed and keep both qualifier patterns in the shared normaliser.
+
+**Round metadata quirk (Aug 2026):** `/list/rounds` needs tenant, season, competition **and league**. Without league it can return HTTP 200 with an empty list. Unlike most `/list/*` endpoints, its successful body is a top-level array, not `{ data: [...] }`. Catalog values describe the series (`finals_1`), while fixture `round` values identify games (`F1#1`, etc.).
+
+**Why:** Treating the endpoint like other Dribl list calls silently hid newly published finals stages; conflating catalog and fixture values also made safe code verification ambiguous.
+
+**How to apply:** Resolve the Dribl league ID first, accept top-level-array and wrapped responses defensively, display new finals catalog values, and verify corresponding fixture codes live before allowing imports.

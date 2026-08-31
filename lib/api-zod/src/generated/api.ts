@@ -2904,6 +2904,8 @@ export const GetDriblConfigResponse = zod.object({
  */
 export const assembleDriblPreviewBodyFixturesMax = 2000;
 
+export const assembleDriblPreviewBodyDriblRoundOptionsMax = 500;
+
 export const assembleDriblPreviewBodyMatchCentresMax = 500;
 
 export const assembleDriblPreviewBodyLineupsMax = 1000;
@@ -2915,6 +2917,7 @@ export const AssembleDriblPreviewBody = zod.object({
   "driblSeason": zod.string().nullish(),
   "recheckNoLineups": zod.boolean().optional(),
   "fixtures": zod.array(zod.object({
+  "fixtureRound": zod.string().optional(),
   "fullRound": zod.string(),
   "date": zod.string(),
   "status": zod.string(),
@@ -2926,6 +2929,10 @@ export const AssembleDriblPreviewBody = zod.object({
   "awayScoreHt": zod.number().nullish(),
   "matchHashId": zod.string()
 })).max(assembleDriblPreviewBodyFixturesMax),
+  "driblRoundOptions": zod.array(zod.object({
+  "value": zod.string(),
+  "title": zod.string()
+})).max(assembleDriblPreviewBodyDriblRoundOptionsMax).optional(),
   "matchCentres": zod.array(zod.object({
   "matchHashId": zod.string(),
   "homeScoreHt": zod.number().nullable(),
@@ -3017,7 +3024,11 @@ export const AssembleDriblPreviewResponse = zod.object({
   "team": zod.string()
 })),
   "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up'),
-  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation')
+  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation'),
+  "driblRoundOptions": zod.array(zod.object({
+  "value": zod.string(),
+  "title": zod.string()
+})).describe('Round values published by Dribl, retained for safe discovery of new finals stages')
 })
 
 
@@ -3079,7 +3090,11 @@ export const GetDriblPreviewResponse = zod.object({
   "team": zod.string()
 })),
   "skippedNoLineups": zod.number().describe('Club sheets skipped because a previous sync found no published line-up'),
-  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation')
+  "suggestedClubs": zod.array(zod.string()).optional().describe('Only when the league has no clubs yet — cleaned team names from the fixture list, offered for one-click club creation'),
+  "driblRoundOptions": zod.array(zod.object({
+  "value": zod.string(),
+  "title": zod.string()
+})).describe('Round values published by Dribl, retained for safe discovery of new finals stages')
 })
 
 
