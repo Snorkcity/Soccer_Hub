@@ -99,10 +99,14 @@ export function clampMatchMinute(minute: number, timing: MatchTimingPolicy): num
 }
 
 /** Fifteen-minute chart ticks plus the exact regulation endpoint. */
-export function matchTimelineTicks(timing: MatchTimingPolicy): number[] {
+export function matchTimelineTicks(
+  timing: MatchTimingPolicy,
+  matchMinutes = timing.regulationMinutes,
+): number[] {
+  const endpoint = Math.max(timing.regulationMinutes, matchMinutes);
   const ticks: number[] = [];
-  for (let minute = 0; minute <= timing.regulationMinutes; minute += 15) ticks.push(minute);
-  if (ticks[ticks.length - 1] !== timing.regulationMinutes) ticks.push(timing.regulationMinutes);
+  for (let minute = 0; minute <= endpoint; minute += 15) ticks.push(minute);
+  if (ticks[ticks.length - 1] !== endpoint) ticks.push(endpoint);
   return ticks;
 }
 
@@ -115,19 +119,22 @@ export function veoPeriodDurationsMinutes(
   timing: MatchTimingPolicy,
 ): number[] {
   if (!Array.isArray(periods)) return [];
-  const isExtraTime = periods.length >= 4;
-  return (periods as { duration?: number }[]).map((period, index) => {
+  return (periods as { duration?: number; timeframe?: [number, number] }[]).map((period, index) => {
     const seconds = Number(period?.duration);
-    const fallback = isExtraTime && index >= 2 ? 15 : timing.halfMinutes;
-    return Number.isFinite(seconds) && seconds > 0 ? seconds / 60 : fallback;
+    if (Number.isFinite(seconds) && seconds > 0) return seconds / 60;
+    const start = Number(period?.timeframe?.[0]);
+    const end = Number(period?.timeframe?.[1]);
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) return (end - start) / 60;
+    // Regulation periods follow the selected grade. Football extra-time
+    // periods are 15 minutes when Veo omits both duration and timeframe.
+    return index < 2 ? timing.halfMinutes : 15;
   });
 }
 
 /**
- * Four Veo periods represent two regulation halves followed by two extra-time
- * periods. Only that explicit shape may extend a match: summing two real Veo
- * durations would otherwise turn ordinary stoppage/video time into a 93- or
- * 95-minute chart.
+ * Regulation stays authoritative for ordinary two-period matches (including
+ * NPLB stoppage time). Four-period knockout matches use the canonical
+ * competition clock, so Veo stoppage/video overruns do not lengthen the match.
  */
 export function veoMatchDurationMinutes(
   periodDurationsMinutes: readonly number[],

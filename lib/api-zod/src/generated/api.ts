@@ -2973,6 +2973,8 @@ export const AssembleDriblPreviewResponse = zod.object({
   "matches": zod.array(zod.object({
   "matchId": zod.string(),
   "round": zod.number(),
+  "stageLabel": zod.string().describe('Human-readable Dribl stage, for example \"Round 20\" or \"Finals Week 1 · Game 1\"'),
+  "countsTowardLadder": zod.boolean().describe('True only for genuine numbered regular-season rounds'),
   "matchDate": zod.string(),
   "homeTeam": zod.string(),
   "awayTeam": zod.string(),
@@ -3033,6 +3035,8 @@ export const GetDriblPreviewResponse = zod.object({
   "matches": zod.array(zod.object({
   "matchId": zod.string(),
   "round": zod.number(),
+  "stageLabel": zod.string().describe('Human-readable Dribl stage, for example \"Round 20\" or \"Finals Week 1 · Game 1\"'),
+  "countsTowardLadder": zod.boolean().describe('True only for genuine numbered regular-season rounds'),
   "matchDate": zod.string(),
   "homeTeam": zod.string(),
   "awayTeam": zod.string(),

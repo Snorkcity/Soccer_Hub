@@ -1848,6 +1848,8 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+// Main's implementation remains the active view; its extra-time coordinates
+// below use Task 170's competition-clock period boundaries.
 function MatchView({ match, events, passing, passingLoading, analyticsEnabled, timing }: {
   match: {
     opponent?: string | null;
@@ -1872,10 +1874,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
   const opp = opponentOf(match);
   const periodDurations = veoPeriodDurationsMinutes(match.periods, timing);
   const matchMinutes = veoMatchDurationMinutes(periodDurations, timing);
-  const chartTiming = matchMinutes === timing.regulationMinutes
-    ? timing
-    : { ...timing, regulationMinutes: matchMinutes };
-  const timelineTicks = matchTimelineTicks(chartTiming);
+  const timelineTicks = matchTimelineTicks(timing, matchMinutes);
 
   // Possession heat map from the RAS 18-zone grid. Veo's raw "passLocations"
   // points turned out NOT to be pitch positions (they form the same centred
@@ -1939,17 +1938,18 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       const ownLR = ownSide === "left" ? "L" : "R";
       const oppLR = ownSide === "left" ? "R" : "L";
       const offset = veoPeriodStartMinute(idx, durMin, timing);
+      const periodEnd = Math.min(matchMinutes, veoPeriodEndMinute(idx, durMin, timing));
       const grab = (key: string) => {
         const g = w.grid?.[key];
         return g?.type === "18_zone_system" && Array.isArray(g.values) && g.values.length === 18 ? g.values : null;
       };
       wins.push({
         fromMin: Math.min(
-          veoPeriodEndMinute(idx, durMin, timing),
+          periodEnd,
           offset + (w.start - periodRows[idx].timeframe![0]) / 60,
         ),
         toMin: Math.min(
-          veoPeriodEndMinute(idx, durMin, timing),
+          periodEnd,
           offset + (w.end - periodRows[idx].timeframe![0]) / 60,
         ),
         us: grab(ownLR),
@@ -1959,7 +1959,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
     if (wins.length === 0) return null;
     wins.sort((a, b) => a.fromMin - b.fromMin);
     return { wins, maxMin: matchMinutes };
-  }, [match.passDetails, match.periods, timing, matchMinutes]);
+  }, [match.passDetails, match.periods, matchMinutes, timing]);
 
   // null = full match. Reset whenever the selected match changes; the clamp
   // below also guards the first render after switching to a shorter match
@@ -2120,7 +2120,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       if (isOwn(e)) arr[idx].us += w; else arr[idx].them -= w;
     }
     return arr;
-  }, [events, match.periods, timing, matchMinutes]);
+  }, [events, match.periods, matchMinutes, timing]);
 
   // Field-tilt timeline sampled every 5 minutes through this grade's match.
   // our share of the weighted threat events (shots, goals, corners, frees…)
@@ -2160,7 +2160,11 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
         const themFin = Number(item.possessionLocations?.[oppLR]?.attacking) || 0;
         if (usFin + themFin === 0) return;
         const from = veoPeriodStartMinute(idx, durMin, timing);
-        halfTilt.push({ from, to: veoPeriodEndMinute(idx, durMin, timing), tilt: (usFin / (usFin + themFin)) * 100 });
+        halfTilt.push({
+          from,
+          to: Math.min(matchMinutes, veoPeriodEndMinute(idx, durMin, timing)),
+          tilt: (usFin / (usFin + themFin)) * 100,
+        });
       });
     }
 
@@ -2185,7 +2189,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
     }
     const halfAt = veoPeriodStartMinute(1, durMin, timing);
     return { rows, maxMin: rows[rows.length - 1].min, halfAt, hasPass: halfTilt.length > 0 };
-  }, [events, match.periods, match.passDetails, timing, matchMinutes]);
+  }, [events, match.periods, match.passDetails, matchMinutes, timing]);
 
   // Shot map: normalise so we always attack to the right, them to the left.
   const shots = useMemo(() => {
@@ -2257,7 +2261,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       : [];
     const halfAt = veoPeriodStartMinute(1, durs, timing);
     return { pts, maxMin, halfAt };
-  }, [events, match.periods, timing, matchMinutes]);
+  }, [events, match.periods, matchMinutes, timing]);
 
   // Set-piece pressure: corners + free kicks by half, us vs them.
   const setPieces = useMemo(() => {

@@ -953,7 +953,12 @@ function BorrowedBadge({ direction }: { direction: "up" | "down" | "unknown" | n
 
 // Position codes + the shared position→unit mapping (same units as the GPS
 // Positions tab) — shared with the API server via @workspace/api-zod.
-import { POSITION_CODES as POSITIONS, unitForPosition, clubCodesFor, canonicalGpsSplit } from "@workspace/api-zod";
+import {
+  POSITION_CODES as POSITIONS,
+  canonicalGpsMatchSplit,
+  unitForPosition,
+  clubCodesFor,
+} from "@workspace/api-zod";
 const unitFor = (pos: string): string | null => unitForPosition(pos);
 
 function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
@@ -2283,8 +2288,9 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
   const [opponent, setOpponent] = useState("");
   const [fixtureKey, setFixtureKey] = useState("");
   const [entries, setEntries] = useState<GpsEntry[]>([]);
-  const [ignoredRows, setIgnoredRows] = useState(0);
-  const [unsupportedSplits, setUnsupportedSplits] = useState<string[]>([]);
+  const [ignoredSplits, setIgnoredSplits] = useState(0);
+  const [unknownSplits, setUnknownSplits] = useState<string[]>([]);
+  const [unknownSplitRows, setUnknownSplitRows] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [parsing, setParsing] = useState(false);
@@ -2328,7 +2334,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 
   async function parseInput(getData: () => Promise<string | ArrayBuffer>, label: string) {
     setParsing(true); setOk(null); setErr(null);
-    setEntries([]); setIgnoredRows(0); setUnsupportedSplits([]); setFileName(label);
+    setEntries([]); setIgnoredSplits(0); setUnknownSplits([]); setUnknownSplitRows(0); setFileName(label);
     try {
       const XLSX = await import("xlsx");
       const data = await getData();
@@ -2368,7 +2374,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 
       const parsed: GpsEntry[] = [];
       let ignored = 0;
-      const unsupported = new Set<string>();
+      let unknownRows = 0;
+      const unknown = new Set<string>();
       for (const r of raw) {
         const row: GpsRow = { playerName: "", splitName: null, ...EMPTY_GPS_ROW };
         for (const [header, field] of mapping) {
@@ -2383,12 +2390,16 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
           const tag = r[tagsHeader] == null ? "" : String(r[tagsHeader]).trim().toLowerCase();
           if (tag !== "" && tag !== "game") { ignored++; continue; }
         }
-        // Keep the four confirmed Catapult match splits.
-        // Store the canonical lowercase literal — downstream chart logic matches exactly.
-        // Raw Catapult exports call the whole-match split "all" — treat it as "game".
+        // Store the shared canonical literal so imports and GPS insights agree.
+        // Raw Catapult exports call the whole-match split "all".
         const rawSplit = row.splitName ?? "game";
-        const split = canonicalGpsSplit(rawSplit);
-        if (!split) { unsupported.add(rawSplit); continue; }
+        const split = canonicalGpsMatchSplit(rawSplit);
+        if (!split) {
+          ignored++;
+          unknownRows++;
+          unknown.add(rawSplit);
+          continue;
+        }
         row.splitName = split;
         // Pre-fill minutes from the Duration column (secs) when the sheet has no Mins column
         if (row.minsPlayed == null && durationHeader != null) {
@@ -2414,8 +2425,9 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
         a.row.playerName.localeCompare(b.row.playerName) ||
         (SPLIT_ORDER[a.row.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.row.splitName ?? "game"] ?? 9));
       setEntries(parsed);
-      setIgnoredRows(ignored);
-      setUnsupportedSplits([...unsupported].sort((a, b) => a.localeCompare(b)));
+      setIgnoredSplits(ignored);
+      setUnknownSplits([...unknown].sort((a, b) => a.localeCompare(b)));
+      setUnknownSplitRows(unknownRows);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't read that file");
       setFileName(null);
@@ -2474,7 +2486,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
       setOk(`Saved ${totalSaved} rows for ${roundsSaved.join(" and ")}`
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
-      setEntries([]); setIgnoredRows(0); setUnsupportedSplits([]); setFileName(null); setPasteText("");
+      setEntries([]); setIgnoredSplits(0); setUnknownSplits([]); setUnknownSplitRows(0); setFileName(null); setPasteText("");
       setMatchDate(""); setRoundCode(""); setSquad("1sts"); setOpponent(""); setFixtureKey("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
@@ -2575,6 +2587,12 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
           </div>
           {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}
           <StatusLine ok={ok} err={err} />
+          {unknownSplits.length > 0 && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Warning: {unknownSplitRows} row{unknownSplitRows === 1 ? " was" : "s were"} not imported because the match period
+              {unknownSplits.length === 1 ? " is" : "s are"} unknown: {unknownSplits.join(", ")}.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -2587,8 +2605,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
               <CardTitle>Check what was read — {playerCount} players, {entries.length} rows</CardTitle>
               <CardDescription>
                 {fileName}
-                {unsupportedSplits.length > 0 && ` · unsupported split${unsupportedSplits.length === 1 ? "" : "s"} ignored: ${unsupportedSplits.join(", ")}`}
-                {ignoredRows > 0 && ` · ignored ${ignoredRows} non-game row${ignoredRows === 1 ? "" : "s"} (training or blank round)`}
+                {unknownSplitRows > 0 && ` · warned about ${unknownSplitRows} unknown-period row${unknownSplitRows === 1 ? "" : "s"}`}
+                {ignoredSplits > unknownSplitRows && ` · skipped ${ignoredSplits - unknownSplitRows} non-game row${ignoredSplits - unknownSplitRows === 1 ? "" : "s"}`}
                 {" · minutes are pre-filled from the file — adjust any you track differently"}
               </CardDescription>
             </div>
@@ -3231,9 +3249,14 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                         onCheckedChange={() => toggle(m.matchId)}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">
-                          R{m.round} · {m.homeTeam || m.driblHome} {m.homeGoals}–{m.awayGoals} {m.awayTeam || m.driblAway}
+                        <div className="font-medium flex flex-wrap items-center gap-1.5">
+                          <span className="truncate">
+                            {m.stageLabel} · {m.homeTeam || m.driblHome} {m.homeGoals}–{m.awayGoals} {m.awayTeam || m.driblAway}
                           {m.halfScore && <span className="text-muted-foreground font-normal"> (HT {m.halfScore})</span>}
+                          </span>
+                          {!m.countsTowardLadder && (
+                            <Badge variant="secondary" className="shrink-0 font-normal">not counted in ladder</Badge>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {m.matchDate} · {m.matchId}
@@ -3252,7 +3275,13 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                       </div>
                       {m.unmatched.length > 0 ? (
                         <Badge variant="outline" className="shrink-0 text-chart-4 border-chart-4" title={m.unmatched.join("; ")}>
-                          {m.unmatched.some(u => u.startsWith("Match ID clash")) ? "match ID clash" : "unknown club — add it in League Setup"}
+                          {m.unmatched.some(u => u.startsWith("Match ID clash"))
+                            ? "match ID clash"
+                            : m.unmatched.some(u => u.startsWith("Existing match on this date"))
+                              ? "existing match code mismatch"
+                            : m.unmatched.some(u => u.startsWith("Unrecognised Dribl stage"))
+                              ? "unsupported Dribl stage"
+                              : "unknown club — add it in League Setup"}
                         </Badge>
                       ) : m.exists && m.goalsOnly ? (
                         <Badge variant="outline" className="shrink-0">

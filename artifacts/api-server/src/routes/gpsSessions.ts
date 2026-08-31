@@ -14,6 +14,7 @@ import {
   ListGpsOpponentMismatchesQueryParams,
   ListGpsOpponentMismatchesResponse,
   canonicalGpsSplit,
+  fixtureCode,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -75,7 +76,7 @@ async function gpsFeedFor(leagueId: number): Promise<{ sourceLeagueId: number; s
 }
 
 /**
- * Fixture opponents for a FEED league, keyed by `${year}|R#`: the feed
+ * Fixture opponents for a FEED league, keyed by `${year}|fixture-code`: the feed
  * league's own fixtures (imported separately), matched by round number only —
  * opponent names may differ word-for-word between the GPS upload and the
  * fixture import, so the round code is the reliable join.
@@ -90,9 +91,9 @@ async function ownFixtureOpponentMap(leagueId: number): Promise<Map<string, stri
   for (const m of fixtures) {
     const year = m.seasonId != null ? yearOfSeason.get(m.seasonId) : undefined;
     if (!year || !m.opponent) continue;
-    const rd = /^(R\d+)-/i.exec(m.matchId ?? "");
-    if (!rd) continue;
-    const key = `${year}|${rd[1].toUpperCase()}`;
+    const code = fixtureCode(m.matchId);
+    if (!code) continue;
+    const key = `${year}|${code}`;
     if (!map.has(key)) map.set(key, m.opponent);
   }
   return map;
@@ -106,9 +107,9 @@ const agrees = (a: string, b: string) => {
 };
 
 /**
- * Fixture opponents keyed by `${year}|${squad}|R#`.
+ * Fixture opponents keyed by `${year}|${squad}|fixture-code`.
  *
- * Most Catapult sessions only carry a raw round tag ("R7-1sts"), so the GPS
+ * Most Catapult sessions carry a fixture tag ("R7-1sts" or "FW1G1-1sts"), so the GPS
  * opponent column is usually empty. The football fixtures already know the
  * opponent for every round: matchId starts with the round code ("R7-MAJ-BEL"),
  * and squad comes from the fixture's league — the GPS league itself is the
@@ -135,9 +136,9 @@ async function fixtureOpponentMap(leagueId: number): Promise<Map<string, string>
   for (const m of fixtures) {
     const info = m.seasonId != null ? seasonInfo.get(m.seasonId) : undefined;
     if (!info || !m.opponent) continue;
-    const rd = /^(R\d+)-/i.exec(m.matchId ?? "");
-    if (!rd) continue;
-    const key = `${info.year}|${info.squad}|${rd[1].toUpperCase()}`;
+    const code = fixtureCode(m.matchId);
+    if (!code) continue;
+    const key = `${info.year}|${info.squad}|${code}`;
     if (!map.has(key)) map.set(key, m.opponent);
   }
   return map;
@@ -195,9 +196,9 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     const fixtureOpps = await fixtureOpponentMap(feed.sourceLeagueId);
     withOpponent = rows.map(r => {
       if (r.opponent || !r.round || !r.year) return r;
-      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
-      if (!rd) return r;
-      const opp = fixtureOpps.get(`${r.year}|1sts|${rd[1].toUpperCase()}`);
+      const code = fixtureCode(r.round);
+      if (!code) return r;
+      const opp = fixtureOpps.get(`${r.year}|1sts|${code}`);
       return opp ? { ...r, opponent: opp } : r;
     });
   } else if (feed) {
@@ -211,9 +212,9 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     const fixtureOpps = await ownFixtureOpponentMap(leagueId);
     withOpponent = rows.map(r => {
       if (!r.round || !r.year) return { ...r, opponent: null };
-      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
-      if (!rd) return { ...r, opponent: null };
-      const fixtureOpp = fixtureOpps.get(`${r.year}|${rd[1].toUpperCase()}`);
+      const code = fixtureCode(r.round);
+      if (!code) return { ...r, opponent: null };
+      const fixtureOpp = fixtureOpps.get(`${r.year}|${code}`);
       if (!fixtureOpp) return { ...r, opponent: null };
       if (!r.opponent || agrees(r.opponent, fixtureOpp)) return { ...r, opponent: fixtureOpp };
       return r;
@@ -224,9 +225,9 @@ router.get("/gps-sessions", async (req, res): Promise<void> => {
     const fixtureOpps = needsOpponent ? await fixtureOpponentMap(leagueId) : new Map<string, string>();
     withOpponent = rows.map(r => {
       if (r.opponent || !r.round || !r.year) return r;
-      const rd = /^(R\d+)(?:$|-)/i.exec(r.round.trim());
-      if (!rd) return r;
-      const opp = fixtureOpps.get(`${r.year}|${squadOfRound(r.round)}|${rd[1].toUpperCase()}`);
+      const code = fixtureCode(r.round);
+      if (!code) return r;
+      const opp = fixtureOpps.get(`${r.year}|${squadOfRound(r.round)}|${code}`);
       return opp ? { ...r, opponent: opp } : r;
     });
   }
@@ -277,12 +278,12 @@ router.get("/gps-opponent-mismatches", async (req, res): Promise<void> => {
   for (const r of carried) {
     const round = r.round!.trim();
     const gpsOpponent = r.opponent!.trim();
-    const rd = /^(R\d+)(?:$|-)/i.exec(round);
-    if (!rd) continue;
+    const code = fixtureCode(round);
+    if (!code) continue;
     const squad = squadOfRound(round);
     const fixtureOpponent = ownOpps
-      ? ownOpps.get(`${r.year}|${rd[1].toUpperCase()}`)
-      : fixtureOpps.get(`${r.year}|${squad}|${rd[1].toUpperCase()}`);
+      ? ownOpps.get(`${r.year}|${code}`)
+      : fixtureOpps.get(`${r.year}|${squad}|${code}`);
     if (!fixtureOpponent || agrees(gpsOpponent, fixtureOpponent)) continue;
     const key = `${r.year}|${round}|${norm(gpsOpponent)}`;
     if (seen.has(key)) continue;

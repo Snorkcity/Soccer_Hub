@@ -17,7 +17,7 @@
  *    only" note instead of volume commentary.
  */
 import type { GpsSession } from "@workspace/api-client-react";
-import { gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
+import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 const BASELINE_MIN_MINS = 45; // a match must be this long to shape a baseline
@@ -38,7 +38,8 @@ export interface TeamStatLine {
 export interface HalfLine {
   id: string; label: string; unit: string; decimals: number;
   h1: number | null; h2: number | null; changePct: number | null;
-  et?: number | null;
+  /** Present for 120-minute matches; optional for saved legacy reports. */
+  extraTime?: number | null;
   /** Season context (optional — absent in reports saved before it existed):
    * the squad's usual 2nd-half change plus the best/worst game this season. */
   seasonChangePct?: number | null;
@@ -180,10 +181,11 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
       b = { round: r.round!, date: parseDate(r.sessionDate), opponent: r.opponent ?? null, dateLabel: r.sessionDate ?? null };
       byKey.set(key, b);
     }
-    if (r.splitName === "game") b.game = r;
-    else if (r.splitName === "1st.half") b.h1 = r;
-    else if (r.splitName === "2nd.half") b.h2 = r;
-    else if (r.splitName?.toLowerCase() === "extra-time") b.et = r;
+    const split = canonicalGpsMatchSplit(r.splitName);
+    if (split === "game") b.game = r;
+    else if (split === "1st.half") b.h1 = r;
+    else if (split === "2nd.half") b.h2 = r;
+    else if (split === "extra-time") b.et = r;
   }
 
   const byPlayer = new Map<string, Bundle[]>();
@@ -320,7 +322,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const vs = bothHalves.map(b => (b[side] ? f(b[side]!) : null)).filter((v): v is number => v != null);
     return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
   };
-  const etSum = (f: (r: GpsSession) => Num): Num => {
+  const extraTimeSum = (f: (r: GpsSession) => Num): Num => {
     const vs = matchBundles.map(({ b }) => b.et ? f(b.et) : null).filter((v): v is number => v != null);
     return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
   };
@@ -359,7 +361,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const bestX = others.length ? others.reduce((p, x) => (x.pct > p.pct ? x : p)) : null;
     const worstX = others.length ? others.reduce((p, x) => (x.pct < p.pct ? x : p)) : null;
     return {
-      id, label, unit, decimals, h1, h2, et: etSum(f), changePct: pctDelta(h2, h1),
+      id, label, unit, decimals, h1, h2, extraTime: extraTimeSum(f), changePct: pctDelta(h2, h1),
       seasonChangePct: avg(others.map(x => x.pct)),
       bestChange: bestX ? { pct: bestX.pct, round: roundLabel(bestX.rd) } : null,
       worstChange: worstX ? { pct: worstX.pct, round: roundLabel(worstX.rd) } : null,

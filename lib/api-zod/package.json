@@ -7,8 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test:timing": "node --experimental-strip-types --test test/nplb-timing.test.mjs",
-    "test:gps": "node --experimental-strip-types --test test/gps.test.mjs"
+    "test:timing": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "zod": "catalog:"

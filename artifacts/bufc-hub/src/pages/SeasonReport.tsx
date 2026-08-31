@@ -10,6 +10,7 @@ import {
   useListGpsSessions, getListGpsSessionsQueryKey,
   type GpsSession,
 } from '@workspace/api-client-react';
+import { canonicalGpsMatchSplit, summarizeGpsPeriodValues } from '@workspace/api-zod';
 import { useActiveLeague, useViewingTeam } from '@/contexts/LeagueContext';
 import { useLeagueModules } from '@/hooks/useLeagueModules';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -159,18 +160,46 @@ export default function SeasonReport() {
     }
     const out: GpsRound[] = [];
     for (const [round, list] of byRound.entries()) {
-      const game = list.filter(r => r.splitName === 'game');
-      const h1 = list.filter(r => r.splitName === '1st.half');
-      const h2 = list.filter(r => r.splitName === '2nd.half');
+      const game = list.filter(r => canonicalGpsMatchSplit(r.splitName) === 'game');
+      const h1 = list.filter(r => canonicalGpsMatchSplit(r.splitName) === '1st.half');
+      const h2 = list.filter(r => canonicalGpsMatchSplit(r.splitName) === '2nd.half');
+      const et = list.filter(r => canonicalGpsMatchSplit(r.splitName) === 'extra-time');
       const sum = (xs: GpsSession[], f: (r: GpsSession) => number | null | undefined) =>
         xs.reduce<{ v: number; n: number }>((a, r) => {
           const v = f(r);
           return v == null ? a : { v: a.v + v, n: a.n + 1 };
         }, { v: 0, n: 0 });
-      const src = game.length ? game : [...h1, ...h2]; // halves fallback when no game split
-      const km = sum(src, r => r.distanceKm);
-      const mins = sum(src, r => r.minsPlayed);
-      const hsm = sum(src, r => r.sprintDistanceM);
+      const byPlayer = new Map<string, { game?: GpsSession; h1?: GpsSession; h2?: GpsSession; et?: GpsSession }>();
+      for (const row of list) {
+        const bundle = byPlayer.get(row.playerName!) ?? {};
+        const split = canonicalGpsMatchSplit(row.splitName);
+        if (split === 'game') bundle.game = row;
+        else if (split === '1st.half') bundle.h1 = row;
+        else if (split === '2nd.half') bundle.h2 = row;
+        else if (split === 'extra-time') bundle.et = row;
+        byPlayer.set(row.playerName!, bundle);
+      }
+      const playerTotals = [...byPlayer.values()].map((bundle) => {
+        const metric = (f: (row: GpsSession) => number | null | undefined) => summarizeGpsPeriodValues({
+          game: bundle.game ? f(bundle.game) ?? null : null,
+          firstHalf: bundle.h1 ? f(bundle.h1) ?? null : null,
+          secondHalf: bundle.h2 ? f(bundle.h2) ?? null : null,
+          extraTime: bundle.et ? f(bundle.et) ?? null : null,
+        }, true).match;
+        return {
+          km: metric(row => row.distanceKm),
+          mins: metric(row => row.minsPlayed),
+          hsm: metric(row => row.sprintDistanceM),
+        };
+      });
+      const aggregate = (key: keyof typeof playerTotals[number]) => {
+        const values = playerTotals.map(row => row[key]).filter((value): value is number => value != null);
+        return { v: values.reduce((a, b) => a + b, 0), n: values.length };
+      };
+      const km = aggregate('km');
+      const mins = aggregate('mins');
+      const hsm = aggregate('hsm');
+      const src = game[0] ?? h1[0] ?? h2[0] ?? et[0];
       const dpmOf = (xs: GpsSession[]) => {
         const k = sum(xs, r => r.distanceKm); const m = sum(xs, r => r.minsPlayed);
         return k.n && m.v > 0 ? (k.v * 1000) / m.v : null;
@@ -178,13 +207,13 @@ export default function SeasonReport() {
       const d1 = dpmOf(h1); const d2 = dpmOf(h2);
       out.push({
         round,
-        date: src[0]?.sessionDate ?? null,
-        opponent: src[0]?.opponent ?? null,
+        date: src?.sessionDate ?? null,
+        opponent: src?.opponent ?? null,
         km: km.n ? km.v : null,
         dpm: km.n && mins.v > 0 ? (km.v * 1000) / mins.v : null,
         hsmPerMin: hsm.n && mins.v > 0 ? hsm.v / mins.v : null,
         h2DpmChangePct: d1 != null && d2 != null && d1 > 0 ? ((d2 - d1) / d1) * 100 : null,
-        players: new Set(game.map(r => r.playerName)).size || new Set(src.map(r => r.playerName)).size,
+        players: byPlayer.size,
       });
     }
     // GPS session dates are dd/mm/yyyy — a plain string sort scrambles the

@@ -12,6 +12,9 @@ description: gitPush can silently fail; how to verify a deploy actually landed o
     **Why:** a rename-aware name-only diff emits only the new path, leaving the old blob in the GitHub tree and causing an otherwise unexplained tree-SHA mismatch.
     **How to apply:** build connector tree entries from a no-renames diff, including explicit `sha: null` deletions, before comparing the generated tree SHA with the tested local tree.
 - To confirm prod is serving new frontend code: `curl -s https://app.gameinsights.com.au/` → get `assets/index-*.js` hash. Feature code may live in a lazy chunk (e.g. `assets/playerGpsReport-*.js`, other *Pptx chunks) — grep the chunk, not index.js, for a distinctive new string.
+- Railway can produce a different Vite asset hash from a local build even when the checked-in build command is reproduced exactly.
+  **Why:** Node/toolchain/environment differences changed the hash while the deployed minified feature code matched the validated release tree byte-for-byte around distinctive markers.
+  **How to apply:** require a healthy endpoint and a live hash change, then compare distinctive minified snippets/marker counts against the validated release bundle; do not require local/live filenames to match.
 - Railway "REMOVED" deployment history entries are normal (old deploys retired when a new one activates), not failures.
 
 ## Parallel task-agent merges can scramble a shared file

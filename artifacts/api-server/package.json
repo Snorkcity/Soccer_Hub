@@ -13,6 +13,7 @@
     "test:veo-score": "node scripts/test-veo-score.mjs",
     "test:veo-linking": "node scripts/test-veo-linking.mjs",
     "test:match-stat-provenance": "node scripts/test-match-stat-provenance.mjs",
+    "test:nplb-borrowing": "node scripts/test-nplb-borrowing.mjs",
     "test:assistant-coaching": "node scripts/test-assistant-coaching.mjs",
     "test:curriculum": "node scripts/test-curriculum-management.mjs",
     "test:curriculum-api": "node scripts/test-curriculum-api.mjs"

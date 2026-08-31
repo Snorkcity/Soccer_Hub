@@ -16,7 +16,7 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - Catapult CSV parsed client-side; header map verified against the real 109-column export (29 columns used, rest ignored). Two file modes: coach's weekly sheet has her own Round/Opponent/Date/Session Title/Mins columns and holds BOTH squads in one file — upload auto-groups by Round column and saves one request per round with form disabled. Raw exports without a Round column fall back to the form (date/round-code/squad/opponent, `round` = `${code}-${squad}`, 2025+ suffix convention). Her I–M columns (Score/Formations/Conditions/Venue) are ignored by design.
 - Mins played pre-filled from Duration secs ÷ 60 (matches her sheet values exactly), editable per row before save.
 - Paste option: textarea accepts one game's rows (TSV from Excel copy or CSV text) parsed via XLSX string mode; same form fields/flow as file upload. Raw Catapult calls the whole-match split "all" — parser maps it to `game`.
-- splitName MUST be canonicalised to lowercase literals (`game`/`1st.half`/`2nd.half`) before save — charts match exactly; thirds/extra-time and non-game tag rows are dropped at parse. tags always saved as "game".
+- splitName MUST be canonicalised before save (`game`/`1st.half`/`2nd.half`/`extra-time`). Catapult's real combined ET label is `Extra-time`; readers must classify case-insensitively because seeded history preserves source casing. Unknown periods are warned and skipped, never silently dropped. tags always save as "game".
 - Replace-semantics per (year, round, teamId); POST /entry/gps-sessions.
 
 ## Round codes & squads
@@ -24,8 +24,8 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - `player_id` is null in gps_sessions; everything keys off `player_name` (first names). GET /gps-sessions supports `playerName` and `split` query params for this.
 
 ## Split rows
-- Each game has rows per split: `game` (whole match), `1st.half`, `2nd.half`; occasional thirds/Extra-time ignored. Filter `tags === 'game'`.
-- Chart convention: stack halves only when BOTH halves exist; otherwise render the game-row total as a single bar (a lone half stacked would show a false-zero half). `bundleTotal` = game row first, halves sum/max as fallback.
+- Each game has rows per split: `game` (whole match), `1st.half`, `2nd.half`, and for knockout matches a combined `Extra-time`. Filter `tags === 'game'`.
+- Chart/report convention: whole-game values are authoritative. Regulation halves and ET remain visible as period detail; period sums/max are fallback totals only when the game value is absent. Never let a split stack visually replace a present game value.
 - Dates are `DD/MM/YYYY` text; parse manually, treat unparseable as unknown and sort last.
 
 **Why:** these conventions came out of matching the coach's old app exactly (he asked for like-for-like charts) plus an architect-review fix for the lone-half false-zero bug.

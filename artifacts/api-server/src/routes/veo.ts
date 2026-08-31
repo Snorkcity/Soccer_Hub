@@ -1422,6 +1422,7 @@ function computeMatchIntel(
   const periodRows = Array.isArray(periods)
     ? (periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
   const durMin = veoPeriodDurationsMinutes(periodRows, timing);
+  const matchMinutes = veoMatchDurationMinutes(durMin, timing);
   const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
   const halfAt = veoPeriodStartMinute(1, durMin, timing);
   const playedMin = durMin.reduce((a, b) => a + b, 0);
@@ -1660,8 +1661,8 @@ function computeReportStats(events: unknown[], periods: unknown, timing: MatchTi
 
   // Minute-of-match using real period durations when Veo provides them.
   const durMin = veoPeriodDurationsMinutes(periods, timing);
-  const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
   const matchMinutes = veoMatchDurationMinutes(durMin, timing);
+  const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
   const bins = Math.ceil(matchMinutes / BIN_MIN);
   const momentum = Array.from({ length: bins }, (_, i) => ({ min: i * BIN_MIN, us: 0, them: 0 }));
   for (const e of evts) {

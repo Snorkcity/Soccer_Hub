@@ -3073,6 +3073,10 @@ export interface DriblPreviewClubStats {
 export interface DriblPreviewMatch {
   matchId: string;
   round: number;
+  /** Human-readable Dribl stage, for example "Round 20" or "Finals Week 1 · Game 1" */
+  stageLabel: string;
+  /** True only for genuine numbered regular-season rounds */
+  countsTowardLadder: boolean;
   matchDate: string;
   homeTeam: string;
   awayTeam: string;

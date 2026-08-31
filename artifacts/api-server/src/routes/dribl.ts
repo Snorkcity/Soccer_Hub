@@ -23,6 +23,8 @@ import {
   UpdateDriblNameMapResponse,
   DeleteDriblNameMapResponse,
   clubCodesFor,
+  classifyDriblCompetitionStage,
+  fixtureCode,
 } from "@workspace/api-zod";
 import { leagueIdForSeason, mayTouchLeagueRow } from "../middlewares/entryAuth";
 import { pgErrorCode } from "../lib/pgError";
@@ -458,7 +460,7 @@ async function buildPreview(
   // Per-league unique 3-letter codes for new match IDs (Sydney Uni/Olympic etc.
   // would otherwise both be SYD and risk two fixtures sharing one ID).
   const clubCodes = clubCodesFor(clubs);
-  // Existing matches are matched on round + home + away (with match-date as a
+  // Existing matches are matched on fixture code + home + away (with match-date as a
   // backup), NOT on the match-ID string — hand-entered games use their own club
   // codes (e.g. BELR vs BEL) so rebuilding the ID from club names won't line up.
   const existingRows = await db.select({
@@ -468,10 +470,11 @@ async function buildPreview(
     awayTeam: leagueMatchesTable.awayTeam,
   }).from(leagueMatchesTable).where(eq(leagueMatchesTable.seasonId, seasonId));
   const existingByKey = new Map<string, string>(); // lookup key -> existing matchId
+  const existingByDate = new Map<string, string>();
   for (const r of existingRows) {
-    const roundFromId = /^R(\d+)-/.exec(r.matchId)?.[1];
-    if (roundFromId) existingByKey.set(`r${roundFromId}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
-    if (r.matchDate) existingByKey.set(`d${r.matchDate}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
+    const code = fixtureCode(r.matchId);
+    if (code) existingByKey.set(`c${code}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
+    if (r.matchDate) existingByDate.set(`d${r.matchDate}|${r.homeTeam}|${r.awayTeam}`, r.matchId);
   }
   // Goals already logged per match — so a re-sync can top up missing goals
   // (e.g. after a partial import) without ever duplicating rows.
@@ -580,11 +583,9 @@ async function buildPreview(
     if (v == null) {
       const home = matchClub(f.homeTeamName, clubs);
       const away = matchClub(f.awayTeamName, clubs);
-      const round = parseInt(f.fullRound.replace(/\D/g, ""), 10) || 0;
-      const localDate = toLocalDbDate(f.date);
+      const stage = classifyDriblCompetitionStage(f.fullRound);
       v = home != null && away != null &&
-        (existingByKey.get(`r${round}|${home}|${away}`) ??
-          (localDate ? existingByKey.get(`d${localDate}|${home}|${away}`) : undefined)) != null;
+        (stage.code ? existingByKey.get(`c${stage.code}|${home}|${away}`) : undefined) != null;
       recordedCache.set(f, v);
     }
     return v;
@@ -597,14 +598,26 @@ async function buildPreview(
     const unmatched: string[] = [];
     if (!home) unmatched.push(f.homeTeamName);
     if (!away) unmatched.push(f.awayTeamName);
-    const round = parseInt(f.fullRound.replace(/\D/g, ""), 10) || 0;
+    const stage = classifyDriblCompetitionStage(f.fullRound);
+    if (stage.kind === "unknown") {
+      unmatched.push(`Unrecognised Dribl stage: "${stage.label}"`);
+    }
     const localDate = toLocalDbDate(f.date);
     const existingId = home && away
-      ? existingByKey.get(`r${round}|${home}|${away}`) ?? (localDate ? existingByKey.get(`d${localDate}|${home}|${away}`) : undefined)
+      ? (stage.code ? existingByKey.get(`c${stage.code}|${home}|${away}`) : undefined)
       : undefined;
+    const dateMatchId = home && away && localDate
+      ? existingByDate.get(`d${localDate}|${home}|${away}`)
+      : undefined;
+    if (!existingId && dateMatchId) {
+      unmatched.push(`Existing match on this date uses incompatible fixture code: ${dateMatchId}`);
+    }
     // Reuse the hand-entered match ID when the game is already recorded, so
     // goal top-ups land on the right row instead of creating a duplicate.
-    const matchId = existingId ?? (home && away ? `R${round}-${clubCodes[home] ?? "?"}-${clubCodes[away] ?? "?"}` : `R${round}-?`);
+    const matchId = existingId ??
+      (stage.code && home && away
+        ? `${stage.code}-${clubCodes[home] ?? "?"}-${clubCodes[away] ?? "?"}`
+        : `UNSUPPORTED-${clubCodes[home ?? ""] ?? "?"}-${clubCodes[away ?? ""] ?? "?"}`);
     const exists = existingId != null;
     // For matches already recorded, only re-fetch detail when the logged goal
     // count falls short of the scoreline (a partial import worth topping up).
@@ -629,7 +642,7 @@ async function buildPreview(
     if (getLineup && home) wantStats(home, "home");
     if (getLineup && away) wantStats(away, "away");
     const playerStats: Array<{ club: string; exists: boolean; rows: unknown[] }> = [];
-    if (home && away && (!exists || goalsShort || statsWanted.length > 0)) {
+    if (stage.kind !== "unknown" && home && away && (!exists || goalsShort || statsWanted.length > 0)) {
       try {
         const detail = await getDetail(f.matchHashId);
         if (!detail) {
@@ -695,7 +708,10 @@ async function buildPreview(
     }
 
     matches.push({
-      matchId, round,
+      matchId,
+      round: stage.round ?? 0,
+      stageLabel: stage.label,
+      countsTowardLadder: stage.countsTowardLadder,
       matchDate: localDate,
       homeTeam: home ?? "", awayTeam: away ?? "",
       driblHome: f.homeTeamName, driblAway: f.awayTeamName,
@@ -718,7 +734,7 @@ async function buildPreview(
     }
   }
 
-  matches.sort((x, y) => (x.round as number) - (y.round as number) || String(x.matchDate).localeCompare(String(y.matchDate)));
+  matches.sort((x, y) => String(x.matchDate).localeCompare(String(y.matchDate)) || String(x.matchId).localeCompare(String(y.matchId)));
 
   // Flag display names claimed FRESH this sync (no prior dribl_name_map row) on
   // each club's line-up block, so the coach gets a review nudge before the

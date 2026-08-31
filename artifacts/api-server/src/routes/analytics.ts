@@ -66,9 +66,11 @@ import {
   goalIntervalIndex,
   isActNplbLeague,
   matchTimingForLeague,
+  isRegularSeasonMatchId,
+  fixtureCode,
 } from "@workspace/api-zod";
 import { focusClubForRequest } from "../lib/focusClub";
-import { nplbBorrowDirection, nplbGrade, nplbHomeGrade } from "../lib/nplb2026";
+import { compareNplbPlayerRows, nplbBorrowDirection, nplbGrade, nplbHomeGrade, nplbPlayerIdentityKey } from "../lib/nplb2026";
 import { buildDnaStory, dnaCatOfType, dnaCatLabel } from "../lib/goalDnaStory";
 import { goalIntelReads, gameVsSeasonReads } from "../lib/goalIntel";
 
@@ -91,7 +93,7 @@ const isFocusGoal = (
 
 async function isNplbSeason(seasonId: number): Promise<boolean> {
   const [seasonLeague] = await db
-    .select({ name: leaguesTable.name })
+    .select({ name: leaguesTable.name, year: seasonsTable.year })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId))
@@ -212,7 +214,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
   const { teamId, seasonId, lastN } = query.data;
   const focusClub = await focusClubForRequest(req, seasonId);
   const [seasonLeague] = await db
-    .select({ name: leaguesTable.name })
+    .select({ name: leaguesTable.name, year: seasonsTable.year })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId))
@@ -256,6 +258,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
       driblUserId: leaguePlayerStatsTable.driblUserId,
       borrowed: leaguePlayerStatsTable.borrowed,
       leagueName: leaguesTable.name,
+      seasonYear: seasonsTable.year,
     })
     .from(leaguePlayerStatsTable)
     .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
@@ -318,7 +321,7 @@ router.get("/analytics/player-leaderboard", async (req, res): Promise<void> => {
     }
     if (s.started) e.starts++;
     if (s.borrowed) {
-      const direction = nplbBorrowDirection(currentNplbGrade, s.driblUserId, borrowingEvidence);
+      const direction = nplbBorrowDirection(currentNplbGrade, s.driblUserId, borrowingEvidence, seasonLeague?.year ?? "");
       if (direction === "up") e.borrowedUp++;
       else if (direction === "down") e.borrowedDown++;
       else e.borrowedUnknown++;
@@ -361,7 +364,7 @@ router.get("/analytics/nplb-player-leaderboard", async (req, res): Promise<void>
   const { teamId, seasonId, lastN } = query.data;
   const focusClub = await focusClubForRequest(req, seasonId);
   const [seasonLeague] = await db
-    .select({ name: leaguesTable.name })
+    .select({ name: leaguesTable.name, year: seasonsTable.year })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId))
@@ -406,11 +409,15 @@ router.get("/analytics/nplb-player-leaderboard", async (req, res): Promise<void>
         driblUserId: leaguePlayerStatsTable.driblUserId,
         borrowed: leaguePlayerStatsTable.borrowed,
         leagueName: leaguesTable.name,
+        seasonYear: seasonsTable.year,
       })
       .from(leaguePlayerStatsTable)
       .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
       .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
-      .where(isNotNull(leaguePlayerStatsTable.driblUserId)),
+      .where(and(
+        isNotNull(leaguePlayerStatsTable.driblUserId),
+        eq(seasonsTable.year, seasonLeague?.year ?? ""),
+      )),
   ]);
 
   type SafePlayerEntry = {
@@ -446,7 +453,7 @@ router.get("/analytics/nplb-player-leaderboard", async (req, res): Promise<void>
     };
     player.appearances += 1;
     if (stat.borrowed) {
-      const direction = nplbBorrowDirection(currentNplbGrade, stat.driblUserId, borrowingEvidence);
+      const direction = nplbBorrowDirection(currentNplbGrade, stat.driblUserId, borrowingEvidence, seasonLeague?.year ?? "");
       if (direction === "up") player.borrowedUp += 1;
       else if (direction === "down") player.borrowedDown += 1;
       else player.borrowedUnknown += 1;
@@ -505,7 +512,7 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
   for (const m of matches) {
     // Ladder counts league fixtures only — round games (R1, R2, …). Cup/tournament
     // games (CS, FCF, etc.) don't register on the league table.
-    if (!/^R\d/.test(m.matchId)) continue;
+    if (!isRegularSeasonMatchId(m.matchId)) continue;
     if (m.homeGoals == null || m.awayGoals == null) continue;
     const hg = m.homeGoals, ag = m.awayGoals;
     const home = ensure(m.homeTeam);
@@ -522,7 +529,7 @@ router.get("/analytics/league-ladder", async (req, res): Promise<void> => {
   type FormEntry = { round: string; result: "W" | "D" | "L"; opponent: string; score: string };
   const formByClub: Record<string, FormEntry[]> = {};
   const played = matches
-    .filter(m => /^R\d/.test(m.matchId) && m.homeGoals != null && m.awayGoals != null)
+    .filter(m => isRegularSeasonMatchId(m.matchId) && m.homeGoals != null && m.awayGoals != null)
     .sort((a, b) => (b.matchDate ?? "").localeCompare(a.matchDate ?? ""));
   for (const m of played) {
     const round = m.matchId.split("-")[0];
@@ -571,7 +578,7 @@ router.get("/analytics/team-form", async (req, res): Promise<void> => {
     .orderBy(matchesTable.matchDate)
     .limit(50);
 
-  const recent = matches.slice(-n);
+  const recent = matches.filter(m => isRegularSeasonMatchId(m.matchId)).slice(-n);
 
   const recentResults = recent.map(m => {
     const gs = m.goalsScored ?? 0;
@@ -1771,6 +1778,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
       driblUserId: leaguePlayerStatsTable.driblUserId,
       borrowed: leaguePlayerStatsTable.borrowed,
       leagueName: leaguesTable.name,
+      seasonYear: seasonsTable.year,
     })
     .from(leaguePlayerStatsTable)
     .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
@@ -1784,9 +1792,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     if (!isAll && r.club !== club) continue;
     const normalName = r.playerName.trim().toLowerCase();
     const normalClub = r.club?.trim().toLowerCase() ?? "";
-    const stableIdentity = r.driblUserId?.trim()
-      ? `id:${r.driblUserId.trim()}`
-      : `name:${normalName}`;
+    const stableIdentity = nplbPlayerIdentityKey(r.playerName, r.driblUserId);
     const playerKey = isNplb
       ? `${isAll ? `${normalClub}\u0000` : ""}${stableIdentity}`
       : `name:${normalName}`;
@@ -1794,7 +1800,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     if (isNplb) {
       identityProvenByPlayer[playerKey] = Boolean(r.driblUserId?.trim());
       if (!(playerKey in homeGradeByPlayer)) {
-        homeGradeByPlayer[playerKey] = nplbHomeGrade(r.driblUserId, borrowingEvidence);
+        homeGradeByPlayer[playerKey] = nplbHomeGrade(r.driblUserId, borrowingEvidence, seasonLeague?.year ?? "");
       }
       const duplicateKey = `${r.matchId}\u0000${normalClub}\u0000${stableIdentity}`;
       if (seenNplbRows.has(duplicateKey)) continue;
@@ -1818,7 +1824,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
     }
     if (isNplb && r.borrowed) {
       const tally = borrowedByPlayer[playerKey] ??= { up: 0, down: 0, unknown: 0 };
-      const direction = nplbBorrowDirection(currentNplbGrade, r.driblUserId, borrowingEvidence);
+      const direction = nplbBorrowDirection(currentNplbGrade, r.driblUserId, borrowingEvidence, seasonLeague?.year ?? "");
       if (direction === "up") tally.up++;
       else if (direction === "down") tally.down++;
       else tally.unknown++;
@@ -1908,7 +1914,7 @@ router.get("/analytics/opponent-players-by-opponent", async (req, res): Promise<
       } : {}),
       byOpponent,
     };
-  }).sort((x, y) => (y.totalGoals + y.totalAssists) - (x.totalGoals + x.totalAssists));
+  }).sort(compareNplbPlayerRows);
 
   const opponents = Array.from(allOpponentsSet).sort();
   res.json(GetOpponentPlayersByOpponentResponse.parse({ metricProfile, opponents, players }));
@@ -3183,7 +3189,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   // The date cutoff is deliberately <= this match's date: league context reads
   // as "after this round", so same-day fixtures across the league are included.
   const leagueGoalRows = await db
-    .select({ scorer: leagueGoalsTable.scorer, scorerTeam: leagueGoalsTable.scorerTeam, matchDate: leagueGoalsTable.matchDate })
+    .select({ matchId: leagueGoalsTable.matchId, scorer: leagueGoalsTable.scorer, scorerTeam: leagueGoalsTable.scorerTeam, matchDate: leagueGoalsTable.matchDate })
     .from(leagueGoalsTable)
     .where(eq(leagueGoalsTable.seasonId, seasonId));
   const cutoff = match.matchDate ?? "9999";
@@ -3191,6 +3197,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   for (const g of leagueGoalRows) {
     const name = g.scorer?.trim();
     if (!name || name === "OG") continue;
+    if (!isRegularSeasonMatchId(g.matchId)) continue;
     if ((g.matchDate ?? "") > cutoff) continue;
     const e = leagueTally.get(name) ?? { club: g.scorerTeam ?? null, count: 0 };
     e.count++;
@@ -3238,7 +3245,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
   });
 
   // ── Form strip (last 5 up to & incl. this match) + ladder position ────────
-  const form = upTo.slice(-5).map(m => ({
+  const form = upTo.filter(m => isRegularSeasonMatchId(m.matchId)).slice(-5).map(m => ({
     result: resultOf(m) ?? "?",
     opponent: m.opponent,
     score: m.goalsScored != null && m.goalsConceded != null ? `${m.goalsScored}–${m.goalsConceded}` : "—",
@@ -3250,7 +3257,7 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
     .where(eq(leagueMatchesTable.seasonId, seasonId));
   const standings = new Map<string, { pts: number; gd: number; gf: number }>();
   for (const m of leagueMatches) {
-    if (!/^R\d/.test(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
+    if (!isRegularSeasonMatchId(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
     if ((m.matchDate ?? "") > cutoff) continue;
     const upd = (club: string, gf: number, ga: number) => {
       const e = standings.get(club) ?? { pts: 0, gd: 0, gf: 0 };
@@ -4054,9 +4061,9 @@ router.get("/analytics/match-report", async (req, res): Promise<void> => {
       ? leagueRow.gpsSourceSquad
       : "1sts";
     const allRows = (await gpsRowsQuery).filter(
-      r => /^R\d+(-[A-Za-z0-9]+)?$/i.test(r.round ?? "") && squadOfRound(r.round) === wantSquad,
+      r => fixtureCode(r.round) != null && squadOfRound(r.round) === wantSquad,
     );
-    const roundKey = (r: string) => r.replace(/-[A-Za-z0-9]+$/i, "").toUpperCase();
+    const roundKey = (r: string) => fixtureCode(r) ?? r.toUpperCase();
     const gpsRows = allRows.filter(r => roundKey(r.round!) === roundShort.toUpperCase());
     if (gpsRows.length) {
       const positions = await db.select().from(gpsPlayerPositionsTable);
@@ -4237,12 +4244,12 @@ router.get("/analytics/season-report", async (req, res): Promise<void> => {
     .select()
     .from(leagueMatchesTable)
     .where(eq(leagueMatchesTable.seasonId, seasonId)))
-    .filter(m => /^R\d/.test(m.matchId) && m.homeGoals != null && m.awayGoals != null);
+    .filter(m => isRegularSeasonMatchId(m.matchId) && m.homeGoals != null && m.awayGoals != null);
   const lgGoals = (await db
     .select()
     .from(leagueGoalsTable)
     .where(eq(leagueGoalsTable.seasonId, seasonId)))
-    .filter(g => /^R\d/.test(g.matchId));
+    .filter(g => isRegularSeasonMatchId(g.matchId));
   const leagueAvgGoals = lgMatches.length >= 5
     ? lgMatches.reduce((s, m) => s + (m.homeGoals ?? 0) + (m.awayGoals ?? 0), 0) / (lgMatches.length * 2)
     : null;
@@ -4392,7 +4399,7 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
     .from(leagueMatchesTable)
     .where(eq(leagueMatchesTable.seasonId, seasonId));
   const clubMatches = allLeagueMatches
-    .filter(m => (m.homeTeam === club || m.awayTeam === club) && /^R\d/.test(m.matchId))
+    .filter(m => m.homeTeam === club || m.awayTeam === club)
     .sort((a, b) => (a.matchDate ?? "").localeCompare(b.matchDate ?? "") || a.matchId.localeCompare(b.matchId));
   const match = clubMatches.find(m => m.matchId === matchId);
   if (!match) { res.status(404).json({ error: "Match not found" }); return; }
@@ -4462,7 +4469,7 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   });
 
   // ── Form + ladder as of this date ─────────────────────────────────────────
-  const form = upTo.slice(-5).map(m => ({
+  const form = upTo.filter(m => isRegularSeasonMatchId(m.matchId)).slice(-5).map(m => ({
     result: resultOf(m) ?? "?",
     opponent: oppOf(m),
     score: scoredOf(m) != null && concededOf(m) != null ? `${scoredOf(m)}–${concededOf(m)}` : "—",
@@ -4471,7 +4478,7 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   const cutoff = match.matchDate ?? "9999";
   const standings = new Map<string, { pts: number; gd: number; gf: number }>();
   for (const m of allLeagueMatches) {
-    if (!/^R\d/.test(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
+    if (!isRegularSeasonMatchId(m.matchId) || m.homeGoals == null || m.awayGoals == null) continue;
     if ((m.matchDate ?? "") > cutoff) continue;
     const upd = (c: string, gf: number, ga: number) => {
       const e = standings.get(c) ?? { pts: 0, gd: 0, gf: 0 };
@@ -4756,7 +4763,7 @@ router.get("/analytics/opponent-match-report", async (req, res): Promise<void> =
   // this round; a club player high (or climbing) in those rankings is a threat.
   {
     const leagueIdsUpTo = allLeagueMatches
-      .filter(m => /^R\d/.test(m.matchId) && (m.matchDate ?? "") <= cutoff && m.homeGoals != null && m.awayGoals != null)
+      .filter(m => isRegularSeasonMatchId(m.matchId) && (m.matchDate ?? "") <= cutoff && m.homeGoals != null && m.awayGoals != null)
       .map(m => m.matchId);
     if (leagueIdsUpTo.length) {
       const lps = await db

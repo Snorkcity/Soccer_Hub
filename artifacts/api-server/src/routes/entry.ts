@@ -69,6 +69,7 @@ import {
   ListEntryGpsFixturesResponse,
   isActNplbLeague,
   canonicalGpsSplit,
+  fixtureCode,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { focusClubForRequest } from "../lib/focusClub";
@@ -871,30 +872,34 @@ router.get("/entry/player-stats", async (req, res): Promise<void> => {
     ))
     .orderBy(leaguePlayerStatsTable.playerName);
   const [league] = await db
-    .select({ name: leaguesTable.name })
+    .select({ name: leaguesTable.name, year: seasonsTable.year })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
     .where(eq(seasonsTable.id, seasonId))
     .limit(1);
   const currentGrade = nplbGrade(league?.name);
-  let evidence: Array<{ driblUserId: string | null; borrowed: boolean; leagueName: string }> = [];
+  let evidence: Array<{ driblUserId: string | null; borrowed: boolean; leagueName: string; seasonYear: string }> = [];
   if (currentGrade != null && rows.some(row => row.borrowed && row.driblUserId)) {
     evidence = await db
       .select({
         driblUserId: leaguePlayerStatsTable.driblUserId,
         borrowed: leaguePlayerStatsTable.borrowed,
         leagueName: leaguesTable.name,
+        seasonYear: seasonsTable.year,
       })
       .from(leaguePlayerStatsTable)
       .innerJoin(seasonsTable, eq(leaguePlayerStatsTable.seasonId, seasonsTable.id))
       .innerJoin(leaguesTable, eq(seasonsTable.leagueId, leaguesTable.id))
-      .where(isNotNull(leaguePlayerStatsTable.driblUserId));
+      .where(and(
+        isNotNull(leaguePlayerStatsTable.driblUserId),
+        eq(seasonsTable.year, league?.year ?? ""),
+      ));
   }
   res.json(ListEntryPlayerStatsResponse.parse({
     rows: rows.map(row => ({
       ...row,
       borrowDirection: row.borrowed
-        ? nplbBorrowDirection(currentGrade, row.driblUserId, evidence)
+        ? nplbBorrowDirection(currentGrade, row.driblUserId, evidence, league?.year ?? "")
         : null,
     })),
   }));
@@ -1745,10 +1750,10 @@ router.get("/entry/gps-fixtures", async (req, res): Promise<void> => {
   const out = fixtures.flatMap(f => {
     const info = seasonInfo.get(f.seasonId);
     if (!info) return [];
-    const rd = /^(R\d+)(?:$|-)/i.exec(f.matchId ?? "");
-    if (!rd) return [];
+    const code = fixtureCode(f.matchId);
+    if (!code) return [];
     return [{
-      round: rd[1].toUpperCase(),
+      round: code,
       opponent: f.opponent,
       matchDate: f.matchDate,
       matchDateIso: fixtureDateIso(f.matchDate),
@@ -1756,11 +1761,10 @@ router.get("/entry/gps-fixtures", async (req, res): Promise<void> => {
       squad: info.squad,
     }];
   });
-  const roundNum = (r: string) => Number(r.slice(1)) || 0;
   const squadRank = (s: string) => (s === "1sts" ? 0 : 1);
   out.sort((a, b) =>
     b.year.localeCompare(a.year) ||
-    roundNum(b.round) - roundNum(a.round) ||
+    (b.matchDate ?? "").localeCompare(a.matchDate ?? "") ||
     squadRank(a.squad) - squadRank(b.squad));
   res.json(ListEntryGpsFixturesResponse.parse(out));
 });

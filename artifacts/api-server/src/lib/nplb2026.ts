@@ -17,7 +17,27 @@ export type NplbBorrowingEvidence = {
   driblUserId: string | null;
   borrowed: boolean;
   leagueName: string;
+  seasonYear: string;
 };
+
+export function nplbPlayerIdentityKey(
+  playerName: string,
+  driblUserId: string | null | undefined,
+): string {
+  const stableId = driblUserId?.trim();
+  return stableId
+    ? `id:${stableId}`
+    : `name:${playerName.trim().toLowerCase()}`;
+}
+
+export function compareNplbPlayerRows(
+  a: { totalGoals: number; totalAssists: number; playerName: string; identityKey?: string },
+  b: { totalGoals: number; totalAssists: number; playerName: string; identityKey?: string },
+): number {
+  return (b.totalGoals + b.totalAssists) - (a.totalGoals + a.totalAssists) ||
+    a.playerName.localeCompare(b.playerName) ||
+    (a.identityKey ?? "").localeCompare(b.identityKey ?? "");
+}
 
 export function nplbGrade(leagueName: string | null | undefined): number | null {
   return actNplbGrade(leagueName);
@@ -27,8 +47,9 @@ export function nplbBorrowDirection(
   currentGrade: number | null,
   driblUserId: string | null | undefined,
   evidence: NplbBorrowingEvidence[],
+  seasonYear: string,
 ): NplbBorrowDirection {
-  const homeGrade = nplbHomeGrade(driblUserId, evidence);
+  const homeGrade = nplbHomeGrade(driblUserId, evidence, seasonYear);
   if (currentGrade == null || homeGrade == null) return "unknown";
   if (homeGrade < currentGrade) return "up";
   if (homeGrade > currentGrade) return "down";
@@ -38,11 +59,16 @@ export function nplbBorrowDirection(
 export function nplbHomeGrade(
   driblUserId: string | null | undefined,
   evidence: NplbBorrowingEvidence[],
+  seasonYear: string,
 ): number | null {
   if (!driblUserId) return null;
   const homeGrades = new Set(
     evidence
-      .filter(row => row.driblUserId === driblUserId && !row.borrowed)
+      .filter(row =>
+        row.seasonYear === seasonYear &&
+        row.driblUserId === driblUserId &&
+        !row.borrowed
+      )
       .map(row => nplbGrade(row.leagueName))
       .filter((grade): grade is number => grade != null),
   );

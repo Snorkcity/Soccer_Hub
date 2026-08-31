@@ -89,16 +89,20 @@ export async function generateTeamGpsMatchReport(
   // ── Halves ─────────────────────────────────────────────────────────────────
   if (model.halves.length) {
     const s = pptx.addSlide();
-    const hasEt = model.halves.some(h => h.et != null);
     s.background = { color: BG };
-    addHeader(s, "First half vs second half", "Summed across every player with half splits. Season columns show the squad's usual second-half change and the best/worst game this year.");
+    const hasExtraTime = model.halves.some((line) => line.extraTime != null);
+    addHeader(s, "Match periods", hasExtraTime
+      ? "Regulation halves and extra time, summed across players. Season comparisons use regulation halves only."
+      : "Summed across every player with half splits. Season columns show the squad's usual second-half change and the best/worst game this year.");
     const pctTxt = (p: number | null | undefined) =>
       p == null ? "—" : `${p >= 0 ? "up" : "down"} ${Math.abs(p).toFixed(0)}%`;
     const rows: Cell[][] = [[
       { text: "Team output", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "left" } },
       { text: "1st half", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
       { text: "2nd half", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
-      ...(hasEt ? [{ text: "Extra time", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" as const } }] : []),
+      ...(hasExtraTime
+        ? [{ text: "Extra time", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" as const } }]
+        : []),
       { text: "Change", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
       { text: "Season usual", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
       { text: "Best · worst", options: { bold: true, color: NAVY, fill: { color: SKY }, align: "center" } },
@@ -116,7 +120,9 @@ export async function generateTeamGpsMatchReport(
         { text: hl.label, options: { align: "left", color: INK, fill: { color: fillCol } } },
         { text: fmt(hl.h1, hl.decimals, hl.unit), options: { align: "center", color: PAPER, fill: { color: fillCol } } },
         { text: fmt(hl.h2, hl.decimals, hl.unit), options: { align: "center", color: PAPER, fill: { color: fillCol } } },
-        ...(hasEt ? [{ text: fmt(hl.et ?? null, hl.decimals, hl.unit), options: { align: "center" as const, color: PAPER, fill: { color: fillCol } } }] : []),
+        ...(hasExtraTime
+          ? [{ text: fmt(hl.extraTime ?? null, hl.decimals, hl.unit), options: { align: "center" as const, color: PAPER, fill: { color: fillCol } } }]
+          : []),
         { text: pctTxt(hl.changePct),
           options: { align: "center", bold: true, color: hl.changePct != null && hl.changePct < -10 ? ORANGE : SKY, fill: { color: fillCol } } },
         { text: pctTxt(hl.seasonChangePct), options: { align: "center", color: GREY, fill: { color: fillCol } } },
@@ -124,8 +130,8 @@ export async function generateTeamGpsMatchReport(
       ]);
     }
     s.addTable(rows as never, {
-      x: hasEt ? 0.35 : 0.55, y: 1.7, w: hasEt ? 12.6 : 12.2,
-      colW: hasEt ? [2.6, 1.45, 1.45, 1.45, 1.55, 1.55, 2.55] : [3.4, 1.7, 1.7, 1.7, 1.7, 2.0],
+      x: 0.55, y: 1.7, w: 12.2,
+      colW: hasExtraTime ? [2.7, 1.4, 1.4, 1.5, 1.4, 1.4, 2.4] : [3.4, 1.7, 1.7, 1.7, 1.7, 2.0],
       fontSize: 12, rowH: 0.5, border: { type: "solid", color: LINE, pt: 0.5 }, valign: "middle",
     });
     const drop = model.halves.find(h => h.id === "km")?.changePct ?? null;

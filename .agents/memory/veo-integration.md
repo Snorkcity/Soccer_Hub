@@ -47,6 +47,7 @@ Design generalisable: future clubs supply their own Veo login → same flow, per
 - **own_side semantic**: `own_side` is the end OUR GOAL defends — we attack the OPPOSITE end. It's easy to invert (that once plotted every shot at the wrong end); sanity-check any pitch-oriented chart against raw per-period x values before trusting it.
 - **`/matches/{id}/periods/`** → `[{public_identifier, timeframe:[startSec,endSec], own_side:"left"|"right",
   duration, is_confirmed}]`. Needed to map period_time → overall match minute and to know which goal end is ours.
+- Match clocks use regulation length for ordinary two-period recordings (including NPLB), but 3+ periods extend to the sum of real Veo durations. Missing durations fall back to timeframe length, then 15 minutes for ET periods; never reuse a 45-minute regulation-half fallback for periods 3/4.
 - **`/matches/{id}/roster/`** → `{items:[{player:{user_id,name,initials,avatar}, jersey_number, field_position,
   position_name, is_captain}]}`. jersey_number was null on test match — player_id/name mapping may be sparse.
 - Also present: `/videos/`, `/highlights/`, `/lineup/players/` (empty on test), `/feature-processing-status/`,

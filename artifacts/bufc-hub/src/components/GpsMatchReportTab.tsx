@@ -312,8 +312,8 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
       {model.halves.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">First half vs second half</CardTitle>
-            <CardDescription className="text-xs">Summed across players with half splits. A big drop can mean fatigue — or game state. Season columns show the squad's usual second-half change and the best/worst game this year.</CardDescription>
+            <CardTitle className="text-base">Match periods</CardTitle>
+            <CardDescription className="text-xs">Regulation halves are shown separately, with extra time added when played. A big second-half drop can mean fatigue — or game state. Season columns compare regulation halves only.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -323,7 +323,9 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                     <th className="py-1.5 pr-3 font-medium">Team output</th>
                     <th className="py-1.5 px-3 text-center font-medium">1st half</th>
                     <th className="py-1.5 px-3 text-center font-medium">2nd half</th>
-                    {model.halves.some(h => h.et != null) && <th className="py-1.5 px-3 text-center font-medium">Extra time</th>}
+                    {model.halves.some(h => h.extraTime != null) && (
+                      <th className="py-1.5 px-3 text-center font-medium">Extra time</th>
+                    )}
                     <th className="py-1.5 px-3 text-center font-medium">Change</th>
                     <th className="py-1.5 px-3 text-center font-medium">Season usual</th>
                     <th className="py-1.5 pl-3 text-center font-medium">Best · worst</th>
@@ -335,7 +337,9 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                       <td className="py-1.5 pr-3">{h.label}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h1, h.decimals, h.unit)}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h2, h.decimals, h.unit)}</td>
-                      {model.halves.some(x => x.et != null) && <td className="py-1.5 px-3 text-center">{fmt(h.et ?? null, h.decimals, h.unit)}</td>}
+                      {model.halves.some(line => line.extraTime != null) && (
+                        <td className="py-1.5 px-3 text-center">{fmt(h.extraTime ?? null, h.decimals, h.unit)}</td>
+                      )}
                       <td className={`py-1.5 px-3 text-center font-medium ${h.changePct != null && h.changePct < -10 ? "text-amber-500" : ""}`}>
                         {h.changePct == null ? "—" : `${h.changePct >= 0 ? "up" : "down"} ${Math.abs(h.changePct).toFixed(0)}%`}
                       </td>

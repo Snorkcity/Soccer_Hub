@@ -34,7 +34,7 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
-import { gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
+import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -131,10 +131,11 @@ function buildBundles(rows: GpsSession[], keyOf: (r: GpsSession) => string): Bun
       b = { key, date: parseDate(r.sessionDate), opponent: r.opponent ?? null };
       map.set(key, b);
     }
-    if (r.splitName === "game") b.game = r;
-    else if (r.splitName === "1st.half") b.h1 = r;
-    else if (r.splitName === "2nd.half") b.h2 = r;
-    else if (r.splitName?.toLowerCase() === "extra-time") b.et = r;
+    const split = canonicalGpsMatchSplit(r.splitName);
+    if (split === "game") b.game = r;
+    else if (split === "1st.half") b.h1 = r;
+    else if (split === "2nd.half") b.h2 = r;
+    else if (split === "extra-time") b.et = r;
   }
   return [...map.values()];
 }
@@ -1007,7 +1008,10 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
     }
     // Only stack when BOTH halves are present — a lone half would render the
     // missing one as a false zero and understate the game.
-    const stack = metric.additive && v1 != null && v2 != null;
+    // Whole-game rows are authoritative; only render period segments when the
+    // game total is being derived from the available periods.
+    const gameValue = b.game ? metric.value(b.game) : null;
+    const stack = metric.additive && gameValue == null && v1 != null && v2 != null;
     return {
       round: b.key,
       opponent: b.opponent,
