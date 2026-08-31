@@ -46,6 +46,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
+import { SectionGroup } from "@/components/SectionGroup";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { VeoSeasonPlayers } from "@/components/veo/VeoSeasonPlayers";
 import { VeoMatchPlayers } from "@/components/veo/VeoMatchPlayers";
@@ -1384,7 +1385,17 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         <StatCard label="Corners per game" value={`${totals.cornersForPg.toFixed(1)} – ${totals.cornersAgainstPg.toFixed(1)}`} sub="us – them" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <SectionGroup
+        id="veo-season-team"
+        defaultExpandedMobile={["match-trends"]}
+        defaultExpandedDesktop={["match-trends"]}
+        sections={[
+          {
+            id: "match-trends",
+            title: "Match Trends",
+            summary: "4 charts · Shots, Goals, Corners, Field Tilt",
+            content: (
+              <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Shots per match</CardTitle>
@@ -1481,7 +1492,15 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+              </div>
+            ),
+          },
+          {
+            id: "possession-passing",
+            title: "Possession & Passing",
+            summary: "7 charts · Possession, Passing, Regains, Territory",
+            content: (
+              <div className="space-y-6">
 
       {(
         <>
@@ -1747,6 +1766,15 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
           )}
         </>
       )}
+              </div>
+            ),
+          },
+          {
+            id: "shooting-threat",
+            title: "Shooting & Threat",
+            summary: "3 charts · Shot Map, Our Threat, Their Threat",
+            content: (
+              <div className="space-y-6">
 
       <Card>
         <CardHeader>
@@ -1839,6 +1867,11 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
           </CardContent>
         </Card>
       </div>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -2337,6 +2370,17 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
         </CardContent>
       </Card>
 
+      <SectionGroup
+        id="veo-match-team"
+        defaultExpandedMobile={["match-summary-possession"]}
+        defaultExpandedDesktop={["match-summary-possession"]}
+        sections={[
+          {
+            id: "match-summary-possession",
+            title: "Match Summary & Possession",
+            summary: "7 charts · Match Story, Passing, Possession",
+            content: (
+              <div className="space-y-6">
       {radar.length >= 3 && (
         <Card>
           <CardHeader>
@@ -2588,6 +2632,15 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
           )}
         </>
       )}
+              </div>
+            ),
+          },
+          {
+            id: "match-flow",
+            title: "Match Flow",
+            summary: "4 charts · Events, Momentum, Field Tilt, Shot Timeline",
+            content: (
+              <div className="space-y-6">
 
       <div className="grid grid-cols-1 gap-6">
         <Card>
@@ -2691,6 +2744,15 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
           <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} halfAt={timeline.halfAt} ticks={timelineTicks} opp={opp} />
         </CardContent>
       </Card>
+              </div>
+            ),
+          },
+          {
+            id: "shot-profile",
+            title: "Shot Profile",
+            summary: "3 charts · Set Pieces, Shot Zones, Shot Map",
+            content: (
+              <div className="space-y-6">
 
       <div className="grid grid-cols-1 gap-6">
         <Card>
@@ -2761,6 +2823,11 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
           <ShotMap shots={shots} opp={opp} />
         </CardContent>
       </Card>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
