@@ -87,6 +87,7 @@ import {
 import { Info, ArrowLeft, MousePointerClick, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { NplbBorrowingReport } from "@/components/NplbBorrowingReport";
+import { SectionGroup } from "@/components/SectionGroup";
 
 // ─── Position helpers ─────────────────────────────────────────────────────────
 const DEFENSIVE_POSITIONS = ["GK", "CB", "RCB", "LCB", "RB", "LB", "RWB", "LWB", "SW", "DF", "CD"];
@@ -1974,6 +1975,17 @@ export default function SeasonStats() {
 
         {/* ════════════════ TEAM INSIGHTS ════════════════ */}
         <TabsContent value="team" className="space-y-4 mt-4">
+          <SectionGroup
+            id="team-insights"
+            defaultExpandedDesktop={["ladder", "scored"]}
+            defaultExpandedMobile={["ladder"]}
+            sections={[
+              {
+                id: "ladder",
+                title: "League Ladder",
+                summary: ladder != null ? `${ladder.length} teams` : null,
+                content: (
+                  <div className="space-y-4">
           {/* League Ladder — always on its own row: sharing a half-width column
               squeezes the table into horizontal scrolling. */}
           <div className="grid grid-cols-1 gap-4">
@@ -2052,7 +2064,18 @@ export default function SeasonStats() {
               </CardContent>
             </Card>
 
-            {/* Goals Scored by 15-Min Interval — stacked by opponent club */}
+            </div>
+                  </div>
+                )
+              },
+              {
+                id: "scored",
+                title: "Goals Scored",
+                summary: goalBreakdownFull?.goals != null ? `${goalBreakdownFull.goals.length} goals` : null,
+                content: (
+                  <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+          {/* Goals Scored by 15-Min Interval — stacked by opponent club */}
             <OpponentStackChart
               title={`Goals Scored by 15-Min Interval${l3ScInt ? " — Last 3 Rounds" : ""}`}
               description="When we score — stacked by opponent club (click legend to filter)"
@@ -2194,6 +2217,15 @@ export default function SeasonStats() {
           </ChartCard>
 
 
+                  </div>
+                )
+              },
+              {
+                id: "conceded",
+                title: "Goals Conceded",
+                summary: goalBreakdownFull?.conceded != null ? `${goalBreakdownFull.conceded.length} goals` : null,
+                content: (
+                  <div className="space-y-4">
           {/* ═══ Goals Conceded — mirrors of the scored stacked charts (stacked by the team that scored) ═══ */}
           <OpponentStackChart
             title={`Goals Conceded by 15-Min Interval${l3CcInt ? " — Last 3 Rounds" : ""}`}
@@ -2290,6 +2322,15 @@ export default function SeasonStats() {
             {focusClub} player), so the conceded total can differ slightly from the official goals-against figure.
           </p>
 
+                  </div>
+                )
+              },
+              {
+                id: "additional",
+                title: "Additional Charts",
+                summary: "First Goal, Philosophy, Units",
+                content: (
+                  <div className="space-y-4">
           {/* ═══ First Goal Value Index ═══ */}
           <ChartCard
             title={`First Goal Value Index${l3FgIndex ? " — Last 3 Rounds" : ""}`}
@@ -2321,12 +2362,28 @@ export default function SeasonStats() {
               onToggleLastThree={() => setL3Units(v => !v)}
             />
           )}
+                  </div>
+                )
+              }
+            ]}
+          />
+
         </TabsContent>
 
         {/* ════════════════ PLAYER INSIGHTS ════════════════ */}
         <TabsContent value="player" className="space-y-4 mt-4">
-          {isNplb ? (
-            <>
+          <SectionGroup
+            id="player-insights"
+            defaultExpandedDesktop={["individual"]}
+            defaultExpandedMobile={["individual"]}
+            sections={
+              isNplb ? [
+                {
+                  id: "individual",
+                  title: "Individual Insights",
+                  summary: "Appearance-only evidence",
+                  content: (
+                    <div className="space-y-4">
               <Card className="border-sky-500/30 bg-sky-500/5">
                 <CardHeader>
                   <CardTitle>NPLB appearances</CardTitle>
@@ -2382,10 +2439,16 @@ export default function SeasonStats() {
                   </Table>
                 </CardContent>
               </Card>
-            </>
-          ) : (
-          <>
-
+                    </div>
+                  )
+                }
+              ] : [
+              {
+                id: "individual",
+                title: "Individual Insights",
+                summary: "Output, workload & scoring DNA",
+                content: (
+                  <div className="space-y-4">
           {/* 1 — Goals per Minute */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="xl:col-span-2">
@@ -2566,6 +2629,122 @@ export default function SeasonStats() {
             sn={sn}
           />
 
+          {/* 5b — Big-Game Goals (clutch) */}
+          <ClutchChart
+            title="Big-Game Goals — Who Delivers When It Counts"
+            src={clutchData}
+            sn={sn}
+            showClub={false}
+          />
+
+          {/* 6 & 7 — Starts & Appearances + Total Minutes Played. Whole-squad
+              charts (25+ bars): always full width, never side by side. */}
+          <div className="grid grid-cols-1 gap-4">
+            <ChartCard
+              title="Starts & Appearances"
+              description={tlPlayer ? "Click any dot for match details" : "Blue = starts, amber = bench appearances — click a player for their game-by-game record"}
+              tooltip="Shows squad involvement across the season. Sort by total appearances or starts, highest to lowest. Click a player's bar to see their game-by-game record."
+              controls={tlPlayer ? undefined : (
+                <PillGroup
+                  options={[
+                    { value: "appearances", label: "By Appearances" },
+                    { value: "starts",      label: "By Starts" },
+                  ]}
+                  value={startsSort}
+                  onChange={v => setStartsSort(v as "appearances" | "starts")}
+                />
+              )}
+            >
+              {tlPlayer ? (
+                <PlayerTimelineChart seasonId={sId} club={focusClub} player={tlPlayer} onBack={() => setTlPlayer(null)} />
+              ) : (
+                <div className="relative h-full">
+                  <ClickHint />
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={startsData}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
+                      onClick={s => { const p = (s as { activePayload?: Array<{ payload?: { fullName?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.fullName) setTlPlayer(p.fullName); }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+                      <YAxis {...AXIS_STYLE} allowDecimals={false} />
+                      <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+                      <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+            <ChartCard title="Total Minutes Played" description="Season total — dashed line = squad average" tooltip="All minutes played across the season. Includes sub appearances.">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={minutesData} margin={{ top: 10, right: 10, left: -20, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis {...AXIS_STYLE} />
+                  <Tooltip content={<MinutesTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                  <ReferenceLine y={avgMins} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: `Avg ${avgMins}`, position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
+                  <Bar dataKey="value" name="Minutes" fill={C5} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {/* Full Leaderboard Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Full Squad Leaderboard</CardTitle>
+              <CardDescription>All players sorted by goals · assists · minutes</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 py-1">Player</TableHead>
+                    <TableHead className="h-8 py-1">Pos</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Apps</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Starts</TableHead>
+                    <TableHead className="h-8 py-1 text-right">Mins</TableHead>
+                    <TableHead className="h-8 py-1 text-right font-bold text-chart-1">G</TableHead>
+                    <TableHead className="h-8 py-1 text-right">A</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/G</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/A</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-yellow-400">Y</TableHead>
+                    <TableHead className="h-8 py-1 text-right text-red-500">R</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard?.map(p => (
+                    <TableRow key={p.playerId} className="text-sm">
+                      <TableCell className="py-1.5 font-medium">{p.playerName}</TableCell>
+                      <TableCell className="py-1.5 text-muted-foreground text-xs">{p.position ?? "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.appearances}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.starts}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.minsPlayed}</TableCell>
+                      <TableCell className="py-1.5 text-right font-bold text-chart-1">{p.goals}</TableCell>
+                      <TableCell className="py-1.5 text-right">{p.assists}</TableCell>
+                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerGoal ? Math.round(p.minsPerGoal) : "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerAssist ? Math.round(p.minsPerAssist) : "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
+                      <TableCell className="py-1.5 text-right text-red-500">{p.redCards || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+                  </div>
+                )
+              },
+              {
+                id: "team-impact",
+                title: "Team Impact",
+                summary: "Partnerships & team effect",
+                content: (
+                  <div className="space-y-4">
           {/* Combo Threat — our assist→scorer partnerships (who combines for goals) */}
           <ComboThreatChart
             title={`Combo Threat — ${focusClub}${comboLastN ? " — Last 3 Rounds" : ""}`}
@@ -2642,119 +2821,15 @@ export default function SeasonStats() {
             </ChartCard>
           </div>
 
-          {/* 5b — Big-Game Goals (clutch) */}
-          <ClutchChart
-            title="Big-Game Goals — Who Delivers When It Counts"
-            src={clutchData}
-            sn={sn}
-            showClub={false}
-          />
-
-          {/* 6 & 7 — Starts & Appearances + Total Minutes Played. Whole-squad
-              charts (25+ bars): always full width, never side by side. */}
-          <div className="grid grid-cols-1 gap-4">
-            <ChartCard
-              title="Starts & Appearances"
-              description={tlPlayer ? "Click any dot for match details" : "Blue = starts, amber = bench appearances — click a player for their game-by-game record"}
-              tooltip="Shows squad involvement across the season. Sort by total appearances or starts, highest to lowest. Click a player's bar to see their game-by-game record."
-              controls={tlPlayer ? undefined : (
-                <PillGroup
-                  options={[
-                    { value: "appearances", label: "By Appearances" },
-                    { value: "starts",      label: "By Starts" },
-                  ]}
-                  value={startsSort}
-                  onChange={v => setStartsSort(v as "appearances" | "starts")}
-                />
-              )}
-            >
-              {tlPlayer ? (
-                <PlayerTimelineChart seasonId={sId} club={focusClub} player={tlPlayer} onBack={() => setTlPlayer(null)} />
-              ) : (
-                <div className="relative h-full">
-                  <ClickHint />
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={startsData}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
-                      onClick={s => { const p = (s as { activePayload?: Array<{ payload?: { fullName?: string } }> } | null)?.activePayload?.[0]?.payload; if (p?.fullName) setTlPlayer(p.fullName); }}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
-                      <YAxis {...AXIS_STYLE} allowDecimals={false} />
-                      <Tooltip content={<StartsTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
-                      <Bar dataKey="starts" name="Starts" stackId="a" fill={C1} radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="bench"  name="Bench"  stackId="a" fill={C2} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </ChartCard>
-            <ChartCard title="Total Minutes Played" description="Season total — dashed line = squad average" tooltip="All minutes played across the season. Includes sub appearances.">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={minutesData} margin={{ top: 10, right: 10, left: -20, bottom: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="name" {...AXIS_STYLE} angle={-35} textAnchor="end" interval={0} />
-                  <YAxis {...AXIS_STYLE} />
-                  <Tooltip content={<MinutesTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-                  <ReferenceLine y={avgMins} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: `Avg ${avgMins}`, position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
-                  <Bar dataKey="value" name="Minutes" fill={C5} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
           {/* Player Impact — win % when starting vs not */}
           <PlayerImpactChart seasonId={sId} club={focusClub} enabled={fullPlayerMetricsEnabled && !!focusClub} />
           <SubImpactChart seasonId={sId} club={focusClub} enabled={fullPlayerMetricsEnabled && !!focusClub} />
 
-          {/* Full Leaderboard Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Full Squad Leaderboard</CardTitle>
-              <CardDescription>All players sorted by goals · assists · minutes</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-8 py-1">Player</TableHead>
-                    <TableHead className="h-8 py-1">Pos</TableHead>
-                    <TableHead className="h-8 py-1 text-right">Apps</TableHead>
-                    <TableHead className="h-8 py-1 text-right">Starts</TableHead>
-                    <TableHead className="h-8 py-1 text-right">Mins</TableHead>
-                    <TableHead className="h-8 py-1 text-right font-bold text-chart-1">G</TableHead>
-                    <TableHead className="h-8 py-1 text-right">A</TableHead>
-                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/G</TableHead>
-                    <TableHead className="h-8 py-1 text-right text-muted-foreground">Mins/A</TableHead>
-                    <TableHead className="h-8 py-1 text-right text-yellow-400">Y</TableHead>
-                    <TableHead className="h-8 py-1 text-right text-red-500">R</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leaderboard?.map(p => (
-                    <TableRow key={p.playerId} className="text-sm">
-                      <TableCell className="py-1.5 font-medium">{p.playerName}</TableCell>
-                      <TableCell className="py-1.5 text-muted-foreground text-xs">{p.position ?? "—"}</TableCell>
-                      <TableCell className="py-1.5 text-right">{p.appearances}</TableCell>
-                      <TableCell className="py-1.5 text-right">{p.starts}</TableCell>
-                      <TableCell className="py-1.5 text-right">{p.minsPlayed}</TableCell>
-                      <TableCell className="py-1.5 text-right font-bold text-chart-1">{p.goals}</TableCell>
-                      <TableCell className="py-1.5 text-right">{p.assists}</TableCell>
-                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerGoal ? Math.round(p.minsPerGoal) : "—"}</TableCell>
-                      <TableCell className="py-1.5 text-right text-muted-foreground">{p.minsPerAssist ? Math.round(p.minsPerAssist) : "—"}</TableCell>
-                      <TableCell className="py-1.5 text-right text-yellow-400">{p.yellowCards || "—"}</TableCell>
-                      <TableCell className="py-1.5 text-right text-red-500">{p.redCards || "—"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-          </>
-          )}
+                  </div>
+                )
+              }
+            ]}
+          />
         </TabsContent>
 
         {/* ════════════════ OPPONENT INSIGHTS ════════════════ */}
@@ -2817,7 +2892,17 @@ export default function SeasonStats() {
               )}
 
               {oppView === "team" && (
-              <>
+                <SectionGroup
+                  id="opponent-team"
+                  defaultExpandedDesktop={["overview", "scored"]}
+                  defaultExpandedMobile={["overview"]}
+                  sections={[
+                    {
+                      id: "overview",
+                      title: "Overview",
+                      summary: isAll ? "League-wide context" : `${profile.record.played} matches`,
+                      content: (
+                        <div className="space-y-4">
               {isAll ? (
                 <p className="text-sm text-muted-foreground">
                   League-wide view across all <span className="font-medium text-foreground">{profile.record.played}</span> league matches this season. Charts show every goal in the league, stacked by the club that scored or conceded. The record summary and match-history views are club-specific, so they are hidden here.
@@ -2913,6 +2998,15 @@ export default function SeasonStats() {
               {/* 2. Coach behaviour — first-substitution patterns (any club; club-relative so hidden league-wide) */}
               {!isNplb && !isAll && <FirstSubCard data={firstSub} club={selectedClub} />}
 
+                        </div>
+                      )
+                    },
+                    {
+                      id: "scored",
+                      title: "Goals Scored",
+                      summary: `${profile.record.goalsFor} goals`,
+                      content: (
+                        <div className="space-y-4">
               {/* 3. Goals scored by interval */}
               <OpponentStackChart
                 title={`${isAll ? "Goals Scored by Interval — by scoring club" : `When ${selectedClub} Score`}${l3ProfScInt ? " — Last 3 Rounds" : ""}`}
@@ -2985,9 +3079,17 @@ export default function SeasonStats() {
                 tooltipContent={<GoalDetailStackTooltip goals={profileScDetGoals} dim={profileScDetDim} hidden={hiddenProfileOpponents} shortName={{}} />}
               />
 
+                        </div>
+                      )
+                    },
+                    ...(!isAll ? [
+                    {
+                      id: "conceded",
+                      title: "Goals Conceded",
+                      summary: `${profile.record.goalsAgainst} goals`,
+                      content: (
+                        <div className="space-y-4">
               {/* 7–14: conceded + tactical detail — club-specific, hidden under the league-wide ALL view */}
-              {!isAll && (
-                <>
                   {/* 7. Goals conceded by interval */}
                   <OpponentStackChart
                     title={`When ${selectedClub} Concede${l3ProfGcInt ? " — Last 3 Rounds" : ""}`}
@@ -3060,7 +3162,17 @@ export default function SeasonStats() {
                     tooltipContent={<GoalDetailStackTooltip goals={profileGcDetGoals} dim={profileGcDetDim} hidden={hiddenProfileOpponents} shortName={{}} />}
                   />
 
-                  {/* 11 & 12. 5-minute response after goals + opponent breakdown */}
+                            </div>
+                      )
+                    }
+                    ] : []),
+                    {
+                      id: "additional",
+                      title: "Additional Charts",
+                      summary: "Response, location & first goal",
+                      content: (
+                        <div className="space-y-4">
+              {/* 11 & 12. 5-minute response after goals + opponent breakdown */}
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     <ChartCard
                       title="5-Minute Response After Goals"
@@ -3103,12 +3215,26 @@ export default function SeasonStats() {
                   >
                     <FirstGoalIndex matches={profileFgMatches} colorMap={clubColorMap} hidden={hiddenProfileOpponents} onToggle={toggleProfileOpponent} />
                   </ChartCard>
-                </>
-              )}
-              </>
+
+                        </div>
+                      )
+                    }
+                  ]}
+                />
               )}
 
               {isNplb && oppView === "player" && (
+                <SectionGroup
+                  id="opponent-player-nplb"
+                  defaultExpandedDesktop={["individual"]}
+                  defaultExpandedMobile={["individual"]}
+                  sections={[
+                    {
+                      id: "individual",
+                      title: "Individual Insights",
+                      summary: "Appearance-only evidence",
+                      content: (
+                        <div className="space-y-4">
                 <NplbOpponentPlayerCharts
                   clubLabel={isAll ? "League" : selectedClub}
                   leagueName={selectedSeasonLeagueName || selectedLeagueName}
@@ -3132,10 +3258,25 @@ export default function SeasonStats() {
                   colorMap={clubColorMap}
                   maxBars={isAll ? 30 : undefined}
                 />
+                        </div>
+                      )
+                    }
+                  ]}
+                />
               )}
 
               {!isNplb && oppView === "player" && (
-              <>
+                <SectionGroup
+                  id="opponent-player"
+                  defaultExpandedDesktop={["individual"]}
+                  defaultExpandedMobile={["individual"]}
+                  sections={[
+                    {
+                      id: "individual",
+                      title: "Individual Insights",
+                      summary: "Output, workload & scoring DNA",
+                      content: (
+                        <div className="space-y-4">
               {/* 15. Goals by opponent — stacked, clickable legend, Last 3 rounds, Total / Mins-per */}
               <OppPlayerStackChart
                 metric="goals"
@@ -3169,23 +3310,6 @@ export default function SeasonStats() {
                 colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
               />
 
-              {/* 17d. On-Field Impact — team GD while the player was in the side */}
-              <OppImpactChart
-                clubLabel={isAll ? "League" : selectedClub}
-                isAll={isAll}
-                srcFull={oppImpactFull} srcL3={oppImpactL3Data}
-                lastN={oppImpactL3} onLastN={() => setOppImpactL3(v => !v)}
-                metric={oppImpactMetric} onMetric={setOppImpactMetric}
-                minMins={oppImpactMinMins} onMinMins={setOppImpactMinMins}
-                hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
-                hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
-              />
-
-              {/* 17f. Player Impact — team record when player starts vs not */}
-              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} colorMap={clubColorMap} />
-              <SubImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} />
-
               {/* 17e. Big-Game Goals (clutch) — selected club or league-wide */}
               <ClutchChart
                 title={`${isAll ? "League" : selectedClub} — Big-Game Goals — Who Delivers When It Counts`}
@@ -3205,15 +3329,6 @@ export default function SeasonStats() {
                 players={oppDnaPlayers}
                 player={oppDnaPlayer} onPlayer={setOppDnaPlayer}
                 sn={sn}
-              />
-
-              {/* 17b. Combo Threat — the club's assist→scorer partnerships */}
-              <ComboThreatChart
-                title={`Combo Threat — ${isAll ? "League" : selectedClub}${oppComboLastN ? " — Last 3 Rounds" : ""}`}
-                label={isAll ? "" : selectedClub}
-                srcFull={oppCombosFull} srcL3={oppCombosL3}
-                lastN={oppComboLastN} onLastN={() => setOppComboLastN(v => !v)}
-                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 15 : 12}
               />
 
               {/* 18. Starts & appearances (hidden league-wide) */}
@@ -3289,7 +3404,46 @@ export default function SeasonStats() {
                   </CardContent>
                 </Card>
               )}
-              </>
+                        </div>
+                      )
+                    },
+                    {
+                      id: "team-impact",
+                      title: "Team Impact",
+                      summary: "Partnerships & team effect",
+                      content: (
+                        <div className="space-y-4">
+              {/* 17d. On-Field Impact — team GD while the player was in the side */}
+              <OppImpactChart
+                clubLabel={isAll ? "League" : selectedClub}
+                isAll={isAll}
+                srcFull={oppImpactFull} srcL3={oppImpactL3Data}
+                lastN={oppImpactL3} onLastN={() => setOppImpactL3(v => !v)}
+                metric={oppImpactMetric} onMetric={setOppImpactMetric}
+                minMins={oppImpactMinMins} onMinMins={setOppImpactMinMins}
+                hidden={hiddenImpactOpp} onToggle={toggleImpactOpp}
+                hiddenClubs={hiddenImpactClubs} onToggleClub={toggleImpactClub}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 30 : undefined}
+              />
+
+              {/* 17f. Player Impact — team record when player starts vs not */}
+              <PlayerImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} colorMap={clubColorMap} />
+              <SubImpactChart seasonId={sId} club={selectedClub} isAll={isAll} enabled={fullPlayerMetricsEnabled && !!selectedClub} />
+
+              {/* 17b. Combo Threat — the club's assist→scorer partnerships */}
+              <ComboThreatChart
+                title={`Combo Threat — ${isAll ? "League" : selectedClub}${oppComboLastN ? " — Last 3 Rounds" : ""}`}
+                label={isAll ? "" : selectedClub}
+                srcFull={oppCombosFull} srcL3={oppCombosL3}
+                lastN={oppComboLastN} onLastN={() => setOppComboLastN(v => !v)}
+                colorMap={clubColorMap} sn={sn} maxBars={isAll ? 15 : 12}
+              />
+
+                        </div>
+                      )
+                    }
+                  ]}
+                />
               )}
             </>
           )}
