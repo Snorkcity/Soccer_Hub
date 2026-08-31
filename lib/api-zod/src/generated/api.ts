@@ -4931,6 +4931,7 @@ export const GetVeoSeasonShotsResponse = zod.object({
   "startsAt": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
   "hubOpponent": zod.string().nullish(),
+  "matchMinutes": zod.number(),
   "shots": zod.array(zod.object({
   "x": zod.number().nullish(),
   "y": zod.number().nullish(),

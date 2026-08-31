@@ -4061,7 +4061,7 @@ components:
         us: { type: boolean }
     VeoSeasonShotMatch:
       type: object
-      required: [id, veoMatchId, shots]
+      required: [id, veoMatchId, matchMinutes, shots]
       properties:
         id: { type: integer }
         veoMatchId: { type: string }
@@ -4070,6 +4070,7 @@ components:
         startsAt: { type: string, nullable: true }
         matchCode: { type: string, nullable: true }
         hubOpponent: { type: string, nullable: true }
+        matchMinutes: { type: number }
         shots:
           type: array
           items: { $ref: "#/components/schemas/VeoSeasonShot" }

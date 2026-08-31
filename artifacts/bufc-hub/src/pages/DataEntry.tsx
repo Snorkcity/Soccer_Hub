@@ -953,7 +953,7 @@ function BorrowedBadge({ direction }: { direction: "up" | "down" | "unknown" | n
 
 // Position codes + the shared position→unit mapping (same units as the GPS
 // Positions tab) — shared with the API server via @workspace/api-zod.
-import { POSITION_CODES as POSITIONS, unitForPosition, clubCodesFor } from "@workspace/api-zod";
+import { POSITION_CODES as POSITIONS, unitForPosition, clubCodesFor, canonicalGpsSplit } from "@workspace/api-zod";
 const unitFor = (pos: string): string | null => unitForPosition(pos);
 
 function PlayersForm({ teamId, seasonId, leagueId, fixtures }: {
@@ -2247,7 +2247,7 @@ const SQUAD_OPTIONS = [
   { value: "17s", label: "U17s" },
 ] as const;
 
-const SPLIT_ORDER: Record<string, number> = { game: 0, "1st.half": 1, "2nd.half": 2 };
+const SPLIT_ORDER: Record<string, number> = { game: 0, "1st.half": 1, "2nd.half": 2, "extra-time": 3 };
 
 /** One parsed file row plus any match details the file itself provided (coach's weekly sheet). */
 interface GpsEntry {
@@ -2283,7 +2283,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
   const [opponent, setOpponent] = useState("");
   const [fixtureKey, setFixtureKey] = useState("");
   const [entries, setEntries] = useState<GpsEntry[]>([]);
-  const [ignoredSplits, setIgnoredSplits] = useState(0);
+  const [ignoredRows, setIgnoredRows] = useState(0);
+  const [unsupportedSplits, setUnsupportedSplits] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [parsing, setParsing] = useState(false);
@@ -2327,7 +2328,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 
   async function parseInput(getData: () => Promise<string | ArrayBuffer>, label: string) {
     setParsing(true); setOk(null); setErr(null);
-    setEntries([]); setIgnoredSplits(0); setFileName(label);
+    setEntries([]); setIgnoredRows(0); setUnsupportedSplits([]); setFileName(label);
     try {
       const XLSX = await import("xlsx");
       const data = await getData();
@@ -2367,6 +2368,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
 
       const parsed: GpsEntry[] = [];
       let ignored = 0;
+      const unsupported = new Set<string>();
       for (const r of raw) {
         const row: GpsRow = { playerName: "", splitName: null, ...EMPTY_GPS_ROW };
         for (const [header, field] of mapping) {
@@ -2381,12 +2383,12 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
           const tag = r[tagsHeader] == null ? "" : String(r[tagsHeader]).trim().toLowerCase();
           if (tag !== "" && tag !== "game") { ignored++; continue; }
         }
-        // Keep whole-game and half rows; drop thirds/extra-time splits the charts ignore.
+        // Keep the four confirmed Catapult match splits.
         // Store the canonical lowercase literal — downstream chart logic matches exactly.
         // Raw Catapult exports call the whole-match split "all" — treat it as "game".
-        let split = (row.splitName ?? "game").toLowerCase();
-        if (split === "all") split = "game";
-        if (!(split === "game" || split === "1st.half" || split === "2nd.half")) { ignored++; continue; }
+        const rawSplit = row.splitName ?? "game";
+        const split = canonicalGpsSplit(rawSplit);
+        if (!split) { unsupported.add(rawSplit); continue; }
         row.splitName = split;
         // Pre-fill minutes from the Duration column (secs) when the sheet has no Mins column
         if (row.minsPlayed == null && durationHeader != null) {
@@ -2412,7 +2414,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
         a.row.playerName.localeCompare(b.row.playerName) ||
         (SPLIT_ORDER[a.row.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.row.splitName ?? "game"] ?? 9));
       setEntries(parsed);
-      setIgnoredSplits(ignored);
+      setIgnoredRows(ignored);
+      setUnsupportedSplits([...unsupported].sort((a, b) => a.localeCompare(b)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't read that file");
       setFileName(null);
@@ -2471,7 +2474,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
       setOk(`Saved ${totalSaved} rows for ${roundsSaved.join(" and ")}`
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
-      setEntries([]); setIgnoredSplits(0); setFileName(null); setPasteText("");
+      setEntries([]); setIgnoredRows(0); setUnsupportedSplits([]); setFileName(null); setPasteText("");
       setMatchDate(""); setRoundCode(""); setSquad("1sts"); setOpponent(""); setFixtureKey("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
@@ -2584,7 +2587,8 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
               <CardTitle>Check what was read — {playerCount} players, {entries.length} rows</CardTitle>
               <CardDescription>
                 {fileName}
-                {ignoredSplits > 0 && ` · ignored ${ignoredSplits} non-game rows (training / thirds / extra time)`}
+                {unsupportedSplits.length > 0 && ` · unsupported split${unsupportedSplits.length === 1 ? "" : "s"} ignored: ${unsupportedSplits.join(", ")}`}
+                {ignoredRows > 0 && ` · ignored ${ignoredRows} non-game row${ignoredRows === 1 ? "" : "s"} (training or blank round)`}
                 {" · minutes are pre-filled from the file — adjust any you track differently"}
               </CardDescription>
             </div>

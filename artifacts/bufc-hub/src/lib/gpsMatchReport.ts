@@ -17,6 +17,7 @@
  *    only" note instead of volume commentary.
  */
 import type { GpsSession } from "@workspace/api-client-react";
+import { gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 const BASELINE_MIN_MINS = 45; // a match must be this long to shape a baseline
@@ -37,6 +38,7 @@ export interface TeamStatLine {
 export interface HalfLine {
   id: string; label: string; unit: string; decimals: number;
   h1: number | null; h2: number | null; changePct: number | null;
+  et?: number | null;
   /** Season context (optional — absent in reports saved before it existed):
    * the squad's usual 2nd-half change plus the best/worst game this season. */
   seasonChangePct?: number | null;
@@ -102,7 +104,7 @@ export interface GpsMatchReportModel {
 // ── Internals ────────────────────────────────────────────────────────────────
 interface Bundle {
   round: string; date: number | null; opponent: string | null; dateLabel: string | null;
-  game?: GpsSession; h1?: GpsSession; h2?: GpsSession;
+  game?: GpsSession; h1?: GpsSession; h2?: GpsSession; et?: GpsSession;
 }
 
 function parseDate(d: string | null | undefined): number | null {
@@ -130,16 +132,10 @@ const val = {
 };
 
 function total(b: Bundle, f: (r: GpsSession) => Num, additive: boolean): Num {
-  const g = b.game ? f(b.game) : null;
-  if (g != null) return g;
-  const v1 = b.h1 ? f(b.h1) : null;
-  const v2 = b.h2 ? f(b.h2) : null;
-  if (v1 == null && v2 == null) return null;
-  return additive ? (v1 ?? 0) + (v2 ?? 0) : Math.max(v1 ?? -Infinity, v2 ?? -Infinity);
+  return gpsPeriodTotal(b, f, additive);
 }
 const mins = (b: Bundle): Num =>
-  b.game?.minsPlayed ?? (b.h1?.minsPlayed != null || b.h2?.minsPlayed != null
-    ? (b.h1?.minsPlayed ?? 0) + (b.h2?.minsPlayed ?? 0) : null);
+  gpsPeriodMinutes(b, r => r.minsPlayed);
 
 const avg = (xs: number[]): Num => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const pctDelta = (v: Num, base: Num): Num =>
@@ -187,6 +183,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     if (r.splitName === "game") b.game = r;
     else if (r.splitName === "1st.half") b.h1 = r;
     else if (r.splitName === "2nd.half") b.h2 = r;
+    else if (r.splitName?.toLowerCase() === "extra-time") b.et = r;
   }
 
   const byPlayer = new Map<string, Bundle[]>();
@@ -234,13 +231,13 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const earlier = rated.slice(0, Math.max(0, rated.length - REGRESS_RECENT)).map(x => x.dpm);
     baselineOf.set(name, {
       games: solid.length,
-      dpm: avg(collect(x => x.game?.distancePerMinMm ?? (rate(x, val.km, true) == null ? null : rate(x, val.km, true)! * 1000))),
+      dpm: avg(collect(x => total(x, val.dpm, false) ?? (rate(x, val.km, true) == null ? null : rate(x, val.km, true)! * 1000))),
       hsmPerMin: avg(collect(x => rate(x, val.hsm, true))),
       vhsPerMin: avg(collect(x => rate(x, val.vhs, true))),
       bestTop: best(others, x => total(x, val.top, false)),
       bestKm: best(full, x => total(x, val.km, true)),
       bestHsm: best(full, x => total(x, val.hsm, true)),
-      bestDpm: best(full, x => x.game?.distancePerMinMm ?? (rate(x, val.km, true) == null ? null : rate(x, val.km, true)! * 1000)),
+      bestDpm: best(full, x => total(x, val.dpm, false) ?? (rate(x, val.km, true) == null ? null : rate(x, val.km, true)! * 1000)),
       recentDpm: avg(recent),
       earlierDpm: avg(earlier),
     });
@@ -252,7 +249,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const hsm = total(b, val.hsm, true);
     const vhs = total(b, val.vhs, true);
     const top = total(b, val.top, false);
-    const dpm = b.game?.distancePerMinMm ?? (m && km != null ? (km * 1000) / m : null);
+    const dpm = total(b, val.dpm, false) ?? (m && km != null ? (km * 1000) / m : null);
     const base = baselineOf.get(name)!;
     const hsmRate = m && hsm != null ? hsm / m : null;
     const vhsRate = m && vhs != null ? vhs / m : null;
@@ -280,7 +277,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     // Same fallback as the player lines: derive m/min from distance + minutes
     // when a bundle only has half rows (no game-row DPM).
     const dpmVals = bs.map(x => {
-      const direct = x.game?.distancePerMinMm ?? null;
+      const direct = total(x, val.dpm, false);
       if (direct != null) return direct;
       const m = mins(x); const km = total(x, val.km, true);
       return m && km != null ? (km * 1000) / m : null;
@@ -323,6 +320,10 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const vs = bothHalves.map(b => (b[side] ? f(b[side]!) : null)).filter((v): v is number => v != null);
     return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
   };
+  const etSum = (f: (r: GpsSession) => Num): Num => {
+    const vs = matchBundles.map(({ b }) => b.et ? f(b.et) : null).filter((v): v is number => v != null);
+    return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
+  };
   // Best/worst labels read "R7 v Croatia" — round number plus opponent —
   // rather than the raw Catapult round tag like "R7-1sts".
   const roundOpp = new Map<string, string | null>();
@@ -358,13 +359,13 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
     const bestX = others.length ? others.reduce((p, x) => (x.pct > p.pct ? x : p)) : null;
     const worstX = others.length ? others.reduce((p, x) => (x.pct < p.pct ? x : p)) : null;
     return {
-      id, label, unit, decimals, h1, h2, changePct: pctDelta(h2, h1),
+      id, label, unit, decimals, h1, h2, et: etSum(f), changePct: pctDelta(h2, h1),
       seasonChangePct: avg(others.map(x => x.pct)),
       bestChange: bestX ? { pct: bestX.pct, round: roundLabel(bestX.rd) } : null,
       worstChange: worstX ? { pct: worstX.pct, round: roundLabel(worstX.rd) } : null,
     };
   };
-  const halves: HalfLine[] = bothHalves.length
+  const halves: HalfLine[] = (bothHalves.length || matchBundles.some(({ b }) => b.et))
     ? [
         halfLine("km", "Distance", "km", 1, val.km),
         halfLine("hsm", "High-speed metres", "m", 0, val.hsm),
@@ -459,7 +460,7 @@ export function buildGpsMatchReport(input: BuildInput): GpsMatchReportModel | nu
       acc.n++;
       const km = total(b, val.km, true);
       if (km != null) acc.kms.push(km);
-      const direct = b.game?.distancePerMinMm ?? null;
+      const direct = total(b, val.dpm, false);
       const m = mins(b);
       const dpm = direct ?? (m && km != null ? (km * 1000) / m : null);
       if (dpm != null) acc.dpms.push(dpm);

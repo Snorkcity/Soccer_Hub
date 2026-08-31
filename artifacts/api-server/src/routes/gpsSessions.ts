@@ -13,6 +13,7 @@ import {
   CreateGpsSessionResponse,
   ListGpsOpponentMismatchesQueryParams,
   ListGpsOpponentMismatchesResponse,
+  canonicalGpsSplit,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -299,6 +300,13 @@ router.post("/gps-sessions", async (req, res): Promise<void> => {
     return;
   }
   const d = parsed.data;
+  const splitName = d.splitName == null || d.splitName.trim() === ""
+    ? null
+    : canonicalGpsSplit(d.splitName);
+  if (splitName == null && d.splitName != null && d.splitName.trim() !== "") {
+    res.status(400).json({ error: `Unsupported GPS split label: "${d.splitName.trim()}"` });
+    return;
+  }
   // Feed leagues have no GPS rows of their own — the share must stay read-only.
   if (await gpsFeedFor(d.leagueId)) {
     res.status(400).json({ error: "This league's GPS data is fed from another league — upload GPS data there instead" });
@@ -306,6 +314,7 @@ router.post("/gps-sessions", async (req, res): Promise<void> => {
   }
   const [session] = await db.insert(gpsSessionsTable).values({
     ...d,
+    splitName,
     minsPlayed: n2s(d.minsPlayed), distanceKm: n2s(d.distanceKm), sprintDistanceM: n2s(d.sprintDistanceM),
     powerPlays: n2s(d.powerPlays), energyKcal: n2s(d.energyKcal), impacts: n2s(d.impacts),
     hrLoad: n2s(d.hrLoad), timeInRedZoneMin: n2s(d.timeInRedZoneMin), playerLoad: n2s(d.playerLoad),

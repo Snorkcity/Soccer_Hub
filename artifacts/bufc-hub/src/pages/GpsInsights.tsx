@@ -34,6 +34,7 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
+import { gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -43,6 +44,7 @@ const YEARS = ["2026", "2025", "2024"];
 
 const C_H1 = "hsl(var(--chart-1))";
 const C_H2 = "hsl(var(--chart-2))";
+const C_ET = "hsl(var(--chart-4))";
 const C_SINGLE = "hsl(var(--chart-1))";
 const C_ACC = "hsl(var(--chart-1))";
 const C_DEC = "hsl(var(--chart-5))";
@@ -116,6 +118,7 @@ interface Bundle {
   game?: GpsSession;
   h1?: GpsSession;
   h2?: GpsSession;
+  et?: GpsSession;
 }
 
 function buildBundles(rows: GpsSession[], keyOf: (r: GpsSession) => string): Bundle[] {
@@ -131,18 +134,14 @@ function buildBundles(rows: GpsSession[], keyOf: (r: GpsSession) => string): Bun
     if (r.splitName === "game") b.game = r;
     else if (r.splitName === "1st.half") b.h1 = r;
     else if (r.splitName === "2nd.half") b.h2 = r;
+    else if (r.splitName?.toLowerCase() === "extra-time") b.et = r;
   }
   return [...map.values()];
 }
 
-/** Best-available total for a metric: game row first, else sum/max of halves. */
+/** Best-available total: authoritative game row first, else sum/max of all periods. */
 function bundleTotal(b: Bundle, m: GpsMetric): number | null {
-  const g = b.game ? m.value(b.game) : null;
-  if (g != null) return g;
-  const v1 = b.h1 ? m.value(b.h1) : null;
-  const v2 = b.h2 ? m.value(b.h2) : null;
-  if (v1 == null && v2 == null) return null;
-  return m.additive ? (v1 ?? 0) + (v2 ?? 0) : Math.max(v1 ?? -Infinity, v2 ?? -Infinity);
+  return gpsPeriodTotal(b, m.value, m.additive);
 }
 
 /** Accel/decel counts >3 m/s² = the 3–4 band plus the >4 band. */
@@ -156,17 +155,18 @@ function countOf(r: GpsSession | undefined, kind: "accel" | "decel"): number | n
 
 /** Game-row count first, else sum of halves. */
 function bundleCount(b: Bundle, kind: "accel" | "decel"): number | null {
-  const g = countOf(b.game, kind);
-  if (g != null) return g;
-  const v1 = countOf(b.h1, kind);
-  const v2 = countOf(b.h2, kind);
-  if (v1 == null && v2 == null) return null;
-  return (v1 ?? 0) + (v2 ?? 0);
+  return gpsPeriodTotal(b, r => countOf(r, kind), true);
 }
 
 const bundleMins = (b: Bundle): number | null =>
-  b.game?.minsPlayed ?? (b.h1?.minsPlayed != null || b.h2?.minsPlayed != null
-    ? (b.h1?.minsPlayed ?? 0) + (b.h2?.minsPlayed ?? 0) : null);
+  gpsPeriodMinutes(b, r => r.minsPlayed);
+
+const bundleMaxField = (b: Bundle, value: (r: GpsSession) => number | null | undefined): number | null => {
+  const game = b.game ? value(b.game) : null;
+  if (game != null) return game;
+  const values = [b.h1, b.h2, b.et].map(r => r ? value(r) : null).filter((v): v is number => v != null);
+  return values.length ? Math.max(...values) : null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Page
@@ -220,8 +220,9 @@ export default function GpsInsights() {
   const { hasModule, ready } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
 
-  // Meta query: all whole-game rows for the year → rounds, squads, player names
-  const metaParams = { leagueId: activeLeagueId ?? 0, year, split: "game" };
+  // Meta query includes period-only matches too, so rounds remain discoverable
+  // when Catapult did not provide an authoritative whole-game row.
+  const metaParams = { leagueId: activeLeagueId ?? 0, year };
   const { data: metaRows, isLoading } = useListGpsSessions(
     metaParams,
     { query: { enabled: activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(metaParams) } },
@@ -349,8 +350,8 @@ function groupAverages(label: string, bs: Bundle[]): ReportComparison {
     values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, mean(bs.map(b => bundleTotal(b, m)))])),
     accel: mean(bs.map(b => bundleCount(b, "accel"))),
     decel: mean(bs.map(b => bundleCount(b, "decel"))),
-    maxAcc: mean(bs.map(b => b.game?.maxAccelerationMss ?? null)),
-    maxDec: mean(bs.map(b => b.game?.maxDecelerationMss ?? null)),
+    maxAcc: mean(bs.map(b => bundleMaxField(b, r => r.maxAccelerationMss))),
+    maxDec: mean(bs.map(b => bundleMaxField(b, r => r.maxDecelerationMss))),
   };
 }
 
@@ -486,13 +487,13 @@ function PlayerReportDialog({ player, year, bundles }: { player: string; year: s
         games: bundles.map(b => ({
           round: b.key,
           opponent: b.opponent,
-          dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? null,
+          dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? b.et?.sessionDate ?? null,
           mins: bundleMins(b),
           values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, bundleTotal(b, m)])),
           accel: bundleCount(b, "accel"),
           decel: bundleCount(b, "decel"),
-          maxAcc: b.game?.maxAccelerationMss ?? null,
-          maxDec: b.game?.maxDecelerationMss ?? null,
+          maxAcc: bundleMaxField(b, r => r.maxAccelerationMss),
+          maxDec: bundleMaxField(b, r => r.maxDecelerationMss),
         })),
         comparisons: groups.filter(g => selected.has(g.key)).map(g => g.comparison),
       });
@@ -756,13 +757,13 @@ function EmailReportsDialog({ year }: { year: string }) {
           games: info.bundles.map(b => ({
             round: b.key,
             opponent: b.opponent,
-            dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? null,
+            dateLabel: b.game?.sessionDate ?? b.h1?.sessionDate ?? b.h2?.sessionDate ?? b.et?.sessionDate ?? null,
             mins: bundleMins(b),
             values: Object.fromEntries(PLAYER_METRICS.map(m => [m.id, bundleTotal(b, m)])),
             accel: bundleCount(b, "accel"),
             decel: bundleCount(b, "decel"),
-            maxAcc: b.game?.maxAccelerationMss ?? null,
-            maxDec: b.game?.maxDecelerationMss ?? null,
+            maxAcc: bundleMaxField(b, r => r.maxAccelerationMss),
+            maxDec: bundleMaxField(b, r => r.maxDecelerationMss),
           })),
           comparisons: buildComparisons(p),
         }, "base64");
@@ -990,6 +991,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
   const data = useMemo(() => shown.map(b => {
     const v1 = b.h1 ? metric.value(b.h1) : null;
     const v2 = b.h2 ? metric.value(b.h2) : null;
+    const vet = b.et ? metric.value(b.et) : null;
     const total = bundleTotal(b, metric);
     const mins = bundleMins(b);
     if (norm) {
@@ -998,7 +1000,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
       const rate = total != null && mins != null && mins > 0 ? (total / mins) * 90 : null;
       return {
         round: b.key, opponent: b.opponent, date: b.date, mins,
-        h1: null as number | null, h2: null as number | null,
+        h1: null as number | null, h2: null as number | null, et: null as number | null,
         single: rate, total: rate, rawTotal: total,
         m1: null as number | null, m2: null as number | null,
       };
@@ -1013,11 +1015,13 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
       mins,
       h1: stack ? v1 : null,
       h2: stack ? v2 : null,
+      et: stack ? vet : null,
       single: stack ? null : total,
       total,
       rawTotal: total,
       m1: b.h1?.minsPlayed ?? null,
       m2: b.h2?.minsPlayed ?? null,
+      met: b.et?.minsPlayed ?? null,
     };
   }), [shown, metric, norm]);
 
@@ -1031,7 +1035,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
           <CardDescription className="text-xs">
             Oldest → newest.{norm
               ? " Each game scaled to a 90-minute rate, so short shifts compare fairly with full games."
-              : metric.additive ? " 1st half at the bottom, 2nd half stacked on top." : ""} Dashed line = {player}'s season average{norm ? " (per 90)" : ""}.
+              : metric.additive ? " Period splits stack in order: 1st half, 2nd half, then extra time when recorded." : ""} Dashed line = {player}'s season average{norm ? " (per 90)" : ""}.
           </CardDescription>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1055,6 +1059,7 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
             {seasonAvg != null && <ReferenceLine y={seasonAvg} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
             <Bar dataKey="h1" stackId="halves" name="1st half" fill={C_H1} hide={!anyHalves} />
             <Bar dataKey="h2" stackId="halves" name="2nd half" fill={C_H2} radius={[3, 3, 0, 0]} hide={!anyHalves} />
+            <Bar dataKey="et" stackId="halves" name="Extra time" fill={C_ET} radius={[3, 3, 0, 0]} hide={!data.some(d => d.et != null)} />
             <Bar dataKey="single" name={metric.title} fill={C_SINGLE} radius={[3, 3, 0, 0]} hide={!data.some(d => d.single != null)} />
           </BarChart>
         </ResponsiveContainer>
@@ -1065,9 +1070,9 @@ function PlayerChartCard({ metric: metricIn, bundles, player }: { metric: GpsMet
 
 interface PlayerTipPayload {
   round: string; opponent: string | null; mins: number | null;
-  h1: number | null; h2: number | null; total: number | null;
+  h1: number | null; h2: number | null; et: number | null; total: number | null;
   rawTotal: number | null;
-  m1: number | null; m2: number | null;
+  m1: number | null; m2: number | null; met: number | null;
 }
 
 function PlayerTooltip({ active, payload, metric, avg, per90Mode }: {
@@ -1086,6 +1091,7 @@ function PlayerTooltip({ active, payload, metric, avg, per90Mode }: {
       <div className="mt-1 space-y-0.5">
         {d.h1 != null && <p><span style={{ color: C_H1 }}>●</span> 1st half: {fmtV(d.h1, metric.decimals, metric.unit)}{d.m1 ? ` (${Math.round(d.m1)} min)` : ""}</p>}
         {d.h2 != null && <p><span style={{ color: C_H2 }}>●</span> 2nd half: {fmtV(d.h2, metric.decimals, metric.unit)}{d.m2 ? ` (${Math.round(d.m2)} min)` : ""}</p>}
+        {d.et != null && <p><span style={{ color: C_ET }}>●</span> Extra time: {fmtV(d.et, metric.decimals, metric.unit)}{d.met ? ` (${Math.round(d.met)} min)` : ""}</p>}
         {per90Mode ? (
           <>
             <p className="font-medium">Per 90: {fmtV(d.total, metric.decimals, metric.unit)}</p>
@@ -1201,8 +1207,8 @@ function PlayerAccelCard({ bundles, player }: { bundles: Bundle[]; player: strin
     round: b.key,
     opponent: b.opponent,
     mins: bundleMins(b),
-    acc: b.game?.maxAccelerationMss ?? null,
-    dec: b.game?.maxDecelerationMss ?? null,
+    acc: bundleMaxField(b, r => r.maxAccelerationMss),
+    dec: bundleMaxField(b, r => r.maxDecelerationMss),
   }));
 
   return (
@@ -1355,12 +1361,13 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
       const mins = bundleMins(b);
       const v1 = b.h1 ? metric.value(b.h1) : null;
       const v2 = b.h2 ? metric.value(b.h2) : null;
+      const vet = b.et ? metric.value(b.et) : null;
       const per10 = total != null && mins ? (total / mins) * 10 : null;
       const display = view === "per10" ? per10 : total;
       return {
         name: b.key, mins, total, per10, display,
-        h1: v1, h2: v2,
-        m1: b.h1?.minsPlayed ?? null, m2: b.h2?.minsPlayed ?? null,
+        h1: v1, h2: v2, et: vet,
+        m1: b.h1?.minsPlayed ?? null, m2: b.h2?.minsPlayed ?? null, met: b.et?.minsPlayed ?? null,
       };
     }).filter(r => r.total != null);
     const sortVal = (r: typeof rows[number]) => (view === "per10" ? r.per10 : r.total) ?? -Infinity;
@@ -1383,7 +1390,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
           <CardDescription className="text-xs">
             Biggest output on the left. Dashed line = squad average.
             {view === "per10" && " Per-10-min levels the field for players with fewer minutes."}
-            {view === "halves" && (halvesStacked ? " 1st half at the bottom, 2nd half on top — a short top segment can mean fading late." : " 1st vs 2nd half side by side.")}
+            {view === "halves" && (halvesStacked ? " 1st half is at the bottom, 2nd half above it, and extra time is shown on top when recorded." : " 1st vs 2nd half side by side.")}
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
@@ -1402,6 +1409,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
             <Bar dataKey="display" name={metric.title} fill={C_SINGLE} radius={[3, 3, 0, 0]} hide={view === "halves"} />
             <Bar dataKey="h1" stackId={halvesStacked ? "h" : undefined} name="1st half" fill={C_H1} hide={view !== "halves"} />
             <Bar dataKey="h2" stackId={halvesStacked ? "h" : undefined} name="2nd half" fill={C_H2} radius={[3, 3, 0, 0]} hide={view !== "halves"} />
+            <Bar dataKey="et" stackId={halvesStacked ? "h" : undefined} name="Extra time" fill={C_ET} radius={[3, 3, 0, 0]} hide={view !== "halves" || !data.some(d => d.et != null)} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
@@ -1411,7 +1419,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
 
 interface TeamTipPayload {
   name: string; mins: number | null; total: number | null; per10: number | null;
-  h1: number | null; h2: number | null; m1: number | null; m2: number | null;
+  h1: number | null; h2: number | null; et: number | null; m1: number | null; m2: number | null; met: number | null;
 }
 
 function TeamTooltip({ active, payload, metric, view, avg }: {
@@ -1433,6 +1441,7 @@ function TeamTooltip({ active, payload, metric, view, avg }: {
         {d.per10 != null && metric.additive && <p className="text-muted-foreground">{fmtV(d.per10, metric.decimals, metric.unit)} per 10 min  ·  ≈ {fmtV(d.per10 * 9, metric.decimals, metric.unit)} per 90</p>}
         {d.h1 != null && <p><span style={{ color: C_H1 }}>●</span> 1st half: {fmtV(d.h1, metric.decimals, metric.unit)}{d.m1 ? ` (${Math.round(d.m1)} min)` : ""}</p>}
         {d.h2 != null && <p><span style={{ color: C_H2 }}>●</span> 2nd half: {fmtV(d.h2, metric.decimals, metric.unit)}{d.m2 ? ` (${Math.round(d.m2)} min)` : ""}</p>}
+        {d.et != null && <p><span style={{ color: C_ET }}>●</span> Extra time: {fmtV(d.et, metric.decimals, metric.unit)}{d.met ? ` (${Math.round(d.met)} min)` : ""}</p>}
         {fade != null && metric.additive && (
           <p className="text-muted-foreground">2nd half {fade >= 0 ? "up" : "down"} {Math.abs(fade).toFixed(0)}% on the 1st</p>
         )}
@@ -1500,8 +1509,8 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
       .map(b => ({
         name: b.key,
         mins: bundleMins(b),
-        acc: b.game?.maxAccelerationMss ?? null,
-        dec: b.game?.maxDecelerationMss ?? null,
+        acc: bundleMaxField(b, r => r.maxAccelerationMss),
+        dec: bundleMaxField(b, r => r.maxDecelerationMss),
       }))
       .filter(d => d.acc != null || d.dec != null)
       .sort((a, b) => (b.acc ?? 0) - (a.acc ?? 0)),

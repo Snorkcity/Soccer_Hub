@@ -323,6 +323,7 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                     <th className="py-1.5 pr-3 font-medium">Team output</th>
                     <th className="py-1.5 px-3 text-center font-medium">1st half</th>
                     <th className="py-1.5 px-3 text-center font-medium">2nd half</th>
+                    {model.halves.some(h => h.et != null) && <th className="py-1.5 px-3 text-center font-medium">Extra time</th>}
                     <th className="py-1.5 px-3 text-center font-medium">Change</th>
                     <th className="py-1.5 px-3 text-center font-medium">Season usual</th>
                     <th className="py-1.5 pl-3 text-center font-medium">Best · worst</th>
@@ -334,6 +335,7 @@ function ReportBody({ model }: { model: GpsMatchReportModel }) {
                       <td className="py-1.5 pr-3">{h.label}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h1, h.decimals, h.unit)}</td>
                       <td className="py-1.5 px-3 text-center">{fmt(h.h2, h.decimals, h.unit)}</td>
+                      {model.halves.some(x => x.et != null) && <td className="py-1.5 px-3 text-center">{fmt(h.et ?? null, h.decimals, h.unit)}</td>}
                       <td className={`py-1.5 px-3 text-center font-medium ${h.changePct != null && h.changePct < -10 ? "text-amber-500" : ""}`}>
                         {h.changePct == null ? "—" : `${h.changePct >= 0 ? "up" : "down"} ${Math.abs(h.changePct).toFixed(0)}%`}
                       </td>

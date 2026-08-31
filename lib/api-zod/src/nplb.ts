@@ -115,25 +115,80 @@ export function veoPeriodDurationsMinutes(
   timing: MatchTimingPolicy,
 ): number[] {
   if (!Array.isArray(periods)) return [];
-  return (periods as { duration?: number }[]).map((period) => {
+  const isExtraTime = periods.length >= 4;
+  return (periods as { duration?: number }[]).map((period, index) => {
     const seconds = Number(period?.duration);
-    return Number.isFinite(seconds) && seconds > 0 ? seconds / 60 : timing.halfMinutes;
+    const fallback = isExtraTime && index >= 2 ? 15 : timing.halfMinutes;
+    return Number.isFinite(seconds) && seconds > 0 ? seconds / 60 : fallback;
   });
 }
 
-/** Convert a Veo period-relative timestamp to the regulation match clock. */
+/**
+ * Four Veo periods represent two regulation halves followed by two extra-time
+ * periods. Only that explicit shape may extend a match: summing two real Veo
+ * durations would otherwise turn ordinary stoppage/video time into a 93- or
+ * 95-minute chart.
+ */
+export function veoMatchDurationMinutes(
+  periodDurationsMinutes: readonly number[],
+  timing: MatchTimingPolicy,
+): number {
+  if (periodDurationsMinutes.length < 4) return timing.regulationMinutes;
+  return timing.regulationMinutes + 30;
+}
+
+/**
+ * Start minute for a zero-based Veo period. Four-period recordings use the
+ * competition clock, not the (often stoppage-inflated) video durations.
+ */
+export function veoPeriodStartMinute(
+  periodIndex: number,
+  periodDurationsMinutes: readonly number[],
+  timing: MatchTimingPolicy,
+): number {
+  const index = Math.max(0, Math.floor(periodIndex));
+  if (periodDurationsMinutes.length >= 4) {
+    if (index === 0) return 0;
+    if (index === 1) return timing.halfMinutes;
+    if (index === 2) return timing.regulationMinutes;
+    return timing.regulationMinutes + 15;
+  }
+  const knownPeriods = Math.min(periodDurationsMinutes.length, index);
+  const knownOffset = periodDurationsMinutes
+    .slice(0, knownPeriods)
+    .reduce((sum, duration) => sum + duration, 0);
+  return knownOffset + (index - knownPeriods) * timing.halfMinutes;
+}
+
+/** End minute for a zero-based Veo period on the match clock. */
+export function veoPeriodEndMinute(
+  periodIndex: number,
+  periodDurationsMinutes: readonly number[],
+  timing: MatchTimingPolicy,
+): number {
+  const index = Math.max(0, Math.floor(periodIndex));
+  if (periodDurationsMinutes.length >= 4) {
+    return veoPeriodStartMinute(index, periodDurationsMinutes, timing)
+      + (index < 2 ? timing.halfMinutes : 15);
+  }
+  return veoPeriodStartMinute(index, periodDurationsMinutes, timing)
+    + (periodDurationsMinutes[index] ?? timing.halfMinutes);
+}
+
+/** Convert a Veo period-relative timestamp to the full match clock. */
 export function veoEventMatchMinute(
   event: { period_id?: number | null; period_time_ms?: number | null },
   periodDurationsMinutes: readonly number[],
   timing: MatchTimingPolicy,
 ): number {
   const periodId = Math.max(1, Math.floor(Number(event.period_id) || 1));
-  const priorPeriods = periodId - 1;
-  const knownPeriods = Math.min(periodDurationsMinutes.length, priorPeriods);
-  const knownOffset = periodDurationsMinutes
-    .slice(0, knownPeriods)
-    .reduce((sum, duration) => sum + duration, 0);
-  const offset = knownOffset + (priorPeriods - knownPeriods) * timing.halfMinutes;
-  const periodMinute = Math.max(0, (Number(event.period_time_ms) || 0) / 60000);
-  return clampMatchMinute(offset + periodMinute, timing);
+  const offset = veoPeriodStartMinute(periodId - 1, periodDurationsMinutes, timing);
+  const rawPeriodMinute = Math.max(0, (Number(event.period_time_ms) || 0) / 60000);
+  const periodMinute = periodDurationsMinutes.length >= 4
+    ? Math.min(rawPeriodMinute, periodId <= 2 ? timing.halfMinutes : 15)
+    : rawPeriodMinute;
+  return Math.min(
+    veoMatchDurationMinutes(periodDurationsMinutes, timing),
+    Math.max(0, offset + periodMinute),
+  );
 }

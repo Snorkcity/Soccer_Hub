@@ -48,6 +48,9 @@ import {
   GetVeoPlayerSeasonQueryParams,
   matchTimingForLeague,
   veoEventMatchMinute,
+  veoMatchDurationMinutes,
+  veoPeriodEndMinute,
+  veoPeriodStartMinute,
   veoPeriodDurationsMinutes,
   type MatchTimingPolicy,
 } from "@workspace/api-zod";
@@ -686,6 +689,7 @@ router.get("/veo/season-shots", async (req, res) => {
       own_side?: string;
     }[];
     const periodDurations = veoPeriodDurationsMinutes(periods, timing);
+    const matchMinutes = veoMatchDurationMinutes(periodDurations, timing);
     const shots: { x: number | null; y: number | null; minute: number; goal: boolean; us: boolean }[] = [];
     for (const e of events) {
       if (e?.event_type !== "FootballShot" && e?.event_type !== "FootballGoal") continue;
@@ -713,6 +717,7 @@ router.get("/veo/season-shots", async (req, res) => {
       startsAt: r.startsAt,
       matchCode: r.matchCode ?? null,
       hubOpponent: r.hubOpponent ?? null,
+      matchMinutes,
       shots,
     };
   });
@@ -1418,8 +1423,10 @@ function computeMatchIntel(
     ? (periods as { timeframe?: [number, number]; own_side?: string; duration?: number }[]) : [];
   const durMin = veoPeriodDurationsMinutes(periodRows, timing);
   const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
-  const halfAt = durMin.length > 0 ? Math.min(durMin[0], timing.regulationMinutes) : timing.halfMinutes;
+  const halfAt = veoPeriodStartMinute(1, durMin, timing);
   const playedMin = durMin.reduce((a, b) => a + b, 0);
+  const maxMin = veoMatchDurationMinutes(durMin, timing);
+  const readablePlayedMin = durMin.length >= 4 ? maxMin : playedMin;
 
   // Unified moment timeline (goals, shots, corners) on the match clock.
   const timeline = evts
@@ -1435,8 +1442,6 @@ function computeMatchIntel(
   const wEvts = evts
     .map((e) => ({ min: minuteOf(e), w: MOMENTUM_WEIGHT[e.event_type ?? ""] ?? 0, own: isOwn(e) }))
     .filter((e) => e.w > 0);
-  const maxMin = timing.regulationMinutes;
-
   // Per-half territory from RAS possession-by-thirds when available.
   const halfTilt: { from: number; to: number; tilt: number }[] = [];
   let possSecUs = 0, possSecThem = 0;
@@ -1458,8 +1463,8 @@ function computeMatchIntel(
       const usFin = Number(item.possessionLocations?.[ownLR]?.attacking) || 0;
       const themFin = Number(item.possessionLocations?.[oppLR]?.attacking) || 0;
       if (usFin + themFin === 0) continue;
-      const from = durMin.slice(0, idx).reduce((a, b) => a + b, 0);
-      halfTilt.push({ from, to: from + durMin[idx], tilt: (usFin / (usFin + themFin)) * 100 });
+      const from = veoPeriodStartMinute(idx, durMin, timing);
+      halfTilt.push({ from, to: veoPeriodEndMinute(idx, durMin, timing), tilt: (usFin / (usFin + themFin)) * 100 });
     }
   }
   // NOTE: possessionLocations values are NOT reliable seconds (raw sums come
@@ -1468,7 +1473,7 @@ function computeMatchIntel(
   const possession = possSecUs + possSecThem > 0
     ? (() => {
         const shareUs = possSecUs / (possSecUs + possSecThem);
-        const base = playedMin > 0 ? Math.min(playedMin, timing.regulationMinutes) : timing.regulationMinutes;
+        const base = readablePlayedMin > 0 ? Math.min(readablePlayedMin, maxMin) : maxMin;
         return {
           usPct: Number((shareUs * 100).toFixed(1)),
           usMin: Number((base * shareUs).toFixed(1)),
@@ -1503,6 +1508,16 @@ function computeMatchIntel(
     for (const e of wEvts) if (e.min >= from && e.min < to) (e.own ? us += e.w : them += e.w);
     const tot = us + them;
     return tot > 0 ? (us / tot) * 100 : null;
+  };
+  const periodShare = (periodId: number) => {
+    let us = 0, them = 0;
+    for (const event of evts) {
+      if ((Number(event.period_id) || 1) !== periodId) continue;
+      const weight = MOMENTUM_WEIGHT[event.event_type ?? ""] ?? 0;
+      if (isOwn(event)) us += weight; else them += weight;
+    }
+    const total = us + them;
+    return total > 0 ? (us / total) * 100 : null;
   };
   const count = (type: string, own: boolean) =>
     evts.filter((e) => e.event_type === type && isOwn(e) === own).length;
@@ -1559,7 +1574,13 @@ function computeMatchIntel(
   }
 
   // Half-to-half swing.
-  const h1 = share(0, halfAt), h2 = share(halfAt, maxMin + 0.001);
+  // In an extra-time recording, compare only period 1 with period 2. A broad
+  // "after half-time" minute range would silently fold periods 3/4 into the
+  // second regulation half.
+  const h1 = durMin.length >= 4 ? periodShare(1) : share(0, halfAt);
+  const h2 = durMin.length >= 4
+    ? periodShare(2)
+    : share(halfAt, timing.regulationMinutes + 0.001);
   if (h1 != null && h2 != null) {
     const diff = h2 - h1;
     if (diff <= -20) findings.push({ kind: "halves", tone: "watch", weight: 4, text: `Our share of the threat dropped from ${pct(h1)} before the break to ${pct(h2)} after — the second half is worth a review.` });
@@ -1640,7 +1661,8 @@ function computeReportStats(events: unknown[], periods: unknown, timing: MatchTi
   // Minute-of-match using real period durations when Veo provides them.
   const durMin = veoPeriodDurationsMinutes(periods, timing);
   const minuteOf = (event: VeoEventLite) => veoEventMatchMinute(event, durMin, timing);
-  const bins = Math.ceil(timing.regulationMinutes / BIN_MIN);
+  const matchMinutes = veoMatchDurationMinutes(durMin, timing);
+  const bins = Math.ceil(matchMinutes / BIN_MIN);
   const momentum = Array.from({ length: bins }, (_, i) => ({ min: i * BIN_MIN, us: 0, them: 0 }));
   for (const e of evts) {
     const w = MOMENTUM_WEIGHT[e.event_type ?? ""];
@@ -1651,7 +1673,7 @@ function computeReportStats(events: unknown[], periods: unknown, timing: MatchTi
     else momentum[idx].them -= w;
   }
 
-  return { shots: { us: shotsUs, them: shotsThem }, momentum };
+  return { shots: { us: shotsUs, them: shotsThem }, momentum, matchMinutes };
 }
 
 // GET /veo/player-match?leagueId=&veoId= — Analytics 2 player metrics for one match.
@@ -1899,13 +1921,13 @@ router.get("/veo/report-stats", async (req, res) => {
     .limit(1);
   const timing = matchTimingForLeague(league?.name);
   const effectivePeriods = effectiveVeoPeriods(row.periods, row.directionOverrides);
-  const { shots, momentum } = computeReportStats(row.events, effectivePeriods, timing);
+  const { shots, momentum, matchMinutes } = computeReportStats(row.events, effectivePeriods, timing);
   const intel = computeMatchIntel(row.events, effectivePeriods, row.passDetails, row.opponent ?? "the opposition", timing);
   return res.json({
     linked: true,
     veoId: row.id,
     startsAt: row.startsAt,
-    matchMinutes: timing.regulationMinutes,
+    matchMinutes,
     shots,
     momentum,
     ...intel,

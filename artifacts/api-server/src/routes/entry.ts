@@ -68,6 +68,7 @@ import {
   ListEntryGpsFixturesQueryParams,
   ListEntryGpsFixturesResponse,
   isActNplbLeague,
+  canonicalGpsSplit,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { focusClubForRequest } from "../lib/focusClub";
@@ -1784,8 +1785,21 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
     return;
   }
 
+  const unsupportedSplits = [...new Set(rows
+    .map(r => r.splitName?.trim())
+    .filter((split): split is string => !!split && canonicalGpsSplit(split) == null))];
+  if (unsupportedSplits.length) {
+    res.status(400).json({ error: `Unsupported GPS split label${unsupportedSplits.length === 1 ? "" : "s"}: ${unsupportedSplits.map(split => `"${split}"`).join(", ")}` });
+    return;
+  }
+
   const cleanRows = rows
-    .map(r => ({ ...r, playerName: r.playerName.trim() }))
+    .map(r => {
+      const rawSplit = r.splitName?.trim();
+      // Blank/null is legacy whole-game data and remains valid.
+      const splitName = rawSplit == null ? null : canonicalGpsSplit(rawSplit);
+      return { ...r, playerName: r.playerName.trim(), splitName };
+    })
     .filter(r => r.playerName.length > 0);
   if (cleanRows.length === 0) {
     res.status(400).json({ error: "No player rows to save" });
