@@ -179,7 +179,7 @@ export function SectionGroup({
                     ref={(element) => {
                       triggerRefs.current[section.id] = element;
                     }}
-                    className="group flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="group flex w-full items-center justify-between rounded-lg border border-primary/20 bg-primary/[0.06] px-4 py-3 text-left transition-colors hover:bg-primary/[0.10] data-[state=open]:border-primary/30 data-[state=open]:bg-primary/[0.09] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid={`trigger-${id}-${section.id}`}
                   >
                     <span className="flex items-center gap-4">
