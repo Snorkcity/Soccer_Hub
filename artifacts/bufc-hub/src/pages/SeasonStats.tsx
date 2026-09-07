@@ -3356,6 +3356,7 @@ export default function SeasonStats() {
                 data={oppMinutesData(oppMinsL3 ? oppPlayersL3 : oppPlayersFull, isAll ? oppMinsLimit : 15)}
                 color="#0ea5e9"
                 valueLabel="Minutes"
+                showClub={isAll}
                 controls={
                   <div className="flex flex-wrap items-center gap-2">
                     {isAll && (
@@ -4331,22 +4332,26 @@ function buildProfileTimelines(goals: RawProfileGoal[] | undefined, matches: Raw
 }
 
 interface PlayerBarDatum {
-  name: string; value: number; mins: number; goals: number; assists: number; starts: number; appearances: number; sub: number;
+  name: string; club?: string | null; value: number; mins: number; goals: number; assists: number; starts: number; appearances: number; sub: number;
 }
 const per90 = (v: number, mins: number) => (mins > 0 ? +(v * 90 / mins).toFixed(2) : 0);
 
 // Top-15 rows for a single player metric. Rate metrics need a minutes floor so a
 // one-off cameo goal doesn't top the chart; totals just filter to > 0.
-function PlayerBarTooltip({ active, payload, valueLabel }: {
+function PlayerBarTooltip({ active, payload, valueLabel, showClub }: {
   active?: boolean;
   payload?: Array<{ payload: PlayerBarDatum }>;
   valueLabel: string;
+  showClub?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="rounded-lg border bg-card p-3 shadow-lg text-xs min-w-[190px] space-y-2">
-      <div className="font-semibold text-sm leading-tight">{d.name}</div>
+      <div className="font-semibold text-sm leading-tight">
+        {d.name}
+        {showClub && d.club ? <span className="font-normal text-muted-foreground"> · {d.club}</span> : null}
+      </div>
       <div className="border-t pt-2 space-y-1">
         <div className="flex justify-between gap-6 font-semibold">
           <span className="text-muted-foreground">{valueLabel}</span>
@@ -4752,11 +4757,12 @@ function SubImpactTooltip({ active, payload }: { active?: boolean; payload?: Arr
 // One player-metric bar chart. "single" plots one value per player; "startsApps"
 // stacks starts + off-the-bench appearances. When `timeline` is supplied, clicking a
 // player's bar swaps the chart for their game-by-game timeline.
-function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, allowDecimals, variant = "single", controls, timeline }: {
+function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, allowDecimals, variant = "single", controls, timeline, showClub }: {
   title: string; description?: string; tooltip?: string;
   data: PlayerBarDatum[]; color: string; valueLabel: string; allowDecimals?: boolean;
   variant?: "single" | "startsApps"; controls?: React.ReactNode;
   timeline?: { seasonId: number; club: string; accent?: string };
+  showClub?: boolean;
 }) {
   const [tlPlayer, setTlPlayer] = useState<string | null>(null);
   useEffect(() => { setTlPlayer(null); }, [timeline?.club, timeline?.seasonId]);
@@ -4786,7 +4792,7 @@ function PlayerBarCard({ title, description, tooltip, data, color, valueLabel, a
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="name" {...AXIS_STYLE} angle={-40} textAnchor="end" interval={0} height={60} />
               <YAxis {...AXIS_STYLE} allowDecimals={variant === "startsApps" ? false : !!allowDecimals} />
-              <Tooltip content={<PlayerBarTooltip valueLabel={variant === "startsApps" ? "Appearances" : valueLabel} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+              <Tooltip content={<PlayerBarTooltip valueLabel={variant === "startsApps" ? "Appearances" : valueLabel} showClub={showClub} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
               {variant === "startsApps" && <Bar dataKey="starts" name="Starts" stackId="a" fill="#3b82f6" />}
               {variant === "startsApps" && <Bar dataKey="sub" name="Off bench" stackId="a" fill="#93c5fd" radius={[3, 3, 0, 0]} />}
               {variant !== "startsApps" && <Bar dataKey="value" name={valueLabel} fill={color} radius={[3, 3, 0, 0]} />}
@@ -4901,14 +4907,14 @@ type OppPlayerSrc = {
 // window. Unlike the stacked goal/assist charts, these include the whole roster.
 function oppStartsAppsData(src?: OppPlayerSrc): PlayerBarDatum[] {
   return (src?.players ?? [])
-    .map(p => ({ name: p.playerName, value: p.totalApps, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
+    .map(p => ({ name: p.playerName, club: p.club, value: p.totalApps, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.appearances > 0)
     .sort((a, b) => b.appearances - a.appearances || b.starts - a.starts)
     .slice(0, 18);
 }
 function oppMinutesData(src?: OppPlayerSrc, limit = 15): PlayerBarDatum[] {
   return (src?.players ?? [])
-    .map(p => ({ name: p.playerName, value: p.totalMins ?? 0, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
+    .map(p => ({ name: p.playerName, club: p.club, value: p.totalMins ?? 0, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.mins > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, limit);
