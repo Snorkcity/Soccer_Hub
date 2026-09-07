@@ -455,6 +455,7 @@ async function buildPreview(
   seasonId: number,
   seasonRow: SeasonRow,
   fixtures: NormFixture[],
+  driblRoundOptions: Array<{ value: string; title?: string | null }>,
   getDetail: (hash: string) => Promise<NormDetail | null>,
   getLineup?: (matchHash: string, teamHash: string) => Promise<NormLineupPlayer[] | null>,
   recheckNoLineups = false,
@@ -602,7 +603,7 @@ async function buildPreview(
     if (v == null) {
       const home = matchClub(f.homeTeamName, clubs);
       const away = matchClub(f.awayTeamName, clubs);
-      const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound);
+      const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound, driblRoundOptions);
       v = home != null && away != null &&
         (stage.code ? existingByKey.get(`c${stage.code}|${home}|${away}`) : undefined) != null;
       recordedCache.set(f, v);
@@ -617,9 +618,9 @@ async function buildPreview(
     const unmatched: string[] = [];
     if (!home) unmatched.push(f.homeTeamName);
     if (!away) unmatched.push(f.awayTeamName);
-    const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound);
+    const stage = classifyDriblCompetitionStage(f.fixtureRound, f.fullRound, driblRoundOptions);
     if (stage.kind === "unknown") {
-      unmatched.push(`Unrecognised Dribl stage: "${stage.label}"`);
+      unmatched.push(`Unrecognised Dribl stage: ${stage.issue ?? `"${stage.label}"`}`);
     }
     const localDate = toLocalDbDate(f.date);
     const existingId = home && away
@@ -1132,7 +1133,7 @@ router.get("/entry/dribl-preview", async (req, res): Promise<void> => {
     }
 
     const { matches, skippedNoLineups, suggestedClubs } = await buildPreview(
-      seasonId, seasonRow, fixtures,
+      seasonId, seasonRow, fixtures, driblRoundOptions,
       async (hash) => detailByHash.get(hash) ?? fetchDetail(hash),
       async (matchHash, teamHash) =>
         lineupByKey.has(`${matchHash}|${teamHash}`)
@@ -1200,7 +1201,7 @@ router.post("/entry/dribl-preview", async (req, res): Promise<void> => {
   }
 
   const { matches, needDetail, needLineups, skippedNoLineups, suggestedClubs } = await buildPreview(
-    b.seasonId, seasonRow, b.fixtures,
+    b.seasonId, seasonRow, b.fixtures, b.driblRoundOptions ?? [],
     async (hash) => detailByHash.get(hash) ?? null,
     async (matchHash, teamHash) => lineupByKey.get(`${matchHash}|${teamHash}`) ?? null,
     b.recheckNoLineups ?? false,

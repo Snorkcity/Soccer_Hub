@@ -4,22 +4,12 @@ export type DriblCompetitionStage = {
   label: string;
   round: number | null;
   countsTowardLadder: boolean;
+  issue?: string;
 };
 
 const REGULAR_MATCH_RE = /^R([1-9]\d*)(?:-|$)/i;
 const FINALS_CODE_RE = /^(?:FW[1-9]\d*G[1-9]\d*|QF[1-9]\d*|EF[1-9]\d*|SF[1-9]\d*|PF[1-9]\d*|GF[1-9]\d*|F[1-9]\d*)(?:-|$)/i;
-// Verified against Capital Football's live 2026 NPLW/NPLM fixture feeds.
-// Keep this exact rather than accepting every finals-looking value: Dribl's
-// number after # is a series-wide fixture number, not necessarily a round-local
-// game number.
-const VERIFIED_NATIVE_FINALS = new Set([
-  "F1#1",
-  "F1#2",
-  "F1#3",
-  "F1#4",
-  "F2#4",
-  "F3#5",
-]);
+export type DriblPublishedRoundOption = { value: string; title?: string | null };
 
 const numberedFinal = (
   code: string,
@@ -94,15 +84,41 @@ function classifyDriblStageLabel(raw: string | null | undefined): DriblCompetiti
 export function classifyDriblCompetitionStage(
   fixtureRoundOrFullRound: string | null | undefined,
   fullRound?: string | null,
+  publishedRoundOptions: readonly DriblPublishedRoundOption[] = [],
 ): DriblCompetitionStage {
   if (fullRound === undefined) return classifyDriblStageLabel(fixtureRoundOrFullRound);
 
   const fixtureRound = fixtureRoundOrFullRound?.trim() ?? "";
   const visibleLabel = fullRound?.trim().replace(/\s+/g, " ") ?? "";
   const nativeFinals = /^F([1-9]\d*)#([1-9]\d*)$/i.exec(fixtureRound);
-  if (nativeFinals && VERIFIED_NATIVE_FINALS.has(fixtureRound.toUpperCase())) {
+  if (nativeFinals) {
     const week = Number(nativeFinals[1]);
     const game = Number(nativeFinals[2]);
+    const visibleFinals = /^finals?\s*([1-9]\d*)\s*#\s*([1-9]\d*)$/i.exec(visibleLabel);
+    if (!visibleFinals || Number(visibleFinals[1]) !== week || Number(visibleFinals[2]) !== game) {
+      return {
+        kind: "unknown",
+        code: null,
+        label: visibleLabel || fixtureRound,
+        round: null,
+        countsTowardLadder: false,
+        issue: `native code ${fixtureRound} disagrees with visible label ${visibleLabel || "(missing)"}`,
+      };
+    }
+    const isPublished = publishedRoundOptions.some(option => {
+      const match = /^finals?_0*([1-9]\d*)$/i.exec(option.value.trim());
+      return match != null && Number(match[1]) === week;
+    });
+    if (!isPublished) {
+      return {
+        kind: "unknown",
+        code: null,
+        label: visibleLabel,
+        round: null,
+        countsTowardLadder: false,
+        issue: `native code ${fixtureRound} has no matching published finals_${week} stage`,
+      };
+    }
     return {
       kind: "finals",
       code: `FW${week}G${game}`,
@@ -114,13 +130,25 @@ export function classifyDriblCompetitionStage(
 
   if (fixtureRound) {
     const nativeStage = classifyDriblStageLabel(fixtureRound);
-    if (nativeStage.kind === "round") return nativeStage;
+    if (nativeStage.kind === "round") {
+      const visibleStage = visibleLabel ? classifyDriblStageLabel(visibleLabel) : nativeStage;
+      if (visibleStage.kind === "round" && visibleStage.round === nativeStage.round) return nativeStage;
+      return {
+        kind: "unknown",
+        code: null,
+        label: visibleLabel || fixtureRound,
+        round: null,
+        countsTowardLadder: false,
+        issue: `native round ${fixtureRound} disagrees with visible label ${visibleLabel || "(missing)"}`,
+      };
+    }
     return {
       kind: "unknown",
       code: null,
       label: visibleLabel || fixtureRound || "Unlabelled stage",
       round: null,
       countsTowardLadder: false,
+      issue: `unsupported native stage ${fixtureRound}`,
     };
   }
 

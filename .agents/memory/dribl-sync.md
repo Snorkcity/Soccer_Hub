@@ -42,8 +42,10 @@ description: Importing NPLM results/goals from the Dribl (Capital Football) publ
 
 **How to apply:** When adding or reviewing Capital boys grades, validate fixture-derived club names across the full feed and keep both qualifier patterns in the shared normaliser.
 
-**Round metadata quirk (Aug 2026):** `/list/rounds` needs tenant, season, competition **and league**. Without league it can return HTTP 200 with an empty list. Unlike most `/list/*` endpoints, its successful body is a top-level array, not `{ data: [...] }`. Catalog values describe the series (`finals_1`), while fixture `round` values identify games (`F1#1`, etc.).
+**Round metadata and finals validation:** `/list/rounds` needs tenant, season, competition **and league**. Without league it can return HTTP 200 with an empty list. Unlike most `/list/*` endpoints, its successful body is a top-level array, not `{ data: [...] }`. Catalog values describe the series (`finals_1`), while fixture `round` values identify games (`F1#1`, etc.). The number after `#` is series-wide, not necessarily local to that finals week.
 
-**Why:** Treating the endpoint like other Dribl list calls silently hid newly published finals stages; conflating catalog and fixture values also made safe code verification ambiguous.
+Finals are recognised automatically only when three Dribl fields agree: the catalogue publishes `finals_N`, the native fixture code is `FN#G`, and the visible label is `Finals N#G`. Preserve `G` in the stable ID, exclude the match from ladders, and block any disagreement with a specific reason.
 
-**How to apply:** Resolve the Dribl league ID first, accept top-level-array and wrapped responses defensively, display new finals catalog values, and verify corresponding fixture codes live before allowing imports.
+**Why:** Exact-code allow-lists required a deployment for every legitimate finals stage, while trusting a finals-looking label alone could misclassify a match.
+
+**How to apply:** Resolve the Dribl league ID first, accept top-level-array and wrapped responses defensively, then validate catalogue/native/visible stage agreement. Never hardcode individual finals fixture numbers.

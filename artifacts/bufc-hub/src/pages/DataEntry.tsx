@@ -3094,12 +3094,11 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
     ),
     [preview],
   );
-  // /list/rounds publishes series-level values (finals_1/finals_2/finals_3),
-  // while fixtures publish game values (F1#1/F2#4/F3#5). They are separate
-  // native fields and both are verified before a new stage is accepted.
-  const supportedFinalsRounds = new Set(["finals_1", "finals_2", "finals_3"]);
-  const unfamiliarFinalsRounds = publishedFinalsRounds.filter(
-    round => !supportedFinalsRounds.has(round.value.toLowerCase()),
+  const safelyRecognisedFinalsRounds = publishedFinalsRounds.filter(round =>
+    /^finals?_[1-9]\d*$/i.test(round.value.trim()),
+  );
+  const unfamiliarFinalsRounds = publishedFinalsRounds.filter(round =>
+    !/^finals?_[1-9]\d*$/i.test(round.value.trim()),
   );
   const selectedMatches = importable.filter(m => !deselected.has(m.matchId));
 
@@ -3243,7 +3242,12 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                 ))}
                 {unfamiliarFinalsRounds.length > 0 && (
                   <span className="block mt-1 font-medium">
-                    New finals codes are blocked from import until their fixture values have been verified.
+                    Unfamiliar stage names remain blocked until Dribl publishes a matching standard finals code and label.
+                  </span>
+                )}
+                {unfamiliarFinalsRounds.length === 0 && safelyRecognisedFinalsRounds.length > 0 && (
+                  <span className="block mt-1">
+                    Matching finals fixtures are recognised automatically and never count toward the ladder.
                   </span>
                 )}
               </div>
