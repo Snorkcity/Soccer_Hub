@@ -3094,9 +3094,13 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
     ),
     [preview],
   );
-  // /list/rounds publishes series-level values (currently finals_1), while
-  // fixtures publish game values (F1#1/F1#2). They are separate native fields.
-  const unfamiliarFinalsRounds = publishedFinalsRounds.filter(round => round.value.toLowerCase() !== "finals_1");
+  // /list/rounds publishes series-level values (finals_1/finals_2/finals_3),
+  // while fixtures publish game values (F1#1/F2#4/F3#5). They are separate
+  // native fields and both are verified before a new stage is accepted.
+  const supportedFinalsRounds = new Set(["finals_1", "finals_2", "finals_3"]);
+  const unfamiliarFinalsRounds = publishedFinalsRounds.filter(
+    round => !supportedFinalsRounds.has(round.value.toLowerCase()),
+  );
   const selectedMatches = importable.filter(m => !deselected.has(m.matchId));
 
   const toggle = (matchId: string) => {

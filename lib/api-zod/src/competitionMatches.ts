@@ -8,6 +8,18 @@ export type DriblCompetitionStage = {
 
 const REGULAR_MATCH_RE = /^R([1-9]\d*)(?:-|$)/i;
 const FINALS_CODE_RE = /^(?:FW[1-9]\d*G[1-9]\d*|QF[1-9]\d*|EF[1-9]\d*|SF[1-9]\d*|PF[1-9]\d*|GF[1-9]\d*|F[1-9]\d*)(?:-|$)/i;
+// Verified against Capital Football's live 2026 NPLW/NPLM fixture feeds.
+// Keep this exact rather than accepting every finals-looking value: Dribl's
+// number after # is a series-wide fixture number, not necessarily a round-local
+// game number.
+const VERIFIED_NATIVE_FINALS = new Set([
+  "F1#1",
+  "F1#2",
+  "F1#3",
+  "F1#4",
+  "F2#4",
+  "F3#5",
+]);
 
 const numberedFinal = (
   code: string,
@@ -87,15 +99,14 @@ export function classifyDriblCompetitionStage(
 
   const fixtureRound = fixtureRoundOrFullRound?.trim() ?? "";
   const visibleLabel = fullRound?.trim().replace(/\s+/g, " ") ?? "";
-  // Verified in the live 2026 Capital NPLM feed: Finals Round 1 currently
-  // contains four fixtures, F1#1 through F1#4.
-  const liveFinals = /^F1#([1-4])$/i.exec(fixtureRound);
-  if (liveFinals) {
-    const game = Number(liveFinals[1]);
+  const nativeFinals = /^F([1-9]\d*)#([1-9]\d*)$/i.exec(fixtureRound);
+  if (nativeFinals && VERIFIED_NATIVE_FINALS.has(fixtureRound.toUpperCase())) {
+    const week = Number(nativeFinals[1]);
+    const game = Number(nativeFinals[2]);
     return {
       kind: "finals",
-      code: `FW1G${game}`,
-      label: `Finals Week 1 · Game ${game}`,
+      code: `FW${week}G${game}`,
+      label: `Finals Week ${week} · Game ${game}`,
       round: null,
       countsTowardLadder: false,
     };
