@@ -19,6 +19,7 @@ try {
   const {
     hubCalendarDate,
     planExactDateAutoLinks,
+    recordingsOnTrackedMatchDates,
     sydneyCalendarDate,
   } = await import(`${pathToFileURL(output).href}?v=${Date.now()}`);
 
@@ -41,6 +42,21 @@ try {
   assert.equal(hubCalendarDate("2026/7/2"), "2026-07-02");
   assert.equal(sydneyCalendarDate("not-a-date"), null);
   assert.equal(hubCalendarDate(null), null);
+
+  assert.deepEqual(
+    recordingsOnTrackedMatchDates(
+      [
+        { id: "league", start: "2026-03-28T12:00:00+01:00" },
+        { id: "preseason", start: "2026-03-07T12:00:00+01:00" },
+        { id: "invalid", start: "not-a-date" },
+      ],
+      [
+        { matchDate: "2026-03-28" },
+        { matchDate: null },
+      ],
+    ).map((row) => row.id),
+    ["league"],
+  );
 
   // Both Australian daylight-saving boundaries retain the correct local day.
   assert.equal(sydneyCalendarDate("2026-04-04T15:30:00.000Z"), "2026-04-05");

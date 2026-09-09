@@ -110,6 +110,14 @@ Analytics 2 is enabled in the account. Do not assume its public launch-date cuto
 availability: read-only probes found physical rows on every recent recording checked, including matches
 from June 2026. Always probe the endpoint; do not discard old matches by date.
 
+## Shared Veo source changes
+
+**Rule:** a league has one active Veo source. When its mapped team changes, soft-archive active rows from the previous team before linking replacements. For shared/noisy teams, opt into exact Sydney-date filtering against tracked Hub fixtures.
+
+**Why:** the NPLM U23 analytics share lives under Moir's/Conor, while its older BUFC U23 share lacks the full analytics feeds. Conor also contains historical and preseason recordings; importing the whole team would mix unrelated games and duplicate linked fixtures.
+
+**How to apply:** confirm the replacement source covers tracked fixture dates uniquely and exposes real events/RAS/Analytics 2 payloads before changing the mapping. Keep unmatched dates out of opted-in leagues and preserve old-source rows only as an inactive archive.
+
 - **Physical metrics:** `GET /api/mes/v2/{matchId}/physical-metrics`. Rows are split by `drill`
   (period/segment) and carry `teamId`, `jerseyNumber`, `distance` (metres), `secondsPlayed`,
   `maxSpeed`, `averageSpeed`, `maxAccel`, `maxDecel`, `sprints`, and `hsr` (high-intensity runs).

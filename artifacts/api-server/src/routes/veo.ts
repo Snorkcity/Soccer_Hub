@@ -55,7 +55,7 @@ import {
   type MatchTimingPolicy,
 } from "@workspace/api-zod";
 import { veoMatchStatisticUpdates } from "../lib/matchStatisticProvenance";
-import { planExactDateAutoLinks } from "../lib/veoLinking";
+import { planExactDateAutoLinks, recordingsOnTrackedMatchDates } from "../lib/veoLinking";
 import {
   effectiveVeoPeriods,
   normaliseVeoDirectionOverrides,
@@ -76,6 +76,7 @@ interface LeagueVeo {
   // Focus club for identity matching (from leagues.focus_club; fallback "Belconnen").
   focusClub: string;
   analyticsEnabled: boolean;
+  matchDatesOnly: boolean;
 }
 
 async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
@@ -87,6 +88,7 @@ async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
       veoTeamSlug: leaguesTable.veoTeamSlug,
       focusClub: leaguesTable.focusClub,
       analyticsEnabled: leaguesTable.veoAnalyticsEnabled,
+      matchDatesOnly: leaguesTable.veoMatchDatesOnly,
     })
     .from(leaguesTable)
     .where(eq(leaguesTable.id, leagueId))
@@ -100,6 +102,7 @@ async function leagueVeoMapping(leagueId: number): Promise<LeagueVeo | null> {
     veoTeamSlug: r.veoTeamSlug,
     focusClub: r.focusClub ?? "Belconnen",
     analyticsEnabled: r.analyticsEnabled,
+    matchDatesOnly: r.matchDatesOnly,
   };
 }
 
@@ -152,6 +155,32 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
   } catch (e) {
     logger.error({ err: e, leagueId }, "veo: listRecordings failed");
     return { error: "Could not reach Veo. Try again shortly.", status: 502 };
+  }
+
+  if (mapping.matchDatesOnly) {
+    recordings = recordingsOnTrackedMatchDates(recordings, await hubMatchesForLeague(leagueId));
+  }
+
+  // A league has one active Veo source. If its mapping changes, retain the old
+  // rows as a soft-deleted archive but keep them out of the active charts and
+  // out of the exact-date link planner, so replacement recordings can link.
+  const archivedPreviousSource = await db
+    .update(veoMatchesTable)
+    .set({ removedAt: nowIso })
+    .where(
+      and(
+        eq(veoMatchesTable.leagueId, leagueId),
+        isNull(veoMatchesTable.removedAt),
+        sql`${veoMatchesTable.veoTeamSlug} IS NOT NULL`,
+        sql`${veoMatchesTable.veoTeamSlug} <> ${mapping.veoTeamSlug}`,
+      ),
+    )
+    .returning({ id: veoMatchesTable.id });
+  if (archivedPreviousSource.length > 0) {
+    logger.info(
+      { leagueId, count: archivedPreviousSource.length, activeTeamSlug: mapping.veoTeamSlug },
+      "veo: archived recordings from previous source",
+    );
   }
 
   // Upsert metadata for every recording (cheap; keeps the match list complete).
@@ -968,7 +997,12 @@ router.get("/veo/links", async (req, res) => {
       .from(veoMatchesTable)
       .innerJoin(leaguesTable, eq(veoMatchesTable.leagueId, leaguesTable.id))
       .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
-      .where(eq(veoMatchesTable.leagueId, leagueId))
+      .where(
+        and(
+          eq(veoMatchesTable.leagueId, leagueId),
+          sql`(${veoMatchesTable.removedAt} IS NULL OR ${veoMatchesTable.veoTeamSlug} = ${leaguesTable.veoTeamSlug})`,
+        ),
+      )
       .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`),
     hubMatchesForLeague(leagueId),
   ]);

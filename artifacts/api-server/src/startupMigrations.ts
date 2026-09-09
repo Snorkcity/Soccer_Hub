@@ -1308,6 +1308,7 @@ async function runUserAccountsMigration(): Promise<void> {
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_club_slug text`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_team_slug text`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_analytics_enabled boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_match_dates_only boolean NOT NULL DEFAULT false`);
   await db.execute(sql`
     UPDATE leagues
     SET veo_analytics_enabled = false
@@ -1341,6 +1342,18 @@ async function runUserAccountsMigration(): Promise<void> {
     ) AS mapping(league_name, team_slug)
     WHERE league.name = mapping.league_name
       AND league.veo_team_slug IS NULL
+  `);
+  // NPLM U23's original BUFC team share lacks the full analytics subscription.
+  // The separately shared Moir's/Conor team has the same 2026 league matches
+  // with complete analytics. It also contains historical/preseason recordings,
+  // so this league opts into exact tracked-date filtering.
+  await db.execute(sql`
+    UPDATE leagues
+    SET veo_club_slug = 'moir',
+        veo_team_slug = 'conor',
+        veo_analytics_enabled = true,
+        veo_match_dates_only = true
+    WHERE name = 'ACT NPLM U23'
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS veo_matches (

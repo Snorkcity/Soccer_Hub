@@ -20,6 +20,10 @@ export interface AutoLinkPlan {
   unmatched: number;
 }
 
+export interface VeoDatedRecording {
+  start?: string | null;
+}
+
 const sydneyDateFormatter = new Intl.DateTimeFormat("en-AU", {
   timeZone: SYDNEY_TIME_ZONE,
   year: "numeric",
@@ -56,6 +60,25 @@ export function hubCalendarDate(matchDate: string | null | undefined): string | 
   const day = Number(match[3]);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+
+/**
+ * Keep only recordings that share an Australia/Sydney calendar date with a
+ * tracked Hub fixture. This is opt-in per league for shared/noisy Veo teams.
+ */
+export function recordingsOnTrackedMatchDates<T extends VeoDatedRecording>(
+  recordings: readonly T[],
+  hubMatches: readonly Pick<AutoLinkHubMatch, "matchDate">[],
+): T[] {
+  const trackedDates = new Set(
+    hubMatches
+      .map((match) => hubCalendarDate(match.matchDate))
+      .filter((date): date is string => date != null),
+  );
+  return recordings.filter((recording) => {
+    const date = sydneyCalendarDate(recording.start);
+    return date != null && trackedDates.has(date);
+  });
 }
 
 function normName(value: string | null | undefined): string {

@@ -31,6 +31,10 @@ export const leaguesTable = pgTable("leagues", {
   // passing feed. False means the league's plan cannot produce these charts;
   // it must not be treated as a temporary per-match processing delay.
   veoAnalyticsEnabled: boolean("veo_analytics_enabled").notNull().default(true),
+  // Some shared Veo teams contain preseason and historical recordings. When
+  // enabled, sync only consumes recordings whose Sydney date matches a Hub
+  // fixture already tracked for this league.
+  veoMatchDatesOnly: boolean("veo_match_dates_only").notNull().default(false),
 });
 
 export const insertLeagueSchema = createInsertSchema(leaguesTable).omit({ id: true });
