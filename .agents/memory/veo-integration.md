@@ -108,6 +108,14 @@ route via exported syncVeoLeagueOnce/autoLinkVeoLeague).
 
 **How to apply:** map L/R to us/opponent from each period's `own_side`, then use each mapped side's team-relative grid without another direction flip. Do not estimate missing locations from total passes or possession-third percentages.
 
+## Veo-detected goal sequences
+
+**Rule:** goal sequences are camera-derived observations, never official assist claims. Use only complete Analytics 2 action feeds; anchor each goal to its completed scoring shot, count only `pass` events with outcome `1`, and stop conservatively at turnovers, failed passes, restarts, or unexplained gaps.
+
+**Why:** rich MES events contain timestamps, team-relative 0–1 coordinates, player jerseys, and receiver attributes, but no official possession ID or assist relationship. Partial/classic feeds contain goals and shots without enough pass evidence.
+
+**How to apply:** use period time for football-minute matching (video time includes recording lead-in). In the team-relative coordinate system, x ≤ 1/3 is attacking, x ≤ 2/3 middle, otherwise defensive. Keep scorer/assister/pass-count suggestions read-only until a coach explicitly applies them, and never overwrite Dribl or manual goal details.
+
 ## Shot-map orientation (own_side)
 Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".
 **Why:** the earlier per-match map flipped on "left" and was silently backwards; season-aggregate shot clustering (shots pile up at the attacked goal) proved the correct direction.

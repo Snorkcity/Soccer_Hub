@@ -535,6 +535,194 @@ export interface VeoSeasonPassingMatch {
   passLenThem?: VeoPassLenStats | null;
 }
 
+export type VeoSequenceZone = typeof VeoSequenceZone[keyof typeof VeoSequenceZone];
+
+
+export const VeoSequenceZone = {
+  attacking: 'attacking',
+  middle: 'middle',
+  defensive: 'defensive',
+  unknown: 'unknown',
+} as const;
+
+export type VeoSequenceConfidence = typeof VeoSequenceConfidence[keyof typeof VeoSequenceConfidence];
+
+
+export const VeoSequenceConfidence = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  unavailable: 'unavailable',
+} as const;
+
+export type VeoGoalSequencePassOrigin = {
+  /** @nullable */
+  x: number | null;
+  /** @nullable */
+  z: number | null;
+  zone: VeoSequenceZone;
+};
+
+export type VeoGoalSequencePassDestination = {
+  /** @nullable */
+  x: number | null;
+  /** @nullable */
+  z: number | null;
+  zone: VeoSequenceZone;
+};
+
+export interface VeoGoalSequencePass {
+  /** @nullable */
+  passerJersey: string | null;
+  /** @nullable */
+  receiverJersey: string | null;
+  origin: VeoGoalSequencePassOrigin;
+  destination: VeoGoalSequencePassDestination;
+  /** @nullable */
+  videoTimeMs: number | null;
+}
+
+export type VeoGoalSequenceActionTeam = typeof VeoGoalSequenceActionTeam[keyof typeof VeoGoalSequenceActionTeam];
+
+
+export const VeoGoalSequenceActionTeam = {
+  Own: 'Own',
+  Opponent: 'Opponent',
+} as const;
+
+export interface VeoGoalSequenceAction {
+  eventType: string;
+  team: VeoGoalSequenceActionTeam;
+  /** @nullable */
+  jersey: string | null;
+  /** @nullable */
+  videoTimeMs: number | null;
+  /** @nullable */
+  outcome: string | null;
+  /** @nullable */
+  x: number | null;
+  /** @nullable */
+  z: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type VeoGoalSequenceScoringTeam = typeof VeoGoalSequenceScoringTeam[keyof typeof VeoGoalSequenceScoringTeam] | null;
+
+
+export const VeoGoalSequenceScoringTeam = {
+  Own: 'Own',
+  Opponent: 'Opponent',
+} as const;
+
+export type VeoGoalSequenceScoringShot = {
+  found: boolean;
+  /** @nullable */
+  outcome: string | null;
+  /** @nullable */
+  x: number | null;
+  /** @nullable */
+  z: number | null;
+  restart: boolean;
+  direct: boolean;
+};
+
+export interface VeoGoalSequence {
+  /** @nullable */
+  goalTimeMs: number | null;
+  /** @nullable */
+  goalPeriodTimeMs: number | null;
+  /** @nullable */
+  periodId: number | null;
+  /** @nullable */
+  scoringTeam: VeoGoalSequenceScoringTeam;
+  /** @nullable */
+  scorerJersey: string | null;
+  scoringShot: VeoGoalSequenceScoringShot;
+  passes: VeoGoalSequencePass[];
+  /** @minimum 0 */
+  completedPassCount: number;
+  sequenceStartZone: VeoSequenceZone;
+  finalPassOriginZone: VeoSequenceZone;
+  /** @nullable */
+  finalPasserJersey: string | null;
+  /** @nullable */
+  assistSuggestionJersey: string | null;
+  /** @nullable */
+  veoMatchId?: string | null;
+  /** @nullable */
+  matchId?: string | null;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  startsAt?: string | null;
+  lastActionOwn: VeoGoalSequenceAction | null;
+  lastActionOpponent: VeoGoalSequenceAction | null;
+  confidence: VeoSequenceConfidence;
+  reasons: string[];
+}
+
+export interface VeoGoalSequenceMatch {
+  id: number;
+  veoMatchId: string;
+  /** @nullable */
+  matchId: string | null;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  opponent?: string | null;
+  /** @nullable */
+  startsAt?: string | null;
+  status: string;
+  available: boolean;
+  goals: VeoGoalSequence[];
+}
+
+export type VeoGoalSequenceAggregatePassCount = {[key: string]: number};
+
+export type VeoGoalSequenceAggregateSequenceStartZone = {[key: string]: number};
+
+export type VeoGoalSequenceAggregateFinalPassOriginZone = {[key: string]: number};
+
+export type VeoGoalSequenceDistributionPassCount = {[key: string]: number};
+
+export type VeoGoalSequenceDistributionSequenceStartZone = {[key: string]: number};
+
+export type VeoGoalSequenceDistributionFinalPassOriginZone = {[key: string]: number};
+
+export interface VeoGoalSequenceDistribution {
+  goals: number;
+  passCount: VeoGoalSequenceDistributionPassCount;
+  sequenceStartZone: VeoGoalSequenceDistributionSequenceStartZone;
+  finalPassOriginZone: VeoGoalSequenceDistributionFinalPassOriginZone;
+}
+
+export interface VeoGoalSequenceAggregate {
+  goals: number;
+  passCount: VeoGoalSequenceAggregatePassCount;
+  sequenceStartZone: VeoGoalSequenceAggregateSequenceStartZone;
+  finalPassOriginZone: VeoGoalSequenceAggregateFinalPassOriginZone;
+  own: VeoGoalSequenceDistribution;
+  opponent: VeoGoalSequenceDistribution;
+}
+
+export interface VeoGoalSequenceUnavailable {
+  id: number;
+  veoMatchId: string;
+  /** @nullable */
+  matchId: string | null;
+  reason: string;
+}
+
+export interface VeoGoalSequencesResponse {
+  available: boolean;
+  goals: VeoGoalSequence[];
+  matches: VeoGoalSequenceMatch[];
+  aggregate: VeoGoalSequenceAggregate;
+  unavailableMatches: VeoGoalSequenceUnavailable[];
+}
+
 export interface VeoScoreMismatch {
   veoFor: number;
   veoAgainst: number;
@@ -4837,6 +5025,14 @@ export type GetVeoSeasonPassing200 = {
   /** Whether this league's Veo subscription includes the RAS possession and passing feed */
   analyticsEnabled: boolean;
   matches: VeoSeasonPassingMatch[];
+};
+
+export type GetVeoGoalSequencesParams = {
+leagueId: number;
+/**
+ * Hub text match id; limits results for Data Entry
+ */
+matchId?: string;
 };
 
 export type GetVeoMatchParams = {

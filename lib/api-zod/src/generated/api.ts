@@ -5019,6 +5019,177 @@ export const GetVeoSeasonPassingResponse = zod.object({
 
 
 /**
+ * @summary Veo-detected goal action sequences (complete Analytics 2 feeds only)
+ */
+export const GetVeoGoalSequencesQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "matchId": zod.coerce.string().optional().describe('Hub text match id; limits results for Data Entry')
+})
+
+export const getVeoGoalSequencesResponseGoalsItemCompletedPassCountMin = 0;
+
+export const getVeoGoalSequencesResponseMatchesItemGoalsItemCompletedPassCountMin = 0;
+
+
+
+export const GetVeoGoalSequencesResponse = zod.object({
+  "available": zod.boolean(),
+  "goals": zod.array(zod.object({
+  "goalTimeMs": zod.number().nullable(),
+  "goalPeriodTimeMs": zod.number().nullable(),
+  "periodId": zod.number().nullable(),
+  "scoringTeam": zod.union([zod.literal('Own'),zod.literal('Opponent'),zod.literal(null)]).nullable(),
+  "scorerJersey": zod.string().nullable(),
+  "scoringShot": zod.object({
+  "found": zod.boolean(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "restart": zod.boolean(),
+  "direct": zod.boolean()
+}),
+  "passes": zod.array(zod.object({
+  "passerJersey": zod.string().nullable(),
+  "receiverJersey": zod.string().nullable(),
+  "origin": zod.object({
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "zone": zod.enum(['attacking', 'middle', 'defensive', 'unknown'])
+}),
+  "destination": zod.object({
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "zone": zod.enum(['attacking', 'middle', 'defensive', 'unknown'])
+}),
+  "videoTimeMs": zod.number().nullable()
+})),
+  "completedPassCount": zod.number().min(getVeoGoalSequencesResponseGoalsItemCompletedPassCountMin),
+  "sequenceStartZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
+  "finalPassOriginZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
+  "finalPasserJersey": zod.string().nullable(),
+  "assistSuggestionJersey": zod.string().nullable(),
+  "veoMatchId": zod.string().nullish(),
+  "matchId": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "lastActionOwn": zod.union([zod.object({
+  "eventType": zod.string(),
+  "team": zod.enum(['Own', 'Opponent']),
+  "jersey": zod.string().nullable(),
+  "videoTimeMs": zod.number().nullable(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable()
+}),zod.null()]),
+  "lastActionOpponent": zod.union([zod.object({
+  "eventType": zod.string(),
+  "team": zod.enum(['Own', 'Opponent']),
+  "jersey": zod.string().nullable(),
+  "videoTimeMs": zod.number().nullable(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable()
+}),zod.null()]),
+  "confidence": zod.enum(['high', 'medium', 'low', 'unavailable']),
+  "reasons": zod.array(zod.string())
+})),
+  "matches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "matchId": zod.string().nullable(),
+  "title": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "status": zod.string(),
+  "available": zod.boolean(),
+  "goals": zod.array(zod.object({
+  "goalTimeMs": zod.number().nullable(),
+  "goalPeriodTimeMs": zod.number().nullable(),
+  "periodId": zod.number().nullable(),
+  "scoringTeam": zod.union([zod.literal('Own'),zod.literal('Opponent'),zod.literal(null)]).nullable(),
+  "scorerJersey": zod.string().nullable(),
+  "scoringShot": zod.object({
+  "found": zod.boolean(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "restart": zod.boolean(),
+  "direct": zod.boolean()
+}),
+  "passes": zod.array(zod.object({
+  "passerJersey": zod.string().nullable(),
+  "receiverJersey": zod.string().nullable(),
+  "origin": zod.object({
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "zone": zod.enum(['attacking', 'middle', 'defensive', 'unknown'])
+}),
+  "destination": zod.object({
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable(),
+  "zone": zod.enum(['attacking', 'middle', 'defensive', 'unknown'])
+}),
+  "videoTimeMs": zod.number().nullable()
+})),
+  "completedPassCount": zod.number().min(getVeoGoalSequencesResponseMatchesItemGoalsItemCompletedPassCountMin),
+  "sequenceStartZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
+  "finalPassOriginZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
+  "finalPasserJersey": zod.string().nullable(),
+  "assistSuggestionJersey": zod.string().nullable(),
+  "veoMatchId": zod.string().nullish(),
+  "matchId": zod.string().nullish(),
+  "opponent": zod.string().nullish(),
+  "startsAt": zod.string().nullish(),
+  "lastActionOwn": zod.union([zod.object({
+  "eventType": zod.string(),
+  "team": zod.enum(['Own', 'Opponent']),
+  "jersey": zod.string().nullable(),
+  "videoTimeMs": zod.number().nullable(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable()
+}),zod.null()]),
+  "lastActionOpponent": zod.union([zod.object({
+  "eventType": zod.string(),
+  "team": zod.enum(['Own', 'Opponent']),
+  "jersey": zod.string().nullable(),
+  "videoTimeMs": zod.number().nullable(),
+  "outcome": zod.string().nullable(),
+  "x": zod.number().nullable(),
+  "z": zod.number().nullable()
+}),zod.null()]),
+  "confidence": zod.enum(['high', 'medium', 'low', 'unavailable']),
+  "reasons": zod.array(zod.string())
+}))
+})),
+  "aggregate": zod.object({
+  "goals": zod.number(),
+  "passCount": zod.record(zod.string(), zod.number()),
+  "sequenceStartZone": zod.record(zod.string(), zod.number()),
+  "finalPassOriginZone": zod.record(zod.string(), zod.number()),
+  "own": zod.object({
+  "goals": zod.number(),
+  "passCount": zod.record(zod.string(), zod.number()),
+  "sequenceStartZone": zod.record(zod.string(), zod.number()),
+  "finalPassOriginZone": zod.record(zod.string(), zod.number())
+}),
+  "opponent": zod.object({
+  "goals": zod.number(),
+  "passCount": zod.record(zod.string(), zod.number()),
+  "sequenceStartZone": zod.record(zod.string(), zod.number()),
+  "finalPassOriginZone": zod.record(zod.string(), zod.number())
+})
+}),
+  "unavailableMatches": zod.array(zod.object({
+  "id": zod.number(),
+  "veoMatchId": zod.string(),
+  "matchId": zod.string().nullable(),
+  "reason": zod.string()
+}))
+})
+
+
+/**
  * @summary One synced Veo match with its raw events/stats/periods/roster
  */
 export const GetVeoMatchQueryParams = zod.object({

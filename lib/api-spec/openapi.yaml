@@ -3424,6 +3424,29 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/VeoSeasonPassingMatch" }
 
+  /veo/goal-sequences:
+    get:
+      operationId: getVeoGoalSequences
+      tags: [veo]
+      summary: Veo-detected goal action sequences (complete Analytics 2 feeds only)
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: matchId
+          in: query
+          required: false
+          description: Hub text match id; limits results for Data Entry
+          schema: { type: string }
+      responses:
+        "200":
+          description: Goal sequence observations and aggregate distributions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VeoGoalSequencesResponse"
+
   /veo/match:
     get:
       operationId: getVeoMatch
@@ -4185,6 +4208,159 @@ components:
         passLenThem:
           allOf: [{ $ref: "#/components/schemas/VeoPassLenStats" }]
           nullable: true
+    VeoSequenceZone:
+      type: string
+      enum: [attacking, middle, defensive, unknown]
+    VeoSequenceConfidence:
+      type: string
+      enum: [high, medium, low, unavailable]
+    VeoGoalSequencePass:
+      type: object
+      required: [passerJersey, receiverJersey, origin, destination, videoTimeMs]
+      properties:
+        passerJersey: { type: [string, "null"] }
+        receiverJersey: { type: [string, "null"] }
+        origin:
+          type: object
+          required: [x, z, zone]
+          properties:
+            x: { type: [number, "null"] }
+            z: { type: [number, "null"] }
+            zone: { $ref: "#/components/schemas/VeoSequenceZone" }
+        destination:
+          type: object
+          required: [x, z, zone]
+          properties:
+            x: { type: [number, "null"] }
+            z: { type: [number, "null"] }
+            zone: { $ref: "#/components/schemas/VeoSequenceZone" }
+        videoTimeMs: { type: [number, "null"] }
+    VeoGoalSequenceAction:
+      type: object
+      required: [eventType, team, jersey, videoTimeMs, outcome, x, z]
+      properties:
+        eventType: { type: string }
+        team: { type: string, enum: [Own, Opponent] }
+        jersey: { type: [string, "null"] }
+        videoTimeMs: { type: [number, "null"] }
+        outcome: { type: [string, "null"] }
+        x: { type: [number, "null"] }
+        z: { type: [number, "null"] }
+    VeoGoalSequence:
+      type: object
+      required:
+        [goalTimeMs, goalPeriodTimeMs, periodId, scoringTeam, scorerJersey, scoringShot, passes,
+         completedPassCount, sequenceStartZone, finalPassOriginZone,
+         finalPasserJersey, assistSuggestionJersey, lastActionOwn,
+         lastActionOpponent, confidence, reasons]
+      properties:
+        goalTimeMs: { type: [number, "null"] }
+        goalPeriodTimeMs: { type: [number, "null"] }
+        periodId: { type: [number, "null"] }
+        scoringTeam: { type: [string, "null"], enum: [Own, Opponent, null] }
+        scorerJersey: { type: [string, "null"] }
+        scoringShot:
+          type: object
+          required: [found, outcome, x, z, restart, direct]
+          properties:
+            found: { type: boolean }
+            outcome: { type: [string, "null"] }
+            x: { type: [number, "null"] }
+            z: { type: [number, "null"] }
+            restart: { type: boolean }
+            direct: { type: boolean }
+        passes:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequencePass" }
+        completedPassCount: { type: integer, minimum: 0 }
+        sequenceStartZone: { $ref: "#/components/schemas/VeoSequenceZone" }
+        finalPassOriginZone: { $ref: "#/components/schemas/VeoSequenceZone" }
+        finalPasserJersey: { type: [string, "null"] }
+        assistSuggestionJersey: { type: [string, "null"] }
+        veoMatchId: { type: [string, "null"] }
+        matchId: { type: [string, "null"] }
+        opponent: { type: [string, "null"] }
+        startsAt: { type: [string, "null"] }
+        lastActionOwn:
+          oneOf:
+            - $ref: "#/components/schemas/VeoGoalSequenceAction"
+            - type: "null"
+        lastActionOpponent:
+          oneOf:
+            - $ref: "#/components/schemas/VeoGoalSequenceAction"
+            - type: "null"
+        confidence: { $ref: "#/components/schemas/VeoSequenceConfidence" }
+        reasons:
+          type: array
+          items: { type: string }
+    VeoGoalSequenceMatch:
+      type: object
+      required: [id, veoMatchId, matchId, status, available, goals]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        matchId: { type: [string, "null"] }
+        title: { type: [string, "null"] }
+        opponent: { type: [string, "null"] }
+        startsAt: { type: [string, "null"] }
+        status: { type: string }
+        available: { type: boolean }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequence" }
+    VeoGoalSequenceAggregate:
+      type: object
+      required: [goals, passCount, sequenceStartZone, finalPassOriginZone, own, opponent]
+      properties:
+        goals: { type: integer }
+        passCount:
+          type: object
+          additionalProperties: { type: integer }
+        sequenceStartZone:
+          type: object
+          additionalProperties: { type: integer }
+        finalPassOriginZone:
+          type: object
+          additionalProperties: { type: integer }
+        own: { $ref: "#/components/schemas/VeoGoalSequenceDistribution" }
+        opponent: { $ref: "#/components/schemas/VeoGoalSequenceDistribution" }
+    VeoGoalSequenceDistribution:
+      type: object
+      required: [goals, passCount, sequenceStartZone, finalPassOriginZone]
+      properties:
+        goals: { type: integer }
+        passCount:
+          type: object
+          additionalProperties: { type: integer }
+        sequenceStartZone:
+          type: object
+          additionalProperties: { type: integer }
+        finalPassOriginZone:
+          type: object
+          additionalProperties: { type: integer }
+    VeoGoalSequenceUnavailable:
+      type: object
+      required: [id, veoMatchId, matchId, reason]
+      properties:
+        id: { type: integer }
+        veoMatchId: { type: string }
+        matchId: { type: [string, "null"] }
+        reason: { type: string }
+    VeoGoalSequencesResponse:
+      type: object
+      required: [available, goals, matches, aggregate, unavailableMatches]
+      properties:
+        available: { type: boolean }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequence" }
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequenceMatch" }
+        aggregate: { $ref: "#/components/schemas/VeoGoalSequenceAggregate" }
+        unavailableMatches:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequenceUnavailable" }
     VeoPassLenStats:
       type: object
       required: [n, mean, longPct]

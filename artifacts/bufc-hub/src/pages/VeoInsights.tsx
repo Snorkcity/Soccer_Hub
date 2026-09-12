@@ -11,6 +11,8 @@ import {
   getGetVeoSeasonShotsQueryKey,
   useGetVeoSeasonPassing,
   getGetVeoSeasonPassingQueryKey,
+  useGetVeoGoalSequences,
+  getGetVeoGoalSequencesQueryKey,
   getGetVeoPlayerSeasonQueryKey,
   getGetVeoPlayerMatchQueryKey,
   getListAssistantMatchesQueryKey,
@@ -25,6 +27,7 @@ import {
   type VeoMatchSummary,
   type VeoSeasonMatch,
   type VeoSeasonShotMatch,
+  type VeoGoalSequencesResponse,
   type VeoEvent,
   type VeoLinkRow,
   type VeoDirectionReview,
@@ -35,6 +38,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -100,6 +104,20 @@ const MOMENTUM_WEIGHT: Record<string, number> = {
 const BIN_MIN = 5; // minutes per momentum bar
 
 const isOwn = (e: VeoEvent) => e.team === "Own";
+
+function formatVeoAction(action: {
+  eventType?: string | null;
+  jersey?: string | null;
+  outcome?: string | null;
+} | null): string {
+  if (!action) return "unavailable";
+  const event = (action.eventType ?? "action")
+    .replace(/^Football/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim() || "action";
+  const result = action.outcome === "1" ? "completed" : action.outcome === "0" ? "unsuccessful" : action.outcome ? `outcome ${action.outcome}` : "";
+  return `${event}${action.jersey ? ` #${action.jersey}` : ""}${result ? ` (${result})` : ""}`;
+}
 
 // Overall match minute from period + time-within-period. Real Veo durations
 // win; missing periods fall back to the selected grade's half length.
@@ -422,6 +440,12 @@ export default function VeoInsights() {
       queryKey: getGetVeoSeasonPassingQueryKey(seasonParams),
     },
   });
+  const { data: goalSequencesData, isLoading: goalSequencesLoading } = useGetVeoGoalSequences(seasonParams, {
+    query: {
+      enabled: view === "season" && activeLeagueId != null,
+      queryKey: getGetVeoGoalSequencesQueryKey(seasonParams),
+    },
+  });
   const analyticsEnabled = seasonPassingData?.analyticsEnabled ?? true;
 
   const syncMut = useVeoSync();
@@ -589,6 +613,8 @@ export default function VeoInsights() {
                   matchSummaries={synced}
                   passingLoading={seasonPassingLoading}
                   analyticsEnabled={analyticsEnabled}
+                   goalSequences={goalSequencesData}
+                   goalSequencesLoading={goalSequencesLoading}
                   timing={matchTiming}
                 />
               )
@@ -977,13 +1003,15 @@ function MatchLinksCard({
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, analyticsEnabled, timing }: {
+function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, analyticsEnabled, goalSequences, goalSequencesLoading, timing }: {
   matches: VeoSeasonMatch[];
   shotMatches: VeoSeasonShotMatch[];
   passingMatches: VeoSeasonPassingMatch[];
   matchSummaries: VeoMatchSummary[];
   passingLoading: boolean;
   analyticsEnabled: boolean;
+  goalSequences?: VeoGoalSequencesResponse;
+  goalSequencesLoading?: boolean;
   timing: MatchTimingPolicy;
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
@@ -1399,6 +1427,8 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
           sub={passTotals.avgFrontThirdPasses != null ? "successful, us – them" : "Veo/RAS feed unavailable"}
         />
       </div>
+
+      <GoalSequenceSection data={goalSequences} loading={goalSequencesLoading} />
 
       <SectionGroup
         id="veo-season-team"
@@ -1888,6 +1918,71 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         ]}
       />
     </div>
+  );
+}
+
+function GoalSequenceSection({ data, loading }: { data?: VeoGoalSequencesResponse; loading?: boolean }) {
+  if (loading) {
+    return <Card><CardContent className="py-8 text-sm text-muted-foreground">Loading Veo-detected goal sequences…</CardContent></Card>;
+  }
+  if (!data || (!data.available && data.unavailableMatches.length > 0)) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Veo-detected goal sequences</CardTitle>
+          <CardDescription>Unavailable where the rich Analytics 2 action feed is absent or partial. No assist claims are made.</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">No complete Veo action feeds are available for this season yet.</CardContent>
+      </Card>
+    );
+  }
+  const a = data.aggregate;
+  const bucket = (key: string) => a.passCount[key] ?? 0;
+  const zone = (key: string) => a.sequenceStartZone[key] ?? 0;
+  const finalZone = (key: string) => a.finalPassOriginZone[key] ?? 0;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Veo-detected goal sequences</CardTitle>
+        <CardDescription>Camera-derived observations before goals. These are not official assists; unavailable matches are excluded rather than inferred.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
+          {["0", "1", "2", "3", "4+"].map((k) => (
+            <div key={k} className="rounded border p-2">
+              <div className="text-lg font-semibold">{bucket(k)}</div>
+              <div className="text-[11px] text-muted-foreground">{k} completed passes</div>
+            </div>
+          ))}
+          <div className="rounded border p-2">
+            <div className="text-lg font-semibold">{a.goals}</div>
+            <div className="text-[11px] text-muted-foreground">goals observed</div>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3 text-sm">
+          <div><span className="font-medium">Sequence start thirds:</span> attacking {zone("attacking")} · middle {zone("middle")} · defensive {zone("defensive")}</div>
+          <div><span className="font-medium">Final-pass origin thirds:</span> attacking {finalZone("attacking")} · middle {finalZone("middle")} · defensive {finalZone("defensive")}</div>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Team split: ours {a.own.goals} goals ({a.own.passCount["0"] ?? 0} with 0 passes, {a.own.passCount["1"] ?? 0} with 1) · opponents {a.opponent.goals} goals ({a.opponent.passCount["0"] ?? 0} with 0 passes, {a.opponent.passCount["1"] ?? 0} with 1).
+        </div>
+        <div className="space-y-1.5">
+          <div className="text-sm font-medium">Per-goal drilldown</div>
+          {data.goals.length === 0 ? <div className="text-xs text-muted-foreground">No Veo-detected goals in complete feeds.</div> : data.goals.map((g, i) => (
+            <div key={`${g.veoMatchId}-${g.goalTimeMs}-${i}`} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1.5 text-xs">
+              <Badge variant="outline">Veo-detected</Badge>
+              <span>{g.matchId ?? g.veoMatchId}</span>
+              <span>{g.goalPeriodTimeMs == null ? "period time unavailable" : `${Math.floor(g.goalPeriodTimeMs / 60000)}'`}</span>
+              <span>#{g.scorerJersey ?? "?"}</span>
+              <span>{g.completedPassCount} pass{g.completedPassCount === 1 ? "" : "es"}</span>
+              <span className="text-muted-foreground">start {g.sequenceStartZone} · final-pass origin {g.finalPassOriginZone} · {g.confidence} confidence</span>
+              <span className="text-muted-foreground">Own before shot: {formatVeoAction(g.lastActionOwn)} · Opponent before shot: {formatVeoAction(g.lastActionOpponent)}</span>
+            </div>
+          ))}
+        </div>
+        {data.unavailableMatches.length > 0 && <div className="text-xs text-muted-foreground">Veo-detected sequences unavailable for {data.unavailableMatches.length} match{data.unavailableMatches.length === 1 ? "" : "es"} without a complete rich action feed.</div>}
+      </CardContent>
+    </Card>
   );
 }
 

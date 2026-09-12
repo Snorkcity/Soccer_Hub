@@ -32,6 +32,8 @@ import {
   useSaveEntryPlayerStats,
   useListEntryPlayerStats,
   getListEntryPlayerStatsQueryKey,
+  useGetVeoGoalSequences,
+  getGetVeoGoalSequencesQueryKey,
   useDeleteEntryPlayerStat,
   useUpdateEntryPlayerStat,
   useDeleteEntryPlayerStats,
@@ -105,6 +107,20 @@ const FOCUS_CLUB = "Belconnen";
 function errMsg(e: unknown): string {
   const anyE = e as { data?: { error?: string }; error?: string; message?: string } | undefined;
   return anyE?.data?.error ?? anyE?.error ?? anyE?.message ?? "Something went wrong";
+}
+
+function formatVeoAction(action: {
+  eventType?: string | null;
+  jersey?: string | null;
+  outcome?: string | null;
+} | null): string {
+  if (!action) return "unavailable";
+  const event = (action.eventType ?? "action")
+    .replace(/^Football/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim() || "action";
+  const result = action.outcome === "1" ? "completed" : action.outcome === "0" ? "unsuccessful" : action.outcome ? `outcome ${action.outcome}` : "";
+  return `${event}${action.jersey ? ` #${action.jersey}` : ""}${result ? ` (${result})` : ""}`;
 }
 
 /** "2026-07-14" (date input) → "2026/07/14" (DB format) */
@@ -536,8 +552,8 @@ function GoalSpotPicker({ goalX, goalY, onPick }: {
 // Goal form
 // ─────────────────────────────────────────────────────────────────────────────
 
-function GoalForm({ teamId, seasonId, fixtures }: {
-  teamId: number; seasonId: number; fixtures: LeagueMatchInfo[];
+function GoalForm({ teamId, seasonId, leagueId, focusClub, fixtures }: {
+  teamId: number; seasonId: number; leagueId: number; focusClub: string; fixtures: LeagueMatchInfo[];
 }) {
   const { data: vocabData } = useGetGoalVocab({ query: { queryKey: getGetGoalVocabQueryKey() } });
   const vocab = vocabData ?? DEFAULT_GOAL_VOCAB;
@@ -578,8 +594,8 @@ function GoalForm({ teamId, seasonId, fixtures }: {
   const nameByNumber = (num: string): string | null => {
     const n = num.trim();
     if (!n) return null;
-    const hit = (sheetPlayers?.rows ?? []).find(r => (r.shirtNumber ?? "").trim() === n);
-    return hit?.playerName ?? null;
+    const hits = (sheetPlayers?.rows ?? []).filter(r => (r.shirtNumber ?? "").trim() === n && r.playerName);
+    return hits.length === 1 ? hits[0].playerName ?? null : null;
   };
   // Track names WE auto-filled so an unmatched number never leaves a stale
   // player behind (hand-typed names are left alone).
@@ -618,6 +634,27 @@ function GoalForm({ teamId, seasonId, fixtures }: {
     { seasonId, matchId },
     { query: { enabled: !!matchId, queryKey: getGetGoalTallyQueryKey({ seasonId, matchId }) } },
   );
+  const veoGoalParams = { leagueId, matchId };
+  const { data: veoGoalData, isLoading: veoGoalsLoading } = useGetVeoGoalSequences(veoGoalParams, {
+    query: {
+      enabled: !!matchId && leagueId > 0,
+      queryKey: getGetVeoGoalSequencesQueryKey(veoGoalParams),
+    },
+  });
+  const veoSuggestions = useMemo(() => {
+    const targetMinute = Number(minute);
+    const normalizedFocusClub = focusClub.trim().toLowerCase().replace(/\s+/g, " ");
+    return (veoGoalData?.goals ?? [])
+      .filter((g) => {
+        const normalizedScorerTeam = scorerTeam.trim().toLowerCase().replace(/\s+/g, " ");
+        const teamMatches = !scorerTeam || (g.scoringTeam === "Own"
+          ? normalizedScorerTeam === normalizedFocusClub
+          : normalizedScorerTeam !== normalizedFocusClub);
+        const goalMinute = g.goalPeriodTimeMs == null ? null : Math.floor(g.goalPeriodTimeMs / 60000);
+        return teamMatches && (minute.trim() === "" || goalMinute == null || Math.abs(goalMinute - targetMinute) <= 2);
+      })
+      .sort((a, b) => Math.abs((a.goalPeriodTimeMs ?? 0) - Number(minute || 0) * 60000) - Math.abs((b.goalPeriodTimeMs ?? 0) - Number(minute || 0) * 60000));
+  }, [focusClub, minute, scorerTeam, veoGoalData]);
 
   const [viewingGoalId, setViewingGoalId] = useState<number | null>(null);
   const { data: loggedGoals } = useListEntryGoals(
@@ -768,6 +805,53 @@ function GoalForm({ teamId, seasonId, fixtures }: {
                 </Badge>
               );
             })}
+          </div>
+        )}
+
+        {matchId && (
+          <div className="rounded-md border border-blue-500/25 bg-blue-500/5 p-3 space-y-2">
+            <div className="text-sm font-medium">Veo-detected goal suggestions</div>
+            {veoGoalsLoading ? (
+              <p className="text-xs text-muted-foreground">Checking the complete Veo action feed…</p>
+            ) : veoGoalData?.unavailableMatches?.length && !veoGoalData.available ? (
+              <p className="text-xs text-muted-foreground">Veo-detected sequences are unavailable for this fixture because the rich Analytics 2 feed is not complete.</p>
+            ) : veoSuggestions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No unambiguous Veo-detected goal matches this team/minute yet.</p>
+            ) : (
+              veoSuggestions.map((g) => {
+                const scorerName = nameByNumber(g.scorerJersey ?? "");
+                const assistName = nameByNumber(g.assistSuggestionJersey ?? "");
+                const label = g.goalPeriodTimeMs == null ? "period time unavailable" : `${Math.floor(g.goalPeriodTimeMs / 60000)}'`;
+                return (
+                  <div key={`${g.veoMatchId}-${g.goalTimeMs}-${g.scorerJersey}`} className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">Veo-detected · {label}</Badge>
+                    <span>scorer #{g.scorerJersey ?? "?"}{scorerName ? ` (${scorerName})` : ""}</span>
+                    <span className="text-muted-foreground">sequence {g.completedPassCount} pass{g.completedPassCount === 1 ? "" : "es"} · start {g.sequenceStartZone} · final-pass origin {g.finalPassOriginZone}</span>
+                    <span className="text-muted-foreground">Own before shot: {formatVeoAction(g.lastActionOwn)}</span>
+                    <span className="text-muted-foreground">Opponent before shot: {formatVeoAction(g.lastActionOpponent)}</span>
+                    {scorer.trim() === "" && g.scorerJersey && (
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2" onClick={() => {
+                        setScorerNum(g.scorerJersey ?? "");
+                        setScorer(scorerName ?? `Veo jersey #${g.scorerJersey}`);
+                      }}>Apply scorer</Button>
+                    )}
+                    {g.assistSuggestionJersey && <span>passer observation #{g.assistSuggestionJersey}{assistName ? ` (${assistName})` : ""}</span>}
+                    {assist.trim() === "" && g.assistSuggestionJersey && !g.scoringShot.direct && (
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2" onClick={() => {
+                        setAssistNum(g.assistSuggestionJersey ?? "");
+                        setAssist(assistName ?? `Veo jersey #${g.assistSuggestionJersey}`);
+                      }}>Apply assist</Button>
+                    )}
+                    {passString.trim() === "" && (
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2" onClick={() => setPassString(String(g.completedPassCount))}>
+                        Apply Veo-detected passes
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+            <p className="text-[11px] text-muted-foreground">Veo-detected observations are suggestions only, not official assists. Apply never overwrites a filled field or saves automatically.</p>
           </div>
         )}
 
@@ -3591,7 +3675,7 @@ function EntryWorkspace() {
           </div>
         </TabsContent>
         <TabsContent value="goals" className="mt-6">
-          <GoalForm teamId={teamId} seasonId={seasonId} fixtures={fixtures ?? []} />
+          <GoalForm teamId={teamId} seasonId={seasonId} leagueId={season?.leagueId ?? 0} focusClub={focusClub} fixtures={fixtures ?? []} />
         </TabsContent>
         <TabsContent value="league" className="mt-6">
           <LeagueSetupCard />

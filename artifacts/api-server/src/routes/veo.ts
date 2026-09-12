@@ -64,6 +64,7 @@ import {
   type VeoOwnSide,
 } from "../lib/veoDirection";
 import { countVeoEventGoals, resolveVeoScore } from "../lib/veoScore";
+import { aggregateVeoGoalSequences, reconstructVeoGoalSequences } from "../lib/veoGoalSequences";
 
 const router: IRouter = Router();
 
@@ -921,6 +922,82 @@ router.get("/veo/season-passing", async (req, res) => {
     }];
   });
   return res.json({ analyticsEnabled: league.analyticsEnabled, matches });
+});
+
+// GET /veo/goal-sequences?leagueId=&matchId= — conservative, Veo-detected
+// action sequences before each goal. Analytics 2 must be complete: classic
+// Veo events and partial bundles are explicitly reported unavailable.
+router.get("/veo/goal-sequences", async (req, res) => {
+  const leagueId = Number(req.query.leagueId);
+  const matchId = typeof req.query.matchId === "string" ? req.query.matchId.trim() : "";
+  if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  const user = await getSessionUser(req);
+  if (!user) return res.status(401).json({ error: "Not signed in" });
+  if (!canSeeLeague(user, leagueId)) return res.status(403).json({ error: "Access denied" });
+
+  const rows = await db
+    .select({
+      id: veoMatchesTable.id,
+      veoMatchId: veoMatchesTable.veoMatchId,
+      title: veoMatchesTable.title,
+      opponent: veoMatchesTable.opponent,
+      startsAt: veoMatchesTable.startsAt,
+      hubMatchId: matchesTable.matchId,
+      analyticsStatus: veoAnalytics2Table.status,
+      raw: veoAnalytics2Table.raw,
+    })
+    .from(veoMatchesTable)
+    .leftJoin(matchesTable, eq(veoMatchesTable.matchId, matchesTable.id))
+    .leftJoin(
+      veoAnalytics2Table,
+      and(eq(veoAnalytics2Table.leagueId, leagueId), eq(veoAnalytics2Table.veoMatchId, veoMatchesTable.veoMatchId)),
+    )
+    .where(and(
+      eq(veoMatchesTable.leagueId, leagueId),
+      sql`${veoMatchesTable.removedAt} IS NULL`,
+      ...(matchId ? [eq(matchesTable.matchId, matchId)] : []),
+    ))
+    .orderBy(sql`${veoMatchesTable.startsAt} ASC NULLS LAST`);
+
+  const matches: Array<Record<string, unknown>> = [];
+  const allGoals = [];
+  const unavailableMatches: Array<{ id: number; veoMatchId: string; matchId: string | null; reason: string }> = [];
+  for (const row of rows) {
+    const raw = row.raw && typeof row.raw === "object" ? row.raw as Record<string, unknown> : null;
+    const source = raw?.matchEvents;
+    const eventRows = source && typeof source === "object" && Array.isArray((source as Record<string, unknown>).events)
+      ? (source as { events: unknown[] }).events.filter((e): e is import("../lib/veo").MesEventRow => Boolean(e && typeof e === "object"))
+      : null;
+    const result = reconstructVeoGoalSequences(eventRows, row.analyticsStatus as "complete" | "partial" | "unavailable" | "error" | undefined ?? "unavailable");
+    if (!result.available) unavailableMatches.push({ id: row.id, veoMatchId: row.veoMatchId, matchId: row.hubMatchId ?? null, reason: result.unavailableReason ?? "Unavailable" });
+    const goals = result.goals.map((goal) => ({
+      ...goal,
+      veoId: row.id,
+      veoMatchId: row.veoMatchId,
+      matchId: row.hubMatchId ?? null,
+      opponent: row.opponent,
+      startsAt: row.startsAt,
+    }));
+    allGoals.push(...goals);
+    matches.push({
+      id: row.id,
+      veoMatchId: row.veoMatchId,
+      matchId: row.hubMatchId ?? null,
+      title: row.title,
+      opponent: row.opponent,
+      startsAt: row.startsAt,
+      status: result.available ? row.analyticsStatus ?? "complete" : row.analyticsStatus ?? "unavailable",
+      available: result.available,
+      goals,
+    });
+  }
+  return res.json({
+    available: unavailableMatches.length < rows.length,
+    goals: allGoals,
+    matches,
+    aggregate: aggregateVeoGoalSequences(allGoals),
+    unavailableMatches,
+  });
 });
 
 // GET /veo/match?id=&leagueId= — one match with its raw events/stats/periods.
