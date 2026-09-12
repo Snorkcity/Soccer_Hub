@@ -4982,6 +4982,8 @@ export const GetVeoSeasonPassingResponse = zod.object({
   "possessionSecThem": zod.number(),
   "passesUs": zod.number(),
   "passesThem": zod.number(),
+  "frontThirdPassesUs": zod.number().nullable(),
+  "frontThirdPassesThem": zod.number().nullable(),
   "possessionWonUs": zod.number(),
   "possessionWonThem": zod.number(),
   "passStringsUs": zod.array(zod.object({
@@ -5482,7 +5484,11 @@ export const GetVeoReportStatsResponse = zod.object({
   "usPct": zod.number(),
   "usMin": zod.number(),
   "themMin": zod.number()
-}).optional()
+}).optional(),
+  "passesFrontThird": zod.object({
+  "us": zod.number(),
+  "them": zod.number()
+}).nullish()
 })
 
 

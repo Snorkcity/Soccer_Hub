@@ -6,6 +6,7 @@
 // their site this needs revisiting. Full API map: .agents/memory/veo-integration.md.
 import { createHash, randomBytes } from "node:crypto";
 import { logger } from "./logger";
+import type { VeoPassGrid } from "./veoPassing";
 
 const AUTH_BASE = "https://auth.veo.co";
 const APP_BASE = "https://app.veo.co/api/app";
@@ -334,6 +335,10 @@ export interface VeoPassDetailPeriod {
   };
   passStrings?: Record<string, [number, number][]>; // [stringLength, count]
   passLocations?: Record<string, { x: number; y: number }[]>;
+  // Counts of located completed passes in Veo's 18-zone system. Values are six
+  // lengthwise columns of three cells, ordered defensive → attacking for each
+  // team, so the final six cells are that team's attacking third.
+  passLocationsGrid?: Record<string, VeoPassGrid>;
   possessionLocations?: Record<string, { defensive?: number; middle?: number; attacking?: number }>;
   possessionLocationsGrid?: Record<string, { type?: string; values?: number[] }>;
 }

@@ -8,6 +8,7 @@
 import type { VeoMomentumBin } from './veoMomentumBin';
 import type { VeoReportFinding } from './veoReportFinding';
 import type { VeoReportMoment } from './veoReportMoment';
+import type { VeoReportPassesFrontThird } from './veoReportPassesFrontThird';
 import type { VeoReportPossession } from './veoReportPossession';
 import type { VeoReportRadarRow } from './veoReportRadarRow';
 import type { VeoReportTiltPoint } from './veoReportTiltPoint';
@@ -27,4 +28,5 @@ export interface VeoReportStats {
   tiltMaxMin?: number | null;
   radar?: VeoReportRadarRow[];
   possession?: VeoReportPossession;
+  passesFrontThird?: VeoReportPassesFrontThird | null;
 }

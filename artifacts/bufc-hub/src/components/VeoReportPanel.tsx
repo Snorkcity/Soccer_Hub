@@ -160,6 +160,21 @@ export function VeoReportPanel({ leagueId, matchRowId, opponent, preloaded }: Pr
           )}
         </div>
 
+        {data.passesFrontThird && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">Passes front third</div>
+              <div className="text-xl font-semibold">{data.passesFrontThird.us}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">successful · Veo</div>
+            </div>
+            <div className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">Passes front third against</div>
+              <div className="text-xl font-semibold">{data.passesFrontThird.them}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">successful · Veo</div>
+            </div>
+          </div>
+        )}
+
         {/* ── Unified moment timeline ── */}
         {timeline.length > 0 && (
           <div>

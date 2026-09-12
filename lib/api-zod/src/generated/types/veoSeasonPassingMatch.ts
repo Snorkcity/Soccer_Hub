@@ -20,6 +20,8 @@ export interface VeoSeasonPassingMatch {
   possessionSecThem: number;
   passesUs: number;
   passesThem: number;
+  frontThirdPassesUs: number | null;
+  frontThirdPassesThem: number | null;
   possessionWonUs: number;
   possessionWonThem: number;
   passStringsUs: VeoPassStringBucket[];

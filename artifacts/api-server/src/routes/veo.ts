@@ -29,6 +29,7 @@ import {
   type VeoPassDetailPeriod,
   type Analytics2Bundle,
 } from "../lib/veo";
+import { countSuccessfulFrontThirdPasses } from "../lib/veoPassing";
 import { logger } from "../lib/logger";
 import { getSessionUser, canSeeLeague } from "../middlewares/entryAuth";
 import { parseAnalytics2Bundle, aggregateSeason } from "../lib/veoAnalytics2Parser";
@@ -781,6 +782,8 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
 
   let possessionSecUs = 0, possessionSecThem = 0;
   let passesUs = 0, passesThem = 0;
+  let frontThirdPassesUs = 0, frontThirdPassesThem = 0;
+  let hasFrontThirdPassesUs = false, hasFrontThirdPassesThem = false;
   let possessionWonUs = 0, possessionWonThem = 0;
   const stringsUs = new Map<number, number>();
   const stringsThem = new Map<number, number>();
@@ -819,6 +822,20 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
       tgt.middle += Number(loc.middle ?? 0);
       tgt.attacking += Number(loc.attacking ?? 0);
     }
+    // The pass-location grid counts completed passes Veo could place on the
+    // pitch. It is team-relative (defensive → attacking), so the final two of
+    // six lengthwise columns — indices 12..17 — are the attacking third.
+    for (const [team, target] of [[side.own, "us"], [side.opp, "them"]] as const) {
+      const count = countSuccessfulFrontThirdPasses(item.passLocationsGrid?.[team]);
+      if (count == null) continue;
+      if (target === "us") {
+        frontThirdPassesUs += count;
+        hasFrontThirdPassesUs = true;
+      } else {
+        frontThirdPassesThem += count;
+        hasFrontThirdPassesThem = true;
+      }
+    }
     for (const [team, arr] of [[side.own, lensUs], [side.opp, lensThem]] as const) {
       for (const pt of item.passLocations?.[team] ?? []) {
         const dx = Number(pt?.x), dy = Number(pt?.y);
@@ -834,6 +851,8 @@ export function summarisePassDetails(passDetails: unknown, periods: unknown) {
   return {
     possessionSecUs, possessionSecThem,
     passesUs, passesThem,
+    frontThirdPassesUs: hasFrontThirdPassesUs ? frontThirdPassesUs : null,
+    frontThirdPassesThem: hasFrontThirdPassesThem ? frontThirdPassesThem : null,
     possessionWonUs, possessionWonThem,
     passStringsUs: toSorted(stringsUs),
     passStringsThem: toSorted(stringsThem),
@@ -1681,6 +1700,11 @@ function computeMatchIntel(
     tiltMaxMin: tilt.length > 0 ? tilt[tilt.length - 1].min : null,
     radar,
     possession,
+    passesFrontThird: (() => {
+      const summary = summarisePassDetails(passDetails, periods);
+      if (summary?.frontThirdPassesUs == null || summary.frontThirdPassesThem == null) return null;
+      return { us: summary.frontThirdPassesUs, them: summary.frontThirdPassesThem };
+    })(),
   };
 }
 

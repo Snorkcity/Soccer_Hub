@@ -325,6 +325,12 @@ export async function generateFootballMatchReport(
         y += 0.4;
       }
     }
+    if (v.passesFrontThird) {
+      const metricY = Math.min(6.58, Math.max(y + 0.12, 5.05));
+      s.addText("PASSES FRONT THIRD", { x: 0.75, y: metricY, w: 2.4, h: 0.24, fontSize: 9, bold: true, color: GREY, charSpacing: 1.5 });
+      s.addText(`${v.passesFrontThird.us}`, { x: 3.2, y: metricY - 0.03, w: 0.7, h: 0.3, fontSize: 14, bold: true, color: SKY, align: "right" });
+      s.addText(`us   ·   ${v.passesFrontThird.them} against`, { x: 4.05, y: metricY, w: 2.8, h: 0.24, fontSize: 10, color: INK });
+    }
     addFooter(s);
   }
 

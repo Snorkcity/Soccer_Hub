@@ -457,6 +457,7 @@ export * from './veoReportFinding';
 export * from './veoReportFindingTone';
 export * from './veoReportMoment';
 export * from './veoReportMomentType';
+export * from './veoReportPassesFrontThird';
 export * from './veoReportPossession';
 export * from './veoReportRadarRow';
 export * from './veoReportStats';

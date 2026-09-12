@@ -4154,7 +4154,8 @@ components:
       type: object
       required:
         [id, veoMatchId, possessionSecUs, possessionSecThem, passesUs, passesThem,
-         possessionWonUs, possessionWonThem, passStringsUs, passStringsThem, thirdsUs, thirdsThem]
+         frontThirdPassesUs, frontThirdPassesThem, possessionWonUs, possessionWonThem,
+         passStringsUs, passStringsThem, thirdsUs, thirdsThem]
       properties:
         id: { type: integer }
         veoMatchId: { type: string }
@@ -4166,6 +4167,8 @@ components:
         possessionSecThem: { type: number }
         passesUs: { type: number }
         passesThem: { type: number }
+        frontThirdPassesUs: { type: number, nullable: true }
+        frontThirdPassesThem: { type: number, nullable: true }
         possessionWonUs: { type: number }
         possessionWonThem: { type: number }
         passStringsUs:
@@ -4353,6 +4356,15 @@ components:
           type: array
           items: { $ref: "#/components/schemas/VeoReportRadarRow" }
         possession: { $ref: "#/components/schemas/VeoReportPossession" }
+        passesFrontThird:
+          allOf: [{ $ref: "#/components/schemas/VeoReportPassesFrontThird" }]
+          nullable: true
+    VeoReportPassesFrontThird:
+      type: object
+      required: [us, them]
+      properties:
+        us: { type: number }
+        them: { type: number }
     VeoReportFinding:
       type: object
       required: [tone, text]

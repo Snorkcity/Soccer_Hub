@@ -694,7 +694,7 @@ export default function MatchPrep() {
     return (
       <div className="overflow-x-auto">
         <div
-          className="relative mx-auto w-full sm:min-w-[420px] max-w-xl rounded-md border border-white/20 overflow-hidden"
+          className="relative mx-auto w-full sm:min-w-[420px] rounded-md border border-white/20 overflow-hidden"
           style={{
             aspectRatio: "4 / 2.5",
             background:
@@ -1075,7 +1075,7 @@ export default function MatchPrep() {
       {/* Set pieces */}
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">5 · Set pieces</CardTitle></CardHeader>
-        <CardContent className="grid lg:grid-cols-2 gap-6">
+        <CardContent className="space-y-6">
           <div className="space-y-3">
             <h4 className="font-semibold text-sm">Corners — for · standard</h4>
             <CornerPitch store="spFor" spots={CORNERS_FOR_SPOTS} />

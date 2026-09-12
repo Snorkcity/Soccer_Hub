@@ -1217,6 +1217,8 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         possMinThem: Number((m.possessionSecThem / 60).toFixed(1)),
         passesUs: m.passesUs,
         passesThem: m.passesThem,
+        frontThirdPassesUs: m.frontThirdPassesUs,
+        frontThirdPassesThem: m.frontThirdPassesThem,
         possWonUs: m.possessionWonUs,
         possWonThem: m.possessionWonThem,
         strings2: us.short, strings35: us.mid, strings6: us.long,
@@ -1291,6 +1293,9 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
       games: passRows.length,
       avgPoss: avg(withPct.map((r) => r.possPct!)),
       avgPasses: avg(passRows.map((r) => r.passesUs)),
+      avgPassesThem: avg(passRows.map((r) => r.passesThem)),
+      avgFrontThirdPasses: avg(passRows.flatMap((r) => r.frontThirdPassesUs == null ? [] : [r.frontThirdPassesUs])),
+      avgFrontThirdPassesThem: avg(passRows.flatMap((r) => r.frontThirdPassesThem == null ? [] : [r.frontThirdPassesThem])),
       avgPossMin: avg(passRows.map((r) => r.possMinUs)),
       avgLongStrings: avg(passRows.map((r) => r.strings6)),
     };
@@ -1374,7 +1379,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         </div>
       )}
       <OppToggleLegend opponents={allOpponents} hidden={hiddenOpps} onToggle={toggleOpp} colorFor={clubColorFor} />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Games with Veo events" value={String(totals.games)} />
         <StatCard
           label="Avg field tilt (us)"
@@ -1383,6 +1388,16 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         />
         <StatCard label="Shots per game" value={`${totals.shotsForPg.toFixed(1)} – ${totals.shotsAgainstPg.toFixed(1)}`} sub="us – them" />
         <StatCard label="Corners per game" value={`${totals.cornersForPg.toFixed(1)} – ${totals.cornersAgainstPg.toFixed(1)}`} sub="us – them" />
+        <StatCard
+          label="Passes per game"
+          value={passTotals.avgPasses != null && passTotals.avgPassesThem != null ? `${passTotals.avgPasses.toFixed(1)} – ${passTotals.avgPassesThem.toFixed(1)}` : "—"}
+          sub={passTotals.avgPasses != null ? "completed, us – them" : "Veo/RAS feed unavailable"}
+        />
+        <StatCard
+          label="Front-third passes per game"
+          value={passTotals.avgFrontThirdPasses != null && passTotals.avgFrontThirdPassesThem != null ? `${passTotals.avgFrontThirdPasses.toFixed(1)} – ${passTotals.avgFrontThirdPassesThem.toFixed(1)}` : "—"}
+          sub={passTotals.avgFrontThirdPasses != null ? "successful, us – them" : "Veo/RAS feed unavailable"}
+        />
       </div>
 
       <SectionGroup
@@ -2111,6 +2126,8 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       possMinThem: passing.possessionSecThem / 60,
       passesUs: passing.passesUs,
       passesThem: passing.passesThem,
+      frontThirdPassesUs: passing.frontThirdPassesUs,
+      frontThirdPassesThem: passing.frontThirdPassesThem,
       possWonUs: passing.possessionWonUs,
       possWonThem: passing.possessionWonThem,
       hist,
@@ -2432,10 +2449,15 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       {(
         <>
           {!passStats && <PassingDataState {...matchPassAvailability} loading={passingLoading} analyticsEnabled={analyticsEnabled} />}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard label="Possession" value={passStats ? `${passStats.possPctUs.toFixed(0)}%` : "—"} sub={passStats ? "of ball-in-possession time" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
             <StatCard label="Possession minutes" value={passStats ? `${passStats.possMinUs.toFixed(1)} – ${passStats.possMinThem.toFixed(1)}` : "—"} sub={passStats ? "us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
             <StatCard label="Completed passes" value={passStats ? `${passStats.passesUs} – ${passStats.passesThem}` : "—"} sub={passStats ? "us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
+            <StatCard
+              label="Front-third passes"
+              value={passStats?.frontThirdPassesUs != null && passStats.frontThirdPassesThem != null ? `${passStats.frontThirdPassesUs} – ${passStats.frontThirdPassesThem}` : "—"}
+              sub={passStats?.frontThirdPassesUs != null ? "successful, us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"}
+            />
             <StatCard label="Possession won" value={passStats ? `${passStats.possWonUs} – ${passStats.possWonThem}` : "—"} sub={passStats ? "regains, us – them" : passingLoading ? "Loading Veo/RAS feed…" : "Veo/RAS feed unavailable"} />
           </div>
 

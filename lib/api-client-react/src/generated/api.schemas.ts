@@ -523,6 +523,8 @@ export interface VeoSeasonPassingMatch {
   possessionSecThem: number;
   passesUs: number;
   passesThem: number;
+  frontThirdPassesUs: number | null;
+  frontThirdPassesThem: number | null;
   possessionWonUs: number;
   possessionWonThem: number;
   passStringsUs: VeoPassStringBucket[];
@@ -683,6 +685,11 @@ export interface VeoReportPossession {
   themMin: number;
 }
 
+export interface VeoReportPassesFrontThird {
+  us: number;
+  them: number;
+}
+
 export interface VeoReportStats {
   linked: boolean;
   veoId?: number | null;
@@ -697,6 +704,7 @@ export interface VeoReportStats {
   tiltMaxMin?: number | null;
   radar?: VeoReportRadarRow[];
   possession?: VeoReportPossession;
+  passesFrontThird?: VeoReportPassesFrontThird | null;
 }
 
 export interface HealthStatus {

@@ -100,6 +100,14 @@ when analytics absent so sync never re-loops); stored in `veo_matches.pass_detai
 Probe scripts: scripts/probe-veo-ras.ts, CLI sync: scripts/veo-sync-cli.ts (same code path as the
 route via exported syncVeoLeagueOnce/autoLinkVeoLeague).
 
+## Successful front-third passes from RAS grids
+
+**Rule:** derive successful front-third passes from `passLocationsGrid`, never from `passLocations`. The 18-zone grid is six lengthwise columns of three, ordered defensive to attacking for each team; sum the final six values. Keep the result unavailable when the grid is missing or malformed.
+
+**Why:** `passLocations` are pass vectors centred around `(0.5, 0.5)`, not pitch positions. Across the validated U23 season, the location-grid totals accounted for about 97% of Veo's completed-pass totals; the difference is completed passes Veo could not locate, so the front-third count is factual but slightly conservative.
+
+**How to apply:** map L/R to us/opponent from each period's `own_side`, then use each mapped side's team-relative grid without another direction flip. Do not estimate missing locations from total passes or possession-third percentages.
+
 ## Shot-map orientation (own_side)
 Rotate a period's pitch 180° when `own_side !== "left"` so Belconnen attacks right — i.e. flip on "right"/default, NOT on "left".
 **Why:** the earlier per-match map flipped on "left" and was silently backwards; season-aggregate shot clustering (shots pile up at the attacked goal) proved the correct direction.
@@ -114,7 +122,7 @@ from June 2026. Always probe the endpoint; do not discard old matches by date.
 
 **Rule:** a league has one active Veo source. When its mapped team changes, soft-archive active rows from the previous team before linking replacements. For shared/noisy teams, opt into exact Sydney-date filtering against tracked Hub fixtures.
 
-**Why:** the NPLM U23 analytics share lives under Moir's/Conor, while its older BUFC U23 share lacks the full analytics feeds. Conor also contains historical and preseason recordings; importing the whole team would mix unrelated games and duplicate linked fixtures.
+**Why:** the NPLM U23 analytics share lives under Moir's/Conor, while its older BUFC U23 share lacks the full analytics feeds. Conor also contains historical and preseason recordings; importing the whole team would mix unrelated games and duplicate linked fixtures. The coach confirmed the exact-date filtered source switch worked in the live manual-sync workflow.
 
 **How to apply:** confirm the replacement source covers tracked fixture dates uniquely and exposes real events/RAS/Analytics 2 payloads before changing the mapping. Keep unmatched dates out of opted-in leagues and preserve old-source rows only as an inactive archive.
 
