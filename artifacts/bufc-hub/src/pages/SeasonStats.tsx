@@ -3351,9 +3351,9 @@ export default function SeasonStats() {
               {/* 19. Total minutes played */}
               <PlayerBarCard
                 title={`${isAll ? "League" : selectedClub} — Total Minutes${oppMinsL3 ? " — Last 3 Rounds" : ""}`}
-                description={`Total minutes played${oppMinsL3 ? " over the last 3 rounds" : " this season"} (top ${isAll ? oppMinsLimit : 15})`}
-                tooltip={`Total minutes played across their league season, top ${isAll ? oppMinsLimit : 15} by minutes.`}
-                data={oppMinutesData(oppMinsL3 ? oppPlayersL3 : oppPlayersFull, isAll ? oppMinsLimit : 15)}
+                description={`Total minutes played${oppMinsL3 ? " over the last 3 rounds" : " this season"} (top ${isAll ? oppMinsLimit : 30})`}
+                tooltip={`Total minutes played across their league season, top ${isAll ? oppMinsLimit : 30} by minutes.`}
+                data={oppMinutesData(oppMinsL3 ? oppPlayersL3 : oppPlayersFull, isAll ? oppMinsLimit : 30)}
                 color="#0ea5e9"
                 valueLabel="Minutes"
                 showClub={isAll}
@@ -4673,7 +4673,7 @@ function SubImpactChart({ seasonId, club, isAll, enabled }: {
     if (sort === "gf") list.sort((a, b) => b.gf - a.gf || b.net - a.net);
     else if (sort === "worst") list.sort((a, b) => a.net - b.net || a.gf - b.gf);
     else list.sort((a, b) => b.net - a.net || b.gf - a.gf);
-    return list.slice(0, 20).map(p => ({
+    return list.slice(0, 30).map(p => ({
       name: isAll ? `${p.playerName} · ${p.club.slice(0, 3)}` : p.playerName,
       gf: p.gf,
       gaNeg: -p.ga,
@@ -4910,7 +4910,7 @@ function oppStartsAppsData(src?: OppPlayerSrc): PlayerBarDatum[] {
     .map(p => ({ name: p.playerName, club: p.club, value: p.totalApps, mins: p.totalMins ?? 0, goals: p.totalGoals, assists: p.totalAssists, starts: p.totalStarts ?? 0, appearances: p.totalApps, sub: Math.max(p.totalApps - (p.totalStarts ?? 0), 0) }))
     .filter(r => r.appearances > 0)
     .sort((a, b) => b.appearances - a.appearances || b.starts - a.starts)
-    .slice(0, 18);
+    .slice(0, 30);
 }
 function oppMinutesData(src?: OppPlayerSrc, limit = 15): PlayerBarDatum[] {
   return (src?.players ?? [])
