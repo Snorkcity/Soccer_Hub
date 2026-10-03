@@ -609,6 +609,8 @@ paths:
               items:
                 $ref: "#/components/schemas/GpsPlayerPositionInput"
       responses:
+        "400":
+          description: Invalid position or a specific role that does not belong to the position
         "200":
           description: Save result
           content:
@@ -4996,6 +4998,7 @@ components:
       properties:
         playerName: { type: string }
         position:   { type: string, enum: [GK, Defender, Midfielder, Forward] }
+        role:       { type: ["string", "null"], enum: [CB, FB, DM, AM, B2B, "9", Winger, null] }
       required: [playerName, position]
 
     GpsPlayerPositionInput:
@@ -5003,6 +5006,10 @@ components:
       properties:
         playerName: { type: string }
         position:   { type: ["string", "null"], enum: [GK, Defender, Midfielder, Forward, null] }
+        role:
+          type: ["string", "null"]
+          enum: [CB, FB, DM, AM, B2B, "9", Winger, null]
+          description: Specific role within the broad position. Null clears it; omission preserves it when the broad position is unchanged.
       required: [playerName]
 
     GpsPlayerPositionsSaveResult:

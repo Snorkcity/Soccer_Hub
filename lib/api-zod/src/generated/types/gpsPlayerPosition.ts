@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GpsPlayerPositionPosition } from './gpsPlayerPositionPosition';
+import type { GpsPlayerPositionRole } from './gpsPlayerPositionRole';
 
 export interface GpsPlayerPosition {
   playerName: string;
   position: GpsPlayerPositionPosition;
+  /** @nullable */
+  role?: GpsPlayerPositionRole;
 }

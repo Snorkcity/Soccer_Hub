@@ -135,6 +135,9 @@ export async function runStartupMigrations(): Promise<void> {
     )
   `);
 
+  // Optional specific roles preserve existing broad-position comparisons.
+  await db.execute(sql`ALTER TABLE gps_player_positions ADD COLUMN IF NOT EXISTS role text`);
+
   // GPS identity merging (2026-07): duplicate GPS names (U17-/U18- eras, nicknames)
   // map to one canonical player. Raw gps_sessions rows stay untouched — the API
   // canonicalises player names on read. Mapping confirmed by the coach.

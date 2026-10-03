@@ -1363,9 +1363,27 @@ export const GpsPlayerPositionPosition = {
   Forward: 'Forward',
 } as const;
 
+/**
+ * @nullable
+ */
+export type GpsPlayerPositionRole = typeof GpsPlayerPositionRole[keyof typeof GpsPlayerPositionRole] | null;
+
+
+export const GpsPlayerPositionRole = {
+  CB: 'CB',
+  FB: 'FB',
+  DM: 'DM',
+  AM: 'AM',
+  B2B: 'B2B',
+  NUMBER_9: '9',
+  Winger: 'Winger',
+} as const;
+
 export interface GpsPlayerPosition {
   playerName: string;
   position: GpsPlayerPositionPosition;
+  /** @nullable */
+  role?: GpsPlayerPositionRole;
 }
 
 /**
@@ -1381,10 +1399,32 @@ export const GpsPlayerPositionInputPosition = {
   Forward: 'Forward',
 } as const;
 
+/**
+ * Specific role within the broad position. Null clears it; omission preserves it when the broad position is unchanged.
+ * @nullable
+ */
+export type GpsPlayerPositionInputRole = typeof GpsPlayerPositionInputRole[keyof typeof GpsPlayerPositionInputRole] | null;
+
+
+export const GpsPlayerPositionInputRole = {
+  CB: 'CB',
+  FB: 'FB',
+  DM: 'DM',
+  AM: 'AM',
+  B2B: 'B2B',
+  NUMBER_9: '9',
+  Winger: 'Winger',
+} as const;
+
 export interface GpsPlayerPositionInput {
   playerName: string;
   /** @nullable */
   position?: GpsPlayerPositionInputPosition;
+  /**
+     * Specific role within the broad position. Null clears it; omission preserves it when the broad position is unchanged.
+     * @nullable
+     */
+  role?: GpsPlayerPositionInputRole;
 }
 
 export interface GpsPlayerPositionsSaveResult {

@@ -1,0 +1,40 @@
+You could give Replit this as the context. I would **not ask it to build anything yet** — this tells it where we're heading and asks it to consider the existing architecture.
+
+> I am developing a more advanced methodology for the GPS Insights area.
+>
+> Do not make any changes yet. This is context for functionality I will provide in more detail once the methodology is finalised.
+>
+> Currently GPS Insights does a good job of showing what happened — player and team GPS outputs, season trends, team/position averages, match reports and player season reports.
+>
+> The next stage is to add an interpretation and benchmarking layer so GPS Insights can also help coaches and players understand what the numbers mean and what they should be working towards.
+>
+> The methodology will likely include:
+>
+> - BUFC GPS definitions, including **HSP >19 km/h** and **VHS >25 km/h**
+> - Published elite U23/professional GPS benchmarks
+> - Position-specific benchmarks
+> - Existing BUFC First Grade and U23 team/position averages
+> - Individual player season averages
+> - A **Personal Game Reference (Gref)** based on a player's best qualifying match outputs
+> - Match output expressed as a percentage of personal Gref
+> - Season-best and personal-best identification
+> - Appropriate treatment of minutes played and substitute appearances
+> - Eventually peak match demands and individual maximum-speed exposure
+>
+> The intended benchmark hierarchy is approximately:
+>
+> **Elite external benchmark → BUFC positional/team benchmark → individual player average → individual player Gref → current match**
+>
+> Importantly, these are physical reference points rather than performance ratings. Higher GPS output does not automatically mean a better football performance. Match role, position, possession, opposition and tactical context all affect physical output.
+>
+> The existing GPS charts and reporting should remain the foundation. The intention is to enhance them with useful reference information rather than redesign the GPS Insights area.
+>
+> Examples could eventually include reference lines on existing charts, Gref percentages, season-best indicators, positional comparisons and concise player feedback within GPS Insights rather than only when a season report is generated.
+>
+> We are currently developing the sports-science methodology and benchmark dataset. Once that is complete, I will provide a detailed implementation specification covering calculations, database requirements, benchmark hierarchy, qualifying rules, UI behaviour and reporting.
+>
+> For now, please review this direction against the existing GPS Insights architecture and keep it in mind. **Do not implement or modify anything yet.**
+
+That should give Replit enough context to understand that this is a **significant extension of the existing GPS system**, rather than it immediately deciding to add a couple of arbitrary benchmark lines.
+
+**Confidence: 0.99**

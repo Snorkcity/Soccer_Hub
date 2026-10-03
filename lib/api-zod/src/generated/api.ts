@@ -802,7 +802,8 @@ export const ListGpsOpponentMismatchesResponse = zod.array(ListGpsOpponentMismat
  */
 export const ListGpsPlayerPositionsResponseItem = zod.object({
   "playerName": zod.string(),
-  "position": zod.enum(['GK', 'Defender', 'Midfielder', 'Forward'])
+  "position": zod.enum(['GK', 'Defender', 'Midfielder', 'Forward']),
+  "role": zod.union([zod.literal('CB'),zod.literal('FB'),zod.literal('DM'),zod.literal('AM'),zod.literal('B2B'),zod.literal('9'),zod.literal('Winger'),zod.literal(null)]).nullish()
 })
 export const ListGpsPlayerPositionsResponse = zod.array(ListGpsPlayerPositionsResponseItem)
 
@@ -812,7 +813,8 @@ export const ListGpsPlayerPositionsResponse = zod.array(ListGpsPlayerPositionsRe
  */
 export const SaveGpsPlayerPositionsBodyItem = zod.object({
   "playerName": zod.string(),
-  "position": zod.union([zod.literal('GK'),zod.literal('Defender'),zod.literal('Midfielder'),zod.literal('Forward'),zod.literal(null)]).nullish()
+  "position": zod.union([zod.literal('GK'),zod.literal('Defender'),zod.literal('Midfielder'),zod.literal('Forward'),zod.literal(null)]).nullish(),
+  "role": zod.union([zod.literal('CB'),zod.literal('FB'),zod.literal('DM'),zod.literal('AM'),zod.literal('B2B'),zod.literal('9'),zod.literal('Winger'),zod.literal(null)]).nullish().describe('Specific role within the broad position. Null clears it; omission preserves it when the broad position is unchanged.')
 })
 export const SaveGpsPlayerPositionsBody = zod.array(SaveGpsPlayerPositionsBodyItem)
 

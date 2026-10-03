@@ -1,5 +1,5 @@
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
-import { isNorthernNswLeague } from "@workspace/api-zod";
+import { isNorthernNswLeague, GPS_POSITIONS, GPS_POSITION_ROLES, type GpsPosition, type GpsRole } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTeams,
@@ -53,6 +53,7 @@ import {
   useListGpsPlayerPositions,
   getListGpsPlayerPositionsQueryKey,
   useSaveGpsPlayerPositions,
+  type GpsPlayerPosition,
   useListGpsPlayerEmails,
   getListGpsPlayerEmailsQueryKey,
   useSaveGpsPlayerEmails,
@@ -3766,7 +3767,7 @@ function EntryWorkspace() {
           <GpsUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
-          <PositionsForm leagueId={season?.leagueId ?? 0} />
+          <PositionsForm key={season?.leagueId ?? 0} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="emails" className="mt-6">
           <EmailsForm leagueId={season?.leagueId ?? 0} />
@@ -3780,14 +3781,12 @@ function EntryWorkspace() {
 // GPS player positions — drives position-specific averages in player reports
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GPS_POSITIONS = ["GK", "Defender", "Midfielder", "Forward"];
-
 function PositionsForm({ leagueId }: { leagueId: number }) {
   const queryClient = useQueryClient();
 
   // Every player name that has ever logged a GPS game (all years)
   const gpsParams = { leagueId, split: "game" };
-  const { data: gpsRows, isLoading: loadingNames } = useListGpsSessions(
+  const { data: gpsRows, isLoading: loadingNames, isError: namesError, refetch: reloadNames } = useListGpsSessions(
     gpsParams,
     { query: { enabled: leagueId > 0, queryKey: getListGpsSessionsQueryKey(gpsParams) } },
   );
@@ -3795,21 +3794,36 @@ function PositionsForm({ leagueId }: { leagueId: number }) {
     () => [...new Set((gpsRows ?? []).map(r => r.playerName).filter((n): n is string => !!n && n !== "Unknown"))].sort(),
     [gpsRows]);
 
-  const { data: saved, isLoading: loadingPos } = useListGpsPlayerPositions(
+  const { data: saved, isLoading: loadingPos, isError: positionsError, refetch: reloadPositions } = useListGpsPlayerPositions(
     { query: { queryKey: getListGpsPlayerPositionsQueryKey() } },
   );
-  const savedMap = useMemo(() => new Map((saved ?? []).map(p => [p.playerName, p.position])), [saved]);
+  const savedMap = useMemo(() => new Map((saved ?? []).map(p => [
+    p.playerName, { position: p.position as GpsPosition | "", role: p.role ?? null },
+  ])), [saved]);
 
   // Local edits layered over what's saved; "" = no position
-  const [edits, setEdits] = useState<Record<string, string>>({});
-  const valueOf = (n: string) => edits[n] ?? savedMap.get(n) ?? "";
-  const dirty = names.some(n => (edits[n] ?? savedMap.get(n) ?? "") !== (savedMap.get(n) ?? ""));
+  const [edits, setEdits] = useState<Record<string, { position: GpsPosition | ""; role: GpsRole | null }>>({});
+  const valueOf = (n: string) => edits[n] ?? savedMap.get(n) ?? { position: "" as const, role: null };
+  const changed = (n: string) => {
+    const current = valueOf(n);
+    const previous = savedMap.get(n);
+    return current.position !== (previous?.position ?? "") || current.role !== (previous?.role ?? null);
+  };
+  const dirty = names.some(changed);
 
   const [message, setMessage] = useState<string | null>(null);
   const save = useSaveGpsPlayerPositions({ mutation: {
-    onSuccess: res => {
+    onSuccess: (res, variables) => {
+      queryClient.setQueryData<GpsPlayerPosition[]>(getListGpsPlayerPositionsQueryKey(), previous => {
+        const updated = new Map((previous ?? []).map(p => [p.playerName, p]));
+        for (const entry of variables.data) {
+          if (entry.position == null) updated.delete(entry.playerName);
+          else updated.set(entry.playerName, { playerName: entry.playerName, position: entry.position, role: entry.role ?? null });
+        }
+        return [...updated.values()];
+      });
       setEdits({});
-      setMessage(`Saved — ${res.saved} player${res.saved === 1 ? "" : "s"} with a position${res.removed ? `, ${res.removed} cleared` : ""}.`);
+      setMessage(`Saved — ${res.saved} player${res.saved === 1 ? "" : "s"} updated${res.removed ? `, ${res.removed} cleared` : ""}.`);
       void queryClient.invalidateQueries({ queryKey: getListGpsPlayerPositionsQueryKey() });
     },
     onError: e => setMessage(errMsg(e)),
@@ -3818,45 +3832,76 @@ function PositionsForm({ leagueId }: { leagueId: number }) {
   const submit = () => {
     setMessage(null);
     const body = names
-      .filter(n => (edits[n] ?? savedMap.get(n) ?? "") !== (savedMap.get(n) ?? ""))
+      .filter(changed)
       .map(n => {
         const v = valueOf(n);
-        return { playerName: n, position: (v === "" ? null : v) as "GK" | "Defender" | "Midfielder" | "Forward" | null };
+        return { playerName: n, position: v.position || null, role: v.position ? v.role : null };
       });
     save.mutate({ data: body });
   };
 
-  const unset = names.filter(n => !valueOf(n)).length;
+  const unset = names.filter(n => !valueOf(n).position).length;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Player positions</CardTitle>
         <CardDescription>
-          Set each GPS-logged player as GK, Defender, Midfielder or Forward. Once set, player reports can show
-          position-specific averages — a much fairer comparison than the whole squad.
+          Choose a broad position, then an optional specific role: CB or FB; DM / 6, B2B / 8 or AM / 10;
+          or 9 or winger. Existing reports still compare the broad position — role benchmarks will come later.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loadingNames || loadingPos ? (
           <p className="text-muted-foreground py-8 text-center">Loading players…</p>
+        ) : namesError || positionsError ? (
+          <div role="alert" className="space-y-2 py-4">
+            <p>Could not load player positions. Your edits have not been saved.</p>
+            <Button variant="outline" onClick={() => { void reloadNames(); void reloadPositions(); }}>Retry</Button>
+          </div>
         ) : names.length === 0 ? (
           <p className="text-muted-foreground py-8 text-center">No GPS-logged players found.</p>
         ) : (
           <>
-            <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-              {names.map(n => (
-                <div key={n} className="flex items-center justify-between gap-2 border-b py-1.5">
-                  <span className="text-sm truncate">{n}</span>
-                  <Select value={valueOf(n) || "none"} onValueChange={v => setEdits(prev => ({ ...prev, [n]: v === "none" ? "" : v }))}>
-                    <SelectTrigger className="w-[130px] max-w-full h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">—</SelectItem>
-                      {GPS_POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {names.map(n => {
+                const current = valueOf(n);
+                const roles = current.position ? GPS_POSITION_ROLES[current.position] : [];
+                return (
+                  <div key={n} className="min-w-0 rounded-md border p-3 space-y-2">
+                    <span className="block text-sm font-medium break-words">{n}</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-xs text-muted-foreground">Position</p>
+                        <Select disabled={save.isPending} value={current.position || "none"} onValueChange={v => {
+                          const position = v === "none" ? "" : v as GpsPosition;
+                          setEdits(prev => ({ ...prev, [n]: { position, role: position === current.position ? current.role : null } }));
+                          setMessage(null);
+                        }}>
+                          <SelectTrigger aria-label={`${n}: position`} className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Not set</SelectItem>
+                            {GPS_POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-xs text-muted-foreground">Specific role</p>
+                        <Select disabled={save.isPending || roles.length === 0} value={current.role ?? "none"} onValueChange={v => {
+                          setEdits(prev => ({ ...prev, [n]: { ...current, role: v === "none" ? null : v as GpsRole } }));
+                          setMessage(null);
+                        }}>
+                          <SelectTrigger aria-label={`${n}: specific role`} className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">{current.position === "GK" ? "Not applicable" : "Not set"}</SelectItem>
+                            {roles.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={submit} disabled={!dirty || save.isPending}>
@@ -3865,7 +3910,7 @@ function PositionsForm({ leagueId }: { leagueId: number }) {
               <p className="text-sm text-muted-foreground">
                 {unset ? `${unset} of ${names.length} players still without a position.` : `All ${names.length} players have a position.`}
               </p>
-              {message && <p className="text-sm">{message}</p>}
+              {message && <p role="status" className="text-sm">{message}</p>}
             </div>
           </>
         )}

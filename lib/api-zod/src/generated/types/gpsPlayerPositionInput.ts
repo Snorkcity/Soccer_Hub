@@ -6,9 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GpsPlayerPositionInputPosition } from './gpsPlayerPositionInputPosition';
+import type { GpsPlayerPositionInputRole } from './gpsPlayerPositionInputRole';
 
 export interface GpsPlayerPositionInput {
   playerName: string;
   /** @nullable */
   position?: GpsPlayerPositionInputPosition;
+  /**
+     * Specific role within the broad position. Null clears it; omission preserves it when the broad position is unchanged.
+     * @nullable
+     */
+  role?: GpsPlayerPositionInputRole;
 }

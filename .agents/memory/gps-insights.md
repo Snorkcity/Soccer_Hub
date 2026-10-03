@@ -38,3 +38,22 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 
 ## Fixture-derived opponents
 GPS rounds usually lack an opponent; GET /gps-sessions fills it server-side by matching the round number (R#) to football fixtures: matchId prefix = round code, 1sts = the GPS league's own seasons, Reserves = sibling league named "<league name> Reserves". A Catapult-carried opponent on the row always wins over the fixture lookup.
+
+## GPS development direction for 2027
+The coach will be running GPS for the men's U23 and first-grade teams in 2027. They want to explore field-position targets and baselines, and feedback across games that supports one-to-one conversations with players.
+
+**Why:** The user stated this upcoming scope and intends to share literature prepared with ChatGPT to explain the direction.
+
+**How to apply:** Review the supplied literature before defining targets or implementing changes. Treat this as a direction to discuss, not approval to build a particular model.
+
+### Confirmed metric and position requirements
+Use high-speed metres (HSP) and very-high-speed metres (VHSP), matching the app's existing metric definitions rather than adopting a different threshold from the supplied context.
+
+Keep each player's broad position and add a second, more specific role:
+- Defender → CB or FB.
+- Midfielder → DM / 6, AM / 10, or B2B / 8.
+- Forward → 9 or winger.
+
+**Why:** The coach explicitly confirmed that the metrics should be like the app and that the specific role should be one step after the existing position description.
+
+**How to apply:** Preserve the broad position when adding specific roles; treat the named role and its shirt-number shorthand as the same role, not separate categories. The user has authorised building position selection in the existing Data Entry Positions area. Benchmark and Gref work remains deferred while they develop the evidence with ChatGPT; do not change GPS comparisons as part of position selection.

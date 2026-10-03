@@ -2391,7 +2391,7 @@ export const saveGpsPlayerPositions = async (gpsPlayerPositionInput: GpsPlayerPo
 
 
 
-export const getSaveGpsPlayerPositionsMutationOptions = <TError = ErrorType<unknown>,
+export const getSaveGpsPlayerPositionsMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext> => {
 
@@ -2420,12 +2420,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SaveGpsPlayerPositionsMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsPlayerPositions>>>
     export type SaveGpsPlayerPositionsMutationBody = BodyType<GpsPlayerPositionInput[]>
-    export type SaveGpsPlayerPositionsMutationError = ErrorType<unknown>
+    export type SaveGpsPlayerPositionsMutationError = ErrorType<void>
 
     /**
  * @summary Upsert player positions (a null position removes the entry)
  */
-export const useSaveGpsPlayerPositions = <TError = ErrorType<unknown>,
+export const useSaveGpsPlayerPositions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsPlayerPositions>>, TError,{data: BodyType<GpsPlayerPositionInput[]>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof saveGpsPlayerPositions>>,

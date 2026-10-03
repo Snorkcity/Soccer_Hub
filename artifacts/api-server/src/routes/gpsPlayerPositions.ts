@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, gpsPlayerPositionsTable } from "@workspace/db";
-import { SaveGpsPlayerPositionsBody } from "@workspace/api-zod";
+import { SaveGpsPlayerPositionsBody, isGpsRoleForPosition } from "@workspace/api-zod";
 import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -22,6 +22,12 @@ router.put("/gps-player-positions", async (req, res): Promise<void> => {
   }
   let saved = 0;
   let removed = 0;
+  for (const entry of parsed.data) {
+    if (entry.role != null && !isGpsRoleForPosition(entry.position, entry.role)) {
+      res.status(400).json({ error: `Role ${entry.role} does not belong to position ${entry.position ?? "unset"}.` });
+      return;
+    }
+  }
   await db.transaction(async tx => {
     for (const entry of parsed.data) {
       const name = entry.playerName.trim();
@@ -35,10 +41,15 @@ router.put("/gps-player-positions", async (req, res): Promise<void> => {
       } else {
         await tx
           .insert(gpsPlayerPositionsTable)
-          .values({ playerName: name, position: entry.position })
+          .values({ playerName: name, position: entry.position, role: entry.role ?? null })
           .onConflictDoUpdate({
             target: gpsPlayerPositionsTable.playerName,
-            set: { position: sql`excluded.position` },
+            set: {
+              position: sql`excluded.position`,
+              role: entry.role === undefined
+                ? sql`CASE WHEN ${gpsPlayerPositionsTable.position} = excluded.position THEN ${gpsPlayerPositionsTable.role} ELSE NULL END`
+                : entry.role,
+            },
           });
         saved += 1;
       }

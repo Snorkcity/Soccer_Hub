@@ -7,5 +7,6 @@ export * from "./gps";
 export * from "./gpsPeriods";
 export * from "./competitionMatches";
 export * from "./competitionSources";
+export * from "./gpsPositions";
 export * from './generated/api';
 export * from './generated/types';

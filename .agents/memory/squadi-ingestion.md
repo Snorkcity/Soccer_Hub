@@ -9,6 +9,18 @@ Northern NSW ("NNSW") uses Squadi and is distinct from Football NSW ("NSW") on D
 
 **How to apply:** Distinguish a transport rejection from an authentication response. Do not assume publicly visible results grant access to detailed player records, and do not manufacture unavailable goal or lineup details.
 
+The coach reports that Squadi team sheets show a small football icon beside a player who scored.
+
+**Why:** This may provide scorer evidence on the visible team sheet even when the detailed event endpoints require login.
+
+**How to apply:** If scorer extraction is explicitly requested later, check the team-sheet display separately. Verify whether the icon indicates a goal count or only that the player scored; do not infer goal minutes or types from it.
+
+Leave the Northern NSW league data as it is; do not pursue further scorer extraction or deeper Squadi integration unless the user asks again.
+
+**Why:** The user said they will not be looking at this league again and that it is okay to just have what we have.
+
+**How to apply:** Keep the existing results and source protections, without proactively extending this league's coverage.
+
 Completed Squadi fixture entries are not necessarily played games. Exclude byes explicitly, and examine result status as well as match status.
 
 **Why:** The public feed includes Bye fixtures with ENDED status and 0–0 scores. Genuine completed matches can also have matchEnded=false despite matchStatus=ENDED and resultStatus=FINAL.
