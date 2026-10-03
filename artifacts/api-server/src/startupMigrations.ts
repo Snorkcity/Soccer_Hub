@@ -9,6 +9,22 @@ import { ensureNplb2026Structure } from "./lib/nplb2026";
  * must be safe to re-run (IF NOT EXISTS / conditional backfills only).
  */
 export async function runStartupMigrations(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS veo_goal_sequence_reviews (
+      id serial PRIMARY KEY,
+      league_id integer NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+      veo_match_id text NOT NULL,
+      goal_key text NOT NULL,
+      hub_goal_id integer,
+      decisions jsonb NOT NULL DEFAULT '{}'::jsonb,
+      source_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+      reviewed_by integer REFERENCES users(id),
+      reviewed_at timestamp with time zone,
+      created_at timestamp with time zone NOT NULL DEFAULT now(),
+      updated_at timestamp with time zone NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS veo_goal_sequence_reviews_unique ON veo_goal_sequence_reviews (league_id, veo_match_id, goal_key)`);
   // Match-stat provenance (2026-08): possession, shots and passes may be
   // entered by a coach or derived from Veo. Existing values deliberately stay
   // "unknown" — we cannot safely reconstruct their origin after the fact.

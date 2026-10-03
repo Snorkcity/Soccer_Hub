@@ -28,6 +28,8 @@ export interface DriblPreviewMatch {
   goalsOnly: boolean;
   unmatched: string[];
   goals: DriblPreviewGoal[];
+  /** Goal events withheld when Dribl's match centre exceeds its published score; scoreline and lineups may still be imported. */
+  goalWarning?: string;
   statsOnly: boolean;
   playerStats: DriblPreviewClubStats[];
   /** Display names claimed fresh this sync from goal events with no line-up block (e.g. "S.Wells (Belconnen)") — review in the player name map */

@@ -154,6 +154,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Team"
+    post:
+      operationId: createTeam
+      tags: [teams]
+      summary: Create a team for a focus club
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamInput"
+      responses:
+        "201":
+          description: Created team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
 
   /teams/{id}:
     get:
@@ -3447,6 +3464,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/VeoGoalSequencesResponse"
 
+  /veo/goal-sequence-reviews:
+    get:
+      operationId: getVeoGoalSequenceReviews
+      tags: [veo]
+      summary: Coach-reviewed evidence for Veo goal sequence detections
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Reviews and reviewed-evidence-only accuracy summaries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoGoalSequenceReviewsResponse" }
+    put:
+      operationId: saveVeoGoalSequenceReview
+      tags: [veo]
+      summary: Save independent coach decisions for one Veo goal sequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoGoalSequenceReviewInput" }
+      responses:
+        "200":
+          description: Saved review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoGoalSequenceReviewResponse" }
+
   /veo/match:
     get:
       operationId: getVeoMatch
@@ -4251,7 +4300,7 @@ components:
       required:
         [goalTimeMs, goalPeriodTimeMs, periodId, scoringTeam, scorerJersey, scoringShot, passes,
          completedPassCount, sequenceStartZone, finalPassOriginZone,
-         finalPasserJersey, assistSuggestionJersey, lastActionOwn,
+         finalPasserJersey, assistSuggestionJersey, goalKey, officialGoal, lastActionOwn,
          lastActionOpponent, confidence, reasons]
       properties:
         goalTimeMs: { type: [number, "null"] }
@@ -4277,6 +4326,20 @@ components:
         finalPassOriginZone: { $ref: "#/components/schemas/VeoSequenceZone" }
         finalPasserJersey: { type: [string, "null"] }
         assistSuggestionJersey: { type: [string, "null"] }
+        goalKey: { type: string }
+        officialGoal:
+          oneOf:
+            - type: object
+              required: [id, scorer, assist, minute, passString, buildupLane, source]
+              properties:
+                id: { type: integer }
+                scorer: { type: [string, "null"] }
+                assist: { type: [string, "null"] }
+                minute: { type: [integer, "null"] }
+                passString: { type: [string, "null"] }
+                buildupLane: { type: [string, "null"] }
+                source: { type: [string, "null"] }
+            - type: "null"
         veoMatchId: { type: [string, "null"] }
         matchId: { type: [string, "null"] }
         opponent: { type: [string, "null"] }
@@ -4361,6 +4424,56 @@ components:
         unavailableMatches:
           type: array
           items: { $ref: "#/components/schemas/VeoGoalSequenceUnavailable" }
+    VeoGoalSequenceReviewInput:
+      type: object
+      required: [leagueId, veoMatchId, goalKey, decisions]
+      properties:
+        leagueId: { type: integer }
+        veoMatchId: { type: string }
+        goalKey: { type: string }
+        hubGoalId: { type: [integer, "null"] }
+        sourceSnapshot: { type: object, additionalProperties: true }
+        decisions:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [correct, incorrect, unclear]
+    VeoGoalSequenceReview:
+      type: object
+      required: [id, leagueId, veoMatchId, goalKey, decisions]
+      properties:
+        id: { type: integer }
+        leagueId: { type: integer }
+        veoMatchId: { type: string }
+        goalKey: { type: string }
+        hubGoalId: { type: [integer, "null"] }
+        decisions: { type: object, additionalProperties: { type: string } }
+        reviewedBy: { type: [integer, "null"] }
+        reviewedAt: { type: [string, "null"], format: date-time }
+    VeoGoalSequenceReviewSummary:
+      type: object
+      required: [reviewed, correct, incorrect, unclear, accuracy]
+      properties:
+        reviewed: { type: integer }
+        correct: { type: integer }
+        incorrect: { type: integer }
+        unclear: { type: integer }
+        accuracy: { type: [number, "null"] }
+    VeoGoalSequenceReviewsResponse:
+      type: object
+      required: [reviews, summary]
+      properties:
+        reviews:
+          type: array
+          items: { $ref: "#/components/schemas/VeoGoalSequenceReview" }
+        summary:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/VeoGoalSequenceReviewSummary" }
+    VeoGoalSequenceReviewResponse:
+      type: object
+      required: [review]
+      properties:
+        review: { $ref: "#/components/schemas/VeoGoalSequenceReview" }
     VeoPassLenStats:
       type: object
       required: [n, mean, longPct]
@@ -4627,6 +4740,16 @@ components:
         clubName:         { type: string }
       required: [id, name, gender, ageGroup, analyticsEnabled, clubName]
 
+    TeamInput:
+      type: object
+      properties:
+        name:             { type: string, minLength: 1 }
+        gender:           { type: string, minLength: 1 }
+        ageGroup:         { type: string, minLength: 1 }
+        analyticsEnabled: { type: boolean }
+        clubName:         { type: string, minLength: 1 }
+      required: [name, gender, ageGroup, clubName]
+
     # ── Seasons ───────────────────────────────────────────────────────────────
 
     Season:
@@ -4671,6 +4794,7 @@ components:
       properties:
         name:   { type: string }
         region: { type: string }
+        focusClub: { type: string, minLength: 1 }
       required: [name]
 
     LeagueUpdateInput:
@@ -6723,6 +6847,9 @@ components:
         goals:
           type: array
           items: { $ref: "#/components/schemas/DriblPreviewGoal" }
+        goalWarning:
+          type: string
+          description: Goal events withheld when Dribl's match centre exceeds its published score; scoreline and lineups may still be imported.
         statsOnly: { type: boolean }
         playerStats:
           type: array

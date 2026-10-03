@@ -6,63 +6,88 @@ id = "rkO38yAVOwvgiNFc4DL4Y"
 uri = "file://deliverables/GPS-Match-Upload-How-To.docx"
 type = "word_document"
 title = "GPS Match Upload — How To (updated)"
+logical_id = "7cd90aab-7170-4330-996c-0a543f759490"
 
 [[outputs]]
 id = "4V1qhIPDijb34EtQjHwZ1"
 uri = "file://.agents/outputs/session-pdfs/slide201_reconstructed.png"
 type = "image"
 title = "Proof: 'Switching Play' rebuilt from extracted data"
+logical_id = "e206baa1-510f-4ad0-bc4f-f33798a3725c"
 
 [[outputs]]
 id = "XdFihweQV19kByIDtN_91"
 uri = "file://attached_assets/demo-journal-cycle03.pptx"
 type = "slides"
 title = "Demo Journal — Cycle 03 (Week 1 populated)"
+logical_id = "677453c8-2360-4c9b-b671-0cc7270f42fb"
 
 [[outputs]]
 id = "qVGTnwzOn0BaQEwMcTEHw"
 uri = "file://attached_assets/generated_images/hub_logo_a_datafootball.png"
 type = "image"
 title = "Concept A — Data Football"
+logical_id = "d7b4b5ab-427f-442c-a03a-2cfd6eb16320"
 
 [[outputs]]
 id = "Yaf1jT0LvP7YopCniAFPW"
 uri = "file://attached_assets/generated_images/hub_logo_b_ecosystem.png"
 type = "image"
 title = "Concept B — Ecosystem Hub"
+logical_id = "1dfa6d9f-bf39-4b24-b506-31469c99e4d5"
 
 [[outputs]]
 id = "5jwZGCTbV_872aCommXoP"
 uri = "file://attached_assets/generated_images/hub_logo_c_pulse.png"
 type = "image"
 title = "Concept C — Performance Pulse"
+logical_id = "002d14ae-7a20-4027-965d-271c48d02eb2"
 
 [[outputs]]
 id = "3MyO29qhQ0iIqomYg0QEw"
 uri = "file://attached_assets/generated_images/hub_logo_d_radarshield.png"
 type = "image"
 title = "Concept D — Radar Shield"
+logical_id = "53cf191f-53cc-4577-95ac-2b30b84c436b"
 
 [[outputs]]
 id = "gyWmgQ0IJKtwBUUmqKPuc"
 uri = "file://attached_assets/generated_images/hub_logo_e_radarshield_cyan.png"
 type = "image"
 title = "Radar Shield v2 — ball at corner, cyan"
+logical_id = "4a54fd49-bde5-4856-abbe-2e7a8720e937"
 
 [[outputs]]
 id = "diPpHfYXCYmpFttWnWVJs"
 uri = "file://attached_assets/generated_images/hub_logo_f_radarshield_ballpoint.png"
 type = "image"
 title = "Radar Shield v3 — ball at shield point, teal"
+logical_id = "575d70b5-c07e-4f4d-bcef-800104ce6e59"
 
 [[outputs]]
 id = "OnqMvmTYuR7-3ShanfTgk"
 uri = "file://attached_assets/generated_images/hub_logo_g_shield_filled.png"
 type = "image"
 title = "Radar Shield — web filled, no ball"
+logical_id = "bbc75cd2-b00a-41b1-89ec-c9722f46714e"
 
 [[outputs]]
 id = "1Z-Ix-SnBRrdc4xSIEjRn"
 uri = "file://attached_assets/generated_images/hub_logo_h_shield_outline.png"
 type = "image"
 title = "Radar Shield — web outline only, no ball"
+logical_id = "b29651d4-2663-417a-95f7-e0350c78bd7d"
+
+[[outputs]]
+id = "nvF1AtsFcs5kuEtOivp1q"
+uri = "file://.agents/outputs/nnsw-women-2026-results.csv"
+type = "table"
+title = "Northern NSW Women — 2026 results"
+description = "67 completed first-grade fixtures, including four finals. Byes excluded; native match IDs and the penalty shootout retained. No inferred scorers or lineups."
+logical_id = "2a5baf47-3cba-4950-8d84-6a69393e0a7b"
+content_hash = "sha256:e0f5fee0abfe68686cbf16e7b80a6eaf3e865264cc449710f88790d7f62f469e"
+size = 8680
+mtime_ms = 1790988539593
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:094367d6-f10a-4a5b-aad9-40cbfabfa83a/2a5baf47-3cba-4950-8d84-6a69393e0a7b/4cdcbdfb-3618-4a47-878a-b5ed7761d776"
+storage_version_token = "1790988540231194"
+content_type = "text/csv"

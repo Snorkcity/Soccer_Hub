@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { build } from "esbuild";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const dir = await mkdtemp(join(tmpdir(), "veo-review-"));
+const out = join(dir, "review.mjs");
+await build({ entryPoints: ["src/lib/veoGoalSequenceReview.ts"], bundle: true, format: "esm", platform: "node", outfile: out, external: ["@workspace/*"] });
+const review = await import(out);
+assert.equal(review.parseHubGoalId(null), null);
+assert.equal(review.parseHubGoalId(undefined), null);
+assert.equal(review.parseHubGoalId(""), null);
+assert.equal(review.parseHubGoalId(12), 12);
+assert.equal(review.parseHubGoalId("12"), 12);
+assert.equal(review.parseHubGoalId(0), null);
+assert.equal(review.parseHubGoalId("12.5"), null);
+assert.equal(review.parseHubGoalId("abc"), null);
+const goals = [{ goalKey: "match:1:100:0" }, { goalKey: "match:2:200:1" }];
+assert.equal(review.isValidGoalKey("match:1:100:0", goals), true);
+assert.equal(review.isValidGoalKey("forged", goals), false);
+assert.deepEqual(review.mergeReviewDecisions({ scorer: "correct" }, { zone: "unclear" }), { scorer: "correct", zone: "unclear" });
+assert.deepEqual(review.reviewAccuracy(["correct", "incorrect", "unclear", undefined]), { reviewed: 3, correct: 1, incorrect: 1, unclear: 1, accuracy: 0.5 });
+await rm(dir, { recursive: true, force: true });
+console.log("Veo goal sequence review tests passed");

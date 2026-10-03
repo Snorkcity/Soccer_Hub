@@ -1,7 +1,9 @@
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
+import { isNorthernNswLeague } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTeams,
+  getListTeamsQueryKey,
   useListSeasons,
   useGetClubs,
   useGetAuthStatus,
@@ -56,6 +58,7 @@ import {
   useSaveGpsPlayerEmails,
   useListLeagues,
   useCreateLeague,
+  useCreateTeam,
   useUpdateLeague,
   type LeagueInfo,
   useCreateSeason,
@@ -1679,6 +1682,7 @@ function LeagueSetupCard() {
 
   const [leagueName, setLeagueName] = useState("");
   const [leagueRegion, setLeagueRegion] = useState("");
+  const [leagueFocusClub, setLeagueFocusClub] = useState("");
   const [seasonLeagueId, setSeasonLeagueId] = useState("");
   const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
   const [seasonActive, setSeasonActive] = useState(false);
@@ -1686,6 +1690,10 @@ function LeagueSetupCard() {
   const [copySourceLeagueId, setCopySourceLeagueId] = useState("");
   const [clubName, setClubName] = useState("");
   const [clubColor, setClubColor] = useState("#888888");
+  const [teamClub, setTeamClub] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [teamGender, setTeamGender] = useState("Men");
+  const [teamAgeGroup, setTeamAgeGroup] = useState("First Grade");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const invalidate = () => {
@@ -1697,7 +1705,7 @@ function LeagueSetupCard() {
   const createLeague = useCreateLeague({ mutation: {
     onSuccess: (l) => {
       setMsg({ ok: true, text: `League "${l.name}" created — now add its season and clubs below.` });
-      setLeagueName(""); setLeagueRegion("");
+      setLeagueName(""); setLeagueRegion(""); setLeagueFocusClub("");
       setSeasonLeagueId(String(l.id)); setClubLeagueId(String(l.id));
       invalidate();
     },
@@ -1709,6 +1717,14 @@ function LeagueSetupCard() {
   }});
   const createClub = useCreateClub({ mutation: {
     onSuccess: (c) => { setMsg({ ok: true, text: `Club "${c.name}" added.` }); setClubName(""); invalidate(); },
+    onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
+  }});
+  const createTeam = useCreateTeam({ mutation: {
+    onSuccess: (team) => {
+      setMsg({ ok: true, text: `Team "${team.name}" created.` });
+      setTeamName("");
+      void queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
+    },
     onError: (e) => setMsg({ ok: false, text: errMsg(e) }),
   }});
   const copyClubs = useCopyClubsFromLeague({ mutation: {
@@ -1743,7 +1759,7 @@ function LeagueSetupCard() {
           <CardTitle>1. Create a league</CardTitle>
           <CardDescription>A competition, e.g. "ACT NPLW Reserves". Each league keeps its own clubs and seasons.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] items-end">
+        <CardContent className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
           <div className="space-y-1.5">
             <Label>League name</Label>
             <Input value={leagueName} onChange={e => setLeagueName(e.target.value)} placeholder="ACT NPLW Reserves" />
@@ -1752,9 +1768,13 @@ function LeagueSetupCard() {
             <Label>Region (optional)</Label>
             <Input value={leagueRegion} onChange={e => setLeagueRegion(e.target.value)} placeholder="ACT" />
           </div>
+          <div className="space-y-1.5">
+            <Label>Focus club (optional)</Label>
+            <Input value={leagueFocusClub} onChange={e => setLeagueFocusClub(e.target.value)} placeholder="Riverside Olympic" />
+          </div>
           <Button
             disabled={!leagueName.trim() || createLeague.isPending}
-            onClick={() => createLeague.mutate({ data: { name: leagueName.trim(), ...(leagueRegion.trim() ? { region: leagueRegion.trim() } : {}) } })}
+            onClick={() => createLeague.mutate({ data: { name: leagueName.trim(), ...(leagueRegion.trim() ? { region: leagueRegion.trim() } : {}), ...(leagueFocusClub.trim() ? { focusClub: leagueFocusClub.trim() } : {}) } })}
           >
             <Plus className="h-4 w-4 mr-1.5" />Create league
           </Button>
@@ -1861,6 +1881,50 @@ function LeagueSetupCard() {
               <Plus className="h-4 w-4 mr-1.5" />Add club
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>4. Add a focus team</CardTitle>
+          <CardDescription>Use this team when importing matches for the new league. The club must match the league’s focus club.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-[1fr_1fr_120px_120px_auto] items-end">
+          <div className="space-y-1.5">
+            <Label>Club</Label>
+            <Select value={teamClub} onValueChange={setTeamClub}>
+              <SelectTrigger><SelectValue placeholder="Select club" /></SelectTrigger>
+              <SelectContent>
+                {(clubs ?? []).filter(c => String(c.leagueId) === clubLeagueId).map(c =>
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>,
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Team name</Label>
+            <Input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Riverside Olympic First Grade" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Gender</Label>
+            <Select value={teamGender} onValueChange={setTeamGender}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Men">Men</SelectItem>
+                <SelectItem value="Women">Women</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Grade</Label>
+            <Input value={teamAgeGroup} onChange={e => setTeamAgeGroup(e.target.value)} />
+          </div>
+          <Button
+            disabled={!teamClub || !teamName.trim() || !teamAgeGroup.trim() || createTeam.isPending}
+            onClick={() => createTeam.mutate({ data: { name: teamName.trim(), clubName: teamClub, gender: teamGender, ageGroup: teamAgeGroup.trim(), analyticsEnabled: true } })}
+          >
+            <Plus className="h-4 w-4 mr-1.5" />Add team
+          </Button>
         </CardContent>
       </Card>
 
@@ -3381,7 +3445,7 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
               <p className="text-sm text-muted-foreground">Dribl has no completed results for this season yet.</p>
             ) : (
               <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
-                {preview.matches.filter(m => showAlreadyIn || !m.exists || m.goalsOnly || m.statsOnly || m.unmatched.length > 0).map(m => {
+                {preview.matches.filter(m => showAlreadyIn || !m.exists || m.goalsOnly || m.statsOnly || m.unmatched.length > 0 || m.goalWarning).map(m => {
                   const canImport = (!m.exists || m.goalsOnly || m.statsOnly) && m.unmatched.length === 0;
                   return (
                     <div key={`${m.matchId}-${m.driblHome}`} className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -3398,6 +3462,11 @@ function DriblSyncCard({ teamId, seasonId, leagueId, onSaved }: {
                           </span>
                           {!m.countsTowardLadder && (
                             <Badge variant="secondary" className="shrink-0 font-normal">not counted in ladder</Badge>
+                          )}
+                          {m.goalWarning && (
+                            <Badge variant="outline" className="shrink-0 text-amber-600 border-amber-600" title={m.goalWarning}>
+                              goal events withheld — review Dribl
+                            </Badge>
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
@@ -3600,7 +3669,8 @@ function EntryWorkspace() {
 
   const season = seasons?.find(s => s.id === seasonId);
   // Dribl sync is wired up for the mapped senior and boys NPL competitions.
-  const driblAvailable = /NPLM|NPLW|NPLB/i.test(season?.leagueName ?? "");
+  const squadiLeague = isNorthernNswLeague(season?.leagueName ?? "");
+  const driblAvailable = !squadiLeague && /NPLM|NPLW|NPLB/i.test(season?.leagueName ?? "");
   // Only offer clubs that belong to the selected season's league
   const clubNames = useMemo(
     () => (clubs ?? []).filter(c => season && c.leagueId === season.leagueId).map(c => c.name).sort(),
@@ -3637,6 +3707,12 @@ function EntryWorkspace() {
           </Button>
         </div>
       </div>
+
+      {squadiLeague && (
+        <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          This league uses Squadi. Dribl Sync is not available; use manual data entry for now.
+        </p>
+      )}
 
       <Tabs defaultValue="match" className="w-full">
         <TabsList className="flex w-full flex-wrap h-auto gap-1">

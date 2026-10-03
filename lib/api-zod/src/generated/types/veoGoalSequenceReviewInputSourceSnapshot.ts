@@ -6,9 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface LeagueInput {
-  name: string;
-  region?: string;
-  /** @minLength 1 */
-  focusClub?: string;
-}
+export type VeoGoalSequenceReviewInputSourceSnapshot = { [key: string]: unknown };

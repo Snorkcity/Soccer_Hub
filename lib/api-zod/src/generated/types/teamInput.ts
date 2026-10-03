@@ -6,9 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface LeagueInput {
-  name: string;
-  region?: string;
+export interface TeamInput {
   /** @minLength 1 */
-  focusClub?: string;
+  name: string;
+  /** @minLength 1 */
+  gender: string;
+  /** @minLength 1 */
+  ageGroup: string;
+  analyticsEnabled?: boolean;
+  /** @minLength 1 */
+  clubName: string;
 }

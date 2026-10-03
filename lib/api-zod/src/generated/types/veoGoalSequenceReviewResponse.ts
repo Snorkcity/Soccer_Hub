@@ -5,10 +5,8 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+import type { VeoGoalSequenceReview } from './veoGoalSequenceReview';
 
-export interface LeagueInput {
-  name: string;
-  region?: string;
-  /** @minLength 1 */
-  focusClub?: string;
+export interface VeoGoalSequenceReviewResponse {
+  review: VeoGoalSequenceReview;
 }

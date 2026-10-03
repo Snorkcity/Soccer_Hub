@@ -27,6 +27,7 @@ export interface GoalSequenceAction {
 }
 
 export interface VeoGoalSequence {
+  goalKey?: string;
   goalTimeMs: number | null;
   /** Time within the Veo period; unlike videoTimeMs this excludes recording offsets. */
   goalPeriodTimeMs: number | null;

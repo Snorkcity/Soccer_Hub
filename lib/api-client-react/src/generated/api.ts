@@ -116,6 +116,7 @@ import type {
   GetSubImpactParams,
   GetTeamFormParams,
   GetUnitBreakdownParams,
+  GetVeoGoalSequenceReviewsParams,
   GetVeoGoalSequencesParams,
   GetVeoMatchParams,
   GetVeoPlayerMatchParams,
@@ -261,6 +262,7 @@ import type {
   SubImpactResponse,
   Team,
   TeamForm,
+  TeamInput,
   UnitBreakdownResponse,
   UpdateProfileRequest,
   UpdateUserRequest,
@@ -270,6 +272,9 @@ import type {
   VeoAutoLinkInput,
   VeoAutoLinkResult,
   VeoDirectionInput,
+  VeoGoalSequenceReviewInput,
+  VeoGoalSequenceReviewResponse,
+  VeoGoalSequenceReviewsResponse,
   VeoGoalSequencesResponse,
   VeoLinksResponse,
   VeoMatchDetail,
@@ -770,6 +775,77 @@ export function useListTeams<TData = Awaited<ReturnType<typeof listTeams>>, TErr
 
 
 
+
+export const getCreateTeamUrl = () => {
+
+
+
+
+  return `/api/teams`
+}
+
+/**
+ * @summary Create a team for a focus club
+ */
+export const createTeam = async (teamInput: TeamInput, options?: RequestInit): Promise<Team> => {
+
+  return customFetch<Team>(getCreateTeamUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTeamMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: BodyType<TeamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: BodyType<TeamInput>}, TContext> => {
+
+const mutationKey = ['createTeam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTeam>>, {data: BodyType<TeamInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTeam(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTeamMutationResult = NonNullable<Awaited<ReturnType<typeof createTeam>>>
+    export type CreateTeamMutationBody = BodyType<TeamInput>
+    export type CreateTeamMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a team for a focus club
+ */
+export const useCreateTeam = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: BodyType<TeamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTeam>>,
+        TError,
+        {data: BodyType<TeamInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTeamMutationOptions(options));
+    }
 
 export const getGetTeamUrl = (id: number,) => {
 
@@ -12840,6 +12916,161 @@ export function useGetVeoGoalSequences<TData = Awaited<ReturnType<typeof getVeoG
 
 
 
+
+export const getGetVeoGoalSequenceReviewsUrl = (params: GetVeoGoalSequenceReviewsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/veo/goal-sequence-reviews?${stringifiedParams}` : `/api/veo/goal-sequence-reviews`
+}
+
+/**
+ * @summary Coach-reviewed evidence for Veo goal sequence detections
+ */
+export const getVeoGoalSequenceReviews = async (params: GetVeoGoalSequenceReviewsParams, options?: RequestInit): Promise<VeoGoalSequenceReviewsResponse> => {
+
+  return customFetch<VeoGoalSequenceReviewsResponse>(getGetVeoGoalSequenceReviewsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVeoGoalSequenceReviewsQueryKey = (params?: GetVeoGoalSequenceReviewsParams,) => {
+    return [
+    `/api/veo/goal-sequence-reviews`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVeoGoalSequenceReviewsQueryOptions = <TData = Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>, TError = ErrorType<unknown>>(params: GetVeoGoalSequenceReviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVeoGoalSequenceReviewsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>> = ({ signal }) => getVeoGoalSequenceReviews(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVeoGoalSequenceReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>>
+export type GetVeoGoalSequenceReviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Coach-reviewed evidence for Veo goal sequence detections
+ */
+
+export function useGetVeoGoalSequenceReviews<TData = Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>, TError = ErrorType<unknown>>(
+ params: GetVeoGoalSequenceReviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVeoGoalSequenceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVeoGoalSequenceReviewsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveVeoGoalSequenceReviewUrl = () => {
+
+
+
+
+  return `/api/veo/goal-sequence-reviews`
+}
+
+/**
+ * @summary Save independent coach decisions for one Veo goal sequence
+ */
+export const saveVeoGoalSequenceReview = async (veoGoalSequenceReviewInput: VeoGoalSequenceReviewInput, options?: RequestInit): Promise<VeoGoalSequenceReviewResponse> => {
+
+  return customFetch<VeoGoalSequenceReviewResponse>(getSaveVeoGoalSequenceReviewUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoGoalSequenceReviewInput)
+  }
+);}
+
+
+
+
+
+export const getSaveVeoGoalSequenceReviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>, TError,{data: BodyType<VeoGoalSequenceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>, TError,{data: BodyType<VeoGoalSequenceReviewInput>}, TContext> => {
+
+const mutationKey = ['saveVeoGoalSequenceReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>, {data: BodyType<VeoGoalSequenceReviewInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveVeoGoalSequenceReview(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveVeoGoalSequenceReviewMutationResult = NonNullable<Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>>
+    export type SaveVeoGoalSequenceReviewMutationBody = BodyType<VeoGoalSequenceReviewInput>
+    export type SaveVeoGoalSequenceReviewMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save independent coach decisions for one Veo goal sequence
+ */
+export const useSaveVeoGoalSequenceReview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>, TError,{data: BodyType<VeoGoalSequenceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveVeoGoalSequenceReview>>,
+        TError,
+        {data: BodyType<VeoGoalSequenceReviewInput>},
+        TContext
+      > => {
+      return useMutation(getSaveVeoGoalSequenceReviewMutationOptions(options));
+    }
 
 export const getGetVeoMatchUrl = (params: GetVeoMatchParams,) => {
   const normalizedParams = new URLSearchParams();

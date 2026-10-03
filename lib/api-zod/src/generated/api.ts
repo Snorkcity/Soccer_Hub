@@ -111,6 +111,33 @@ export const ListTeamsResponse = zod.array(ListTeamsResponseItem)
 
 
 /**
+ * @summary Create a team for a focus club
+ */
+
+
+
+
+
+
+export const CreateTeamBody = zod.object({
+  "name": zod.string().min(1),
+  "gender": zod.string().min(1),
+  "ageGroup": zod.string().min(1),
+  "analyticsEnabled": zod.boolean().optional(),
+  "clubName": zod.string().min(1)
+})
+
+export const CreateTeamResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "gender": zod.string(),
+  "ageGroup": zod.string(),
+  "analyticsEnabled": zod.boolean(),
+  "clubName": zod.string()
+})
+
+
+/**
  * @summary Get a team
  */
 export const GetTeamParams = zod.object({
@@ -144,9 +171,13 @@ export const ListLeaguesResponse = zod.array(ListLeaguesResponseItem)
 /**
  * @summary Create a new league (competition)
  */
+
+
+
 export const CreateLeagueBody = zod.object({
   "name": zod.string(),
-  "region": zod.string().optional()
+  "region": zod.string().optional(),
+  "focusClub": zod.string().min(1).optional()
 })
 
 export const CreateLeagueResponse = zod.object({
@@ -3000,6 +3031,7 @@ export const AssembleDriblPreviewResponse = zod.object({
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean()
 })),
+  "goalWarning": zod.string().optional().describe('Goal events withheld when Dribl\'s match centre exceeds its published score; scoreline and lineups may still be imported.'),
   "statsOnly": zod.boolean(),
   "playerStats": zod.array(zod.object({
   "club": zod.string(),
@@ -3066,6 +3098,7 @@ export const GetDriblPreviewResponse = zod.object({
   "ownGoal": zod.boolean(),
   "penalty": zod.boolean()
 })),
+  "goalWarning": zod.string().optional().describe('Goal events withheld when Dribl\'s match centre exceeds its published score; scoreline and lineups may still be imported.'),
   "statsOnly": zod.boolean(),
   "playerStats": zod.array(zod.object({
   "club": zod.string(),
@@ -5068,6 +5101,16 @@ export const GetVeoGoalSequencesResponse = zod.object({
   "finalPassOriginZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
   "finalPasserJersey": zod.string().nullable(),
   "assistSuggestionJersey": zod.string().nullable(),
+  "goalKey": zod.string(),
+  "officialGoal": zod.union([zod.object({
+  "id": zod.number(),
+  "scorer": zod.string().nullable(),
+  "assist": zod.string().nullable(),
+  "minute": zod.number().nullable(),
+  "passString": zod.string().nullable(),
+  "buildupLane": zod.string().nullable(),
+  "source": zod.string().nullable()
+}),zod.null()]),
   "veoMatchId": zod.string().nullish(),
   "matchId": zod.string().nullish(),
   "opponent": zod.string().nullish(),
@@ -5136,6 +5179,16 @@ export const GetVeoGoalSequencesResponse = zod.object({
   "finalPassOriginZone": zod.enum(['attacking', 'middle', 'defensive', 'unknown']),
   "finalPasserJersey": zod.string().nullable(),
   "assistSuggestionJersey": zod.string().nullable(),
+  "goalKey": zod.string(),
+  "officialGoal": zod.union([zod.object({
+  "id": zod.number(),
+  "scorer": zod.string().nullable(),
+  "assist": zod.string().nullable(),
+  "minute": zod.number().nullable(),
+  "passString": zod.string().nullable(),
+  "buildupLane": zod.string().nullable(),
+  "source": zod.string().nullable()
+}),zod.null()]),
   "veoMatchId": zod.string().nullish(),
   "matchId": zod.string().nullish(),
   "opponent": zod.string().nullish(),
@@ -5186,6 +5239,60 @@ export const GetVeoGoalSequencesResponse = zod.object({
   "matchId": zod.string().nullable(),
   "reason": zod.string()
 }))
+})
+
+
+/**
+ * @summary Coach-reviewed evidence for Veo goal sequence detections
+ */
+export const GetVeoGoalSequenceReviewsQueryParams = zod.object({
+  "leagueId": zod.coerce.number()
+})
+
+export const GetVeoGoalSequenceReviewsResponse = zod.object({
+  "reviews": zod.array(zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "veoMatchId": zod.string(),
+  "goalKey": zod.string(),
+  "hubGoalId": zod.number().nullish(),
+  "decisions": zod.record(zod.string(), zod.string()),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish()
+})),
+  "summary": zod.record(zod.string(), zod.object({
+  "reviewed": zod.number(),
+  "correct": zod.number(),
+  "incorrect": zod.number(),
+  "unclear": zod.number(),
+  "accuracy": zod.number().nullable()
+}))
+})
+
+
+/**
+ * @summary Save independent coach decisions for one Veo goal sequence
+ */
+export const SaveVeoGoalSequenceReviewBody = zod.object({
+  "leagueId": zod.number(),
+  "veoMatchId": zod.string(),
+  "goalKey": zod.string(),
+  "hubGoalId": zod.number().nullish(),
+  "sourceSnapshot": zod.record(zod.string(), zod.unknown()).optional(),
+  "decisions": zod.record(zod.string(), zod.enum(['correct', 'incorrect', 'unclear']))
+})
+
+export const SaveVeoGoalSequenceReviewResponse = zod.object({
+  "review": zod.object({
+  "id": zod.number(),
+  "leagueId": zod.number(),
+  "veoMatchId": zod.string(),
+  "goalKey": zod.string(),
+  "hubGoalId": zod.number().nullish(),
+  "decisions": zod.record(zod.string(), zod.string()),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
 })
 
 

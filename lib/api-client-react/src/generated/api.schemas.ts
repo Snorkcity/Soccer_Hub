@@ -628,6 +628,22 @@ export type VeoGoalSequenceScoringShot = {
   direct: boolean;
 };
 
+export type VeoGoalSequenceOfficialGoal = {
+  id: number;
+  /** @nullable */
+  scorer: string | null;
+  /** @nullable */
+  assist: string | null;
+  /** @nullable */
+  minute: number | null;
+  /** @nullable */
+  passString: string | null;
+  /** @nullable */
+  buildupLane: string | null;
+  /** @nullable */
+  source: string | null;
+} | null;
+
 export interface VeoGoalSequence {
   /** @nullable */
   goalTimeMs: number | null;
@@ -649,6 +665,8 @@ export interface VeoGoalSequence {
   finalPasserJersey: string | null;
   /** @nullable */
   assistSuggestionJersey: string | null;
+  goalKey: string;
+  officialGoal: VeoGoalSequenceOfficialGoal;
   /** @nullable */
   veoMatchId?: string | null;
   /** @nullable */
@@ -721,6 +739,56 @@ export interface VeoGoalSequencesResponse {
   matches: VeoGoalSequenceMatch[];
   aggregate: VeoGoalSequenceAggregate;
   unavailableMatches: VeoGoalSequenceUnavailable[];
+}
+
+export type VeoGoalSequenceReviewInputSourceSnapshot = { [key: string]: unknown };
+
+export type VeoGoalSequenceReviewInputDecisions = {[key: string]: 'correct' | 'incorrect' | 'unclear'};
+
+export interface VeoGoalSequenceReviewInput {
+  leagueId: number;
+  veoMatchId: string;
+  goalKey: string;
+  /** @nullable */
+  hubGoalId?: number | null;
+  sourceSnapshot?: VeoGoalSequenceReviewInputSourceSnapshot;
+  decisions: VeoGoalSequenceReviewInputDecisions;
+}
+
+export type VeoGoalSequenceReviewDecisions = {[key: string]: string};
+
+export interface VeoGoalSequenceReview {
+  id: number;
+  leagueId: number;
+  veoMatchId: string;
+  goalKey: string;
+  /** @nullable */
+  hubGoalId?: number | null;
+  decisions: VeoGoalSequenceReviewDecisions;
+  /** @nullable */
+  reviewedBy?: number | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+}
+
+export interface VeoGoalSequenceReviewSummary {
+  reviewed: number;
+  correct: number;
+  incorrect: number;
+  unclear: number;
+  /** @nullable */
+  accuracy: number | null;
+}
+
+export type VeoGoalSequenceReviewsResponseSummary = {[key: string]: VeoGoalSequenceReviewSummary};
+
+export interface VeoGoalSequenceReviewsResponse {
+  reviews: VeoGoalSequenceReview[];
+  summary: VeoGoalSequenceReviewsResponseSummary;
+}
+
+export interface VeoGoalSequenceReviewResponse {
+  review: VeoGoalSequenceReview;
 }
 
 export interface VeoScoreMismatch {
@@ -940,6 +1008,18 @@ export interface Team {
   clubName: string;
 }
 
+export interface TeamInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  gender: string;
+  /** @minLength 1 */
+  ageGroup: string;
+  analyticsEnabled?: boolean;
+  /** @minLength 1 */
+  clubName: string;
+}
+
 export interface Season {
   id: number;
   leagueId: number;
@@ -980,6 +1060,8 @@ export interface LeagueInfo {
 export interface LeagueInput {
   name: string;
   region?: string;
+  /** @minLength 1 */
+  focusClub?: string;
 }
 
 export interface LeagueUpdateInput {
@@ -3286,6 +3368,8 @@ export interface DriblPreviewMatch {
   goalsOnly: boolean;
   unmatched: string[];
   goals: DriblPreviewGoal[];
+  /** Goal events withheld when Dribl's match centre exceeds its published score; scoreline and lineups may still be imported. */
+  goalWarning?: string;
   statsOnly: boolean;
   playerStats: DriblPreviewClubStats[];
   /** Display names claimed fresh this sync from goal events with no line-up block (e.g. "S.Wells (Belconnen)") — review in the player name map */
@@ -5033,6 +5117,10 @@ leagueId: number;
  * Hub text match id; limits results for Data Entry
  */
 matchId?: string;
+};
+
+export type GetVeoGoalSequenceReviewsParams = {
+leagueId: number;
 };
 
 export type GetVeoMatchParams = {

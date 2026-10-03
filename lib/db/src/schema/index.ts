@@ -29,3 +29,4 @@ export * from "./curriculum";
 export * from "./users";
 export * from "./veoMatches";
 export * from "./veoAnalytics2";
+export * from "./veoGoalSequenceReviews";

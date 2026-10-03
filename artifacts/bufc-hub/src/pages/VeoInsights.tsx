@@ -13,6 +13,9 @@ import {
   getGetVeoSeasonPassingQueryKey,
   useGetVeoGoalSequences,
   getGetVeoGoalSequencesQueryKey,
+  useGetVeoGoalSequenceReviews,
+  getGetVeoGoalSequenceReviewsQueryKey,
+  useSaveVeoGoalSequenceReview,
   getGetVeoPlayerSeasonQueryKey,
   getGetVeoPlayerMatchQueryKey,
   getListAssistantMatchesQueryKey,
@@ -28,6 +31,8 @@ import {
   type VeoSeasonMatch,
   type VeoSeasonShotMatch,
   type VeoGoalSequencesResponse,
+  type VeoGoalSequence,
+  type VeoGoalSequenceReviewsResponse,
   type VeoEvent,
   type VeoLinkRow,
   type VeoDirectionReview,
@@ -446,6 +451,9 @@ export default function VeoInsights() {
       queryKey: getGetVeoGoalSequencesQueryKey(seasonParams),
     },
   });
+  const { data: goalReviewsData } = useGetVeoGoalSequenceReviews(seasonParams, {
+    query: { enabled: view === "season" && activeLeagueId != null, queryKey: getGetVeoGoalSequenceReviewsQueryKey(seasonParams) },
+  });
   const analyticsEnabled = seasonPassingData?.analyticsEnabled ?? true;
 
   const syncMut = useVeoSync();
@@ -615,6 +623,8 @@ export default function VeoInsights() {
                   analyticsEnabled={analyticsEnabled}
                    goalSequences={goalSequencesData}
                    goalSequencesLoading={goalSequencesLoading}
+                   goalReviews={goalReviewsData}
+                   reviewLeagueId={activeLeagueId!}
                   timing={matchTiming}
                 />
               )
@@ -1003,7 +1013,7 @@ function MatchLinksCard({
 // Season view — one row per synced match (oldest → newest), server-aggregated
 // event counts, momentum weights applied client-side (same weights as the
 // match view's momentum chart).
-function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, analyticsEnabled, goalSequences, goalSequencesLoading, timing }: {
+function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, passingLoading, analyticsEnabled, goalSequences, goalSequencesLoading, goalReviews, reviewLeagueId, timing }: {
   matches: VeoSeasonMatch[];
   shotMatches: VeoSeasonShotMatch[];
   passingMatches: VeoSeasonPassingMatch[];
@@ -1012,6 +1022,8 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
   analyticsEnabled: boolean;
   goalSequences?: VeoGoalSequencesResponse;
   goalSequencesLoading?: boolean;
+  goalReviews?: VeoGoalSequenceReviewsResponse;
+  reviewLeagueId: number;
   timing: MatchTimingPolicy;
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
@@ -1428,7 +1440,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         />
       </div>
 
-      <GoalSequenceSection data={goalSequences} loading={goalSequencesLoading} />
+      <GoalSequenceSection data={goalSequences} loading={goalSequencesLoading} goalReviews={goalReviews} leagueId={reviewLeagueId} />
 
       <SectionGroup
         id="veo-season-team"
@@ -1921,7 +1933,9 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
   );
 }
 
-function GoalSequenceSection({ data, loading }: { data?: VeoGoalSequencesResponse; loading?: boolean }) {
+function GoalSequenceSection({ data, loading, goalReviews, leagueId }: { data?: VeoGoalSequencesResponse; loading?: boolean; leagueId: number; goalReviews?: VeoGoalSequenceReviewsResponse }) {
+  const qc = useQueryClient();
+  const saveReview = useSaveVeoGoalSequenceReview();
   if (loading) {
     return <Card><CardContent className="py-8 text-sm text-muted-foreground">Loading Veo-detected goal sequences…</CardContent></Card>;
   }
@@ -1940,6 +1954,16 @@ function GoalSequenceSection({ data, loading }: { data?: VeoGoalSequencesRespons
   const bucket = (key: string) => a.passCount[key] ?? 0;
   const zone = (key: string) => a.sequenceStartZone[key] ?? 0;
   const finalZone = (key: string) => a.finalPassOriginZone[key] ?? 0;
+  const reviewed = new Map((goalReviews?.reviews ?? []).map((r) => [`${r.veoMatchId}:${r.goalKey}`, r]));
+  const reviewDimension = (key: string) => {
+    const s = goalReviews?.summary?.[key];
+    return s ? `${s.accuracy == null ? "—" : `${Math.round(s.accuracy * 100)}%`} (${s.reviewed} reviewed)` : "—";
+  };
+  async function mark(goal: VeoGoalSequence, dimension: string, decision: "correct" | "incorrect" | "unclear") {
+    const decisions = { ...(reviewed.get(`${goal.veoMatchId}:${goal.goalKey}`)?.decisions ?? {}), [dimension]: decision } as Record<string, "correct" | "incorrect" | "unclear">;
+    await saveReview.mutateAsync({ data: { leagueId, veoMatchId: goal.veoMatchId ?? "", goalKey: goal.goalKey ?? "", hubGoalId: goal.officialGoal?.id ?? null, sourceSnapshot: { scorerJersey: goal.scorerJersey, finalPasserJersey: goal.finalPasserJersey, completedPassCount: goal.completedPassCount, finalPassOriginZone: goal.finalPassOriginZone }, decisions } });
+    qc.invalidateQueries({ queryKey: getGetVeoGoalSequenceReviewsQueryKey({ leagueId }) });
+  }
   return (
     <Card>
       <CardHeader>
@@ -1963,6 +1987,12 @@ function GoalSequenceSection({ data, loading }: { data?: VeoGoalSequencesRespons
           <div><span className="font-medium">Sequence start thirds:</span> attacking {zone("attacking")} · middle {zone("middle")} · defensive {zone("defensive")}</div>
           <div><span className="font-medium">Final-pass origin thirds:</span> attacking {finalZone("attacking")} · middle {finalZone("middle")} · defensive {finalZone("defensive")}</div>
         </div>
+        <div className="rounded border bg-muted/30 p-3 text-xs">
+          <div className="font-medium mb-2">Reviewed evidence only</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {([["scorer", "Scorer"], ["finalPasser", "Final passer"], ["sequenceLength", "Sequence length"], ["zone", "Zone"]] as const).map(([key, label]) => <div key={key}><span className="text-muted-foreground">{label}: </span><span className="font-medium">{reviewDimension(key)}</span></div>)}
+          </div>
+        </div>
         <div className="text-xs text-muted-foreground">
           Team split: ours {a.own.goals} goals ({a.own.passCount["0"] ?? 0} with 0 passes, {a.own.passCount["1"] ?? 0} with 1) · opponents {a.opponent.goals} goals ({a.opponent.passCount["0"] ?? 0} with 0 passes, {a.opponent.passCount["1"] ?? 0} with 1).
         </div>
@@ -1973,10 +2003,17 @@ function GoalSequenceSection({ data, loading }: { data?: VeoGoalSequencesRespons
               <Badge variant="outline">Veo-detected</Badge>
               <span>{g.matchId ?? g.veoMatchId}</span>
               <span>{g.goalPeriodTimeMs == null ? "period time unavailable" : `${Math.floor(g.goalPeriodTimeMs / 60000)}'`}</span>
-              <span>#{g.scorerJersey ?? "?"}</span>
-              <span>{g.completedPassCount} pass{g.completedPassCount === 1 ? "" : "es"}</span>
+              <span>Veo scorer #{g.scorerJersey ?? "?"}</span>
+              <span>Veo {g.completedPassCount} pass{g.completedPassCount === 1 ? "" : "es"}</span>
+              <span className="text-muted-foreground">Saved: {g.officialGoal ? `${g.officialGoal.scorer ?? "scorer unavailable"} · assist ${g.officialGoal.assist ?? "none recorded"} · pass string ${g.officialGoal.passString ?? "unavailable"}${g.officialGoal.passString ? ` (${g.officialGoal.passString.split(/[->,]/).filter(Boolean).length} steps)` : ""} · build-up ${g.officialGoal.buildupLane ?? "zone unavailable"}` : "no conservatively matched Hub goal"}</span>
               <span className="text-muted-foreground">start {g.sequenceStartZone} · final-pass origin {g.finalPassOriginZone} · {g.confidence} confidence</span>
               <span className="text-muted-foreground">Own before shot: {formatVeoAction(g.lastActionOwn)} · Opponent before shot: {formatVeoAction(g.lastActionOpponent)}</span>
+              {g.scoringTeam === "Own" && (["scorer", "finalPasser", "sequenceLength", "zone"] as const).map((dimension) => (
+                <div key={dimension} className="flex items-center gap-1">
+                  <span className="text-muted-foreground">{dimension === "sequenceLength" ? "length" : dimension}:</span>
+                  {(["correct", "incorrect", "unclear"] as const).map((decision) => <button key={decision} type="button" className={`rounded border px-1.5 py-0.5 ${reviewed.get(`${g.veoMatchId}:${g.goalKey}`)?.decisions?.[dimension] === decision ? "bg-primary/15 border-primary" : ""}`} onClick={() => mark(g, dimension, decision)}>{decision}</button>)}
+                </div>
+              ))}
             </div>
           ))}
         </div>

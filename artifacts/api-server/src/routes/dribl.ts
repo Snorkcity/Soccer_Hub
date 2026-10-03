@@ -25,6 +25,7 @@ import {
   clubCodesFor,
   classifyDriblCompetitionStage,
   fixtureCode,
+  isNorthernNswLeague,
 } from "@workspace/api-zod";
 import { leagueIdForSeason, mayTouchLeagueRow } from "../middlewares/entryAuth";
 import { pgErrorCode } from "../lib/pgError";
@@ -55,6 +56,9 @@ function driblHeaders(tenantSlug: string) {
 // fv = Football Victoria, fdprod = Football NSW (their Match Centre lives at
 // competitions.footballnsw.com.au but the Dribl tenant slug is "fdprod").
 export function driblLeagueFor(leagueName: string): { tenant: string; league: string; competition: string } | null {
+  // Check the source before any broad NPL/NSW mapping. NNSW is a Squadi
+  // competition and must never fall back to another federation's Dribl feed.
+  if (isNorthernNswLeague(leagueName)) return null;
   const boysGrade = NPLB_2026_LEAGUES.find(
     (spec) => spec.localName.localeCompare(leagueName, "en", { sensitivity: "base" }) === 0,
   );
@@ -65,11 +69,13 @@ export function driblLeagueFor(leagueName: string): { tenant: string; league: st
       competition: "National Premier League Boys",
     };
   }
+  if (/^(?:TAS\s+NPLM|TAS\s+NPL|TASMANIA\s+NPLM?)$/i.test(leagueName.trim()))
+    return { tenant: "footballtasmania", league: "McDonald's National Premier League", competition: "National Premier League" };
   if (/VIC.*NPLW|NPLW.*VIC/i.test(leagueName))
     return { tenant: "fv", league: "NPL VIC Women", competition: "Senol NPL Victoria Women" };
-  if (/NSW.*NPLW.*U.?23|NPLW.*U.?23.*NSW/i.test(leagueName))
+  if (/\bNSW\b.*NPLW.*U.?23|NPLW.*U.?23.*\bNSW\b/i.test(leagueName))
     return { tenant: "fdprod", league: "U23", competition: "NPL Women's NSW" };
-  if (/NSW.*NPLW|NPLW.*NSW/i.test(leagueName))
+  if (/\bNSW\b.*NPLW|NPLW.*\bNSW\b/i.test(leagueName))
     return { tenant: "fdprod", league: "First Grade", competition: "NPL Women's NSW" };
   if (/NPLM.*U.?23/i.test(leagueName)) return { tenant: "capital", league: "NPLM U23", competition: "National Premier League Men's" };
   if (/NPLM/i.test(leagueName)) return { tenant: "capital", league: "NPLM 1st Grade", competition: "National Premier League Men's" };
@@ -247,7 +253,7 @@ export function suggestClubName(driblTeamName: string): string {
   let n = driblTeamName.replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim();
   const cut = n.search(/\b(first grade|1st grade|under ?\d{2}(?:'s)?|u ?\d{2}|npl[wm]?|reserves|women'?s?|female|male|men'?s?|senior|all age|premier league)\b/i);
   if (cut > 0) n = n.slice(0, cut);
-  n = n.replace(/\b(sfc|fc|sc)\s*$/i, "").trim().replace(/[-–—,·]+$/, "").trim();
+  n = n.replace(/\b(?:football club|soccer club|sfc|fc|sc)\s*$/i, "").trim().replace(/[-–—,·]+$/, "").trim();
   if (/^Belconnen United$/i.test(n)) return "Belconnen";
   return n || driblTeamName.trim();
 }
@@ -722,9 +728,19 @@ async function buildPreview(
     // Top-up mode: keep only Dribl goals not already logged (matched on
     // credited team + minute).
     let finalGoals = goals;
+    // Dribl can publish match-centre events that exceed its own final score
+    // (including apparent post-match events). Never offer those as goals to
+    // import: the coach must reconcile the source before any goal top-up.
+    const homeEvents = goals.filter(g => g.scorerTeam === home).length;
+    const awayEvents = goals.filter(g => g.scorerTeam === away).length;
+    let goalWarning: string | undefined;
+    if (homeEvents > f.homeScore || awayEvents > f.awayScore) {
+      goalWarning = `Dribl goal events (${homeEvents}-${awayEvents}) exceed the published score (${f.homeScore}-${f.awayScore}); goal events withheld for review`;
+      finalGoals = [];
+    }
     if (exists) {
       const taken = new Set(loggedGoals.map(g => `${g.scorerTeam}|${g.minuteScored ?? "?"}`));
-      finalGoals = goals.filter(g => !taken.has(`${g.scorerTeam}|${g.minute ?? "?"}`));
+      finalGoals = finalGoals.filter(g => !taken.has(`${g.scorerTeam}|${g.minute ?? "?"}`));
     }
 
     matches.push({
@@ -739,6 +755,7 @@ async function buildPreview(
       halfScore, exists, unmatched,
       goalsOnly: exists && finalGoals.length > 0,
       goals: finalGoals,
+      goalWarning,
       statsOnly: exists && finalGoals.length === 0 && playerStats.length > 0,
       playerStats,
     });

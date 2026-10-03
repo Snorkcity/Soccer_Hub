@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VeoGoalSequenceAction } from './veoGoalSequenceAction';
+import type { VeoGoalSequenceOfficialGoal } from './veoGoalSequenceOfficialGoal';
 import type { VeoGoalSequencePass } from './veoGoalSequencePass';
 import type { VeoGoalSequenceScoringShot } from './veoGoalSequenceScoringShot';
 import type { VeoGoalSequenceScoringTeam } from './veoGoalSequenceScoringTeam';
@@ -33,6 +34,8 @@ export interface VeoGoalSequence {
   finalPasserJersey: string | null;
   /** @nullable */
   assistSuggestionJersey: string | null;
+  goalKey: string;
+  officialGoal: VeoGoalSequenceOfficialGoal;
   /** @nullable */
   veoMatchId?: string | null;
   /** @nullable */
