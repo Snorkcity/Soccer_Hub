@@ -37,6 +37,9 @@ TABLES=(
   gps_sessions
   gps_player_aliases
   gps_player_positions
+  gps_development_feedback
+  gps_development_context
+  gps_development_references
   player_identity_links
   athletic_tests
   practices

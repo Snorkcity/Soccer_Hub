@@ -34,6 +34,7 @@ import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
+import { PlayerDevelopmentTab } from "@/components/gps-development/PlayerDevelopmentTab";
 import { SectionGroup } from "@/components/SectionGroup";
 import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
@@ -41,7 +42,8 @@ import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@works
 // Constants & helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const YEARS = ["2026", "2025", "2024"];
+const YEARS = Array.from({ length: Math.max(new Date().getFullYear() + 2, 2028) - 2024 + 1 },
+  (_, i) => String(Math.max(new Date().getFullYear() + 2, 2028) - i));
 
 const C_H1 = "hsl(var(--chart-1))";
 const C_H2 = "hsl(var(--chart-2))";
@@ -65,11 +67,12 @@ function parseDate(d: string | null | undefined): number | null {
 /** Which squad does a round code belong to? e.g. R5-1sts / R2-res / R2-r / R11-18s / R2 (bare = 1sts) */
 function squadOf(round: string | null | undefined): string {
   if (!round) return "1sts";
+  if (/-(u?23s?)$/i.test(round)) return "U23";
   if (/-(res|r)$/i.test(round)) return "Reserves";
   if (/-1[78]s$/i.test(round)) return "17s / 18s";
   return "1sts";
 }
-const SQUADS = ["1sts", "Reserves", "17s / 18s"];
+const SQUADS = ["1sts", "U23", "Reserves", "17s / 18s"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metric definitions
@@ -221,6 +224,7 @@ function OpponentMismatchWarning({ year }: { year: string }) {
 
 export default function GpsInsights() {
   const [year, setYear] = useState("2026");
+  const [activeTab, setActiveTab] = useState("player");
   const { hasModule, ready } = useLeagueModules();
   const { activeLeagueId } = useActiveLeague();
 
@@ -251,23 +255,25 @@ export default function GpsInsights() {
 
       {isLoading ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>
-      ) : !metaRows?.length ? (
-        <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for {year}.</CardContent></Card>
       ) : (
-        <Tabs defaultValue="player" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
             <TabsTrigger value="player">Player GPS</TabsTrigger>
             <TabsTrigger value="team">Team Overview</TabsTrigger>
             <TabsTrigger value="matchReport">Match Report</TabsTrigger>
+            <TabsTrigger value="development">Player Development</TabsTrigger>
           </TabsList>
           <TabsContent value="player" className="mt-6">
-            <PlayerGpsTab year={year} metaRows={metaRows} />
+            {metaRows?.length ? <PlayerGpsTab year={year} metaRows={metaRows} /> : <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for {year}.</CardContent></Card>}
           </TabsContent>
           <TabsContent value="team" className="mt-6">
-            <TeamGpsTab year={year} metaRows={metaRows} />
+            {metaRows?.length ? <TeamGpsTab year={year} metaRows={metaRows} /> : <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for {year}.</CardContent></Card>}
           </TabsContent>
           <TabsContent value="matchReport" className="mt-6">
-            <GpsMatchReportTab year={year} metaRows={metaRows} />
+            {metaRows?.length ? <GpsMatchReportTab year={year} metaRows={metaRows} /> : <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for {year}.</CardContent></Card>}
+          </TabsContent>
+          <TabsContent value="development" className="mt-6">
+            <PlayerDevelopmentTab year={year} />
           </TabsContent>
         </Tabs>
       )}
@@ -394,7 +400,7 @@ function groupAverages(label: string, bs: Bundle[]): ReportComparison {
 
 const plural = (pos: string) => (pos === "GK" ? "GKs" : `${pos}s`);
 /** Squad seniority, youngest first — a player defaults to seeing her own squad and everything above it. */
-const SQUAD_LADDER = ["17s / 18s", "Reserves", "1sts"];
+const SQUAD_LADDER = ["17s / 18s", "Reserves", "U23", "1sts"];
 
 function PlayerReportDialog({ player, year, bundles }: { player: string; year: string; bundles: Bundle[] }) {
   const [open, setOpen] = useState(false);

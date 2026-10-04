@@ -582,6 +582,67 @@ paths:
                 items:
                   $ref: "#/components/schemas/GpsOpponentMismatch"
 
+  /gps-development:
+    get:
+      operationId: getGpsDevelopment
+      tags: [gps]
+      summary: Club-scoped player development evidence across retained seasons
+      parameters:
+        - { name: leagueId, in: query, required: true, schema: { type: integer } }
+        - { name: year, in: query, required: true, schema: { type: string } }
+        - { name: playerName, in: query, schema: { type: string } }
+        - { name: squad, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Development evidence
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GpsDevelopmentResponse" }
+  /gps-development/feedback:
+    post:
+      operationId: createGpsDevelopmentFeedback
+      tags: [gps]
+      summary: Save coach feedback with a server-generated evidence snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GpsDevelopmentFeedbackInput" }
+      responses:
+        "201":
+          description: Saved feedback
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GpsDevelopmentFeedback" }
+    delete:
+      operationId: deleteGpsDevelopmentFeedback
+      tags: [gps]
+      summary: Remove a club-scoped feedback entry
+      parameters:
+        - { name: leagueId, in: query, required: true, schema: { type: integer } }
+        - { name: id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Removed }
+  /gps-development/match-context:
+    put:
+      operationId: saveGpsDevelopmentMatchContext
+      tags: [gps]
+      summary: Record match role and reference eligibility without changing GPS measurements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GpsDevelopmentContextInput" }
+      responses:
+        "200":
+          description: Context saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
   /gps-player-positions:
     get:
       operationId: listGpsPlayerPositions
@@ -4993,6 +5054,191 @@ components:
 
     # ── GPS Sessions ──────────────────────────────────────────────────────────
 
+    GpsDevelopmentMetric:
+      type: object
+      required: [id, title, unit, decimals, primary]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        unit: { type: string }
+        decimals: { type: integer }
+        primary: { type: boolean }
+    GpsDevelopmentGame:
+      type: object
+      required: [key, year, round, date, opponent, squad, mins, role, roleSource, matchType, comparable, qualifies, values]
+      properties:
+        key: { type: string }
+        year: { type: string }
+        round: { type: string }
+        date: { type: string, nullable: true }
+        opponent: { type: string, nullable: true }
+        squad: { type: string }
+        mins: { type: number, nullable: true }
+        role: { type: string, nullable: true }
+        roleSource: { type: string, enum: [recorded, default, mixed, unknown] }
+        matchType: { type: string, enum: [official, other, unknown] }
+        comparable: { type: boolean }
+        qualifies: { type: boolean }
+        values:
+          type: object
+          additionalProperties: { type: number, nullable: true }
+    GpsDevelopmentReference:
+      type: object
+      required: [value, status, sample, matches]
+      properties:
+        value: { type: number, nullable: true }
+        status: { type: string, enum: [insufficient, provisional, established] }
+        sample: { type: integer }
+        matches:
+          type: array
+          items:
+            type: object
+            required: [key, round, year, date, value]
+            properties:
+              key: { type: string }
+              round: { type: string }
+              year: { type: string }
+              date: { type: string, nullable: true }
+              value: { type: number }
+    GpsDevelopmentMetricSummary:
+      type: object
+      required: [id, average, sample, best, gref]
+      properties:
+        id: { type: string }
+        average: { type: number, nullable: true }
+        sample: { type: integer }
+        best: { type: number, nullable: true }
+        gref: { $ref: "#/components/schemas/GpsDevelopmentReference" }
+    GpsDevelopmentSeason:
+      type: object
+      required: [year, appearances, qualifying, metrics]
+      properties:
+        year: { type: string }
+        appearances: { type: integer }
+        qualifying: { type: integer }
+        metrics:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentMetricSummary" }
+    GpsDevelopmentPeer:
+      type: object
+      required: [squad, role, playerGames, players, inferredRoles, metrics]
+      properties:
+        squad: { type: string }
+        role: { type: string }
+        playerGames: { type: integer }
+        players: { type: integer }
+        inferredRoles: { type: integer }
+        metrics:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentMetricSummary" }
+    GpsDevelopmentExternal:
+      type: object
+      required: [id, source, url, publicationYear, population, role, metric, value, threshold, referenceType, comparability, sampleNote, device, confidenceNote]
+      properties:
+        id: { type: string }
+        source: { type: string }
+        url: { type: string }
+        publicationYear: { type: integer }
+        population: { type: string }
+        role: { type: string }
+        metric: { type: string }
+        value: { type: number }
+        threshold: { type: string }
+        referenceType: { type: string }
+        comparability: { type: string }
+        sampleNote: { type: string }
+        device: { type: string }
+        confidenceNote: { type: string }
+    GpsDevelopmentProfile:
+      type: object
+      required: [playerName, year, role, squad, methodologyVersion, metrics, games, seasons, history, peers, external, summary, warnings]
+      properties:
+        playerName: { type: string }
+        year: { type: string }
+        role: { type: string, nullable: true }
+        squad: { type: string }
+        methodologyVersion: { type: string }
+        metrics:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentMetric" }
+        games:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentGame" }
+        seasons:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentSeason" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentMetricSummary" }
+        peers:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentPeer" }
+        external:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentExternal" }
+        summary:
+          type: array
+          items: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+    GpsDevelopmentFeedback:
+      type: object
+      required: [id, playerName, year, note, focus, reviewDate, createdAt, snapshot]
+      properties:
+        id: { type: integer }
+        playerName: { type: string }
+        year: { type: string }
+        note: { type: string }
+        focus: { type: string }
+        reviewDate: { type: string, nullable: true }
+        createdAt: { type: string }
+        snapshot: { $ref: "#/components/schemas/GpsDevelopmentProfile" }
+    GpsDevelopmentResponse:
+      type: object
+      required: [years, players, profile, feedback, canEdit]
+      properties:
+        years:
+          type: array
+          items: { type: string }
+        players:
+          type: array
+          items:
+            type: object
+            required: [playerName, squad, role, appearances]
+            properties:
+              playerName: { type: string }
+              squad: { type: string }
+              role: { type: string, nullable: true }
+              appearances: { type: integer }
+        profile:
+          allOf: [{ $ref: "#/components/schemas/GpsDevelopmentProfile" }]
+          nullable: true
+        feedback:
+          type: array
+          items: { $ref: "#/components/schemas/GpsDevelopmentFeedback" }
+        canEdit: { type: boolean }
+    GpsDevelopmentFeedbackInput:
+      type: object
+      required: [leagueId, playerName, year, note, focus]
+      properties:
+        leagueId: { type: integer }
+        playerName: { type: string, minLength: 1, maxLength: 160 }
+        year: { type: string, pattern: "^20[0-9]{2}$" }
+        note: { type: string, maxLength: 6000 }
+        focus: { type: string, maxLength: 2000 }
+        reviewDate: { type: string, nullable: true, pattern: "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$" }
+    GpsDevelopmentContextInput:
+      type: object
+      required: [leagueId, playerName, year, round, role, matchType, comparable]
+      properties:
+        leagueId: { type: integer }
+        playerName: { type: string, minLength: 1, maxLength: 160 }
+        year: { type: string, pattern: "^20[0-9]{2}$" }
+        round: { type: string, minLength: 1, maxLength: 100 }
+        role: { type: string, nullable: true, enum: [CB, FB, DM, B2B, AM, "9", Winger, GK, mixed] }
+        matchType: { type: string, enum: [official, other, unknown] }
+        comparable: { type: boolean }
     GpsPlayerPosition:
       type: object
       properties:

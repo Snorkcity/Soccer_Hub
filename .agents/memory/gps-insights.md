@@ -46,6 +46,14 @@ The coach will be running GPS for the men's U23 and first-grade teams in 2027. T
 
 **How to apply:** Review the supplied literature before defining targets or implementing changes. Treat this as a direction to discuss, not approval to build a particular model.
 
+### Background from the user's ChatGPT work
+
+This project started with the user working with ChatGPT for 24 months, coding, tinkering and building more basic versions. The user says ChatGPT knows their thinking and rationale.
+
+**Why:** the user explicitly asked for this project background to be remembered when sharing their GPS document.
+
+**How to apply:** read the supplied GPS material as a continuation of that work, paying attention to the user's thinking and rationale.
+
 ### Confirmed metric and position requirements
 Use high-speed metres (HSP) and very-high-speed metres (VHSP), matching the app's existing metric definitions rather than adopting a different threshold from the supplied context.
 
@@ -56,4 +64,23 @@ Keep each player's broad position and add a second, more specific role:
 
 **Why:** The coach explicitly confirmed that the metrics should be like the app and that the specific role should be one step after the existing position description.
 
-**How to apply:** Preserve the broad position when adding specific roles; treat the named role and its shirt-number shorthand as the same role, not separate categories. The user has authorised building position selection in the existing Data Entry Positions area. Benchmark and Gref work remains deferred while they develop the evidence with ChatGPT; do not change GPS comparisons as part of position selection.
+**How to apply:** Preserve the broad position when adding specific roles; treat the named role and its shirt-number shorthand as the same role, not separate categories. The coach subsequently approved a separate Player Development tab; preserve the legacy GPS comparisons while adding development evidence.
+
+## Future coach methodology presentation
+
+Once the GPS methodology is incorporated into the project, the user definitely wants a PPTX to present to coaches so they understand what is "in the brains" of this part of the project.
+
+**Why:** the user explicitly requested a future coach-facing explanation of the methodology.
+
+**How to apply:** distinguish this methodology presentation from individual player GPS reports. Explain the implemented calculations, reference choices, interpretation limits and coaching use; do not create the deck ahead of the requested incorporation.
+
+## Confirmed men's GPS methodology decisions
+
+- The user says the 10 role has similar physical needs to the 6 role, although their football needs differ. Keep the roles distinct while using similar physical emphasis.
+- Keep HSP at 18 km/h because that comes from the Catapult site and the user will use Catapult again. Do not adopt the document's 19 km/h definition.
+- Consider older seasons rather than discarding them: in 2028, retain 2027 evidence and show or record whether players' outputs have improved or declined across seasons.
+- The user delegates the remaining methodology judgement calls to the agent, recognising that policy or ideal practice cannot always be implemented.
+
+**Why:** the user explicitly settled these points when discussing the methodology for the men's teams.
+
+**How to apply:** preserve historical evidence and make season comparisons distinguishable from changing current averages. Make practical recommendations for unresolved details; this delegation does not itself request immediate implementation.

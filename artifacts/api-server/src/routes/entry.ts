@@ -1875,6 +1875,7 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
 /** Squad label from the Catapult round suffix — mirrors gpsSessions.ts / frontend. */
 function squadOfRoundEntry(round: string | null | undefined): string {
   if (!round) return "1sts";
+  if (/-(u?23s?)$/i.test(round)) return "U23";
   if (/-(res|r)$/i.test(round)) return "Reserves";
   if (/-1[78]s$/i.test(round)) return "17s / 18s";
   return "1sts";

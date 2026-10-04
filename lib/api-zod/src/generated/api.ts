@@ -798,6 +798,445 @@ export const ListGpsOpponentMismatchesResponse = zod.array(ListGpsOpponentMismat
 
 
 /**
+ * @summary Club-scoped player development evidence across retained seasons
+ */
+export const GetGpsDevelopmentQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "year": zod.coerce.string(),
+  "playerName": zod.coerce.string().optional(),
+  "squad": zod.coerce.string().optional()
+})
+
+export const GetGpsDevelopmentResponse = zod.object({
+  "years": zod.array(zod.string()),
+  "players": zod.array(zod.object({
+  "playerName": zod.string(),
+  "squad": zod.string(),
+  "role": zod.string().nullable(),
+  "appearances": zod.number()
+})),
+  "profile": zod.object({
+  "playerName": zod.string(),
+  "year": zod.string(),
+  "role": zod.string().nullable(),
+  "squad": zod.string(),
+  "methodologyVersion": zod.string(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "unit": zod.string(),
+  "decimals": zod.number(),
+  "primary": zod.boolean()
+})),
+  "games": zod.array(zod.object({
+  "key": zod.string(),
+  "year": zod.string(),
+  "round": zod.string(),
+  "date": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "squad": zod.string(),
+  "mins": zod.number().nullable(),
+  "role": zod.string().nullable(),
+  "roleSource": zod.enum(['recorded', 'default', 'mixed', 'unknown']),
+  "matchType": zod.enum(['official', 'other', 'unknown']),
+  "comparable": zod.boolean(),
+  "qualifies": zod.boolean(),
+  "values": zod.record(zod.string(), zod.number().nullable())
+})),
+  "seasons": zod.array(zod.object({
+  "year": zod.string(),
+  "appearances": zod.number(),
+  "qualifying": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+})),
+  "peers": zod.array(zod.object({
+  "squad": zod.string(),
+  "role": zod.string(),
+  "playerGames": zod.number(),
+  "players": zod.number(),
+  "inferredRoles": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "external": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "url": zod.string(),
+  "publicationYear": zod.number(),
+  "population": zod.string(),
+  "role": zod.string(),
+  "metric": zod.string(),
+  "value": zod.number(),
+  "threshold": zod.string(),
+  "referenceType": zod.string(),
+  "comparability": zod.string(),
+  "sampleNote": zod.string(),
+  "device": zod.string(),
+  "confidenceNote": zod.string()
+})),
+  "summary": zod.array(zod.string()),
+  "warnings": zod.array(zod.string())
+}).nullable(),
+  "feedback": zod.array(zod.object({
+  "id": zod.number(),
+  "playerName": zod.string(),
+  "year": zod.string(),
+  "note": zod.string(),
+  "focus": zod.string(),
+  "reviewDate": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "snapshot": zod.object({
+  "playerName": zod.string(),
+  "year": zod.string(),
+  "role": zod.string().nullable(),
+  "squad": zod.string(),
+  "methodologyVersion": zod.string(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "unit": zod.string(),
+  "decimals": zod.number(),
+  "primary": zod.boolean()
+})),
+  "games": zod.array(zod.object({
+  "key": zod.string(),
+  "year": zod.string(),
+  "round": zod.string(),
+  "date": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "squad": zod.string(),
+  "mins": zod.number().nullable(),
+  "role": zod.string().nullable(),
+  "roleSource": zod.enum(['recorded', 'default', 'mixed', 'unknown']),
+  "matchType": zod.enum(['official', 'other', 'unknown']),
+  "comparable": zod.boolean(),
+  "qualifies": zod.boolean(),
+  "values": zod.record(zod.string(), zod.number().nullable())
+})),
+  "seasons": zod.array(zod.object({
+  "year": zod.string(),
+  "appearances": zod.number(),
+  "qualifying": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+})),
+  "peers": zod.array(zod.object({
+  "squad": zod.string(),
+  "role": zod.string(),
+  "playerGames": zod.number(),
+  "players": zod.number(),
+  "inferredRoles": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "external": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "url": zod.string(),
+  "publicationYear": zod.number(),
+  "population": zod.string(),
+  "role": zod.string(),
+  "metric": zod.string(),
+  "value": zod.number(),
+  "threshold": zod.string(),
+  "referenceType": zod.string(),
+  "comparability": zod.string(),
+  "sampleNote": zod.string(),
+  "device": zod.string(),
+  "confidenceNote": zod.string()
+})),
+  "summary": zod.array(zod.string()),
+  "warnings": zod.array(zod.string())
+})
+})),
+  "canEdit": zod.boolean()
+})
+
+
+/**
+ * @summary Save coach feedback with a server-generated evidence snapshot
+ */
+export const createGpsDevelopmentFeedbackBodyPlayerNameMax = 160;
+
+export const createGpsDevelopmentFeedbackBodyYearRegExp = new RegExp('^20[0-9]{2}$');
+export const createGpsDevelopmentFeedbackBodyNoteMax = 6000;
+
+export const createGpsDevelopmentFeedbackBodyFocusMax = 2000;
+
+export const createGpsDevelopmentFeedbackBodyReviewDateRegExp = new RegExp('^20[0-9]{2}-[0-9]{2}-[0-9]{2}$');
+
+
+export const CreateGpsDevelopmentFeedbackBody = zod.object({
+  "leagueId": zod.number(),
+  "playerName": zod.string().min(1).max(createGpsDevelopmentFeedbackBodyPlayerNameMax),
+  "year": zod.string().regex(createGpsDevelopmentFeedbackBodyYearRegExp),
+  "note": zod.string().max(createGpsDevelopmentFeedbackBodyNoteMax),
+  "focus": zod.string().max(createGpsDevelopmentFeedbackBodyFocusMax),
+  "reviewDate": zod.string().regex(createGpsDevelopmentFeedbackBodyReviewDateRegExp).nullish()
+})
+
+export const CreateGpsDevelopmentFeedbackResponse = zod.object({
+  "id": zod.number(),
+  "playerName": zod.string(),
+  "year": zod.string(),
+  "note": zod.string(),
+  "focus": zod.string(),
+  "reviewDate": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "snapshot": zod.object({
+  "playerName": zod.string(),
+  "year": zod.string(),
+  "role": zod.string().nullable(),
+  "squad": zod.string(),
+  "methodologyVersion": zod.string(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "unit": zod.string(),
+  "decimals": zod.number(),
+  "primary": zod.boolean()
+})),
+  "games": zod.array(zod.object({
+  "key": zod.string(),
+  "year": zod.string(),
+  "round": zod.string(),
+  "date": zod.string().nullable(),
+  "opponent": zod.string().nullable(),
+  "squad": zod.string(),
+  "mins": zod.number().nullable(),
+  "role": zod.string().nullable(),
+  "roleSource": zod.enum(['recorded', 'default', 'mixed', 'unknown']),
+  "matchType": zod.enum(['official', 'other', 'unknown']),
+  "comparable": zod.boolean(),
+  "qualifies": zod.boolean(),
+  "values": zod.record(zod.string(), zod.number().nullable())
+})),
+  "seasons": zod.array(zod.object({
+  "year": zod.string(),
+  "appearances": zod.number(),
+  "qualifying": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+})),
+  "peers": zod.array(zod.object({
+  "squad": zod.string(),
+  "role": zod.string(),
+  "playerGames": zod.number(),
+  "players": zod.number(),
+  "inferredRoles": zod.number(),
+  "metrics": zod.array(zod.object({
+  "id": zod.string(),
+  "average": zod.number().nullable(),
+  "sample": zod.number(),
+  "best": zod.number().nullable(),
+  "gref": zod.object({
+  "value": zod.number().nullable(),
+  "status": zod.enum(['insufficient', 'provisional', 'established']),
+  "sample": zod.number(),
+  "matches": zod.array(zod.object({
+  "key": zod.string(),
+  "round": zod.string(),
+  "year": zod.string(),
+  "date": zod.string().nullable(),
+  "value": zod.number()
+}))
+})
+}))
+})),
+  "external": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "url": zod.string(),
+  "publicationYear": zod.number(),
+  "population": zod.string(),
+  "role": zod.string(),
+  "metric": zod.string(),
+  "value": zod.number(),
+  "threshold": zod.string(),
+  "referenceType": zod.string(),
+  "comparability": zod.string(),
+  "sampleNote": zod.string(),
+  "device": zod.string(),
+  "confidenceNote": zod.string()
+})),
+  "summary": zod.array(zod.string()),
+  "warnings": zod.array(zod.string())
+})
+})
+
+
+/**
+ * @summary Remove a club-scoped feedback entry
+ */
+export const DeleteGpsDevelopmentFeedbackQueryParams = zod.object({
+  "leagueId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DeleteGpsDevelopmentFeedbackResponse = zod.void()
+
+
+/**
+ * @summary Record match role and reference eligibility without changing GPS measurements
+ */
+export const saveGpsDevelopmentMatchContextBodyPlayerNameMax = 160;
+
+export const saveGpsDevelopmentMatchContextBodyYearRegExp = new RegExp('^20[0-9]{2}$');
+export const saveGpsDevelopmentMatchContextBodyRoundMax = 100;
+
+
+
+export const SaveGpsDevelopmentMatchContextBody = zod.object({
+  "leagueId": zod.number(),
+  "playerName": zod.string().min(1).max(saveGpsDevelopmentMatchContextBodyPlayerNameMax),
+  "year": zod.string().regex(saveGpsDevelopmentMatchContextBodyYearRegExp),
+  "round": zod.string().min(1).max(saveGpsDevelopmentMatchContextBodyRoundMax),
+  "role": zod.enum(['CB', 'FB', 'DM', 'B2B', 'AM', '9', 'Winger', 'GK', 'mixed']).nullable(),
+  "matchType": zod.enum(['official', 'other', 'unknown']),
+  "comparable": zod.boolean()
+})
+
+export const SaveGpsDevelopmentMatchContextResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary List playing positions for GPS-logged players
  */
 export const ListGpsPlayerPositionsResponseItem = zod.object({

@@ -44,6 +44,7 @@ import type {
   CurriculumDocumentResponse,
   DeleteEntryGpsUploadParams,
   DeleteEntryPlayerStatsParams,
+  DeleteGpsDevelopmentFeedbackParams,
   DriblAssembleBody,
   DriblConfigResponse,
   DriblNameMapDeleteResponse,
@@ -90,6 +91,7 @@ import type {
   GetGoalTallyParams,
   GetGoalsByIntervalParams,
   GetGoalsByOpponentParams,
+  GetGpsDevelopmentParams,
   GetGpsLoadSummaryParams,
   GetLastMeetingFactsParams,
   GetLeagueLadderParams,
@@ -141,6 +143,10 @@ import type {
   GoalsByOpponentResponse,
   GpsCoachEmail,
   GpsCoachEmailsSaveRequest,
+  GpsDevelopmentContextInput,
+  GpsDevelopmentFeedback,
+  GpsDevelopmentFeedbackInput,
+  GpsDevelopmentResponse,
   GpsFixtureInfo,
   GpsLoadSummary,
   GpsMatchReport,
@@ -242,6 +248,7 @@ import type {
   ReviewLibraryPracticeRequest,
   ReviewLibraryPracticeResult,
   SaveGpsCoachEmails200,
+  SaveGpsDevelopmentMatchContext200,
   SaveMatchReportCoachEmails200,
   SavedMatchReport,
   SavedMatchReportCreateRequest,
@@ -2287,6 +2294,310 @@ export function useListGpsOpponentMismatches<TData = Awaited<ReturnType<typeof l
 
 
 
+
+export const getGetGpsDevelopmentUrl = (params: GetGpsDevelopmentParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-development?${stringifiedParams}` : `/api/gps-development`
+}
+
+/**
+ * @summary Club-scoped player development evidence across retained seasons
+ */
+export const getGpsDevelopment = async (params: GetGpsDevelopmentParams, options?: RequestInit): Promise<GpsDevelopmentResponse> => {
+
+  return customFetch<GpsDevelopmentResponse>(getGetGpsDevelopmentUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGpsDevelopmentQueryKey = (params?: GetGpsDevelopmentParams,) => {
+    return [
+    `/api/gps-development`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGpsDevelopmentQueryOptions = <TData = Awaited<ReturnType<typeof getGpsDevelopment>>, TError = ErrorType<unknown>>(params: GetGpsDevelopmentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGpsDevelopment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGpsDevelopmentQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGpsDevelopment>>> = ({ signal }) => getGpsDevelopment(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGpsDevelopment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGpsDevelopmentQueryResult = NonNullable<Awaited<ReturnType<typeof getGpsDevelopment>>>
+export type GetGpsDevelopmentQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Club-scoped player development evidence across retained seasons
+ */
+
+export function useGetGpsDevelopment<TData = Awaited<ReturnType<typeof getGpsDevelopment>>, TError = ErrorType<unknown>>(
+ params: GetGpsDevelopmentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGpsDevelopment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGpsDevelopmentQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateGpsDevelopmentFeedbackUrl = () => {
+
+
+
+
+  return `/api/gps-development/feedback`
+}
+
+/**
+ * @summary Save coach feedback with a server-generated evidence snapshot
+ */
+export const createGpsDevelopmentFeedback = async (gpsDevelopmentFeedbackInput: GpsDevelopmentFeedbackInput, options?: RequestInit): Promise<GpsDevelopmentFeedback> => {
+
+  return customFetch<GpsDevelopmentFeedback>(getCreateGpsDevelopmentFeedbackUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsDevelopmentFeedbackInput)
+  }
+);}
+
+
+
+
+
+export const getCreateGpsDevelopmentFeedbackMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>, TError,{data: BodyType<GpsDevelopmentFeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>, TError,{data: BodyType<GpsDevelopmentFeedbackInput>}, TContext> => {
+
+const mutationKey = ['createGpsDevelopmentFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>, {data: BodyType<GpsDevelopmentFeedbackInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGpsDevelopmentFeedback(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGpsDevelopmentFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>>
+    export type CreateGpsDevelopmentFeedbackMutationBody = BodyType<GpsDevelopmentFeedbackInput>
+    export type CreateGpsDevelopmentFeedbackMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save coach feedback with a server-generated evidence snapshot
+ */
+export const useCreateGpsDevelopmentFeedback = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>, TError,{data: BodyType<GpsDevelopmentFeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGpsDevelopmentFeedback>>,
+        TError,
+        {data: BodyType<GpsDevelopmentFeedbackInput>},
+        TContext
+      > => {
+      return useMutation(getCreateGpsDevelopmentFeedbackMutationOptions(options));
+    }
+
+export const getDeleteGpsDevelopmentFeedbackUrl = (params: DeleteGpsDevelopmentFeedbackParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-development/feedback?${stringifiedParams}` : `/api/gps-development/feedback`
+}
+
+/**
+ * @summary Remove a club-scoped feedback entry
+ */
+export const deleteGpsDevelopmentFeedback = async (params: DeleteGpsDevelopmentFeedbackParams, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteGpsDevelopmentFeedbackUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteGpsDevelopmentFeedbackMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>, TError,{params: DeleteGpsDevelopmentFeedbackParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>, TError,{params: DeleteGpsDevelopmentFeedbackParams}, TContext> => {
+
+const mutationKey = ['deleteGpsDevelopmentFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>, {params: DeleteGpsDevelopmentFeedbackParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  deleteGpsDevelopmentFeedback(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGpsDevelopmentFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>>
+
+    export type DeleteGpsDevelopmentFeedbackMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a club-scoped feedback entry
+ */
+export const useDeleteGpsDevelopmentFeedback = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>, TError,{params: DeleteGpsDevelopmentFeedbackParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGpsDevelopmentFeedback>>,
+        TError,
+        {params: DeleteGpsDevelopmentFeedbackParams},
+        TContext
+      > => {
+      return useMutation(getDeleteGpsDevelopmentFeedbackMutationOptions(options));
+    }
+
+export const getSaveGpsDevelopmentMatchContextUrl = () => {
+
+
+
+
+  return `/api/gps-development/match-context`
+}
+
+/**
+ * @summary Record match role and reference eligibility without changing GPS measurements
+ */
+export const saveGpsDevelopmentMatchContext = async (gpsDevelopmentContextInput: GpsDevelopmentContextInput, options?: RequestInit): Promise<SaveGpsDevelopmentMatchContext200> => {
+
+  return customFetch<SaveGpsDevelopmentMatchContext200>(getSaveGpsDevelopmentMatchContextUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gpsDevelopmentContextInput)
+  }
+);}
+
+
+
+
+
+export const getSaveGpsDevelopmentMatchContextMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>, TError,{data: BodyType<GpsDevelopmentContextInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>, TError,{data: BodyType<GpsDevelopmentContextInput>}, TContext> => {
+
+const mutationKey = ['saveGpsDevelopmentMatchContext'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>, {data: BodyType<GpsDevelopmentContextInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGpsDevelopmentMatchContext(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGpsDevelopmentMatchContextMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>>
+    export type SaveGpsDevelopmentMatchContextMutationBody = BodyType<GpsDevelopmentContextInput>
+    export type SaveGpsDevelopmentMatchContextMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record match role and reference eligibility without changing GPS measurements
+ */
+export const useSaveGpsDevelopmentMatchContext = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>, TError,{data: BodyType<GpsDevelopmentContextInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGpsDevelopmentMatchContext>>,
+        TError,
+        {data: BodyType<GpsDevelopmentContextInput>},
+        TContext
+      > => {
+      return useMutation(getSaveGpsDevelopmentMatchContextMutationOptions(options));
+    }
 
 export const getListGpsPlayerPositionsUrl = () => {
 

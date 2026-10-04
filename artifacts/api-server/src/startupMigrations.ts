@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { ensureNplb2026Structure } from "./lib/nplb2026";
+import { migrateGpsDevelopment } from "./lib/gpsDevelopmentMigration";
 
 /**
  * Idempotent schema upgrades that run on every boot, so deploying new code
@@ -1538,6 +1539,7 @@ async function runUserAccountsMigration(): Promise<void> {
     WHERE status = 'processing'
   `);
 
+  await migrateGpsDevelopment();
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

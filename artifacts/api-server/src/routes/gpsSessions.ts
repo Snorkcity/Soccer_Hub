@@ -55,6 +55,7 @@ function mapRow(r: typeof gpsSessionsTable.$inferSelect) {
 /** Squad label from the Catapult round suffix — mirrors the frontend convention. */
 function squadOfRound(round: string | null | undefined): string {
   if (!round) return "1sts";
+  if (/-(u?23s?)$/i.test(round)) return "U23";
   if (/-(res|r)$/i.test(round)) return "Reserves";
   if (/-1[78]s$/i.test(round)) return "17s / 18s";
   return "1sts";
@@ -81,7 +82,7 @@ async function gpsFeedFor(leagueId: number): Promise<{ sourceLeagueId: number; s
  * opponent names may differ word-for-word between the GPS upload and the
  * fixture import, so the round code is the reliable join.
  */
-async function ownFixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
+export async function ownFixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const seasons = await db.select().from(seasonsTable).where(eq(seasonsTable.leagueId, leagueId));
   if (!seasons.length) return map;
@@ -115,7 +116,7 @@ const agrees = (a: string, b: string) => {
  * and squad comes from the fixture's league — the GPS league itself is the
  * 1sts, and a sibling league named "<name> Reserves" holds the Reserves.
  */
-async function fixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
+export async function fixtureOpponentMap(leagueId: number): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const leagues = await db.select().from(leaguesTable);
   const mine = leagues.find(l => l.id === leagueId);

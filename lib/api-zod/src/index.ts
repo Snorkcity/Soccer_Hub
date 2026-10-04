@@ -8,5 +8,6 @@ export * from "./gpsPeriods";
 export * from "./competitionMatches";
 export * from "./competitionSources";
 export * from "./gpsPositions";
+export * from "./gpsDevelopment";
 export * from './generated/api';
 export * from './generated/types';

@@ -1353,6 +1353,218 @@ export interface GoalUpdate {
   goalY?: number | null;
 }
 
+export interface GpsDevelopmentMetric {
+  id: string;
+  title: string;
+  unit: string;
+  decimals: number;
+  primary: boolean;
+}
+
+export type GpsDevelopmentGameRoleSource = typeof GpsDevelopmentGameRoleSource[keyof typeof GpsDevelopmentGameRoleSource];
+
+
+export const GpsDevelopmentGameRoleSource = {
+  recorded: 'recorded',
+  default: 'default',
+  mixed: 'mixed',
+  unknown: 'unknown',
+} as const;
+
+export type GpsDevelopmentGameMatchType = typeof GpsDevelopmentGameMatchType[keyof typeof GpsDevelopmentGameMatchType];
+
+
+export const GpsDevelopmentGameMatchType = {
+  official: 'official',
+  other: 'other',
+  unknown: 'unknown',
+} as const;
+
+export type GpsDevelopmentGameValues = {[key: string]: number | null};
+
+export interface GpsDevelopmentGame {
+  key: string;
+  year: string;
+  round: string;
+  date: string | null;
+  opponent: string | null;
+  squad: string;
+  mins: number | null;
+  role: string | null;
+  roleSource: GpsDevelopmentGameRoleSource;
+  matchType: GpsDevelopmentGameMatchType;
+  comparable: boolean;
+  qualifies: boolean;
+  values: GpsDevelopmentGameValues;
+}
+
+export type GpsDevelopmentReferenceStatus = typeof GpsDevelopmentReferenceStatus[keyof typeof GpsDevelopmentReferenceStatus];
+
+
+export const GpsDevelopmentReferenceStatus = {
+  insufficient: 'insufficient',
+  provisional: 'provisional',
+  established: 'established',
+} as const;
+
+export type GpsDevelopmentReferenceMatchesItem = {
+  key: string;
+  round: string;
+  year: string;
+  date: string | null;
+  value: number;
+};
+
+export interface GpsDevelopmentReference {
+  value: number | null;
+  status: GpsDevelopmentReferenceStatus;
+  sample: number;
+  matches: GpsDevelopmentReferenceMatchesItem[];
+}
+
+export interface GpsDevelopmentMetricSummary {
+  id: string;
+  average: number | null;
+  sample: number;
+  best: number | null;
+  gref: GpsDevelopmentReference;
+}
+
+export interface GpsDevelopmentSeason {
+  year: string;
+  appearances: number;
+  qualifying: number;
+  metrics: GpsDevelopmentMetricSummary[];
+}
+
+export interface GpsDevelopmentPeer {
+  squad: string;
+  role: string;
+  playerGames: number;
+  players: number;
+  inferredRoles: number;
+  metrics: GpsDevelopmentMetricSummary[];
+}
+
+export interface GpsDevelopmentExternal {
+  id: string;
+  source: string;
+  url: string;
+  publicationYear: number;
+  population: string;
+  role: string;
+  metric: string;
+  value: number;
+  threshold: string;
+  referenceType: string;
+  comparability: string;
+  sampleNote: string;
+  device: string;
+  confidenceNote: string;
+}
+
+export interface GpsDevelopmentProfile {
+  playerName: string;
+  year: string;
+  role: string | null;
+  squad: string;
+  methodologyVersion: string;
+  metrics: GpsDevelopmentMetric[];
+  games: GpsDevelopmentGame[];
+  seasons: GpsDevelopmentSeason[];
+  history: GpsDevelopmentMetricSummary[];
+  peers: GpsDevelopmentPeer[];
+  external: GpsDevelopmentExternal[];
+  summary: string[];
+  warnings: string[];
+}
+
+export interface GpsDevelopmentFeedback {
+  id: number;
+  playerName: string;
+  year: string;
+  note: string;
+  focus: string;
+  reviewDate: string | null;
+  createdAt: string;
+  snapshot: GpsDevelopmentProfile;
+}
+
+export type GpsDevelopmentResponsePlayersItem = {
+  playerName: string;
+  squad: string;
+  role: string | null;
+  appearances: number;
+};
+
+export interface GpsDevelopmentResponse {
+  years: string[];
+  players: GpsDevelopmentResponsePlayersItem[];
+  profile: GpsDevelopmentProfile | null;
+  feedback: GpsDevelopmentFeedback[];
+  canEdit: boolean;
+}
+
+export interface GpsDevelopmentFeedbackInput {
+  leagueId: number;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  playerName: string;
+  /** @pattern ^20[0-9]{2}$ */
+  year: string;
+  /** @maxLength 6000 */
+  note: string;
+  /** @maxLength 2000 */
+  focus: string;
+  /** @pattern ^20[0-9]{2}-[0-9]{2}-[0-9]{2}$ */
+  reviewDate?: string | null;
+}
+
+export type GpsDevelopmentContextInputRole = typeof GpsDevelopmentContextInputRole[keyof typeof GpsDevelopmentContextInputRole] | null;
+
+
+export const GpsDevelopmentContextInputRole = {
+  CB: 'CB',
+  FB: 'FB',
+  DM: 'DM',
+  B2B: 'B2B',
+  AM: 'AM',
+  NUMBER_9: '9',
+  Winger: 'Winger',
+  GK: 'GK',
+  mixed: 'mixed',
+} as const;
+
+export type GpsDevelopmentContextInputMatchType = typeof GpsDevelopmentContextInputMatchType[keyof typeof GpsDevelopmentContextInputMatchType];
+
+
+export const GpsDevelopmentContextInputMatchType = {
+  official: 'official',
+  other: 'other',
+  unknown: 'unknown',
+} as const;
+
+export interface GpsDevelopmentContextInput {
+  leagueId: number;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  playerName: string;
+  /** @pattern ^20[0-9]{2}$ */
+  year: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  round: string;
+  role: GpsDevelopmentContextInputRole;
+  matchType: GpsDevelopmentContextInputMatchType;
+  comparable: boolean;
+}
+
 export type GpsPlayerPositionPosition = typeof GpsPlayerPositionPosition[keyof typeof GpsPlayerPositionPosition];
 
 
@@ -4780,6 +4992,22 @@ squad?: string;
 export type ListGpsOpponentMismatchesParams = {
 leagueId: number;
 year?: string;
+};
+
+export type GetGpsDevelopmentParams = {
+leagueId: number;
+year: string;
+playerName?: string;
+squad?: string;
+};
+
+export type DeleteGpsDevelopmentFeedbackParams = {
+leagueId: number;
+id: number;
+};
+
+export type SaveGpsDevelopmentMatchContext200 = {
+  ok: boolean;
 };
 
 export type SendGpsReportEmail200 = {

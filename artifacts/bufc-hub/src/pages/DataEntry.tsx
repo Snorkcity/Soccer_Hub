@@ -1993,7 +1993,7 @@ const VOCAB_FIELD_META: Array<{ key: keyof GoalVocabResponse; label: string }> =
  * reserves rows already inside the NPLW Catapult uploads. Read-only share: no
  * rows are copied, and fixes/re-uploads in the source league flow through.
  */
-const FEED_SQUADS = ["Reserves", "1sts", "17s / 18s"];
+const FEED_SQUADS = ["Reserves", "U23", "1sts", "17s / 18s"];
 
 function GpsFeedCard({ leagues, onSaved, setMsg }: {
   leagues: LeagueInfo[];
@@ -2396,6 +2396,7 @@ const GPS_HEADER_MAP: Record<string, keyof GpsRow> = {
 
 const SQUAD_OPTIONS = [
   { value: "1sts", label: "1sts" },
+  { value: "u23", label: "U23" },
   { value: "res", label: "Reserves" },
   { value: "18s", label: "U18s" },
   { value: "17s", label: "U17s" },
@@ -2462,7 +2463,7 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
     { query: { queryKey: getListEntryGpsFixturesQueryKey({ leagueId }) } },
   );
   const squadValueOf = (label: string) =>
-    label === "Reserves" ? "res" : label === "17s / 18s" ? "18s" : "1sts";
+    label === "Reserves" ? "res" : label === "U23" ? "u23" : label === "17s / 18s" ? "18s" : "1sts";
   const pickFixture = (key: string) => {
     setFixtureKey(key);
     const f = gpsFixtures?.[Number(key)];
