@@ -9,6 +9,12 @@ The coach approved building Player Development inside GPS Insights, keeping the 
 
 **How to apply:** use a separate development view; preserve existing metrics, data and women's behaviour. Keep the future coaches' methodology presentation distinct from player development reports.
 
+For the women's team, the coach is using this page for useful player information and is not trying to compare the players to benchmarks.
+
+**Why:** the coach explicitly stated this when reviewing the women's Player Development page.
+
+**How to apply:** explain the player's own Gref and recorded history without steering the conversation toward population benchmarks. This does not change the men's development scope.
+
 Personal Gref is metric-specific: official appearances of at least 60 minutes with comparable, valid measurements. Fewer than 3 qualifying values means insufficient; 3–4 uses the best 3 (provisional); 5+ uses the best 5 (established). Choose best matches independently for every metric. Short appearances stay visible. Percentages are descriptive and may exceed 100%.
 
 **Why:** this gives usable personal references without projecting short appearances into fictional full matches or treating a multi-metric reference as one real performance.
