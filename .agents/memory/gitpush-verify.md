@@ -8,6 +8,9 @@ description: gitPush can silently fail; how to verify a deploy actually landed o
   **How to apply:** after every push meant for prod, run `git fetch -q && git log --oneline -1 origin/main` and confirm it matches local HEAD. If behind, push again.
 - gitPush can also commit only SOME modified files (once committed just the memory docs and left code edits uncommitted-but-modified). Also check `git status -s` is clean after pushing. Shell `git push` may fail when GitHub CLI auth is absent even though the added GitHub connector is healthy; use the connector fallback below.
 - In sessions where the gitPush callback is unavailable, use the added GitHub connector's Git Database API as the fallback: require remote HEAD to equal the fetched release base, parent the release commit to that base, build blobs/tree, and refuse to update the ref unless the generated tree matches the local tree. Never force-update the remote ref. GitHub may normalize commit metadata and return a different commit SHA despite an identical tree; fetch and align local HEAD only after proving the trees match.
+  - Throttle connector requests rather than uploading blobs in fast parallel batches; the Repl connector proxy enforces a 10-request/second limit.
+    **Why:** parallel GitHub blob uploads can hit the proxy limit even when GitHub itself has capacity.
+    **How to apply:** keep requests below the proxy limit and retry explicit rate-limit failures after a short delay; retain the remote-base and tested-tree guards.
   - Preserve the original local history on a backup branch before aligning main to the actual GitHub commit after a connector release.
     **Why:** keeping the local equivalent commit instead of the actual remote commit creates duplicate histories and later merge conflicts even when both final code trees agree.
     **How to apply:** compare tree SHAs, preserve the original local history, then make subsequent work descend from the verified remote release commit.
