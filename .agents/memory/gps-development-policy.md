@@ -21,6 +21,12 @@ Personal Gref is metric-specific: official appearances of at least 60 minutes wi
 
 **How to apply:** never replace insufficient references with zero. Separate current-season average/Gref, previous seasons, and comparable retained-history Gref/recorded highs. Saved feedback must preserve the reference evidence from its save time.
 
+Retain actual-total Gref alongside the existing per-minute references; do not add per-90 normalisation by default.
+
+**Why:** the coach confirmed this approach after discussing 76-minute versus full-game appearances and wants to understand it for player discussions.
+
+**How to apply:** explain that qualifying means 60+ minutes, not necessarily a full match, and that the selected matches have high recorded values for each metric—not necessarily the player's best football performances. Use per-minute evidence to discuss differences in playing time.
+
 Recorded match roles take precedence. When unavailable, the usual role is a pragmatic, explicitly inferred default, not a confirmed historical fact. Mixed-role games can inform personal references but do not enter a single-role cohort. Observed same-role cohorts are informational, not approved First Grade standards.
 
 **Why:** the coach recognises that ideal data collection is not always practical; changing a usual role must not overwrite a recorded match role.
