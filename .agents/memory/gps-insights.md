@@ -84,3 +84,11 @@ Once the GPS methodology is incorporated into the project, the user definitely w
 **Why:** the user explicitly settled these points when discussing the methodology for the men's teams.
 
 **How to apply:** preserve historical evidence and make season comparisons distinguishable from changing current averages. Make practical recommendations for unresolved details; this delegation does not itself request immediate implementation.
+
+## Catapult source preparation
+
+The coach manually reviews individual player activity graphs in Catapult's browser interface, identifies on-pitch periods, excludes half-time and bench time, and saves the corrected sessions. Each player's graph needs visual judgement.
+
+**Why:** the coach described this as an existing manual analysis workflow.
+
+**How to apply:** distinguish source-session preparation in Catapult from analysis of the resulting GPS summaries in the Hub. Do not assume low activity necessarily means a player was off the pitch.
