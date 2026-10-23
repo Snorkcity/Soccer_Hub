@@ -87,7 +87,7 @@ Once the GPS methodology is incorporated into the project, the user definitely w
 
 ## Catapult source preparation
 
-The coach manually reviews individual player activity graphs in Catapult's browser interface, identifies on-pitch periods, excludes half-time and bench time, and saves the corrected sessions. Each player's graph needs visual judgement.
+The coach manually reviews individual player activity graphs in Catapult's browser interface, identifies on-pitch periods, excludes half-time and bench time, and saves the corrected sessions. Each player's graph needs visual judgement. The cutting actions involve moving the two slider boundaries to select a period, then naming it first or second half or cutting it. This is repeated for each player before saving changes; the coach describes the cutting workflow as taking about six minutes. Afterwards, the coach exports the game's data and uploads it to the Season Stats app. The first automation goal is a helper for the manual Catapult cutting, not a broader analysis agent.
 
 **Why:** the coach described this as an existing manual analysis workflow.
 
