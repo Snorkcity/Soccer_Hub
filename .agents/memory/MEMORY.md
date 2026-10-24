@@ -45,6 +45,7 @@
 - [Saved-name standard](saved-name-standard.md) — all saved report/doc rows: bold "Type — R# v Opp", muted game date, smaller "saved d MMM"; standard for every new saving feature.
 - [One-off api-server scripts](esbuild-script-runner.md) — esbuild-bundle + node; needs NODE_ENV=production (pino-pretty transport breaks bundles) and explicit DATABASE_URL.
 - [Dev DB refresh from prod](dev-db-refresh.md) — scripts/refresh-dev-from-prod.sh copies data tables prod→dev; preserves users + league grants; `sessions` table = coaching plans, not logins.
+- [Database backup safety](database-backup-safety.md) — Railway can outpace installed backup clients; use compatible tools, protect exports, and distinguish archive checks from restore tests.
 - [League-private coaching data](league-private-data.md) — isolate private coaching evidence by authenticated club and league; ownership is server-derived and cross-scope records appear absent.
 - [Dribl sync](dribl-sync.md) — mc-api.dribl.com blocks Node TLS (curl passes, shell out); matchcentre has HT score + goal scorer/minute; OG credit flips team.
 - [AI club setup & Wikipedia logos](club-setup-ai.md) — extract-clubs flow: LLM won't give logo URLs; Wikipedia pageimages needs pilicense=any and sequential calls (429s bursts).

@@ -55,3 +55,6 @@ Thumbs.db
 *.pem
 *.key
 secrets.json
+
+# Sensitive database backups and generated outputs
+/generated-artifacts/
