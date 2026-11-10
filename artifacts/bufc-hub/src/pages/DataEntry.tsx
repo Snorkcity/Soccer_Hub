@@ -1,4 +1,5 @@
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
+import { useActiveLeague } from "@/contexts/LeagueContext";
 import { isNorthernNswLeague, GPS_POSITIONS, GPS_POSITION_ROLES, type GpsPosition, type GpsRole } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -3640,19 +3641,32 @@ function EntryWorkspace() {
   );
 
   const [teamId, setTeamId] = useState<number | null>(null);
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const { activeSeasonId, setActiveSeasonId, setActiveLeagueId } = useActiveLeague();
+  // The workspace edits exactly the shared campaign shown in the header.
+  const seasonId: number | null =
+    activeSeasonId != null && seasons.some(s => s.id === activeSeasonId) ? activeSeasonId : null;
+  const setSeasonId = (id: number) => {
+    const s = seasons.find(x => x.id === id);
+    if (!s) return;
+    setActiveSeasonId(id);
+    setActiveLeagueId(s.leagueId);
+  };
   useEffect(() => {
     if (teams && teams.length > 0 && teamId == null) {
       const analytics = teams.find(t => t.analyticsEnabled && t.gender === "female") ?? teams[0];
       setTeamId(analytics.id);
     }
   }, [teams, teamId]);
+  // If the shared campaign isn't enterable here, move the shared context to an
+  // enterable one (so the header always names what is being edited).
+  const fallbackRef = useRef(setSeasonId);
+  fallbackRef.current = setSeasonId;
+  const fallbackId = seasonId == null && activeSeasonId != null && seasons.length > 0
+    ? (seasons.find(s => s.isActive) ?? seasons[0]).id
+    : null;
   useEffect(() => {
-    if (seasons && seasons.length > 0 && seasonId == null) {
-      const active = seasons.find(s => s.isActive);
-      setSeasonId(active ? active.id : seasons[0].id);
-    }
-  }, [seasons, seasonId]);
+    if (fallbackId != null) fallbackRef.current(fallbackId);
+  }, [fallbackId]);
 
   const isReady = teamId != null && seasonId != null;
 

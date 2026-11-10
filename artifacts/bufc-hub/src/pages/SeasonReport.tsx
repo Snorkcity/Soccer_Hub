@@ -78,24 +78,22 @@ export default function SeasonReport() {
   const { data: allSeasons } = useListSeasons();
   const { data: auth } = useGetAuthStatus();
   const { hasModule } = useLeagueModules();
-  const { activeLeagueId } = useActiveLeague();
+  const { activeLeagueId, activeSeasonId, setActiveSeasonId } = useActiveLeague();
 
   const seasons = useMemo(
     () => (allSeasons ?? []).filter(s => s.leagueId === activeLeagueId && hasModule(s.leagueId, 'season-stats')),
     [allSeasons, activeLeagueId, hasModule],
   );
   const [teamId, setTeamId] = useState<number | ''>('');
-  const [seasonId, setSeasonId] = useState<number | ''>('');
+  // Season follows the app-wide campaign; '' until it belongs to this league.
+  const seasonId: number | '' = activeSeasonId != null && seasons.some(s => s.id === activeSeasonId) ? activeSeasonId : '';
+  const setSeasonId = setActiveSeasonId;
   useEffect(() => {
     if (teams?.length && teamId === '') {
       const analytics = teams.find(t => t.analyticsEnabled && t.gender === 'female') ?? teams[0];
       setTeamId(analytics.id);
     }
-    if (seasons.length && (seasonId === '' || !seasons.some(s => s.id === seasonId))) {
-      const active = seasons.find(s => s.isActive);
-      setSeasonId(active ? active.id : seasons[0].id);
-    }
-  }, [teams, seasons, teamId, seasonId]);
+  }, [teams, teamId]);
   useViewingTeam(teams?.find(t => t.id === teamId)?.name);
 
   const isReady = teamId !== '' && seasonId !== '';

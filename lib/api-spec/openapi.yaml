@@ -494,6 +494,32 @@ paths:
         "204":
           description: Deleted
 
+  /season-roster:
+    get:
+      operationId: getSeasonRoster
+      tags: [gps]
+      summary: Season-specific squad list including the shared GPS hub roster
+      parameters:
+        - name: leagueId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: year
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}$' }
+      responses:
+        "200":
+          description: Squad members for this campaign
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SeasonRosterPlayer"
+        "403":
+          description: No access to this competition
+
   # ─── GPS SESSIONS ───────────────────────────────────────────────────────────
 
   /gps-sessions:
@@ -5298,6 +5324,20 @@ components:
         leagueId:   { type: integer }
       required: [to, subject, body, from, fileName, pptxBase64, leagueId]
 
+    SeasonRosterPlayer:
+      type: object
+      required: [id, seasonId, leagueId, leagueName, year, gpsLeagueId, playerName, squad, positionCode, ambiguousName]
+      properties:
+        id: { type: integer }
+        seasonId: { type: integer }
+        leagueId: { type: integer }
+        leagueName: { type: string }
+        year: { type: string }
+        gpsLeagueId: { type: integer }
+        playerName: { type: string }
+        squad: { type: string }
+        positionCode: { type: string }
+        ambiguousName: { type: boolean }
     GpsSession:
       type: object
       properties:

@@ -1037,12 +1037,20 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
     return Array.from(ys).sort((a, b) => b - a);
   }, [matches]);
   const [pickedYear, setPickedYear] = useState<number | "all" | null>(null);
-  // Clamp to the years that actually exist for this league — a stale pick from
-  // another league (or after a re-sync) falls back to the latest year.
+  // Follow the shared campaign year when it changes; own picker keeps history.
+  const { activeSeason: ctxSeason } = useActiveLeague();
+  const ctxYear = ctxSeason ? Number(ctxSeason.year) : null;
+  const [syncedCtxYear, setSyncedCtxYear] = useState<number | null>(null);
+  if (ctxYear !== syncedCtxYear) {
+    setSyncedCtxYear(ctxYear);
+    if (ctxYear != null && Number.isFinite(ctxYear)) setPickedYear(ctxYear);
+  }
+  // Keep an explicitly selected campaign even before it has recordings.
+  // Falling back to 2026 under a 2027 header would silently mix seasons.
   const year: number | "all" =
-    pickedYear === "all" || (typeof pickedYear === "number" && years.includes(pickedYear))
+    pickedYear === "all" || typeof pickedYear === "number"
       ? pickedYear
-      : years[0] ?? "all";
+      : ctxYear ?? years[0] ?? "all";
   const setYear = setPickedYear;
 
   const yearFiltered = useMemo(() => {

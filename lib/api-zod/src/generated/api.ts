@@ -641,6 +641,33 @@ export const DeleteGoalResponse = zod.void()
 
 
 /**
+ * @summary Season-specific squad list including the shared GPS hub roster
+ */
+
+export const getSeasonRosterQueryYearRegExp = new RegExp('^\\d{4}$');
+
+
+export const GetSeasonRosterQueryParams = zod.object({
+  "leagueId": zod.coerce.number().min(1),
+  "year": zod.coerce.string().regex(getSeasonRosterQueryYearRegExp)
+})
+
+export const GetSeasonRosterResponseItem = zod.object({
+  "id": zod.number(),
+  "seasonId": zod.number(),
+  "leagueId": zod.number(),
+  "leagueName": zod.string(),
+  "year": zod.string(),
+  "gpsLeagueId": zod.number(),
+  "playerName": zod.string(),
+  "squad": zod.string(),
+  "positionCode": zod.string(),
+  "ambiguousName": zod.boolean()
+})
+export const GetSeasonRosterResponse = zod.array(GetSeasonRosterResponseItem)
+
+
+/**
  * @summary List GPS sessions
  */
 export const ListGpsSessionsQueryParams = zod.object({

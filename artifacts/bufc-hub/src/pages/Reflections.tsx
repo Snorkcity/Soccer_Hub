@@ -96,7 +96,8 @@ export default function Reflections() {
   const reflectionsTeam = teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0];
   const teamId = reflectionsTeam?.id;
   useViewingTeam(reflectionsTeam?.name);
-  const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
+  const { activeSeasonId: ctxSeasonId } = useActiveLeague();
+  const seasonId = ctxSeasonId != null && seasons.some((s) => s.id === ctxSeasonId) ? ctxSeasonId : undefined;
   const matchParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: matches } = useListMatches(matchParams, {
     query: { enabled: !!teamId && !!seasonId, queryKey: getListMatchesQueryKey(matchParams) },

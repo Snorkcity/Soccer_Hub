@@ -1204,7 +1204,7 @@ export default function SeasonStats() {
   );
 
   // ── League (app-wide, picked on the Hub) → season → club ─────────────────
-  const { activeLeagueId } = useActiveLeague();
+  const { activeLeagueId, activeSeasonId } = useActiveLeague();
   const selectedLeagueId: number | "" = activeLeagueId ?? "";
   // Superadmin-only "viewing club" override ("" = league default)
   const [viewClub, setViewClub] = useState<string>("");
@@ -1214,7 +1214,9 @@ export default function SeasonStats() {
   );
 
   const [selectedTeamId, setSelectedTeamId] = useState<number | "">("");
-  const [selectedSeasonId, setSelectedSeasonId] = useState<number | "">("");
+  // Season follows the app-wide campaign (Viewing strip); "" until valid here.
+  const selectedSeasonId: number | "" =
+    activeSeasonId != null && leagueSeasons.some(s => s.id === activeSeasonId) ? activeSeasonId : "";
   const [effMetric, setEffMetric] = useState<"per90" | "total">("per90");
   const [effMinMins, setEffMinMins] = useState<0 | 90 | 150 | 180>(150);
   const [selectedClub, setSelectedClub] = useState<string>("");
@@ -1296,14 +1298,7 @@ export default function SeasonStats() {
       const analytics = teams.find(t => t.analyticsEnabled && t.gender === "female") ?? teams[0];
       setSelectedTeamId(analytics.id);
     }
-    // Season within the app-wide league (active, else newest listed).
-    if (selectedLeagueId !== "" && (selectedSeasonId === "" || !leagueSeasons.some(s => s.id === selectedSeasonId))) {
-      if (leagueSeasons.length) {
-        const active = leagueSeasons.find(s => s.isActive);
-        setSelectedSeasonId(active ? active.id : leagueSeasons[0].id);
-      }
-    }
-  }, [teams, seasons, leagueSeasons, selectedTeamId, selectedSeasonId, selectedLeagueId]);
+  }, [teams, selectedTeamId]);
 
   // The club whose players fill Team/Player insights right now: superadmin's
   // dropdown pick, else their own club for this league, else the league default.

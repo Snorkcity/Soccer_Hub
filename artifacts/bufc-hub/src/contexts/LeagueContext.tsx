@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 
 export type LeagueOption = { id: number; name: string };
+export type SeasonOption = { id: number; leagueId: number; year: string; label: string; isActive: boolean };
 
 type LeagueContextValue = {
   /** The app-wide league everything is scoped to (null while loading). */
@@ -17,6 +18,13 @@ type LeagueContextValue = {
       "viewing" badge so coaches with several squads always know where they are. */
   viewingTeamLabel: string | null;
   setViewingTeamLabel: (label: string | null) => void;
+  /** Seasons of the active league the user can see, newest year first. */
+  seasonOptions: SeasonOption[];
+  /** The selected campaign within the active league. Always a season of
+      activeLeagueId (never a stale one from a previous league), else null. */
+  activeSeasonId: number | null;
+  activeSeason: SeasonOption | null;
+  setActiveSeasonId: (id: number) => void;
 };
 
 const LeagueContext = createContext<LeagueContextValue>({
@@ -25,9 +33,24 @@ const LeagueContext = createContext<LeagueContextValue>({
   leagueOptions: [],
   viewingTeamLabel: null,
   setViewingTeamLabel: () => {},
+  seasonOptions: [],
+  activeSeasonId: null,
+  activeSeason: null,
+  setActiveSeasonId: () => {},
 });
 
 const STORAGE_KEY = "bufc.activeLeagueId";
+const SEASON_STORAGE_KEY = "bufc.seasonByLeague";
+
+function readSeasonMap(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(SEASON_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const { data: auth } = useGetAuthStatus({ query: { queryKey: getGetAuthStatusQueryKey() } });
@@ -70,16 +93,69 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
 
   const [viewingTeamLabel, setViewingTeamLabel] = useState<string | null>(null);
 
+  // Only expose a league once it is confirmed accessible, so no consumer
+  // queries a stale/unauthorised league during repair.
+  const leagueValid = activeLeagueId != null && leagueOptions.some(l => l.id === activeLeagueId);
+
+  const seasonOptions = useMemo<SeasonOption[]>(() => {
+    if (!leagueValid) return [];
+    return (seasons ?? [])
+      .filter(s => s.leagueId === activeLeagueId)
+      .map(s => ({ id: s.id, leagueId: s.leagueId, year: s.year, label: s.label, isActive: s.isActive }))
+      .sort((a, b) => b.year.localeCompare(a.year, undefined, { numeric: true }) || b.id - a.id);
+  }, [seasons, activeLeagueId, leagueValid]);
+
+  // Explicit picks, remembered per league. isActive is only the default.
+  const [seasonByLeague, setSeasonByLeague] = useState<Record<string, number>>(readSeasonMap);
+
+  // Derived synchronously: a league switch resolves its season in the same
+  // render, so an old league's season id can never reach a query.
+  const activeSeason = useMemo<SeasonOption | null>(() => {
+    if (!seasonOptions.length || activeLeagueId == null) return null;
+    const picked = seasonByLeague[String(activeLeagueId)];
+    return (
+      seasonOptions.find(s => s.id === picked) ??
+      seasonOptions.find(s => s.isActive) ??
+      seasonOptions[0]
+    );
+  }, [seasonOptions, seasonByLeague, activeLeagueId]);
+
   const value = useMemo<LeagueContextValue>(() => ({
     activeLeagueId,
     leagueOptions,
     setActiveLeagueId: (id: number) => {
+      if (!leagueOptions.some(l => l.id === id)) return;
+      // On the first visit to another competition, carry the selected year
+      // across when it exists there. A deliberate saved choice still wins.
+      const sameYear = (seasons ?? []).find(s =>
+        s.leagueId === id && s.year === activeSeason?.year,
+      );
+      if (sameYear && !seasonByLeague[String(id)]) {
+        setSeasonByLeague(prev => {
+          if (prev[String(id)]) return prev;
+          const next = { ...prev, [String(id)]: sameYear.id };
+          try { localStorage.setItem(SEASON_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+          return next;
+        });
+      }
       localStorage.setItem(STORAGE_KEY, String(id));
       setActive(id);
     },
     viewingTeamLabel,
     setViewingTeamLabel,
-  }), [activeLeagueId, leagueOptions, viewingTeamLabel]);
+    seasonOptions,
+    activeSeason,
+    activeSeasonId: activeSeason?.id ?? null,
+    setActiveSeasonId: (id: number) => {
+      const season = (seasons ?? []).find(s => s.id === id);
+      if (!season || !leagueOptions.some(l => l.id === season.leagueId)) return;
+      setSeasonByLeague(prev => {
+        const next = { ...prev, [String(season.leagueId)]: id };
+        try { localStorage.setItem(SEASON_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+    },
+  }), [activeLeagueId, leagueOptions, viewingTeamLabel, seasonOptions, activeSeason, seasons, seasonByLeague]);
 
   return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>;
 }

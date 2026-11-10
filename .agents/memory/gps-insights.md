@@ -118,3 +118,9 @@ For NPLM 2027, the coach anticipates using first initial plus full surname to re
 **Why:** the coach said this year's naming would likely use that convention to avoid clashes.
 
 **How to apply:** confirm the export naming before implementation and keep roster, GPS and match identities consistent. Do not retroactively rename prior seasons or automatically merge two players who share both first initial and surname.
+
+The coach confirmed that the 2027 first-grade and U23 football squads stay separate, but all their GPS analysis belongs together in the first-grade ACT NPLM hub. Preserve each player's squad and exact supplied position alongside that shared GPS view.
+
+**Why:** the coach explicitly said the squads would be together in the NPLM hub for GPS.
+
+**How to apply:** distinguish football competition membership from GPS hub membership. A roster is not evidence of match appearances or measured sessions; keep same-name entries separate until their identity is confirmed.

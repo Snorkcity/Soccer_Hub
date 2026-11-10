@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Activity, BarChart3, BookHeart, BookOpen, Bot, ClipboardList, Edit3, Home, Menu, Navigation2, PanelLeftClose, PanelLeftOpen, TrendingUp as TrendingUp2, Trophy, UserRound, Users, Video, X, BookText } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { CompetitionPicker, SeasonPicker } from "@/components/layout/ContextPicker";
 import { CoachAssistantOverlay } from "@/components/assistant/CoachAssistantOverlay";
 import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
@@ -206,9 +207,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {/* "Where am I?" strip — league (and team when the page is team-scoped).
             Most users have one team, but clubs with 1sts/Reserves/23s need this. */}
         {activeLeagueName && (
-          <div className="flex items-center gap-2 border-b border-border bg-card/60 px-4 md:px-8 py-1.5 text-xs text-muted-foreground">
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-card/60 px-4 md:px-8 py-1.5 text-xs text-muted-foreground"
+            aria-label="Current competition and season"
+            data-testid="strip-viewing-context"
+          >
             <span className="uppercase tracking-wide text-[10px]">Viewing</span>
-            <span className="font-medium text-foreground">{activeLeagueName}</span>
+            <CompetitionPicker />
+            <span className="text-muted-foreground/60">|</span>
+            <SeasonPicker />
             {viewingTeamLabel && (
               <>
                 <span className="text-muted-foreground/60">·</span>

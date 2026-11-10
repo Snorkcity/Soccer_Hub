@@ -114,6 +114,7 @@ import type {
   GetPlayerTallyParams,
   GetPlayerTimelineParams,
   GetSeasonReportParams,
+  GetSeasonRosterParams,
   GetSeasonSummaryParams,
   GetSubImpactParams,
   GetTeamFormParams,
@@ -255,6 +256,7 @@ import type {
   Season,
   SeasonInput,
   SeasonReportResponse,
+  SeasonRosterPlayer,
   SeasonSummary,
   SendGpsReportEmail200,
   SendMatchReportEmail200,
@@ -2055,6 +2057,90 @@ export const useDeleteGoal = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteGoalMutationOptions(options));
     }
+
+export const getGetSeasonRosterUrl = (params: GetSeasonRosterParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/season-roster?${stringifiedParams}` : `/api/season-roster`
+}
+
+/**
+ * @summary Season-specific squad list including the shared GPS hub roster
+ */
+export const getSeasonRoster = async (params: GetSeasonRosterParams, options?: RequestInit): Promise<SeasonRosterPlayer[]> => {
+
+  return customFetch<SeasonRosterPlayer[]>(getGetSeasonRosterUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeasonRosterQueryKey = (params?: GetSeasonRosterParams,) => {
+    return [
+    `/api/season-roster`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSeasonRosterQueryOptions = <TData = Awaited<ReturnType<typeof getSeasonRoster>>, TError = ErrorType<void>>(params: GetSeasonRosterParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonRoster>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeasonRosterQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeasonRoster>>> = ({ signal }) => getSeasonRoster(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeasonRoster>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeasonRosterQueryResult = NonNullable<Awaited<ReturnType<typeof getSeasonRoster>>>
+export type GetSeasonRosterQueryError = ErrorType<void>
+
+
+/**
+ * @summary Season-specific squad list including the shared GPS hub roster
+ */
+
+export function useGetSeasonRoster<TData = Awaited<ReturnType<typeof getSeasonRoster>>, TError = ErrorType<void>>(
+ params: GetSeasonRosterParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonRoster>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeasonRosterQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListGpsSessionsUrl = (params: ListGpsSessionsParams,) => {
   const normalizedParams = new URLSearchParams();

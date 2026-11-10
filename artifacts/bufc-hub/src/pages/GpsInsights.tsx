@@ -32,6 +32,7 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
+import { SeasonRosterPanel } from "@/components/SeasonRosterPanel";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
 import { PlayerDevelopmentTab } from "@/components/gps-development/PlayerDevelopmentTab";
@@ -223,10 +224,17 @@ function OpponentMismatchWarning({ year }: { year: string }) {
 }
 
 export default function GpsInsights() {
-  const [year, setYear] = useState("2026");
+  const { activeLeagueId, activeSeason } = useActiveLeague();
+  // Year follows the selected campaign; historic years stay pickable below.
+  const campaignYear = activeSeason ? String(activeSeason.year) : null;
+  const [year, setYear] = useState(() => campaignYear ?? "2026");
+  const [syncedYear, setSyncedYear] = useState(campaignYear);
+  if (campaignYear !== syncedYear) {
+    setSyncedYear(campaignYear);
+    if (campaignYear) setYear(campaignYear);
+  }
   const [activeTab, setActiveTab] = useState("player");
   const { hasModule, ready } = useLeagueModules();
-  const { activeLeagueId } = useActiveLeague();
 
   // Meta query includes period-only matches too, so rounds remain discoverable
   // when Catapult did not provide an authoritative whole-game row.
@@ -247,11 +255,13 @@ export default function GpsInsights() {
         </div>
         <Select value={year} onValueChange={setYear}>
           <SelectTrigger className="w-[110px] max-w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>{YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          <SelectContent>{(YEARS.includes(year) ? YEARS : [year, ...YEARS]).map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 
       <OpponentMismatchWarning year={year} />
+
+      <SeasonRosterPanel key={`${activeLeagueId}-${year}`} leagueId={activeLeagueId} year={year} />
 
       {isLoading ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>

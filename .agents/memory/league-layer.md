@@ -17,4 +17,10 @@ description: Multi-league (competition) support — schema shape, invariants, an
 
 **Naming rule (user-confirmed)**: clubs/teams are called by their in-league name — the league provides the context. Focus team is named "Belconnen" (not "BUFC NPLW 1sts"); when ACT NPLW Reserves is added, the reserves team also becomes just "Belconnen" in that league. Club names are unique per (league_id, name), NOT globally — same name may exist in several leagues.
 
+**Campaign presentation (user-approved):** competition and season are separate choices, not a new league for every year. The coach approved explicit context such as ACT NPLM | 2027 season, with retained access to 2026. November 2026 preseason sessions may belong to the 2027 campaign while retaining their actual dates.
+
+**Why:** new preseason GPS evidence arrives before March fixtures, and the coach must not confuse it with the previous season.
+
+**How to apply:** do not infer the campaign solely from a session's calendar year. Keep chosen campaign context consistent across navigation, uploads, reports and roster views; absence of new-season measurements must not silently fall back to the prior year's data.
+
 **Gotcha**: seed deletes clubs+seasons before leagues (FK order); re-seeds still change all IDs (never hardcode league/season/team IDs). Also: the Edit/WriteFile tooling collapsed `$` in a SQL DO-block once — prefer `CREATE UNIQUE INDEX IF NOT EXISTS` style idempotent statements in startupMigrations over DO blocks.

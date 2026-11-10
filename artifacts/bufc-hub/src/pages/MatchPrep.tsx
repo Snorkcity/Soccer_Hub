@@ -378,7 +378,8 @@ export default function MatchPrep() {
   const matchPrepTeam = teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0];
   const teamId = matchPrepTeam?.id;
   useViewingTeam(matchPrepTeam?.name);
-  const seasonId = (seasons.find((s) => s.isActive) ?? seasons[0])?.id;
+  const { activeSeasonId } = useActiveLeague();
+  const seasonId = activeSeasonId != null && seasons.some((s) => s.id === activeSeasonId) ? activeSeasonId : undefined;
   const clubsParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: oppClubs } = useGetOpponentClubs(clubsParams, {
     query: { queryKey: getGetOpponentClubsQueryKey(clubsParams), enabled: teamId != null && seasonId != null },

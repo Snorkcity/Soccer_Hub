@@ -1,12 +1,12 @@
 import React from "react";
 import { Link } from "wouter";
 import {
-  useListTeams, useListSeasons,
+  useListTeams,
   useGetSeasonSummary, getGetSeasonSummaryQueryKey,
   useGetLeagueLadder, getGetLeagueLadderQueryKey,
   useListMatches, getListMatchesQueryKey,
 } from "@workspace/api-client-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CompetitionPicker, SeasonPicker } from "@/components/layout/ContextPicker";
 import { ArrowUpRight } from "lucide-react";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
@@ -20,12 +20,11 @@ import clubLogo from "@assets/testing_app/Testing_app/assets/clublogo.png";
 
 export default function Home() {
   const { data: teams } = useListTeams();
-  const { data: seasons } = useListSeasons();
-  const { activeLeagueId, setActiveLeagueId, leagueOptions } = useActiveLeague();
+  const { activeLeagueId, seasonOptions, activeSeason } = useActiveLeague();
   const { isSuperadmin, hasModule, hasModuleAnywhere } = useLeagueModules();
 
-  const leagueSeasons = seasons?.filter(s => s.leagueId === activeLeagueId);
-  const currentSeason = leagueSeasons?.find(s => s.isActive) || leagueSeasons?.[0];
+  const leagueSeasons = seasonOptions;
+  const currentSeason = activeSeason;
   const firstTeam =
     teams?.find(t => t.analyticsEnabled && t.gender === "female") ||
     teams?.find(t => t.analyticsEnabled) ||
@@ -128,19 +127,12 @@ export default function Home() {
             ))}
           </div>
 
-          {leagueOptions.length > 1 && (
-            <div className="mt-3 flex justify-center">
-              <Select
-                value={activeLeagueId != null ? String(activeLeagueId) : ""}
-                onValueChange={v => setActiveLeagueId(Number(v))}
-              >
-                <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue placeholder="Select League" /></SelectTrigger>
-                <SelectContent>
-                  {leagueOptions.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground" data-testid="hub-context-pickers">
+            <span className="text-[10px] uppercase tracking-widest">Competition</span>
+            <CompetitionPicker />
+            <span className="text-[10px] uppercase tracking-widest">Season</span>
+            <SeasonPicker />
+          </div>
         </div>
 
         {/* Four doors — the card itself is not a link (page chips inside would
@@ -194,10 +186,10 @@ export default function Home() {
         </div>
 
         {/* Archive — quiet, only when there's history */}
-        {leagueSeasons && leagueSeasons.filter(s => !s.isActive).length > 0 && (
+        {leagueSeasons.filter(s => s.id !== currentSeason?.id).length > 0 && (
           <p className="text-xs text-muted-foreground/60">
-            Archive:{" "}
-            {leagueSeasons.filter(s => !s.isActive).map(s => s.label).join(" · ")}
+            Other seasons:{" "}
+            {leagueSeasons.filter(s => s.id !== currentSeason?.id).map(s => s.label).join(" · ")}
           </p>
         )}
       </div>

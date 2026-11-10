@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { ensureNplb2026Structure } from "./lib/nplb2026";
 import { migrateGpsDevelopment } from "./lib/gpsDevelopmentMigration";
+import { ensureNplm2027Roster } from "./lib/nplm2027";
 
 /**
  * Idempotent schema upgrades that run on every boot, so deploying new code
@@ -1540,6 +1541,7 @@ async function runUserAccountsMigration(): Promise<void> {
   `);
 
   await migrateGpsDevelopment();
+  await ensureNplm2027Roster();
   const existing = await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
   if (existing.rows.length > 0) return;
   const initialPassword = process.env.ADMIN_PASSWORD;

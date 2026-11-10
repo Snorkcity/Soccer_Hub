@@ -1674,6 +1674,19 @@ export interface GpsReportEmailRequest {
   leagueId: number;
 }
 
+export interface SeasonRosterPlayer {
+  id: number;
+  seasonId: number;
+  leagueId: number;
+  leagueName: string;
+  year: string;
+  gpsLeagueId: number;
+  playerName: string;
+  squad: string;
+  positionCode: string;
+  ambiguousName: boolean;
+}
+
 export interface GpsSession {
   id: number;
   leagueId?: number;
@@ -4970,6 +4983,17 @@ matchId?: number;
 teamId?: number;
 seasonId?: number;
 scorerTeam?: string;
+};
+
+export type GetSeasonRosterParams = {
+/**
+ * @minimum 1
+ */
+leagueId: number;
+/**
+ * @pattern ^\d{4}$
+ */
+year: string;
 };
 
 export type ListGpsSessionsParams = {

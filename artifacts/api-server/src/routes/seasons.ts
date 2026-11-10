@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, seasonsTable, leaguesTable } from "@workspace/db";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, gte, or } from "drizzle-orm";
 import {
   ListSeasonsResponse,
   CreateSeasonBody,
@@ -97,9 +97,10 @@ router.get("/seasons", async (req, res): Promise<void> => {
     })
     .from(seasonsTable)
     .innerJoin(leaguesTable, eq(leaguesTable.id, seasonsTable.leagueId))
-    // Only active seasons are offered in the app; historical seasons (2024/2025)
-    // live in the legacy app until their data is brought across (per coach).
-    .where(eq(seasonsTable.isActive, true))
+    // Active is the default, not the visibility of an imported campaign.
+    // Keep 2024/25 legacy seasons hidden until brought across, while allowing
+    // the coach to switch between 2026 and the upcoming 2027 preseason.
+    .where(or(eq(seasonsTable.isActive, true), gte(seasonsTable.year, "2026")))
     .orderBy(asc(seasonsTable.leagueId), desc(seasonsTable.year));
   const visible = user ? rows.filter((s) => canSeeLeague(user, s.leagueId)) : [];
   res.json(ListSeasonsResponse.parse(visible));
