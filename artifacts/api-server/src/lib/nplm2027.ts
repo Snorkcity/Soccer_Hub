@@ -18,7 +18,7 @@ export const NPLM_2027_ROSTERS = [
   {
     league: "ACT NPLM U23", squad: "U23",
     players: [
-      ["R.Dahlerup", "GK"], ["C.Moir", "GK"], ["D.Paragalli", "CB"],
+      ["R.Dahlerup", "GK"], ["Cohen", "GK"], ["D.Paragalli", "CB"],
       ["I.Meneses", "CB"], ["Z.Peelgrane", "CB"], ["R.Priestly", "FB"],
       ["C.Walsh", "FB"], ["J.Kocanov", "CM"], ["D.Jember", "CM"],
       ["A.Atmakur", "CM"], ["N.Baird", "CM"], ["I.Uzabeaga", "AM/F"],
@@ -58,6 +58,18 @@ export async function ensureNplm2027Roster(): Promise<void> {
       const [season] = await tx.select().from(seasonsTable)
         .where(and(eq(seasonsTable.leagueId, league.id), eq(seasonsTable.year, "2027")));
       if (!season) continue;
+      if (roster.squad === "U23") {
+        // Coach-confirmed separate players: keep Conor as C.Moir in firsts,
+        // and name the U23 goalkeeper Cohen. Rename in place to retain his ID.
+        await tx.update(seasonRosterTable).set({ playerName: "Cohen" })
+          .where(and(
+            eq(seasonRosterTable.seasonId, season.id),
+            eq(seasonRosterTable.gpsLeagueId, hub.id),
+            eq(seasonRosterTable.squad, "U23"),
+            eq(seasonRosterTable.positionCode, "GK"),
+            eq(seasonRosterTable.playerName, "C.Moir"),
+          ));
+      }
       await tx.insert(seasonRosterTable).values(roster.players.map(([playerName, positionCode]) => ({
         seasonId: season.id, gpsLeagueId: hub.id, playerName,
         positionCode, squad: roster.squad,
