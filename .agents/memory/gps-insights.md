@@ -93,10 +93,10 @@ The coach manually reviews individual player activity graphs in Catapult's brows
 
 **How to apply:** distinguish source-session preparation in Catapult from analysis of the resulting GPS summaries in the Hub. Do not assume low activity necessarily means a player was off the pitch.
 
-## MPLM 2027 preseason training GPS
+## NPLM 2027 preseason training GPS
 
-The coach wants MPLM 2027 GPS insights to begin with training in November, before games and tables begin in March. A new spreadsheet will contain training statistics, with cut session parts named passing activation, technical activation, main part, and end game.
+The coach wants NPLM 2027 GPS insights to begin with training in November, before games and tables begin in March. Training exports use the same metrics as matches, but their segments are passing activation, technical activation, main part, end-game, and game. In these training exports, game means the full load of all four parts, not a competitive match.
 
 **Why:** the coach needs to analyse preseason training rather than wait for competitive fixtures.
 
-**How to apply:** inspect the supplied spreadsheet before deciding the import structure or charts. Do not assume training exports have first-half/second-half match segments.
+**How to apply:** inspect the supplied spreadsheet before deciding the import structure or charts. Do not assume training exports have first-half/second-half match segments, or classify a training session as a match just because its total row is named game.
