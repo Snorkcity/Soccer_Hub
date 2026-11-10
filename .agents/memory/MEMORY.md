@@ -32,7 +32,7 @@
 - [Athletic testing feature](athletic-testing.md) — trainer-xlsx upload (replace per year+team), percentile ties=100 convention, coach-voice game notes; charts exclude "Averages"/"Unknown" rows.
 - [GPS player identity merging](player-identities.md) — duplicate GPS names pool via gps_player_aliases at READ time (never rewrite raw rows); positions keyed by canonical; season-stats link table.
 - [Multi-club module provisioning](multi-club-provisioning.md) — future clubs won't have GPS/testing; modules are per-club flags chosen at club creation. Don't assume GPS is universal.
-- [Session planning app](session-planning.md) — next major module: 500-slide library → builder → canvas → AI; 4-part sessions, naming codes (D/A/T + P/CB/MB), cycle periodisation; slices agreed.
+- [Session planning app](session-planning.md) — superseded by separate Football Session Library & Builder; old roadmap is historical, not an active Hub dependency.
 - [Old session-plan import](plan-import.md) — 328 docx → practice_variations + picture practices; colour-agnostic image matching, sha overrides, per-file idempotent; Drizzle subquery-count gotcha.
 - [Practice library](practice-library.md) — slice 1 DONE: pptx→JSON→practices table→SVG renderer; seed preserves needs_review; no tsx runner (esbuild-bundle seeds); SVG markers/word-wrap gotchas.
 - [User accounts & league access](user-accounts.md) — real logins (scrypt, userId cookie); per-league admin/viewer; central seasonId/leagueId scoping in middleware; new write routes with odd scope params must self-check.

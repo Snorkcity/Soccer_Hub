@@ -1,9 +1,17 @@
 ---
 name: Session planning app — vision & domain model
-description: The next major BUFC Hub module — coach's slide library → structured practice library → session builder → canvas editor → AI assembly. Naming codes, session structure, PDF format.
+description: Historical Hub session-planning scope, superseded by the coach's separate Football Session Library & Builder app.
 ---
 
 # Session Planning app (next major module, agreed Jul 2026)
+
+## Current scope — superseded
+
+The coach says this app will no longer need Session Planner or Session Library because they have built a better separate Replit app, “Football Session Library & Builder”.
+
+**Why:** the user explicitly changed the product scope.
+
+**How to apply:** treat the roadmap below as historical, not work to resume. Do not build training GPS around the old Hub planner/library as dependencies. This statement alone is not approval to delete existing modules or saved data. Inspect the separate app only through access or material the user shares.
 
 ## Vision (coach's words, aligned)
 AI must use HER coaching knowledge (500-slide PowerPoint), never invent generic internet drills. Slides → structured data in Postgres. Builder assembles from library by age/numbers/focus/time. Canvas editor stores cones/players/areas as data points (movable/resizable). Saves NEVER overwrite master — new version into coach/club library; adaptations are learning signal. Long-term: modules interconnect into a "football operating system".

@@ -21,7 +21,7 @@ Keep the documents and the coach-approved review together. The training brief co
 - Preserve complete-session totals without adding them on top of their component rows. Combined rates must use the appropriate totals and duration, not an unweighted average of component rates.
 - Confirm Catapult's duration definition. Do not silently subtract quiet periods or coaching stoppages to inflate intensity.
 - Keep elite men's maximum-speed categories secondary and provisional, not validated grades or an initial prerequisite for useful training comparisons.
-- Do not require pitch dimensions, rules or practice descriptions at upload; optional exercise metadata and Session Planner links can come later.
+- Do not require pitch dimensions, rules or practice descriptions at upload; optional exercise metadata can come later. The coach has replaced the Hub planner/library with a separate “Football Session Library & Builder” app; do not make the old modules dependencies of training GPS.
 - Implement reliable imports and the initial session dashboard before historical heatmaps and more advanced drill-downs. Historical interpretation needs accumulating evidence.
 
 **Why:** the coach accepted the proposed review and asked to retain it with the supplied material.
