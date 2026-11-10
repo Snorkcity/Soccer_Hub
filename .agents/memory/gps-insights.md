@@ -100,3 +100,9 @@ The coach wants NPLM 2027 GPS insights to begin with training in November, befor
 **Why:** the coach needs to analyse preseason training rather than wait for competitive fixtures.
 
 **How to apply:** inspect the supplied spreadsheet before deciding the import structure or charts. Do not assume training exports have first-half/second-half match segments, or classify a training session as a match just because its total row is named game.
+
+The coach's primary training-analysis goal is to understand whether the sessions they design produce physical actions relevant to weekend matches. They also want group and individual comparisons across the four parts, including players changing relative standing between parts, with defender, midfielder, forward and goalkeeper comparisons.
+
+**Why:** the coach wants evidence about session design and each player's response, not only whole-session totals.
+
+**How to apply:** explain metric-specific output and intensity rather than labelling rank as effort. Keep the four-part group pattern and individual/positional differences visible. Treat match-load comparison as context, not an injury prediction or a universal training target.
