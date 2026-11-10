@@ -112,3 +112,9 @@ The coach approved four-part group/player lines, relative-standing views, metric
 **Why:** the coach clarified that the 50% example was descriptive, not a target: transition sessions may produce high running outputs, while build-up sessions may have more stoppages. They delegate useful chart choices to the agent.
 
 **How to apply:** retain session focus as interpretation context, not an assumed physical result. Provide full-session and individual-part analysis, plus positional comparisons. Do not promise heart-rate analysis until the export confirms those fields are available.
+
+For NPLM 2027, the coach anticipates using first initial plus full surname to reduce name clashes and may supply a squad list before match reports are available.
+
+**Why:** the coach said this year's naming would likely use that convention to avoid clashes.
+
+**How to apply:** confirm the export naming before implementation and keep roster, GPS and match identities consistent. Do not retroactively rename prior seasons or automatically merge two players who share both first initial and surname.
