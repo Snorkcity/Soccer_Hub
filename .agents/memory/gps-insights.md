@@ -106,3 +106,9 @@ The coach's primary training-analysis goal is to understand whether the sessions
 **Why:** the coach wants evidence about session design and each player's response, not only whole-session totals.
 
 **How to apply:** explain metric-specific output and intensity rather than labelling rank as effort. Keep the four-part group pattern and individual/positional differences visible. Treat match-load comparison as context, not an injury prediction or a universal training target.
+
+The coach approved four-part group/player lines, relative-standing views, metric-specific match context, and standalone player comparisons for each practice part. Initial metric priorities are distance, high-speed metres, very-high-speed metres and accelerations; refine their importance after inspecting actual exports. Training charts do not need to mirror the match charts.
+
+**Why:** the coach clarified that the 50% example was descriptive, not a target: transition sessions may produce high running outputs, while build-up sessions may have more stoppages. They delegate useful chart choices to the agent.
+
+**How to apply:** retain session focus as interpretation context, not an assumed physical result. Provide full-session and individual-part analysis, plus positional comparisons. Do not promise heart-rate analysis until the export confirms those fields are available.
