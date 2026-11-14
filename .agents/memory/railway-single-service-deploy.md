@@ -19,13 +19,18 @@ This app is normally hosted on Replit, where the platform router serves the Vite
 **DB wiring:**
 - Live app → Postgres-Prod via **internal** ref `${{Postgres-Prod.DATABASE_URL}}` (private, free egress). App also needs `PORT` set (it hard-throws without it; Railway magic-port detection alone is unreliable).
 - Dev & prod are **separate** Railway Postgres instances; each must be seeded independently — data never flows between them.
-- Seeding prod from Replit is a one-off using its **public** URL (`DATABASE_PUBLIC_URL`), passed inline as `DEV_DATABASE_URL=<prod-public-url>` to `drizzle-kit push` + the seed script (shell is non-production, so the lib picks up `DEV_DATABASE_URL`). Rotate the prod password afterward.
+- For approved private imports, explicitly select the external target: `DEV_DATABASE_URL` for development and `PROD_DATABASE_URL` for production. Do not disguise the production target as development or print connection strings.
 
 ## Deploy gotchas learned Jul 2026 push
 - Railway health check hits /api/healthz UNAUTHENTICATED — the requireSession gate must whitelist it (a 401 fails the deploy with "service unavailable" retries even though the server is up).
 - Server only listens AFTER startup migrations: any slow data sync before listen eats into the healthcheck window (now 300s). Batch inserts (jsonb_to_recordset) — row-at-a-time over the network blew the 120s window.
 - Practice-library data reaches prod via committed snapshot lib/db/src/data/library-sync.json + one-shot startup sync gated by seed_markers key (bump SYNC_VERSION after regenerating snapshot from dev). No prod DB URL needed anymore.
-- Prod service vars: DATABASE_URL, PORT, ADMIN_PASSWORD, SESSION_SECRET (coach manages these himself in Railway; changing SESSION_SECRET logs everyone out — useful kill-switch). OPENAI_API_KEY still NOT set — screenshot reader inactive in prod until added.
+- Railway credentials are managed separately from Replit secrets. Changing SESSION_SECRET invalidates signed sessions; do not assume dev and live credentials are interchangeable.
 
-## Dev→prod data carry-over (Jul 2026)
-- No prod credentials work from Replit: Railway ADMIN_PASSWORD and SESSION_SECRET differ from dev's (coach manages them), so the prod API can't be driven from here and no prod DB URL is held. Moving data prod-ward = ship a snapshot JSON (lib/db/src/data/*.json) + marker-gated one-shot sync in api-server startupMigrations (pattern: rounds-sync). Skip-if-exists per fixture keeps it add-only; anchor season/team by joining seasons.year='2026' (seasons.year is TEXT), never LIMIT 1 without a season filter.
+## Private data and public release source
+
+The GitHub source repository is public. Do not commit uploaded GPS CSVs, parsed player measurements, database exports or private coaching records as deployment seed files. Keep private data in the database and use an approved private import after the schema is deployed. Generic import code and synthetic regression fixtures can be public.
+
+**Why:** the public repository boundary is separate from the signed-in application's club privacy; embedding data in a startup snapshot would bypass that privacy.
+
+**How to apply:** inspect staged paths before release and preserve the ignored uploaded/generated-output directories. Resolve the target competition, campaign, club and roster identities in the destination database; never transplant development IDs. Private one-off imports must be additive and refuse to overwrite existing sessions. Historical committed snapshots are not permission to publish newly supplied private measurements.

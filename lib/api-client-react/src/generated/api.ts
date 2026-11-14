@@ -201,6 +201,7 @@ import type {
   ListGpsMatchReportsParams,
   ListGpsOpponentMismatchesParams,
   ListGpsSessionsParams,
+  ListGpsTrainingParams,
   ListJournalCyclesParams,
   ListJournalReflectionsParams,
   ListLeagueMatchesParams,
@@ -272,6 +273,10 @@ import type {
   Team,
   TeamForm,
   TeamInput,
+  TrainingGpsImportInput,
+  TrainingGpsPlanInput,
+  TrainingGpsPreview,
+  TrainingGpsSession,
   UnitBreakdownResponse,
   UpdateProfileRequest,
   UpdateUserRequest,
@@ -2141,6 +2146,304 @@ export function useGetSeasonRoster<TData = Awaited<ReturnType<typeof getSeasonRo
 
 
 
+
+export const getListGpsTrainingUrl = (params: ListGpsTrainingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gps-training?${stringifiedParams}` : `/api/gps-training`
+}
+
+/**
+ * @summary Training sessions and recorded parts for the authenticated club
+ */
+export const listGpsTraining = async (params: ListGpsTrainingParams, options?: RequestInit): Promise<TrainingGpsSession[]> => {
+
+  return customFetch<TrainingGpsSession[]>(getListGpsTrainingUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGpsTrainingQueryKey = (params?: ListGpsTrainingParams,) => {
+    return [
+    `/api/gps-training`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGpsTrainingQueryOptions = <TData = Awaited<ReturnType<typeof listGpsTraining>>, TError = ErrorType<void>>(params: ListGpsTrainingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsTraining>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGpsTrainingQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGpsTraining>>> = ({ signal }) => listGpsTraining(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGpsTraining>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGpsTrainingQueryResult = NonNullable<Awaited<ReturnType<typeof listGpsTraining>>>
+export type ListGpsTrainingQueryError = ErrorType<void>
+
+
+/**
+ * @summary Training sessions and recorded parts for the authenticated club
+ */
+
+export function useListGpsTraining<TData = Awaited<ReturnType<typeof listGpsTraining>>, TError = ErrorType<void>>(
+ params: ListGpsTrainingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGpsTraining>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGpsTrainingQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewGpsTrainingUrl = () => {
+
+
+
+
+  return `/api/entry/gps-training/preview`
+}
+
+/**
+ * @summary Validate a training CSV without saving or replacing anything
+ */
+export const previewGpsTraining = async (trainingGpsImportInput: TrainingGpsImportInput, options?: RequestInit): Promise<TrainingGpsPreview> => {
+
+  return customFetch<TrainingGpsPreview>(getPreviewGpsTrainingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(trainingGpsImportInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewGpsTrainingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext> => {
+
+const mutationKey = ['previewGpsTraining'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewGpsTraining>>, {data: BodyType<TrainingGpsImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewGpsTraining(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewGpsTrainingMutationResult = NonNullable<Awaited<ReturnType<typeof previewGpsTraining>>>
+    export type PreviewGpsTrainingMutationBody = BodyType<TrainingGpsImportInput>
+    export type PreviewGpsTrainingMutationError = ErrorType<void>
+
+    /**
+ * @summary Validate a training CSV without saving or replacing anything
+ */
+export const usePreviewGpsTraining = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewGpsTraining>>,
+        TError,
+        {data: BodyType<TrainingGpsImportInput>},
+        TContext
+      > => {
+      return useMutation(getPreviewGpsTrainingMutationOptions(options));
+    }
+
+export const getSaveGpsTrainingUrl = () => {
+
+
+
+
+  return `/api/entry/gps-training`
+}
+
+/**
+ * @summary Import one training session with explicit versioned replacement
+ */
+export const saveGpsTraining = async (trainingGpsImportInput: TrainingGpsImportInput, options?: RequestInit): Promise<TrainingGpsSession> => {
+
+  return customFetch<TrainingGpsSession>(getSaveGpsTrainingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(trainingGpsImportInput)
+  }
+);}
+
+
+
+
+
+export const getSaveGpsTrainingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext> => {
+
+const mutationKey = ['saveGpsTraining'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveGpsTraining>>, {data: BodyType<TrainingGpsImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveGpsTraining(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveGpsTrainingMutationResult = NonNullable<Awaited<ReturnType<typeof saveGpsTraining>>>
+    export type SaveGpsTrainingMutationBody = BodyType<TrainingGpsImportInput>
+    export type SaveGpsTrainingMutationError = ErrorType<void>
+
+    /**
+ * @summary Import one training session with explicit versioned replacement
+ */
+export const useSaveGpsTraining = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveGpsTraining>>, TError,{data: BodyType<TrainingGpsImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveGpsTraining>>,
+        TError,
+        {data: BodyType<TrainingGpsImportInput>},
+        TContext
+      > => {
+      return useMutation(getSaveGpsTrainingMutationOptions(options));
+    }
+
+export const getUpdateGpsTrainingPlanUrl = (id: number,) => {
+
+
+
+
+  return `/api/entry/gps-training/${id}/plan`
+}
+
+/**
+ * @summary Save optional coaching time allowances for this session
+ */
+export const updateGpsTrainingPlan = async (id: number,
+    trainingGpsPlanInput: TrainingGpsPlanInput, options?: RequestInit): Promise<TrainingGpsSession> => {
+
+  return customFetch<TrainingGpsSession>(getUpdateGpsTrainingPlanUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(trainingGpsPlanInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateGpsTrainingPlanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGpsTrainingPlan>>, TError,{id: number;data: BodyType<TrainingGpsPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGpsTrainingPlan>>, TError,{id: number;data: BodyType<TrainingGpsPlanInput>}, TContext> => {
+
+const mutationKey = ['updateGpsTrainingPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGpsTrainingPlan>>, {id: number;data: BodyType<TrainingGpsPlanInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGpsTrainingPlan(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGpsTrainingPlanMutationResult = NonNullable<Awaited<ReturnType<typeof updateGpsTrainingPlan>>>
+    export type UpdateGpsTrainingPlanMutationBody = BodyType<TrainingGpsPlanInput>
+    export type UpdateGpsTrainingPlanMutationError = ErrorType<void>
+
+    /**
+ * @summary Save optional coaching time allowances for this session
+ */
+export const useUpdateGpsTrainingPlan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGpsTrainingPlan>>, TError,{id: number;data: BodyType<TrainingGpsPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGpsTrainingPlan>>,
+        TError,
+        {id: number;data: BodyType<TrainingGpsPlanInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateGpsTrainingPlanMutationOptions(options));
+    }
 
 export const getListGpsSessionsUrl = (params: ListGpsSessionsParams,) => {
   const normalizedParams = new URLSearchParams();

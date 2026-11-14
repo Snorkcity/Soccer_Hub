@@ -100,6 +100,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Lock, LogOut, CheckCircle2, AlertTriangle, Trash2, Pencil, Plus, Upload, Loader2, ScanText, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
+import { GpsImportChooser } from "@/components/training-gps/GpsImportChooser";
+import { isTrainingGpsText } from "@/components/training-gps/detect";
+import { useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import { NoAccess } from "@/components/NoAccess";
 
@@ -2432,7 +2435,7 @@ function excelDateToDmy(v: unknown): string | null {
   return null;
 }
 
-function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number }) {
+function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: number; leagueId: number; onTrainingDetected?: () => void }) {
   const [matchDate, setMatchDate] = useState("");
   const [roundCode, setRoundCode] = useState("");
   const [squad, setSquad] = useState<string>("1sts");
@@ -2475,11 +2478,21 @@ function GpsUploadForm({ teamId, leagueId }: { teamId: number; leagueId: number 
     setOpponent(f.opponent);
   };
 
+  function rejectTraining(text: string): boolean {
+    if (!isTrainingGpsText(text)) return false;
+    setEntries([]); setOk(null);
+    setErr("This looks like a training export (warm-up / passing / technical / main / end game parts). Upload it as Training GPS instead.");
+    onTrainingDetected?.();
+    return true;
+  }
+
   async function handleFile(file: File) {
+    if (/\.csv$/i.test(file.name) && rejectTraining(await file.text())) return;
     await parseInput(() => file.arrayBuffer(), file.name);
   }
 
   async function handlePaste(text: string) {
+    if (rejectTraining(text)) return;
     await parseInput(async () => text, "pasted rows");
   }
 
@@ -3629,6 +3642,8 @@ function DriblNameMapCard({ seasonId, clubs, defaultClub }: {
   );
 }
 function EntryWorkspace() {
+  const searchParams = new URLSearchParams(useSearch());
+  const initialTab = searchParams.get("tab") ?? "match";
   const queryClient = useQueryClient();
   const { data: teams } = useListTeams();
   const { data: allSeasons } = useListSeasons();
@@ -3730,7 +3745,7 @@ function EntryWorkspace() {
         </p>
       )}
 
-      <Tabs defaultValue="match" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="flex w-full flex-wrap h-auto gap-1">
           {driblAvailable && <TabsTrigger value="dribl">Dribl Sync</TabsTrigger>}
           <TabsTrigger value="match">1 · Match</TabsTrigger>
@@ -3779,7 +3794,7 @@ function EntryWorkspace() {
           <TestingUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="gps" className="mt-6">
-          <GpsUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
+          <GpsImportChooser leagueId={season?.leagueId ?? 0} year={season?.year ?? null} renderMatch={toTraining => <GpsUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} onTrainingDetected={toTraining} />} />
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
           <PositionsForm key={season?.leagueId ?? 0} leagueId={season?.leagueId ?? 0} />

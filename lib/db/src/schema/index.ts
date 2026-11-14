@@ -1,3 +1,4 @@
+export * from "./gpsTraining";
 export * from "./leagues";
 export * from "./players";
 export * from "./teams";

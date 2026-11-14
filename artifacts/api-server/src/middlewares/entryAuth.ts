@@ -217,6 +217,7 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/entry/athletic-tests", "testing"], // trainer xlsx upload lives under /entry
   ["/entry/gps-sessions", "gps"],       // GPS import lives under /entry too
   ["/entry/gps-uploads", "gps"],        // GPS upload management (list/fix/delete)
+  ["/entry/gps-training", "gps"],
   ["/entry", "data-entry"],
   ["/journal/prematch-brief", "match-prep"],   // Match Prep report briefs live
   ["/journal/prematch-talk", "match-prep"],    // Friday team-talk drafting too
@@ -228,6 +229,7 @@ const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
   ["/assistant", "assistant"],
 
   ["/gps-sessions", "gps"],
+  ["/gps-training", "gps"],
   ["/gps-development", "gps"],
   ["/gps-player-positions", "gps"],
   ["/gps-player-emails", "gps"],  // route additionally enforces admin-only (minors' emails)

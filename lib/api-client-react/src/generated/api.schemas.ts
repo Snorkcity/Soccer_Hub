@@ -5,6 +5,129 @@
  * Belconnen United FC Performance Hub API
  * OpenAPI spec version: 0.1.0
  */
+export type TrainingGpsPart = typeof TrainingGpsPart[keyof typeof TrainingGpsPart];
+
+
+export const TrainingGpsPart = {
+  recording: 'recording',
+  warmup: 'warmup',
+  passing: 'passing',
+  technical: 'technical',
+  main: 'main',
+  end: 'end',
+} as const;
+
+export type TrainingGpsRowMetrics = {[key: string]: number | null};
+
+export interface TrainingGpsRow {
+  playerName: string;
+  sourceName: string;
+  /** @nullable */
+  rosterId: number | null;
+  /** @nullable */
+  squad: string | null;
+  /** @nullable */
+  positionCode: string | null;
+  part: TrainingGpsPart;
+  sourceSplit: string;
+  /** @nullable */
+  startSeconds: number | null;
+  /** @nullable */
+  endSeconds: number | null;
+  /** @nullable */
+  durationSeconds: number | null;
+  metrics: TrainingGpsRowMetrics;
+}
+
+export interface TrainingGpsAllowance {
+  part: TrainingGpsPart;
+  /**
+     * @minimum 0
+     * @maximum 240
+     */
+  minMinutes: number;
+  /**
+     * @minimum 0
+     * @maximum 240
+     */
+  maxMinutes: number;
+}
+
+export interface TrainingGpsSession {
+  /** @nullable */
+  id: number | null;
+  leagueId: number;
+  year: string;
+  date: string;
+  title: string;
+  sourceFilename: string;
+  sourceHash: string;
+  version: number;
+  plannedMinutes: number;
+  /** @nullable */
+  scheduledStartTime: string | null;
+  allowances: TrainingGpsAllowance[];
+  rows: TrainingGpsRow[];
+  warnings: string[];
+}
+
+export interface TrainingGpsPlayerMapping {
+  /** @minLength 1 */
+  sourceName: string;
+  /** @minimum 1 */
+  rosterId: number;
+}
+
+export interface TrainingGpsImportInput {
+  /** @minimum 1 */
+  leagueId: number;
+  /** @pattern ^\d{4}$ */
+  year: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000000
+     */
+  csv: string;
+  /** @maxLength 200 */
+  sourceFilename?: string;
+  playerMappings?: TrainingGpsPlayerMapping[];
+  allowUnmatched?: boolean;
+  replace?: boolean;
+  /** @minimum 1 */
+  expectedVersion?: number;
+}
+
+export interface TrainingGpsPreview {
+  session: TrainingGpsSession;
+  unmatchedNames: string[];
+  ambiguousNames: string[];
+  /** @nullable */
+  existingId: number | null;
+  /** @nullable */
+  existingVersion: number | null;
+  identical: boolean;
+}
+
+export interface TrainingGpsPlanInput {
+  /** @minimum 1 */
+  leagueId: number;
+  /** @pattern ^\d{4}$ */
+  year: string;
+  /** @minimum 1 */
+  expectedVersion: number;
+  /**
+     * @minimum 1
+     * @maximum 240
+     */
+  plannedMinutes: number;
+  /**
+     * @nullable
+     * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+     */
+  scheduledStartTime: string | null;
+  allowances: TrainingGpsAllowance[];
+}
+
 export interface AssistantMatchOption {
   id: number;
   leagueId: number;
@@ -4986,6 +5109,17 @@ scorerTeam?: string;
 };
 
 export type GetSeasonRosterParams = {
+/**
+ * @minimum 1
+ */
+leagueId: number;
+/**
+ * @pattern ^\d{4}$
+ */
+year: string;
+};
+
+export type ListGpsTrainingParams = {
 /**
  * @minimum 1
  */

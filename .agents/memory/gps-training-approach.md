@@ -15,7 +15,7 @@ Keep the documents and the coach-approved review together. The training brief co
 
 **Why:** the coach asked to keep the training brief and our discussion together and asked about their earlier methodology document.
 
-**How to apply:** consult the source documents and linked policies before implementing training analytics. The sample export has now been supplied; implementation approval is still separate from reading and discussing it.
+**How to apply:** consult the source documents and linked policies when extending training analytics. The coach subsequently approved the first implementation, including CSV ingestion and Player, Team and Coach views; do not treat every suggestion in the source briefs as approved scope.
 
 ## Additional refinements approved in the training-brief review
 
@@ -73,3 +73,11 @@ Training CSV ingestion belongs in the existing GPS ingestion section of Data Ent
 **Why:** the coach explicitly directed that the existing GPS Data Entry workflow should support training CSVs too.
 
 **How to apply:** extend that workflow with training-aware identification, split mapping and review while preserving existing match uploads. Keep campaign season separate from the actual session date and training measurements out of match-only analysis and Gref.
+
+## Whole-session Player chart
+
+The Player tab must include a prominent overall session chart across tracked dates, not just charts for individual practice components.
+
+**Why:** when approving implementation, the coach specifically emphasised “for sure an overall chart, not just the individual element charts.”
+
+**How to apply:** retain the overall view alongside the five-part comparisons and component drill-downs. Compute overall output from the selected parts, disclose incomplete totals, and do not substitute the untrimmed source recording.

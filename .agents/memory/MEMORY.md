@@ -18,7 +18,7 @@
 - [Recharts Fragment children gotcha](recharts-fragment-children.md) — Recharts ignores Bar/axis elements wrapped in a React Fragment; symptom is axes/labels render but no bars and no value-axis ticks. Keep them direct children.
 - [attached_assets nested git repos](attached-assets-nested-git.md) — imported reference apps arrive as embedded git repos (gitlinks, read-only 555 dirs); chmod u+w → rm .git → git rm --cached → re-add to flatten for pushing.
 - [Replit runtime-managed DATABASE_URL vs Railway](replit-db-url-runtime-managed.md) — DATABASE_URL reserved; DEV_DATABASE_URL = dev DB; PROD_DATABASE_URL secret = direct psql to prod (prod is GPS source of truth, dev is stale).
-- [Railway single-service deployment](railway-single-service-deploy.md) — on Railway the api-server serves the built frontend (prod-gated); NODE_ENV=production ONLY in start command (else build skips devDeps); dev/prod DBs seeded independently.
+- [Railway deployment](railway-single-service-deploy.md) — production-only combined server; set NODE_ENV only at start; keep private GPS data out of public release source.
 - [Last N rounds windowing](lastn-rounds-windowing.md) — lastN means rounds, not matches: single-club = top-N matches by date; league-wide (__ALL__) = all matches on the N most-recent distinct dates.
 - [Combo threat chart](combo-threat-chart.md) — assist→scorer partnership chart shared by Team + Opponent tabs; /analytics/goal-combos (team, roster attrib) + /analytics/opponent-goal-combos (league tables); buildCombos() excludes OG/unassisted/self-assist.
 - [Player Scoring DNA radar](player-dna-chart.md) — 9-spoke radar on Player tab (BUFC) AND Opponent tab (league_player_stats has minutes for every club); shared computeDnaResponse; per-90 max floor, OG exclusion.

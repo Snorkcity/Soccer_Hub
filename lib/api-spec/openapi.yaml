@@ -520,6 +520,82 @@ paths:
         "403":
           description: No access to this competition
 
+  /gps-training:
+    get:
+      operationId: listGpsTraining
+      tags: [gps]
+      summary: Training sessions and recorded parts for the authenticated club
+      parameters:
+        - { name: leagueId, in: query, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: year, in: query, required: true, schema: { type: string, pattern: '^\d{4}$' } }
+      responses:
+        "200":
+          description: Training sessions, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrainingGpsSession" }
+        "403": { description: No GPS access }
+  /entry/gps-training/preview:
+    post:
+      operationId: previewGpsTraining
+      tags: [gps]
+      summary: Validate a training CSV without saving or replacing anything
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrainingGpsImportInput" }
+      responses:
+        "200":
+          description: Parsed session, warnings and replacement status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingGpsPreview" }
+        "400": { description: Invalid CSV or season }
+        "403": { description: No write access }
+  /entry/gps-training:
+    post:
+      operationId: saveGpsTraining
+      tags: [gps]
+      summary: Import one training session with explicit versioned replacement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrainingGpsImportInput" }
+      responses:
+        "200":
+          description: Saved training session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingGpsSession" }
+        "400": { description: Invalid CSV or unconfirmed names }
+        "403": { description: No write access }
+        "409": { description: Session already exists or changed since preview }
+  /entry/gps-training/{id}/plan:
+    patch:
+      operationId: updateGpsTrainingPlan
+      tags: [gps]
+      summary: Save optional coaching time allowances for this session
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrainingGpsPlanInput" }
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingGpsSession" }
+        "400": { description: Invalid plan }
+        "404": { description: Session not found in this scope }
+        "409": { description: Session changed since it was opened }
+
   # ─── GPS SESSIONS ───────────────────────────────────────────────────────────
 
   /gps-sessions:
@@ -3929,6 +4005,98 @@ paths:
 
 components:
   schemas:
+    TrainingGpsPart:
+      type: string
+      enum: [recording, warmup, passing, technical, main, end]
+    TrainingGpsRow:
+      type: object
+      required: [playerName, sourceName, rosterId, squad, positionCode, part, sourceSplit, startSeconds, endSeconds, durationSeconds, metrics]
+      properties:
+        playerName: { type: string }
+        sourceName: { type: string }
+        rosterId: { type: [integer, "null"] }
+        squad: { type: [string, "null"] }
+        positionCode: { type: [string, "null"] }
+        part: { $ref: "#/components/schemas/TrainingGpsPart" }
+        sourceSplit: { type: string }
+        startSeconds: { type: [number, "null"] }
+        endSeconds: { type: [number, "null"] }
+        durationSeconds: { type: [number, "null"] }
+        metrics:
+          type: object
+          additionalProperties: { type: [number, "null"] }
+    TrainingGpsAllowance:
+      type: object
+      required: [part, minMinutes, maxMinutes]
+      properties:
+        part: { $ref: "#/components/schemas/TrainingGpsPart" }
+        minMinutes: { type: number, minimum: 0, maximum: 240 }
+        maxMinutes: { type: number, minimum: 0, maximum: 240 }
+    TrainingGpsSession:
+      type: object
+      required: [id, leagueId, year, date, title, sourceFilename, sourceHash, version, plannedMinutes, scheduledStartTime, allowances, rows, warnings]
+      properties:
+        id: { type: [integer, "null"] }
+        leagueId: { type: integer }
+        year: { type: string }
+        date: { type: string }
+        title: { type: string }
+        sourceFilename: { type: string }
+        sourceHash: { type: string }
+        version: { type: integer }
+        plannedMinutes: { type: number }
+        scheduledStartTime: { type: [string, "null"] }
+        allowances:
+          type: array
+          items: { $ref: "#/components/schemas/TrainingGpsAllowance" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/TrainingGpsRow" }
+        warnings:
+          type: array
+          items: { type: string }
+    TrainingGpsPlayerMapping:
+      type: object
+      required: [sourceName, rosterId]
+      properties:
+        sourceName: { type: string, minLength: 1 }
+        rosterId: { type: integer, minimum: 1 }
+    TrainingGpsImportInput:
+      type: object
+      required: [leagueId, year, csv]
+      properties:
+        leagueId: { type: integer, minimum: 1 }
+        year: { type: string, pattern: '^\d{4}$' }
+        csv: { type: string, minLength: 1, maxLength: 5000000 }
+        sourceFilename: { type: string, maxLength: 200 }
+        playerMappings:
+          type: array
+          items: { $ref: "#/components/schemas/TrainingGpsPlayerMapping" }
+        allowUnmatched: { type: boolean, default: false }
+        replace: { type: boolean, default: false }
+        expectedVersion: { type: integer, minimum: 1 }
+    TrainingGpsPreview:
+      type: object
+      required: [session, unmatchedNames, ambiguousNames, existingId, existingVersion, identical]
+      properties:
+        session: { $ref: "#/components/schemas/TrainingGpsSession" }
+        unmatchedNames: { type: array, items: { type: string } }
+        ambiguousNames: { type: array, items: { type: string } }
+        existingId: { type: [integer, "null"] }
+        existingVersion: { type: [integer, "null"] }
+        identical: { type: boolean }
+    TrainingGpsPlanInput:
+      type: object
+      required: [leagueId, year, expectedVersion, plannedMinutes, scheduledStartTime, allowances]
+      properties:
+        leagueId: { type: integer, minimum: 1 }
+        year: { type: string, pattern: '^\d{4}$' }
+        expectedVersion: { type: integer, minimum: 1 }
+        plannedMinutes: { type: number, minimum: 1, maximum: 240 }
+        scheduledStartTime: { type: [string, "null"], pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        allowances:
+          type: array
+          items: { $ref: "#/components/schemas/TrainingGpsAllowance" }
     AssistantMatchOption:
       type: object
       required: [id, leagueId, matchId, opponent]

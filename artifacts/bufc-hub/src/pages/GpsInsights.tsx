@@ -37,6 +37,8 @@ import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
 import { PlayerDevelopmentTab } from "@/components/gps-development/PlayerDevelopmentTab";
 import { SectionGroup } from "@/components/SectionGroup";
+import { TrainingView } from "@/components/training-gps/TrainingView";
+import { useSearch } from "wouter";
 import { canonicalGpsMatchSplit, gpsPeriodMinutes, gpsPeriodTotal } from "@workspace/api-zod";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,6 +236,8 @@ export default function GpsInsights() {
     if (campaignYear) setYear(campaignYear);
   }
   const [activeTab, setActiveTab] = useState("player");
+  const search = useSearch();
+  const [view, setView] = useState<"matches" | "training">(() => new URLSearchParams(search).get("view") === "training" ? "training" : "matches");
   const { hasModule, ready } = useLeagueModules();
 
   // Meta query includes period-only matches too, so rounds remain discoverable
@@ -259,6 +263,16 @@ export default function GpsInsights() {
         </Select>
       </div>
 
+      <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
+        {(["matches", "training"] as const).map(v => (
+          <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`button-gps-view-${v}`}
+            className={`rounded-md px-5 py-1.5 text-sm font-medium transition-colors ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {v === "matches" ? "Matches" : "Training"}
+          </button>
+        ))}
+      </div>
+
+      {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} /> : <>
       <OpponentMismatchWarning year={year} />
 
       <SeasonRosterPanel key={`${activeLeagueId}-${year}`} leagueId={activeLeagueId} year={year} />
@@ -287,6 +301,7 @@ export default function GpsInsights() {
           </TabsContent>
         </Tabs>
       )}
+      </>}
     </div>
   );
 }

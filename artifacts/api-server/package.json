@@ -19,18 +19,22 @@
     "test:nplb-borrowing": "node scripts/test-nplb-borrowing.mjs",
     "test:assistant-coaching": "node scripts/test-assistant-coaching.mjs",
     "test:curriculum": "node scripts/test-curriculum-management.mjs",
-    "test:curriculum-api": "node scripts/test-curriculum-api.mjs"
+    "test:curriculum-api": "node scripts/test-curriculum-api.mjs",
+    "test:gps-training": "esbuild src/lib/gpsTraining.test.ts --bundle --platform=node --format=esm --outfile=../../generated-artifacts/tests/gps-training.test.mjs && cd ../.. && node --test generated-artifacts/tests/gps-training.test.mjs",
+    "test:gps-training-api": "cd ../.. && node artifacts/api-server/scripts/test-training-api.mjs",
+    "test:gps-training-ui": "esbuild ../bufc-hub/scripts/training-gps.test.ts --bundle --platform=node --format=esm --outfile=../../generated-artifacts/tests/training-ui.test.mjs && cd ../.. && node --test generated-artifacts/tests/training-ui.test.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
-    "zod": "catalog:",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "csv-parse": "^7.0.1",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "pino": "^9.14.0",
-    "pino-http": "^10.5.0"
+    "pino-http": "^10.5.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

@@ -40,6 +40,9 @@ app.use("/api/journal/interview", express.json({ limit: "25mb" }));
 app.use("/api/library/practices/upload", requireSession, express.json({ limit: "25mb" }));
 // Bulk report emailing posts the built PPTX as base64 — auth first, then big parser.
 app.use("/api/gps-report-email", requireSession, express.json({ limit: "25mb" }));
+// CSV text is validated again by the training importer (5MB source limit).
+// Gate oversized payload parsing behind authentication like other uploads.
+app.use("/api/entry/gps-training", requireSession, express.json({ limit: "12mb" }));
 app.use("/api/match-report-email", requireSession, express.json({ limit: "25mb" }));
 // Curriculum document uploads carry base64 DOCX — auth first, then 25 MB parser.
 app.use("/api/curriculum-documents", requireSession, express.json({ limit: "25mb" }));

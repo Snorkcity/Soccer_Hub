@@ -10,9 +10,9 @@ export const NPLM_2027_ROSTERS = [
     players: [
       ["J.Smith", "GK"], ["S.Paragalli", "CB"], ["Z.Maybury", "CB"],
       ["I.Clements", "CB"], ["C.Moir", "FB"], ["J.Prior", "FB"],
-      ["N.Pulician", "FB"], ["H.Billington", "CM"], ["I.Majetic", "CM"],
+      ["N.Pulciani", "FB"], ["H.Billington", "CM"], ["I.Majetic", "CM"],
       ["Z.Colson", "CM"], ["T.Dorji", "F"], ["J.Bishop", "F"],
-      ["T.Ringhi", "F"], ["J.Mikhael", "F"], ["B.Dickenson", "D"],
+      ["T.Ringi", "F"], ["J.Mikhael", "F"], ["B.Dickenson", "D"],
     ],
   },
   {
@@ -58,6 +58,19 @@ export async function ensureNplm2027Roster(): Promise<void> {
       const [season] = await tx.select().from(seasonsTable)
         .where(and(eq(seasonsTable.leagueId, league.id), eq(seasonsTable.year, "2027")));
       if (!season) continue;
+      if (roster.squad === "1sts") {
+        // Coach-confirmed spellings; rename the existing roster entries
+        // without changing identity, grade, position or historical GPS rows.
+        for (const [before, after] of [["N.Pulician", "N.Pulciani"], ["T.Ringhi", "T.Ringi"]]) {
+          await tx.update(seasonRosterTable).set({ playerName: after })
+            .where(and(
+              eq(seasonRosterTable.seasonId, season.id),
+              eq(seasonRosterTable.gpsLeagueId, hub.id),
+              eq(seasonRosterTable.squad, "1sts"),
+              eq(seasonRosterTable.playerName, before),
+            ));
+        }
+      }
       if (roster.squad === "U23") {
         // Coach-confirmed separate players: keep Conor as C.Moir in firsts,
         // and name the U23 goalkeeper Cohen. Rename in place to retain his ID.

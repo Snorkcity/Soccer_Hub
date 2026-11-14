@@ -668,6 +668,285 @@ export const GetSeasonRosterResponse = zod.array(GetSeasonRosterResponseItem)
 
 
 /**
+ * @summary Training sessions and recorded parts for the authenticated club
+ */
+
+export const listGpsTrainingQueryYearRegExp = new RegExp('^\\d{4}$');
+
+
+export const ListGpsTrainingQueryParams = zod.object({
+  "leagueId": zod.coerce.number().min(1),
+  "year": zod.coerce.string().regex(listGpsTrainingQueryYearRegExp)
+})
+
+export const listGpsTrainingResponseAllowancesItemMinMinutesMin = 0;
+export const listGpsTrainingResponseAllowancesItemMinMinutesMax = 240;
+
+export const listGpsTrainingResponseAllowancesItemMaxMinutesMin = 0;
+export const listGpsTrainingResponseAllowancesItemMaxMinutesMax = 240;
+
+
+
+export const ListGpsTrainingResponseItem = zod.object({
+  "id": zod.number().nullable(),
+  "leagueId": zod.number(),
+  "year": zod.string(),
+  "date": zod.string(),
+  "title": zod.string(),
+  "sourceFilename": zod.string(),
+  "sourceHash": zod.string(),
+  "version": zod.number(),
+  "plannedMinutes": zod.number(),
+  "scheduledStartTime": zod.string().nullable(),
+  "allowances": zod.array(zod.object({
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "minMinutes": zod.number().min(listGpsTrainingResponseAllowancesItemMinMinutesMin).max(listGpsTrainingResponseAllowancesItemMinMinutesMax),
+  "maxMinutes": zod.number().min(listGpsTrainingResponseAllowancesItemMaxMinutesMin).max(listGpsTrainingResponseAllowancesItemMaxMinutesMax)
+})),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "sourceName": zod.string(),
+  "rosterId": zod.number().nullable(),
+  "squad": zod.string().nullable(),
+  "positionCode": zod.string().nullable(),
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "sourceSplit": zod.string(),
+  "startSeconds": zod.number().nullable(),
+  "endSeconds": zod.number().nullable(),
+  "durationSeconds": zod.number().nullable(),
+  "metrics": zod.record(zod.string(), zod.number().nullable())
+})),
+  "warnings": zod.array(zod.string())
+})
+export const ListGpsTrainingResponse = zod.array(ListGpsTrainingResponseItem)
+
+
+/**
+ * @summary Validate a training CSV without saving or replacing anything
+ */
+
+export const previewGpsTrainingBodyYearRegExp = new RegExp('^\\d{4}$');
+export const previewGpsTrainingBodyCsvMax = 5000000;
+
+export const previewGpsTrainingBodySourceFilenameMax = 200;
+
+
+
+export const previewGpsTrainingBodyAllowUnmatchedDefault = false;
+export const previewGpsTrainingBodyReplaceDefault = false;
+
+
+export const PreviewGpsTrainingBody = zod.object({
+  "leagueId": zod.number().min(1),
+  "year": zod.string().regex(previewGpsTrainingBodyYearRegExp),
+  "csv": zod.string().min(1).max(previewGpsTrainingBodyCsvMax),
+  "sourceFilename": zod.string().max(previewGpsTrainingBodySourceFilenameMax).optional(),
+  "playerMappings": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "rosterId": zod.number().min(1)
+})).optional(),
+  "allowUnmatched": zod.boolean().default(previewGpsTrainingBodyAllowUnmatchedDefault),
+  "replace": zod.boolean().default(previewGpsTrainingBodyReplaceDefault),
+  "expectedVersion": zod.number().min(1).optional()
+})
+
+export const previewGpsTrainingResponseSessionAllowancesItemMinMinutesMin = 0;
+export const previewGpsTrainingResponseSessionAllowancesItemMinMinutesMax = 240;
+
+export const previewGpsTrainingResponseSessionAllowancesItemMaxMinutesMin = 0;
+export const previewGpsTrainingResponseSessionAllowancesItemMaxMinutesMax = 240;
+
+
+
+export const PreviewGpsTrainingResponse = zod.object({
+  "session": zod.object({
+  "id": zod.number().nullable(),
+  "leagueId": zod.number(),
+  "year": zod.string(),
+  "date": zod.string(),
+  "title": zod.string(),
+  "sourceFilename": zod.string(),
+  "sourceHash": zod.string(),
+  "version": zod.number(),
+  "plannedMinutes": zod.number(),
+  "scheduledStartTime": zod.string().nullable(),
+  "allowances": zod.array(zod.object({
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "minMinutes": zod.number().min(previewGpsTrainingResponseSessionAllowancesItemMinMinutesMin).max(previewGpsTrainingResponseSessionAllowancesItemMinMinutesMax),
+  "maxMinutes": zod.number().min(previewGpsTrainingResponseSessionAllowancesItemMaxMinutesMin).max(previewGpsTrainingResponseSessionAllowancesItemMaxMinutesMax)
+})),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "sourceName": zod.string(),
+  "rosterId": zod.number().nullable(),
+  "squad": zod.string().nullable(),
+  "positionCode": zod.string().nullable(),
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "sourceSplit": zod.string(),
+  "startSeconds": zod.number().nullable(),
+  "endSeconds": zod.number().nullable(),
+  "durationSeconds": zod.number().nullable(),
+  "metrics": zod.record(zod.string(), zod.number().nullable())
+})),
+  "warnings": zod.array(zod.string())
+}),
+  "unmatchedNames": zod.array(zod.string()),
+  "ambiguousNames": zod.array(zod.string()),
+  "existingId": zod.number().nullable(),
+  "existingVersion": zod.number().nullable(),
+  "identical": zod.boolean()
+})
+
+
+/**
+ * @summary Import one training session with explicit versioned replacement
+ */
+
+export const saveGpsTrainingBodyYearRegExp = new RegExp('^\\d{4}$');
+export const saveGpsTrainingBodyCsvMax = 5000000;
+
+export const saveGpsTrainingBodySourceFilenameMax = 200;
+
+
+
+export const saveGpsTrainingBodyAllowUnmatchedDefault = false;
+export const saveGpsTrainingBodyReplaceDefault = false;
+
+
+export const SaveGpsTrainingBody = zod.object({
+  "leagueId": zod.number().min(1),
+  "year": zod.string().regex(saveGpsTrainingBodyYearRegExp),
+  "csv": zod.string().min(1).max(saveGpsTrainingBodyCsvMax),
+  "sourceFilename": zod.string().max(saveGpsTrainingBodySourceFilenameMax).optional(),
+  "playerMappings": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "rosterId": zod.number().min(1)
+})).optional(),
+  "allowUnmatched": zod.boolean().default(saveGpsTrainingBodyAllowUnmatchedDefault),
+  "replace": zod.boolean().default(saveGpsTrainingBodyReplaceDefault),
+  "expectedVersion": zod.number().min(1).optional()
+})
+
+export const saveGpsTrainingResponseAllowancesItemMinMinutesMin = 0;
+export const saveGpsTrainingResponseAllowancesItemMinMinutesMax = 240;
+
+export const saveGpsTrainingResponseAllowancesItemMaxMinutesMin = 0;
+export const saveGpsTrainingResponseAllowancesItemMaxMinutesMax = 240;
+
+
+
+export const SaveGpsTrainingResponse = zod.object({
+  "id": zod.number().nullable(),
+  "leagueId": zod.number(),
+  "year": zod.string(),
+  "date": zod.string(),
+  "title": zod.string(),
+  "sourceFilename": zod.string(),
+  "sourceHash": zod.string(),
+  "version": zod.number(),
+  "plannedMinutes": zod.number(),
+  "scheduledStartTime": zod.string().nullable(),
+  "allowances": zod.array(zod.object({
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "minMinutes": zod.number().min(saveGpsTrainingResponseAllowancesItemMinMinutesMin).max(saveGpsTrainingResponseAllowancesItemMinMinutesMax),
+  "maxMinutes": zod.number().min(saveGpsTrainingResponseAllowancesItemMaxMinutesMin).max(saveGpsTrainingResponseAllowancesItemMaxMinutesMax)
+})),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "sourceName": zod.string(),
+  "rosterId": zod.number().nullable(),
+  "squad": zod.string().nullable(),
+  "positionCode": zod.string().nullable(),
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "sourceSplit": zod.string(),
+  "startSeconds": zod.number().nullable(),
+  "endSeconds": zod.number().nullable(),
+  "durationSeconds": zod.number().nullable(),
+  "metrics": zod.record(zod.string(), zod.number().nullable())
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Save optional coaching time allowances for this session
+ */
+
+
+
+export const UpdateGpsTrainingPlanParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+
+export const updateGpsTrainingPlanBodyYearRegExp = new RegExp('^\\d{4}$');
+
+export const updateGpsTrainingPlanBodyPlannedMinutesMax = 240;
+
+export const updateGpsTrainingPlanBodyScheduledStartTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateGpsTrainingPlanBodyAllowancesItemMinMinutesMin = 0;
+export const updateGpsTrainingPlanBodyAllowancesItemMinMinutesMax = 240;
+
+export const updateGpsTrainingPlanBodyAllowancesItemMaxMinutesMin = 0;
+export const updateGpsTrainingPlanBodyAllowancesItemMaxMinutesMax = 240;
+
+
+
+export const UpdateGpsTrainingPlanBody = zod.object({
+  "leagueId": zod.number().min(1),
+  "year": zod.string().regex(updateGpsTrainingPlanBodyYearRegExp),
+  "expectedVersion": zod.number().min(1),
+  "plannedMinutes": zod.number().min(1).max(updateGpsTrainingPlanBodyPlannedMinutesMax),
+  "scheduledStartTime": zod.string().regex(updateGpsTrainingPlanBodyScheduledStartTimeRegExp).nullable(),
+  "allowances": zod.array(zod.object({
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "minMinutes": zod.number().min(updateGpsTrainingPlanBodyAllowancesItemMinMinutesMin).max(updateGpsTrainingPlanBodyAllowancesItemMinMinutesMax),
+  "maxMinutes": zod.number().min(updateGpsTrainingPlanBodyAllowancesItemMaxMinutesMin).max(updateGpsTrainingPlanBodyAllowancesItemMaxMinutesMax)
+}))
+})
+
+export const updateGpsTrainingPlanResponseAllowancesItemMinMinutesMin = 0;
+export const updateGpsTrainingPlanResponseAllowancesItemMinMinutesMax = 240;
+
+export const updateGpsTrainingPlanResponseAllowancesItemMaxMinutesMin = 0;
+export const updateGpsTrainingPlanResponseAllowancesItemMaxMinutesMax = 240;
+
+
+
+export const UpdateGpsTrainingPlanResponse = zod.object({
+  "id": zod.number().nullable(),
+  "leagueId": zod.number(),
+  "year": zod.string(),
+  "date": zod.string(),
+  "title": zod.string(),
+  "sourceFilename": zod.string(),
+  "sourceHash": zod.string(),
+  "version": zod.number(),
+  "plannedMinutes": zod.number(),
+  "scheduledStartTime": zod.string().nullable(),
+  "allowances": zod.array(zod.object({
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "minMinutes": zod.number().min(updateGpsTrainingPlanResponseAllowancesItemMinMinutesMin).max(updateGpsTrainingPlanResponseAllowancesItemMinMinutesMax),
+  "maxMinutes": zod.number().min(updateGpsTrainingPlanResponseAllowancesItemMaxMinutesMin).max(updateGpsTrainingPlanResponseAllowancesItemMaxMinutesMax)
+})),
+  "rows": zod.array(zod.object({
+  "playerName": zod.string(),
+  "sourceName": zod.string(),
+  "rosterId": zod.number().nullable(),
+  "squad": zod.string().nullable(),
+  "positionCode": zod.string().nullable(),
+  "part": zod.enum(['recording', 'warmup', 'passing', 'technical', 'main', 'end']),
+  "sourceSplit": zod.string(),
+  "startSeconds": zod.number().nullable(),
+  "endSeconds": zod.number().nullable(),
+  "durationSeconds": zod.number().nullable(),
+  "metrics": zod.record(zod.string(), zod.number().nullable())
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
  * @summary List GPS sessions
  */
 export const ListGpsSessionsQueryParams = zod.object({
