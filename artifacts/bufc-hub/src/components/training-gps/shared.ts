@@ -14,6 +14,14 @@ export const PART_COLORS: Record<string, string> = {
 export const C = { primary: "#61A9BD", secondary: "#CED14E", tertiary: "#DD83C9", muted: "#979797", mutedDark: "#3C7686", orange: "#E98E2E" };
 export const OVERLAY_COLORS = ["#CED14E", "#DD83C9", "#E98E2E"];
 
+export const TRAINING_METRIC_GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
+  { id: "running", label: "Running & load", blurb: "Distance, Player Load, Power Plays, time", metrics: ["distance", "load", "power", "duration"] },
+  { id: "speed", label: "High-speed & sprint", blurb: "HSR, VHSR, sprint distance, top speed", metrics: ["hsm", "vhsm", "sprint", "speed"] },
+  { id: "accel", label: "Acceleration & braking", blurb: "Efforts by band and peaks", metrics: ["accels", "decels", "accel01", "accel12", "accel23", "accel34", "accelOver4", "decel01", "decel12", "decel23", "decel34", "decelOver4", "maxAccel", "maxDecel"] },
+];
+const groupedMetrics = new Set(TRAINING_METRIC_GROUPS.flatMap(g => g.metrics));
+TRAINING_METRIC_GROUPS[0].metrics.push(...TRAINING_METRICS.map(m => m.id as string).filter(id => !groupedMetrics.has(id)));
+
 export interface TrainingFilters {
   sessionId: string | null;
   metric: string;
@@ -195,5 +203,41 @@ export function selectedPlayerValues(s: TrainingGpsSession, part: SelectedPart, 
       duration: part === "full" ? minutes == null ? null : minutes * 60 : r.durationSeconds,
       partial: part === "full" && (whole?.partial ?? true),
     };
+  });
+}
+
+export type PlayerHistorySort = "date" | "highest" | "lowest";
+export interface PlayerMetricHistoryItem {
+  key: string; date: string; version: number; title: string;
+  value: number | null; duration: number | null; partial: boolean; parts: number;
+}
+
+/** Sessions where this player was tracked; absent parts remain missing, never zero. */
+export function playerMetricHistory(
+  sessions: readonly TrainingGpsSession[], playerKey: string, part: SelectedPart, metric: string, perMinute: boolean,
+): PlayerMetricHistoryItem[] {
+  return sessions.flatMap(s => {
+    const rows = s.rows.filter(r => trainingPlayerKey(r) === playerKey);
+    const marked = rows.filter(r => r.part !== "recording");
+    if (!marked.length) return [];
+    const value = selectedPlayerValues({ ...s, rows }, part, metric, perMinute && canRate(metric))[0];
+    return [{
+      key: sessionKey(s), date: s.date, version: s.version, title: s.title,
+      value: value?.value ?? null, duration: value?.duration ?? null, partial: value?.partial ?? false,
+      parts: new Set(marked.map(r => r.part)).size,
+    }];
+  });
+}
+
+/** Date order is chronological; value sorts keep missing last and ties chronological. */
+export function sortPlayerMetricHistory<T extends Pick<PlayerMetricHistoryItem, "date" | "version" | "key" | "value">>(
+  items: readonly T[], sort: PlayerHistorySort = "date",
+): T[] {
+  return [...items].sort((a, b) => {
+    const chronological = a.date.localeCompare(b.date) || a.version - b.version || a.key.localeCompare(b.key);
+    if (sort === "date") return chronological;
+    if (a.value == null) return b.value == null ? chronological : 1;
+    if (b.value == null) return -1;
+    return (sort === "highest" ? b.value - a.value : a.value - b.value) || chronological;
   });
 }

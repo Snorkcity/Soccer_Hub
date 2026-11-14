@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
-import { TRAINING_METRICS, TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
+import { TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, X } from "lucide-react";
 import {
-  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate, sortTeamMetricItems,
+  OVERLAY_COLORS, TRAINING_METRIC_GROUPS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate, sortTeamMetricItems,
   type TeamChartSort,
   type TrainingFilters, type SelectedPart, type PartId, C } from "./shared";
 import { TeamMetricChart } from "./TeamMetricChart";
@@ -20,14 +20,7 @@ interface Props {
 }
 const POSITIONS = ["outfield", "Defenders", "Midfielders", "Forwards", "Mixed / other", "Unassigned", "Goalkeepers"];
 
-const GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
-  { id: "running", label: "Running & load", blurb: "Distance, Player Load, Power Plays, time", metrics: ["distance", "load", "power", "duration"] },
-  { id: "speed", label: "High-speed & sprint", blurb: "HSR, VHSR, sprint distance, top speed", metrics: ["hsm", "vhsm", "sprint", "speed"] },
-  { id: "accel", label: "Acceleration & braking", blurb: "Efforts by band and peaks", metrics: ["accels", "decels", "accel01", "accel12", "accel23", "accel34", "accelOver4", "decel01", "decel12", "decel23", "decel34", "decelOver4", "maxAccel", "maxDecel"] },
-];
-const grouped = new Set(GROUPS.flatMap(g => g.metrics));
-// Any metric added later still appears exactly once.
-GROUPS[0].metrics.push(...TRAINING_METRICS.map(m => m.id as string).filter(id => !grouped.has(id)));
+const GROUPS = TRAINING_METRIC_GROUPS;
 const ORDER: string[] = GROUPS.flatMap(g => g.metrics);
 type ChartPref = { sort: TeamChartSort; perMinute: boolean };
 const DEFAULT_PREF: ChartPref = { sort: "name", perMinute: false };

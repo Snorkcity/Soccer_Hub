@@ -1,16 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useListGpsTraining, getListGpsTrainingQueryKey } from "@workspace/api-client-react";
-import { TRAINING_METRICS, TRAINING_PARTS } from "@workspace/api-zod";
+import { TRAINING_PARTS } from "@workspace/api-zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { RefreshCw, Upload } from "lucide-react";
-import { canRate, fmtDate, sessionKey, DEFAULT_TRAINING_FILTERS, type TrainingFilters, type SelectedPart } from "./shared";
-import { PlayerTrainingTab } from "./PlayerTrainingTab";
+import { fmtDate, sessionKey, DEFAULT_TRAINING_FILTERS, type TrainingFilters, type SelectedPart } from "./shared";
+import { PlayerTrainingOverview } from "./PlayerTrainingOverview";
 import { TeamTrainingTab } from "./TeamTrainingTab";
 import { CoachTrainingTab } from "./CoachTrainingTab";
 
@@ -51,7 +50,6 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
     </div>
   );
 
-  const rateOk = canRate(f.metric);
   const label = "mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground";
   const partSelect = (
     <div className="w-full sm:w-56">
@@ -85,26 +83,12 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
           <TabsTrigger value="coach" data-testid="tab-training-coach">Coach</TabsTrigger>
         </TabsList>
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card/40 p-3" data-testid="training-controls">
-          {tab === "player" && (
-            <div className="w-full sm:w-64">
-              <p className={label}>Metric</p>
-              <Select value={f.metric} onValueChange={v => set({ metric: v })}>
-                <SelectTrigger data-testid="select-training-metric"><SelectValue /></SelectTrigger>
-                <SelectContent>{TRAINING_METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          )}
           {partSelect}
-          {tab === "player" && (
-            <label className={`flex items-center gap-2 pb-2 text-sm ${rateOk ? "" : "opacity-50"}`} title={rateOk ? "" : "Not a rate metric"}>
-              <Switch checked={f.perMinute && rateOk} disabled={!rateOk} onCheckedChange={v => set({ perMinute: v })} data-testid="switch-per-minute" />
-              <span>{f.perMinute && rateOk ? "Per minute" : rateOk ? "Totals" : "Totals (not a rate metric)"}</span>
-            </label>
-          )}
+          {tab === "player" && <p className="pb-2 text-xs text-muted-foreground">Every metric is charted below; totals or per-minute and sort order are set on each chart.</p>}
           {tab === "team" && <p className="pb-2 text-xs text-muted-foreground">Totals or per-minute and sort order are set on each chart.</p>}
         </div>
         <TabsContent value="player" className="mt-5">
-          <PlayerTrainingTab sessions={sessions} session={current} f={f} set={set} drill={drill} />
+          <PlayerTrainingOverview sessions={sessions} session={current} f={f} set={set} drill={drill} />
         </TabsContent>
         <TabsContent value="team" className="mt-5">
           <TeamTrainingTab sessions={sessions} session={current} f={f} set={set} drill={drill} />

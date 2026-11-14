@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { trainingInsights } from "@workspace/api-zod";
+import { TRAINING_METRICS, trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
-import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, relativeStandings, selectedPlayerValues, selectedPartLabel, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, trainingChartContext } from "../src/components/training-gps/shared";
+import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
 
@@ -192,4 +192,67 @@ test("Independent chart rate choices recalculate their own values without changi
 });
 test("optional private Catapult CSV is correctly detected", { skip: !existsSync(privateSample) }, () => {
   assert.equal(isTrainingGpsText(readFileSync(privateSample, "utf8")), true);
+});
+
+test("Shared Player and Team chart groups include all metrics exactly once", () => {
+  const ids = TRAINING_METRIC_GROUPS.flatMap(g => g.metrics);
+  assert.equal(TRAINING_METRIC_GROUPS.length, 3);
+  assert.equal(ids.length, new Set(ids).size);
+  assert.deepEqual([...ids].sort(), TRAINING_METRICS.map(m => m.id).sort());
+});
+
+test("Player metric history uses personal full-session totals, own durations, selected parts and peaks", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const key = trainingPlayerKey(session.rows[0]);
+  assert.equal(playerMetricHistory([session], key, "full", "distance", false)[0].value, 5300);
+  assert.equal(playerMetricHistory([session], key, "full", "distance", true)[0].value, 5300 / (4061 / 60));
+  assert.equal(playerMetricHistory([session], key, "full", "distance", true)[0].duration, 4061);
+  assert.equal(playerMetricHistory([session], key, "main", "distance", false)[0].value, 1800);
+  assert.equal(playerMetricHistory([session], key, "main", "distance", true)[0].value, 1800 / (1197 / 60));
+  assert.equal(playerMetricHistory([session], key, "full", "speed", true)[0].value, 9 * 3.6);
+  assert.equal(playerMetricHistory([session], key, "full", "duration", true)[0].value, 4061 / 60);
+  assert.equal(playerMetricHistory([session], key, "full", "distance", false)[0].parts, 5);
+  assert.equal(playerMetricHistory([session], key, "full", "distance", false)[0].partial, false);
+  assert.deepEqual(playerMetricHistory([session], "source:untracked", "full", "distance", false), []);
+  assert.deepEqual(playerMetricHistory([], key, "full", "distance", false), []);
+});
+
+test("Player history distinguishes zero, missing parts, unknown measurements and untracked sessions", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const key = trainingPlayerKey(session.rows[0]);
+  const missing = { ...session, rows: session.rows.filter(r => !(trainingPlayerKey(r) === key && r.part === "main")) };
+  const partial = playerMetricHistory([missing], key, "full", "distance", false)[0];
+  assert.equal(partial.value, 3500);
+  assert.equal(partial.parts, 4);
+  assert.equal(partial.partial, true);
+  const absentPart = playerMetricHistory([missing], key, "main", "distance", false)[0];
+  assert.equal(absentPart.value, null);
+  assert.equal(absentPart.duration, null);
+  const zero = { ...session, rows: session.rows.map(r => trainingPlayerKey(r) === key
+    ? { ...r, metrics: { ...r.metrics, distanceM: 0 } } : r) };
+  assert.equal(playerMetricHistory([zero], key, "full", "distance", false)[0].value, 0);
+  const unknown = { ...session, rows: session.rows.map(r => trainingPlayerKey(r) === key && r.part === "main"
+    ? { ...r, metrics: { ...r.metrics, distanceM: null } } : r) };
+  assert.equal(playerMetricHistory([unknown], key, "full", "distance", false)[0].value, null);
+  const recordingOnly = { ...session, rows: session.rows.filter(r => trainingPlayerKey(r) !== key || r.part === "recording") };
+  assert.deepEqual(playerMetricHistory([recordingOnly], key, "full", "distance", false), []);
+});
+
+test("Player chart date order puts newest at the right; numeric sorts keep missing last and ties chronological", () => {
+  const values = [
+    { key: "missing", date: "2026-11-10", version: 1, value: null },
+    { key: "newest", date: "2027-01-10", version: 1, value: 10 },
+    { key: "earlier-version", date: "2026-11-09", version: 1, value: 10 },
+    { key: "zero", date: "2026-11-12", version: 1, value: 0 },
+    { key: "later-version", date: "2026-11-09", version: 2, value: 10 },
+    { key: "highest", date: "2026-11-08", version: 1, value: 30 },
+  ];
+  assert.deepEqual(sortPlayerMetricHistory(values).map(x => x.key),
+    ["highest", "earlier-version", "later-version", "missing", "zero", "newest"]);
+  assert.deepEqual(sortPlayerMetricHistory(values, "highest").map(x => x.key),
+    ["highest", "earlier-version", "later-version", "newest", "zero", "missing"]);
+  assert.deepEqual(sortPlayerMetricHistory(values, "lowest").map(x => x.key),
+    ["zero", "earlier-version", "later-version", "newest", "highest", "missing"]);
+  assert.equal(values[0].key, "missing");
+  assert.equal(values[5].key, "highest");
 });

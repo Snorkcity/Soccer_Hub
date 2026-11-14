@@ -13,6 +13,9 @@ import { EmptyChart, InsightList, Note, Panel, Stat, axisProps, tooltipStyle } f
 interface Props {
   sessions: TrainingGpsSession[]; session: TrainingGpsSession; f: TrainingFilters;
   set: (p: Partial<TrainingFilters>) => void; drill: (p: Partial<TrainingFilters>, tab?: string) => void;
+  /** Set when embedded under a parent that already owns the player selector. */
+  hidePlayerSelector?: boolean;
+  hideInsights?: boolean;
 }
 
 function wholeCaption(metric: string, partial: boolean): string {
@@ -26,7 +29,7 @@ function peers(rows: TrainingGpsRow[], me: TrainingGpsRow, mode: "squad" | "posi
     (mode === "squad" ? (r.squad ?? null) === (me.squad ?? null) : trainingPositionGroup(r.positionCode) === trainingPositionGroup(me.positionCode)));
 }
 
-export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
+export function PlayerTrainingTab({ sessions, session, f, set, drill, hidePlayerSelector, hideInsights }: Props) {
   const pm = usePM(f);
   const players = useMemo(() => sessionPlayers(sessions), [sessions]);
   const inSession = useMemo(() => new Set(partRows(session).map(trainingPlayerKey)), [session]);
@@ -75,13 +78,13 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {!hidePlayerSelector && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Select value={playerKey ?? ""} onValueChange={v => set({ playerKey: v })}>
           <SelectTrigger className="sm:w-80" data-testid="select-training-player"><SelectValue placeholder="Choose a player" /></SelectTrigger>
           <SelectContent>{players.map(p => <SelectItem key={p.key} value={p.key}>{p.name}{p.position ? ` · ${p.position}` : ""}{p.squad ? ` · ${p.squad}` : ""}{inSession.has(p.key) ? "" : " (not in this session)"}</SelectItem>)}</SelectContent>
         </Select>
         {player && <p className="text-xs text-muted-foreground" data-testid="text-player-identity">{player.group}{player.key.startsWith("source:") ? " · not linked to roster" : ""}</p>}
-      </div>
+      </div>}
 
       {!player ? <EmptyChart>Pick a player to see their training load.</EmptyChart> : <>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -159,7 +162,7 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
           </Panel>
         </div>
 
-        <InsightList insights={insights} testId="insights-player" />
+        {!hideInsights && <InsightList insights={insights} testId="insights-player" />}
       </>}
     </div>
   );

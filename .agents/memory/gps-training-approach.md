@@ -103,3 +103,11 @@ The coach wants clicking a player or their metric in Team training analysis to o
 **Why:** switching tabs for a brief player drill-down left the coach feeling stuck and interrupted team analysis.
 
 **How to apply:** retain Team position, filters, chart groups and sorting underneath the pop-up. Scope history to the selected league and campaign; keep any date, metric or period exploration inside the pop-up separate from Team settings.
+
+## Player review simplicity
+
+Use the same grouped, all-metrics flow for the main Player training view: select the player and Full session or a practice part, then scan separate charts for all metrics across tracked dates. The default is chronological, with the newest session on the right; provide sorting controls too.
+
+**Why:** the coach confirmed the Team flow is becoming easier and explicitly directed that Player should follow that same flow, rather than requiring repeated metric selection.
+
+**How to apply:** retain historical totals and component analysis with clear period headings. Keep the focused Team-to-player pop-up useful rather than replacing it with the whole all-metrics screen. Do not discard previously tracked sessions when adding newer dates.
