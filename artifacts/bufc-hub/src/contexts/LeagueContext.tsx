@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { competitionsForYear } from "./competitionSeasons";
 import {
   useListSeasons,
   useGetAuthStatus,
@@ -14,6 +15,8 @@ type LeagueContextValue = {
   setActiveLeagueId: (id: number) => void;
   /** Leagues this user can switch between (1 entry = no dropdown anywhere). */
   leagueOptions: LeagueOption[];
+  /** Accessible competitions that actually have the currently selected year. */
+  competitionOptions: LeagueOption[];
   /** The team the current page is showing (e.g. "1sts") — drives the header
       "viewing" badge so coaches with several squads always know where they are. */
   viewingTeamLabel: string | null;
@@ -31,6 +34,7 @@ const LeagueContext = createContext<LeagueContextValue>({
   activeLeagueId: null,
   setActiveLeagueId: () => {},
   leagueOptions: [],
+  competitionOptions: [],
   viewingTeamLabel: null,
   setViewingTeamLabel: () => {},
   seasonOptions: [],
@@ -120,19 +124,25 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     );
   }, [seasonOptions, seasonByLeague, activeLeagueId]);
 
+  const competitionOptions = useMemo(
+    () => competitionsForYear(leagueOptions, seasons ?? [], activeSeason?.year),
+    [leagueOptions, seasons, activeSeason?.year],
+  );
+
   const value = useMemo<LeagueContextValue>(() => ({
     activeLeagueId,
     leagueOptions,
+    competitionOptions,
     setActiveLeagueId: (id: number) => {
       if (!leagueOptions.some(l => l.id === id)) return;
-      // On the first visit to another competition, carry the selected year
-      // across when it exists there. A deliberate saved choice still wins.
+      // Keep the chosen campaign when switching competitions, even if this
+      // competition was previously viewed in another year.
       const sameYear = (seasons ?? []).find(s =>
         s.leagueId === id && s.year === activeSeason?.year,
       );
-      if (sameYear && !seasonByLeague[String(id)]) {
+      if (sameYear) {
         setSeasonByLeague(prev => {
-          if (prev[String(id)]) return prev;
+          if (prev[String(id)] === sameYear.id) return prev;
           const next = { ...prev, [String(id)]: sameYear.id };
           try { localStorage.setItem(SEASON_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
           return next;
@@ -155,7 +165,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-  }), [activeLeagueId, leagueOptions, viewingTeamLabel, seasonOptions, activeSeason, seasons, seasonByLeague]);
+  }), [activeLeagueId, leagueOptions, competitionOptions, viewingTeamLabel, seasonOptions, activeSeason, seasons, seasonByLeague]);
 
   return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>;
 }

@@ -38,7 +38,7 @@ function groupLeagues(options: LeagueOption[]) {
 
 /** Searchable, grouped competition picker. Hidden choice when only one league. */
 export function CompetitionPicker({ className = "" }: { className?: string }) {
-  const { activeLeagueId, setActiveLeagueId, leagueOptions } = useActiveLeague();
+  const { activeLeagueId, setActiveLeagueId, competitionOptions: leagueOptions, activeSeason } = useActiveLeague();
   const [open, setOpen] = useState(false);
   const groups = useMemo(() => groupLeagues(leagueOptions), [leagueOptions]);
   const current = leagueOptions.find(l => l.id === activeLeagueId);
@@ -67,7 +67,7 @@ export function CompetitionPicker({ className = "" }: { className?: string }) {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(320px,calc(100vw-2rem))] p-0">
         <Command>
-          <CommandInput placeholder="Search competitions..." data-testid="input-competition-search" />
+          <CommandInput placeholder={`Search ${activeSeason?.year ?? ""} competitions...`} data-testid="input-competition-search" />
           <CommandList className="max-h-[min(320px,50vh)]">
             <CommandEmpty>
               <span className="text-xs text-muted-foreground">No competition matches that search.</span>

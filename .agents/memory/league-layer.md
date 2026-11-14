@@ -23,4 +23,16 @@ description: Multi-league (competition) support — schema shape, invariants, an
 
 **How to apply:** do not infer the campaign solely from a session's calendar year. Keep chosen campaign context consistent across navigation, uploads, reports and roster views; absence of new-season measurements must not silently fall back to the prior year's data.
 
+The competition picker must show only competitions already created for the selected campaign year, and switching competitions must retain that year.
+
+**Why:** the coach found the full historical competition list confusing when viewing 2027.
+
+**How to apply:** use actual accessible season records, not fixture availability or the active-season flag. Keep the full authorised competition list separate from this navigation filter.
+
+For the men's 2027 setup, first-grade and U23 GPS stay together under ACT NPLM. ACT NPLM U23 remains a separate competition for match data; do not automatically feed or link its GPS. U23 coaches should receive access to the ACT NPLM GPS area for their players.
+
+**Why:** the coach explicitly confirmed this arrangement rather than linking U23 GPS.
+
+**How to apply:** preserve separate match campaigns and use explicit access grants for coaches; do not duplicate training sessions into U23.
+
 **Gotcha**: seed deletes clubs+seasons before leagues (FK order); re-seeds still change all IDs (never hardcode league/season/team IDs). Also: the Edit/WriteFile tooling collapsed `$` in a SQL DO-block once — prefer `CREATE UNIQUE INDEX IF NOT EXISTS` style idempotent statements in startupMigrations over DO blocks.
