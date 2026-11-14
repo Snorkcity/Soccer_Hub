@@ -57,3 +57,11 @@ The Coach view must support trends and drill-down across tracked sessions, not j
 **Why:** the coach wants to distinguish consistently meeting a planned time allowance from routinely overrunning it, then choose whether to shorten the activity or revise future plans.
 
 **How to apply:** count each session's marked component once when calculating coaching averages, not once per player. Show sample size, missing components and useful duration variability alongside the average. Support optional planned durations or ranges versus recorded durations without requiring extra upload work; the coach's examples of a 20–25-minute main part and nine-minute passing activation illustrate the comparison, not approved default targets. Preserve the applicable historical allowance if targets are introduced, so changing a future plan does not reinterpret older sessions. Do not automatically label longer or shorter components as good or bad, and do not assume integration with the retired Hub planner.
+
+## Player and Team session summaries
+
+Include short coaching insights beneath both the Player and Team training tabs for each selected session. Requested examples include identifying the part where a player recorded their highest metres per minute and the part containing their highest recorded speed. Insights should help the coach understand player responses and session design, not merely repeat every chart.
+
+**Why:** the coach explicitly requested useful summaries at the bottom of both views and delegated judgement about other helpful insights.
+
+**How to apply:** ground statements in valid selected-session measurements; add historical and positional comparisons only when comparable evidence exists. Distinguish duration, accumulated output and intensity; handle ties and missing recordings honestly. Use the existing weighted-insight policy and confidence-aware voice, including meaningful watch points when supported, without inventing concerns or equating GPS output with effort, football performance, injury risk or selection readiness.
