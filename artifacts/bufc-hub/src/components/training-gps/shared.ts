@@ -1,6 +1,6 @@
 import type { TrainingGpsRow, TrainingGpsSession } from "@workspace/api-client-react";
 import {
-  TRAINING_METRICS, TRAINING_PARTS, trainingPlayerKey, trainingPositionGroup, trainingTotal, trainingValue, trainingMean,
+  TRAINING_METRICS, TRAINING_PARTS, trainingPlayerKey, trainingPositionGroup, trainingTotal, trainingValue, trainingMean, trainingTimetable,
 } from "@workspace/api-zod";
 
 export type PartId = (typeof TRAINING_PARTS)[number]["id"];
@@ -28,6 +28,49 @@ export const metricDef = (id: string) => TRAINING_METRICS.find(m => m.id === id)
 export const canRate = (metric: string) => metricDef(metric).rate;
 export const usePM = (f: Pick<TrainingFilters, "metric" | "perMinute">) => f.perMinute && canRate(f.metric);
 export const partRows = (s: TrainingGpsSession) => s.rows.filter(r => r.part !== "recording");
+
+export function trainingChartContext(f: TrainingFilters, session: TrainingGpsSession) {
+  return `${fmtDate(session.date)} · Selected: ${selectedPartLabel(f.part)} · ${metricDef(f.metric).label} (${metricUnit(f.metric, usePM(f))})`;
+}
+
+/** Coach duration counts each marked part once, never once per player. */
+export function coachPeriod(s: TrainingGpsSession, part: SelectedPart) {
+  const selected = trainingTimetable(s).filter(t => part === "full" || t.part === part);
+  const complete = selected.length === (part === "full" ? 5 : 1) && selected.every(t => t.durationSeconds != null);
+  const allowance = part === "full" ? null : s.allowances.find(a => a.part === part);
+  return {
+    durationSeconds: complete ? selected.reduce((sum, t) => sum + t.durationSeconds!, 0) : null,
+    planMin: part === "full" ? s.plannedMinutes : allowance?.minMinutes ?? null,
+    planMax: part === "full" ? null : allowance?.maxMinutes ?? null,
+    players: new Set(partRows(s).filter(r => part === "full" || r.part === part).map(trainingPlayerKey)).size,
+  };
+}
+
+export interface StandingRow {
+  key: string; name: string; cells: ({ rank: number; n: number } | null)[];
+}
+export function relativeStandings(rows: TrainingGpsRow[], metric: string, pm: boolean): StandingRow[] {
+  const players = new Map(rows.map(r => [trainingPlayerKey(r), r.playerName]));
+  const columns = TRAINING_PARTS.map(p => rows.filter(r => r.part === p.id)
+    .map(r => ({ key: trainingPlayerKey(r), value: trainingValue(r, metric, pm) }))
+    .filter((r): r is { key: string; value: number } => r.value != null));
+  return [...players].map(([key, name]) => ({
+    key, name, cells: columns.map(values => {
+      const mine = values.find(v => v.key === key);
+      return mine ? { rank: 1 + values.filter(v => v.value > mine.value).length, n: values.length } : null;
+    }),
+  }));
+}
+export function sortStandings(rows: StandingRow[], column: "name" | PartId, descending: boolean) {
+  return [...rows].sort((a, b) => {
+    const direction = descending ? -1 : 1;
+    if (column === "name") return direction * a.name.localeCompare(b.name);
+    const i = PART_IDS.indexOf(column), av = a.cells[i]?.rank, bv = b.cells[i]?.rank;
+    if (av == null) return bv == null ? a.name.localeCompare(b.name) : 1;
+    if (bv == null) return -1;
+    return direction * (av - bv) || a.name.localeCompare(b.name);
+  });
+}
 
 export function metricUnit(metric: string, perMinute: boolean): string {
   const m = metricDef(metric);

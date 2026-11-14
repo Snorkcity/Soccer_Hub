@@ -5,7 +5,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import {
-  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel,
+  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings,
   type TrainingFilters, type PartId, C } from "./shared";
 import { PartComparisonChart } from "./PartComparisonChart";
 import { EmptyChart, InsightList, Panel, axisProps, tooltipStyle } from "./ui";
@@ -21,6 +21,8 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
   const fmt = (v: number | null | undefined) => fmtMetric(f.metric, v, pm);
   const [overlay, setOverlay] = useState<string[]>([]);
   const [sort, setSort] = useState<{ col: "name" | "value" | "duration"; desc: boolean }>({ col: "value", desc: true });
+  const [standingSort, setStandingSort] = useState<{ col: "name" | PartId; desc: boolean }>({ col: "name", desc: false });
+  const context = trainingChartContext(f, session);
 
   const all = partRows(session);
   const squads = useMemo(() => [...new Set(sessions.flatMap(s => partRows(s).map(r => r.squad ?? "Unassigned")))].sort(), [sessions]);
@@ -46,15 +48,10 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
   const maxV = Math.max(0, ...partList.map(p => p.value ?? 0));
   const contributors = partList.filter(p => p.value != null).length;
 
-  const standing = filteredKeys.map(k => ({
-    key: k, name: names.get(k) ?? k,
-    cells: TRAINING_PARTS.map(p => {
-      const vals = rows.filter(r => r.part === p.id).map(r => ({ k: trainingPlayerKey(r), v: trainingValue(r, f.metric, pm) })).filter(x => x.v != null) as { k: string; v: number }[];
-      const mine = vals.find(x => x.k === k);
-      if (!mine) return null;
-      return { rank: vals.filter(x => x.v > mine.v).length + 1, n: vals.length };
-    }),
-  })).sort((a, b) => a.name.localeCompare(b.name));
+  const standing = sortStandings(relativeStandings(rows, f.metric, pm), standingSort.col, standingSort.desc);
+  const toggleStanding = (col: "name" | PartId) => setStandingSort(s => ({ col, desc: s.col === col ? !s.desc : false }));
+  const StandingIcon = ({ col }: { col: "name" | PartId }) => standingSort.col !== col ? null : standingSort.desc
+    ? <ArrowDown className="inline h-3 w-3" /> : <ArrowUp className="inline h-3 w-3" />;
 
   const history = sessions.map(s => {
     const filt = (r: Parameters<typeof matchesFilters>[0]) => matchesFilters(r, f);
@@ -84,7 +81,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
         <span className="self-center text-xs text-muted-foreground" data-testid="text-team-count">{filteredKeys.length} players in filter</span>
       </div>
 
-      <Panel testId="chart-group-profile" kicker={fmtDate(session.date)} title="Group profile across the five parts"
+      <Panel testId="chart-group-profile" kicker="All five parts" title={`Group profile — ${metricDef(f.metric).label}`} context={context}
         aside={<Select value="" onValueChange={v => setOverlay(o => o.includes(v) || o.length >= 3 ? o : [...o, v])}>
           <SelectTrigger className="w-52" data-testid="select-overlay-player"><SelectValue placeholder="Overlay a player (max 3)" /></SelectTrigger>
           <SelectContent>{[...names].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => <SelectItem key={k} value={k}>{n}</SelectItem>)}</SelectContent>
@@ -110,11 +107,11 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
             </ResponsiveContainer>
           </div>
         )}
-        <p className="mt-2 text-[11px] text-muted-foreground">Scoped to the squad and position filter above; insights use the same scope. Participant mean: the arithmetic mean of each contributing player's own {pm ? "rate" : "value"}{pm ? " (not a pooled squad rate)" : ""}. Hover shows contributor counts.</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">Click a part to select it for comparison and history below. Scoped to the squad and position filter above; insights use the same scope. Participant mean: the arithmetic mean of each contributing player's own {pm ? "rate" : "value"}{pm ? " (not a pooled squad rate)" : ""}. Hover shows contributor counts.</p>
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
-        <Panel testId="table-part-comparison" kicker={selectedPartLabel(f.part)} title="Player comparison"
+        <Panel testId="table-part-comparison" kicker="Player comparison" title={`${selectedPartLabel(f.part)} — ${metricDef(f.metric).label}`} context={context}
           aside={<span className="font-mono text-xs text-muted-foreground">{contributors} contributors · {metricUnit(f.metric, pm)}</span>}>
           {sorted.length === 0 ? <EmptyChart>Nobody in this filter recorded {selectedPartLabel(f.part)}.</EmptyChart> : (
             <>
@@ -154,12 +151,21 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
           )}
         </Panel>
 
-        <Panel testId="table-relative-standing" kicker="Relative standing" title="Output rank within each part">
+        <Panel testId="table-relative-standing" kicker="Relative standing · all five parts" title={`${metricDef(f.metric).label} rank within each part`} context={context}>
           {standing.length === 0 ? <EmptyChart>No players.</EmptyChart> : (
             <div className="max-h-[420px] overflow-auto">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <tr><th className="py-2 text-left">Player</th>{TRAINING_PARTS.map(p => <th key={p.id} className="px-1 py-2">{p.label.split(" ")[0]}</th>)}</tr>
+                  <tr>
+                    <th className="py-2 text-left" aria-sort={standingSort.col === "name" ? standingSort.desc ? "descending" : "ascending" : "none"}>
+                      <button type="button" onClick={() => toggleStanding("name")} data-testid="sort-standing-name">Player <StandingIcon col="name" /></button>
+                    </th>
+                    {TRAINING_PARTS.map(p => <th key={p.id} className="px-1 py-2" aria-sort={standingSort.col === p.id ? standingSort.desc ? "descending" : "ascending" : "none"}>
+                      <button type="button" className="min-h-9" onClick={() => toggleStanding(p.id)} data-testid={`sort-standing-${p.id}`} title={`Sort by ${p.label} rank`}>
+                        {p.label} <StandingIcon col={p.id} />
+                      </button>
+                    </th>)}
+                  </tr>
                 </thead>
                 <tbody>{standing.map(s => (
                   <tr key={s.key} className="border-t border-border/60">
@@ -173,13 +179,13 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
                   </tr>))}
                 </tbody>
               </table>
-              <p className="mt-2 text-[11px] text-muted-foreground">Rank 1 = most recorded output among filtered participants. Ranks describe output only, not quality or effort.</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">Click a heading to sort; click again to reverse. Missing values stay last. Rank 1 = most recorded output among filtered participants. Ranks describe output only, not quality or effort.</p>
             </div>
           )}
         </Panel>
       </div>
 
-      <Panel testId="chart-team-history" kicker="Historical comparison" title="Group means over dates" aside={<span className="text-[11px] text-muted-foreground">Click a date to open it</span>}>
+      <Panel testId="chart-team-history" kicker="Historical comparison" title={`${f.part === "full" ? "Full session" : `Full session and ${selectedPartLabel(f.part)}`} — group means over dates`} context={context} aside={<span className="text-[11px] text-muted-foreground">Click a date to open it</span>}>
         <div className="h-72">
           <ResponsiveContainer>
             <LineChart data={history} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}

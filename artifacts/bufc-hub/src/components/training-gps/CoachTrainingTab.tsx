@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
 import { TRAINING_PARTS, trainingMean, trainingPartLabel, trainingTimetable } from "@workspace/api-zod";
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { C, PART_COLORS, fmtClock, fmtDate, sessionKey, type TrainingFilters } from "./shared";
+import { C, PART_COLORS, coachPeriod, fmtClock, fmtDate, selectedPartLabel, sessionKey, type TrainingFilters } from "./shared";
 import { EmptyChart, Note, Panel, Stat, axisProps, tooltipStyle } from "./ui";
 import { PlanEditor } from "./PlanEditor";
 
@@ -34,11 +34,12 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
   const origin = a.tt[0]?.startSeconds ?? 0;
   const span = a.tt.length ? a.tt[a.tt.length - 1].endSeconds! - origin : 0;
   const scale = Math.max(span, 1);
+  const label = selectedPartLabel(f.part);
+  const context = `${fmtDate(session.date)} · Selected: ${label} · Duration (minutes)`;
 
   const durations = sessions.map(s => {
-    const t = trainingTimetable(s).find(x => x.part === f.part);
-    const al = s.allowances.find(x => x.part === f.part);
-    return { id: sessionKey(s), date: fmtDate(s.date), min: t?.durationSeconds != null ? t.durationSeconds / 60 : null, planMin: al?.minMinutes ?? null, planMax: al?.maxMinutes ?? null, players: t?.playerCount ?? 0 };
+    const period = coachPeriod(s, f.part);
+    return { id: sessionKey(s), date: fmtDate(s.date), min: period.durationSeconds != null ? period.durationSeconds / 60 : null, planMin: period.planMin, planMax: period.planMax, players: period.players };
   });
   const present = durations.filter(d => d.min != null);
   const avg = trainingMean(present.map(d => d.min));
@@ -52,18 +53,19 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
     return d;
   });
   const curAllowance = session.allowances.find(x => x.part === f.part);
-  const curDur = a.all.find(t => t.part === f.part)?.durationSeconds;
+  const curDur = coachPeriod(session, f.part).durationSeconds;
 
   return (
     <div className="space-y-5">
-      <Panel testId="chart-coach-timeline" kicker={`${fmtDate(session.date)} · recorded clocks`} title="Marked-part timeline">
+      <Panel testId="chart-coach-timeline" kicker="All five parts · recorded clocks" title="Marked-part timeline" context={context}>
         {a.tt.length === 0 ? <EmptyChart>No marked part clocks in this export.</EmptyChart> : <>
+          <p className="mb-3 text-[11px] text-muted-foreground">Click a coloured part to select it and see its duration history below.</p>
           <div className="relative h-16 w-full overflow-hidden rounded-lg bg-muted/40" role="img" aria-label="Session timeline">
             {a.tt.map((t, i) => {
               const left = ((t.startSeconds! - origin) / scale) * 100, width = ((t.endSeconds! - t.startSeconds!) / scale) * 100;
               return (
                 <button key={t.part} onClick={() => drill({ part: t.part })} data-testid={`timeline-part-${t.part}`}
-                  className={`absolute top-2 bottom-2 rounded-md text-left text-[10px] font-semibold text-background transition-opacity hover:opacity-90 ${f.part === t.part ? "ring-2 ring-foreground" : ""}`}
+                  className={`absolute top-2 bottom-2 rounded-md text-left text-[10px] font-semibold text-background transition-opacity hover:opacity-90 ${f.part === "full" || f.part === t.part ? "ring-2 ring-foreground" : ""}`}
                   style={{ left: `${left}%`, width: `${Math.max(width, 0.8)}%`, background: PART_COLORS[t.part] }} title={`${t.label}: ${fmtClock(t.startSeconds)}–${fmtClock(t.endSeconds)}`}>
                   <span className="block truncate px-1.5 pt-1">{width > 8 ? t.label : i + 1}</span>
                 </button>
@@ -89,7 +91,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
         </>}
       </Panel>
 
-      <Panel testId="panel-ninety-accounting" kicker="Planned session" title={`${session.plannedMinutes}-minute accounting`}>
+      <Panel testId="panel-ninety-accounting" kicker="Full session · planned and marked time" title={`${session.plannedMinutes}-minute accounting`} context={context}>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Stat label="Inside marked parts" value={m1(a.included)} sub={`${a.all.length} of 5 parts marked`} testId="stat-included" />
           <Stat label="Gaps between parts" value={m1(a.gaps)} sub={a.overlap ? `Overlap ${m1(a.overlap)}` : "Between recorded clocks"} testId="stat-gaps" />
@@ -107,9 +109,9 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Panel testId="chart-part-durations" kicker="Selected part" title={`${trainingPartLabel(f.part)} duration over dates`}
+        <Panel testId="chart-part-durations" kicker="Selected period" title={`${label} duration over dates`} context={context}
           aside={<span className="font-mono text-xs text-muted-foreground">avg {avg == null ? "—" : `${avg.toFixed(1)} min`} · n={present.length}</span>}>
-          {present.length === 0 ? <EmptyChart>{trainingPartLabel(f.part)} has not been marked yet.</EmptyChart> : (
+          {present.length === 0 ? <EmptyChart>{f.part === "full" ? "No complete five-part timetable recorded yet." : `${label} has not been marked yet.`}</EmptyChart> : (
             <div className="h-72">
               <ResponsiveContainer>
                 <ComposedChart data={durations} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
@@ -118,8 +120,8 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
                   <XAxis dataKey="date" {...axisProps} />
                   <YAxis {...axisProps} width={40} unit="m" />
                   <Tooltip {...tooltipStyle} formatter={(v: number, name: string, item: { payload?: { players: number } }) =>
-                    [`${Number(v).toFixed(1)} min`, name === "min" ? `Marked duration (${item.payload?.players} players)` : name === "planMin" ? "Planned minimum" : "Planned maximum"]} />
-                  <Bar dataKey="min" fill={PART_COLORS[f.part]} radius={[4, 4, 0, 0]} />
+                    [`${Number(v).toFixed(1)} min`, name === "min" ? `Marked duration (${item.payload?.players} players)` : f.part === "full" ? "Planned session length" : name === "planMin" ? "Planned minimum" : "Planned maximum"]} />
+                  <Bar dataKey="min" fill={f.part === "full" ? C.primary : PART_COLORS[f.part]} radius={[4, 4, 0, 0]} />
                   {anyPlan && <Line dataKey="planMin" stroke="#C1C1C1" strokeDasharray="4 3" dot={{ r: 3 }} connectNulls={false} />}
                   {anyPlan && <Line dataKey="planMax" stroke="#C1C1C1" strokeDasharray="4 3" dot={{ r: 3 }} connectNulls={false} />}
                   {avg != null && <ReferenceLine y={avg} stroke={C.orange} strokeDasharray="6 4" label={{ value: `avg ${avg.toFixed(1)}`, fill: C.orange, fontSize: 10, position: "insideTopRight" }} />}
@@ -127,12 +129,16 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
               </ResponsiveContainer>
             </div>
           )}
-          {curAllowance ? (
+          <p className="mt-2 text-[11px] text-muted-foreground">Click a date's bar or point to open that session.</p>
+          {f.part === "full" ? (
+            <p className="mt-2 text-xs text-muted-foreground" data-testid="text-plan-compare">Full session = the combined duration of the five marked parts, not the uncut recording or the sum of player minutes. Planned session: {session.plannedMinutes} min; time in marked parts: {m1(curDur)}. Sessions missing a part or duration are excluded from this trend and average. The planned-length line includes time outside parts; it is not an active-time target.</p>
+          ) : curAllowance ? (
             <p className="mt-2 text-xs text-muted-foreground" data-testid="text-plan-compare">Saved plan for {fmtDate(session.date)}: {curAllowance.minMinutes}–{curAllowance.maxMinutes} min. Marked: {m1(curDur)}{curDur != null ? ` — ${curDur / 60 < curAllowance.minMinutes ? "below" : curDur / 60 > curAllowance.maxMinutes ? "above" : "within"} range` : ""}.</p>
           ) : <p className="mt-2 text-[11px] text-muted-foreground">No planned range saved for this part on this date.</p>}
         </Panel>
 
-        <Panel testId="chart-stacked-allocation" kicker="Allocation" title="Minutes per part across sessions">
+        <Panel testId="chart-stacked-allocation" kicker="Allocation · all five parts and outside time" title="Minutes per part across sessions" context={context}
+          aside={<span className="text-[11px] text-muted-foreground">Click a bar to open that date</span>}>
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={stacked} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}

@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  fmtDate, partIdFromLabel, fmtMetric, groupMean, groupWholeMean, isGk, metricDef, metricUnit, partRows, playerWhole, sessionKey, sessionPlayers, usePM, selectedPartLabel,
+  fmtDate, partIdFromLabel, fmtMetric, groupMean, groupWholeMean, isGk, metricDef, metricUnit, partRows, playerWhole, sessionKey, sessionPlayers, usePM, selectedPartLabel, trainingChartContext,
   type TrainingFilters, type PartId, C } from "./shared";
 import { EmptyChart, InsightList, Note, Panel, Stat, axisProps, tooltipStyle } from "./ui";
 
@@ -35,6 +35,7 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
   const posComparable = player && !["Unassigned", "Mixed / other"].includes(player.group);
   const unit = metricUnit(f.metric, pm);
   const fmt = (v: number | null | undefined) => fmtMetric(f.metric, v, pm);
+  const context = `${player?.name ?? "Player"} · ${trainingChartContext(f, session)}`;
 
   const whole = useMemo(() => !playerKey ? [] : sessions.map(s => {
     const w = playerWhole(s, playerKey, f.metric, pm);
@@ -90,7 +91,7 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
           <Stat testId="stat-sessions" label="Sessions with this player" value={String(whole.length)} sub={single ? "Observed only — no baseline yet" : undefined} />
         </div>
 
-        <Panel testId="chart-whole-session" kicker="Whole session · over dates" title={`${metricDef(f.metric).label} across every session`}
+        <Panel testId="chart-whole-session" kicker="Always full session · over dates" title={`Full session — ${metricDef(f.metric).label} across every session`} context={context}
           aside={<span className="font-mono text-xs text-muted-foreground">{unit} · click a point to open that date</span>}>
           {whole.length === 0 ? <EmptyChart>No recordings for this player.</EmptyChart> : (
             <div className="h-72 sm:h-80">
@@ -114,7 +115,7 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
         </Panel>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <Panel testId="chart-five-part" kicker={fmtDate(session.date)} title="Five-part comparison vs participating peers"
+          <Panel testId="chart-five-part" kicker="All five parts" title={`${metricDef(f.metric).label} vs participating peers`} context={context}
             aside={<span className="text-[11px] text-muted-foreground">Click a part to trend it</span>}>
             {myRows.length === 0 ? <EmptyChart>Not in this session.</EmptyChart> : (
               <div className="h-72">
@@ -137,7 +138,8 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
             <p className="mt-2 text-[11px] text-muted-foreground">Peers are players who took part in that same part; means are of each peer's own value. {posComparable ? "" : "No confirmed position, so no position-peer comparison."} {parts.filter(p => !p.recorded).length ? `Not recorded: ${parts.filter(p => !p.recorded).map(p => p.label).join(", ")}.` : ""}</p>
           </Panel>
 
-          <Panel testId="chart-part-trend" kicker="Selected period · history" title={`${selectedPartLabel(f.part)} over dates`}>
+          <Panel testId="chart-part-trend" kicker="Selected period · history" title={`${selectedPartLabel(f.part)} — ${metricDef(f.metric).label} over dates`} context={context}
+            aside={<span className="text-[11px] text-muted-foreground">Click a point to open that date</span>}>
             {f.part === "full" && <p className="mb-3 text-[11px] text-muted-foreground">Combined marked parts only, excluding the uncut recording. Rates use combined recorded participation; peak metrics use the highest value.</p>}
             {partTrend.length === 0 ? <EmptyChart>No {selectedPartLabel(f.part)} recordings for this player.</EmptyChart> : (
               <div className="h-72">

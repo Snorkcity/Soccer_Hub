@@ -2,13 +2,14 @@ import type { ReactNode } from "react";
 import type { TrainingInsight } from "@workspace/api-zod";
 import { AlertTriangle, Info } from "lucide-react";
 
-export function Panel({ title, kicker, aside, children, testId }: { title: string; kicker?: string; aside?: ReactNode; children: ReactNode; testId?: string }) {
+export function Panel({ title, kicker, context, aside, children, testId }: { title: string; kicker?: string; context?: string; aside?: ReactNode; children: ReactNode; testId?: string }) {
   return (
     <section data-testid={testId} className="rounded-xl border border-card-border bg-card/80 p-4 sm:p-5">
       <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           {kicker && <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary/80">{kicker}</p>}
           <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+          {context && <p className="mt-1 text-xs text-muted-foreground">{context}</p>}
         </div>
         {aside}
       </header>
