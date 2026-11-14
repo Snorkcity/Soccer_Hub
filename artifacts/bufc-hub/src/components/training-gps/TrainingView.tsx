@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { RefreshCw, Upload } from "lucide-react";
-import { canRate, fmtDate, sessionKey, type TrainingFilters, type PartId } from "./shared";
+import { canRate, fmtDate, sessionKey, type TrainingFilters, type SelectedPart } from "./shared";
 import { PlayerTrainingTab } from "./PlayerTrainingTab";
 import { TeamTrainingTab } from "./TeamTrainingTab";
 import { CoachTrainingTab } from "./CoachTrainingTab";
@@ -53,6 +53,7 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
   );
 
   const rateOk = canRate(f.metric);
+  const coachFilters = f.part === "full" ? { ...f, part: "main" as const } : f;
   return (
     <div className="space-y-5">
       <div className="sticky top-0 z-20 -mx-1 grid grid-cols-2 gap-2 rounded-xl border border-border bg-background/90 p-3 backdrop-blur md:grid-cols-[1.3fr_1.4fr_1fr_auto]" data-testid="training-controls">
@@ -71,10 +72,13 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
           </Select>
         </div>
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Selected part</p>
-          <Select value={f.part} onValueChange={v => set({ part: v as PartId })}>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{tab === "coach" ? "Selected part" : "Part / session"}</p>
+          <Select value={tab === "coach" ? coachFilters.part : f.part} onValueChange={v => set({ part: v as SelectedPart })}>
             <SelectTrigger data-testid="select-training-part"><SelectValue /></SelectTrigger>
-            <SelectContent>{TRAINING_PARTS.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {tab !== "coach" && <SelectItem value="full">Full session</SelectItem>}
+              {TRAINING_PARTS.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
         <label className={`flex items-end gap-2 pb-2 text-sm ${rateOk ? "" : "opacity-50"}`} title={rateOk ? "" : "Not a rate metric"}>
@@ -96,7 +100,7 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
           <TeamTrainingTab sessions={sessions} session={current} f={f} set={set} drill={drill} />
         </TabsContent>
         <TabsContent value="coach" className="mt-5">
-          <CoachTrainingTab sessions={sessions} session={current} f={f} drill={drill} canWrite={canWrite} />
+          <CoachTrainingTab sessions={sessions} session={current} f={coachFilters} drill={drill} canWrite={canWrite} />
         </TabsContent>
       </Tabs>
       <p className="text-[11px] text-muted-foreground">Training values are never normalised per 90. Per-minute rates divide by each recording's own duration. Goalkeepers are compared only with goalkeepers.</p>

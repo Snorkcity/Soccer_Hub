@@ -4,6 +4,8 @@ import {
 } from "@workspace/api-zod";
 
 export type PartId = (typeof TRAINING_PARTS)[number]["id"];
+export type SelectedPart = PartId | "full";
+export const selectedPartLabel = (part: SelectedPart) => part === "full" ? "Full session" : TRAINING_PARTS.find(p => p.id === part)!.label;
 export const PART_IDS = TRAINING_PARTS.map(p => p.id) as PartId[];
 export const PART_COLORS: Record<string, string> = {
   warmup: "#61A9BD", passing: "#CED14E", technical: "#44986D", main: "#DD83C9", end: "#1F74AD",
@@ -15,7 +17,7 @@ export interface TrainingFilters {
   sessionId: string | null;
   metric: string;
   perMinute: boolean;
-  part: PartId;
+  part: SelectedPart;
   playerKey: string | null;
   squad: string; // "all" | squad
   position: string; // "outfield" | group label
@@ -98,4 +100,21 @@ export function groupWholeMean(s: TrainingGpsSession, metric: string, pm: boolea
   const keys = new Set(partRows(s).filter(filter).map(trainingPlayerKey));
   const vals = [...keys].map(k => playerWhole(s, k, metric, pm)).filter(w => w && !w.partial).map(w => w!.value);
   return { mean: trainingMean(vals), n: vals.filter(v => v != null).length, players: keys.size };
+}
+
+/** One entry per participant, with full-session rates recalculated from totals. */
+export function selectedPlayerValues(s: TrainingGpsSession, part: SelectedPart, metric: string, pm: boolean) {
+  const rows = partRows(s);
+  const selected = part === "full" ? [...new Map(rows.map(r => [trainingPlayerKey(r), r])).values()] : rows.filter(r => r.part === part);
+  return selected.map(r => {
+    const key = trainingPlayerKey(r);
+    const whole = part === "full" ? playerWhole(s, key, metric, pm) : null;
+    const minutes = part === "full" ? trainingTotal(rows.filter(x => trainingPlayerKey(x) === key), "duration") : null;
+    return {
+      key, name: r.playerName, squad: r.squad, pos: r.positionCode,
+      value: part === "full" ? whole?.value ?? null : trainingValue(r, metric, pm),
+      duration: part === "full" ? minutes == null ? null : minutes * 60 : r.durationSeconds,
+      partial: part === "full" && (whole?.partial ?? true),
+    };
+  });
 }

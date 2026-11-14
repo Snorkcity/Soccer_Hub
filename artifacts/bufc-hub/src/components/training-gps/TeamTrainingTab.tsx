@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
-import { TRAINING_PARTS, trainingInsights, trainingPartLabel, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
+import { TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import {
-  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM,
+  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel,
   type TrainingFilters, type PartId, C } from "./shared";
 import { PartComparisonChart } from "./PartComparisonChart";
 import { EmptyChart, InsightList, Panel, axisProps, tooltipStyle } from "./ui";
@@ -35,10 +35,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
     return d;
   });
 
-  const partList = rows.filter(r => r.part === f.part).map(r => ({
-    key: trainingPlayerKey(r), name: r.playerName, squad: r.squad, pos: r.positionCode,
-    value: trainingValue(r, f.metric, pm), duration: r.durationSeconds,
-  }));
+  const partList = selectedPlayerValues({ ...session, rows }, f.part, f.metric, pm);
   const sorted = [...partList].sort((a, b) => {
     const dir = sort.desc ? -1 : 1;
     if (sort.col === "name") return dir * a.name.localeCompare(b.name);
@@ -117,13 +114,14 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
-        <Panel testId="table-part-comparison" kicker={trainingPartLabel(f.part)} title="Player comparison"
+        <Panel testId="table-part-comparison" kicker={selectedPartLabel(f.part)} title="Player comparison"
           aside={<span className="font-mono text-xs text-muted-foreground">{contributors} contributors · {metricUnit(f.metric, pm)}</span>}>
-          {sorted.length === 0 ? <EmptyChart>Nobody in this filter recorded {trainingPartLabel(f.part)}.</EmptyChart> : (
+          {sorted.length === 0 ? <EmptyChart>Nobody in this filter recorded {selectedPartLabel(f.part)}.</EmptyChart> : (
             <>
             <PartComparisonChart fmt={fmt} onPick={k => drill({ playerKey: k }, "player")}
-              data={sorted.map(p => ({ key: p.key, name: p.name, value: p.value, meta: `${p.pos ?? "No position"} · ${p.squad ?? "No squad"} · ${fmtMin(p.duration)}` }))} />
+              data={sorted.map(p => ({ key: p.key, name: p.name, value: p.value, meta: `${p.pos ?? "No position"} · ${p.squad ?? "No squad"} · ${fmtMin(p.duration)}${p.partial ? " · partial session" : ""}` }))} />
             <p className="mb-3 text-[11px] text-muted-foreground">Bars follow the table sort. Click a bar or name to open that player.</p>
+            {f.part === "full" && <p className="mb-3 text-[11px] text-muted-foreground">Combined five marked parts only, excluding the uncut recording. Rates use each player's combined recorded time; peak metrics use their highest value. Incomplete sessions are labelled partial.</p>}
             <div className="max-h-[420px] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card text-left text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -138,7 +136,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
                     <tr key={p.key} className="border-t border-border/60 hover:bg-muted/30" data-testid={`row-team-player-${p.key}`}>
                       <td className="py-2 pr-2">
                         <button className="text-left hover:text-primary" onClick={() => drill({ playerKey: p.key }, "player")} data-testid={`link-player-${p.key}`}>{p.name}</button>
-                        <p className="text-[10px] text-muted-foreground">{p.pos ?? "No position"} · {p.squad ?? "No squad"}</p>
+                        <p className="text-[10px] text-muted-foreground">{p.pos ?? "No position"} · {p.squad ?? "No squad"}{p.partial ? " · Partial session" : ""}</p>
                       </td>
                       <td className="py-2 pr-2">
                         <div className="flex items-center gap-2">
@@ -190,10 +188,10 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
               <XAxis dataKey="date" {...axisProps} />
               <YAxis {...axisProps} width={48} />
               <Tooltip {...tooltipStyle} formatter={(v: number, name: string, item: { payload?: { wholeN: number; partN: number } }) =>
-                [fmt(v), name === "whole" ? `Whole session, mean of complete player totals (n=${item.payload?.wholeN})` : `${trainingPartLabel(f.part)} mean (n=${item.payload?.partN})`]} />
-              <Legend formatter={(v: string) => v === "whole" ? "Whole session (complete players)" : trainingPartLabel(f.part)} wrapperStyle={{ fontSize: 11 }} />
+                [fmt(v), name === "whole" ? `Whole session, mean of complete player totals (n=${item.payload?.wholeN})` : `${selectedPartLabel(f.part)} mean (n=${item.payload?.partN})`]} />
+              <Legend formatter={(v: string) => v === "whole" ? "Whole session (complete players)" : selectedPartLabel(f.part)} wrapperStyle={{ fontSize: 11 }} />
               <Line dataKey="whole" stroke={C.primary} strokeWidth={3} dot={{ r: 5 }} />
-              <Line dataKey="part" stroke={C.tertiary} strokeWidth={2} dot={{ r: 4 }} />
+              {f.part !== "full" && <Line dataKey="part" stroke={C.tertiary} strokeWidth={2} dot={{ r: 4 }} />}
             </LineChart>
           </ResponsiveContainer>
         </div>

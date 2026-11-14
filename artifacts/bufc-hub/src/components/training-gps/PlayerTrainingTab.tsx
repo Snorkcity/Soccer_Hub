@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import type { TrainingGpsRow, TrainingGpsSession } from "@workspace/api-client-react";
-import { TRAINING_PARTS, trainingInsights, trainingPartLabel, trainingPlayerKey, trainingPositionGroup, trainingValue } from "@workspace/api-zod";
+import { TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingPositionGroup, trainingValue } from "@workspace/api-zod";
 import {
   Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  fmtDate, partIdFromLabel, fmtMetric, groupMean, groupWholeMean, isGk, metricDef, metricUnit, partRows, playerWhole, sessionKey, sessionPlayers, usePM,
+  fmtDate, partIdFromLabel, fmtMetric, groupMean, groupWholeMean, isGk, metricDef, metricUnit, partRows, playerWhole, sessionKey, sessionPlayers, usePM, selectedPartLabel,
   type TrainingFilters, type PartId, C } from "./shared";
 import { EmptyChart, InsightList, Note, Panel, Stat, axisProps, tooltipStyle } from "./ui";
 
@@ -59,12 +59,14 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
     return { id: p.id, label: p.label, me: me ? trainingValue(me, f.metric, pm) : null, squad: sq?.mean ?? null, squadN: sq?.n ?? 0, pos: pos?.mean ?? null, posN: pos?.n ?? 0, recorded: !!me };
   });
 
-  const partTrend = !playerKey ? [] : sessions.flatMap(s => {
+  const partTrend = f.part === "full" ? whole.map(w => ({
+    id: w.id, date: w.date, me: w.complete ?? w.partialV, peer: w.peer, peerN: w.peerN, partial: w.parts < 5,
+  })) : !playerKey ? [] : sessions.flatMap(s => {
     const rows = partRows(s);
     const me = rows.find(r => r.part === f.part && trainingPlayerKey(r) === playerKey);
     if (!me) return [];
     const sq = groupMean(peers(rows, me, "squad"), f.metric, pm);
-    return [{ id: sessionKey(s), date: fmtDate(s.date), me: trainingValue(me, f.metric, pm), peer: sq.mean, peerN: sq.n }];
+    return [{ id: sessionKey(s), date: fmtDate(s.date), me: trainingValue(me, f.metric, pm), peer: sq.mean, peerN: sq.n, partial: false }];
   });
 
   const insights = useMemo(() => playerKey ? trainingInsights(session, playerKey, sessions) : [], [session, playerKey, sessions]);
@@ -135,8 +137,9 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
             <p className="mt-2 text-[11px] text-muted-foreground">Peers are players who took part in that same part; means are of each peer's own value. {posComparable ? "" : "No confirmed position, so no position-peer comparison."} {parts.filter(p => !p.recorded).length ? `Not recorded: ${parts.filter(p => !p.recorded).map(p => p.label).join(", ")}.` : ""}</p>
           </Panel>
 
-          <Panel testId="chart-part-trend" kicker="Selected part · history" title={`${trainingPartLabel(f.part)} over dates`}>
-            {partTrend.length === 0 ? <EmptyChart>No {trainingPartLabel(f.part)} recordings for this player.</EmptyChart> : (
+          <Panel testId="chart-part-trend" kicker="Selected period · history" title={`${selectedPartLabel(f.part)} over dates`}>
+            {f.part === "full" && <p className="mb-3 text-[11px] text-muted-foreground">Combined marked parts only, excluding the uncut recording. Rates use combined recorded participation; peak metrics use the highest value.</p>}
+            {partTrend.length === 0 ? <EmptyChart>No {selectedPartLabel(f.part)} recordings for this player.</EmptyChart> : (
               <div className="h-72">
                 <ResponsiveContainer>
                   <LineChart data={partTrend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
@@ -144,7 +147,7 @@ export function PlayerTrainingTab({ sessions, session, f, set, drill }: Props) {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(206 59% 25%)" vertical={false} />
                     <XAxis dataKey="date" {...axisProps} />
                     <YAxis {...axisProps} width={48} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number, name: string, item: { payload?: { peerN: number } }) => [fmt(v), name === "peer" ? `Squad peers mean (n=${item.payload?.peerN})` : player.name]} />
+                    <Tooltip {...tooltipStyle} formatter={(v: number, name: string, item: { payload?: { peerN: number; partial: boolean } }) => [fmt(v), name === "peer" ? `Squad peers mean (n=${item.payload?.peerN})` : `${player.name}${item.payload?.partial ? " · partial session" : ""}`]} />
                     <Line dataKey="peer" stroke={C.muted} strokeDasharray="5 4" dot={{ r: 3 }} />
                     <Line dataKey="me" stroke={C.tertiary} strokeWidth={2.5} dot={{ r: 4 }} />
                   </LineChart>
