@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceLin
 import { C, PART_COLORS, coachPeriod, fmtClock, fmtDate, selectedPartLabel, sessionKey, type TrainingFilters } from "./shared";
 import { EmptyChart, Note, Panel, Stat, axisProps, tooltipStyle } from "./ui";
 import { PlanEditor } from "./PlanEditor";
+import { CoachSessionMomentum } from "./CoachSessionMomentum";
 
 interface Props {
   sessions: TrainingGpsSession[]; session: TrainingGpsSession; f: TrainingFilters;
@@ -112,6 +113,8 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
         </div>
         {a.leading == null && <p className="mt-2 text-[11px] text-muted-foreground">Without a confirmed scheduled start, time outside the marked parts cannot be placed before, between or after them — beyond the internal gaps shown above.</p>}
       </Panel>
+
+      <CoachSessionMomentum session={session} selectedPart={f.part} onPick={part => drill({ part })} />
 
       <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 [&>section]:min-w-0">
         <Panel testId="chart-part-durations" kicker="Selected period" title={`${label} duration over dates`} context={context}

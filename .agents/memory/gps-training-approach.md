@@ -120,7 +120,7 @@ Use the same grouped, curated-metrics flow for the main Player training view: se
 
 ## Keep the review chart set small
 
-Player and Team must share a deliberately selected chart set, not automatically chart every imported field. Label the movement-load metric simply “Player Load”. Acceleration & braking contains only accelerations and decelerations greater than 3 m/s², without lower bands or peak charts. Keep high-speed metres, very-high-speed metres and maximum speed; avoid a duplicate source sprint-distance chart. Coach remains a separate time-allocation view.
+Player and Team must share a deliberately selected chart set, not automatically chart every imported field. Label the movement-load metric simply “Player Load”. Acceleration & braking contains only accelerations and decelerations greater than 3 m/s², without lower bands or peak charts. Keep high-speed metres, very-high-speed metres and maximum speed; avoid a duplicate source sprint-distance chart. Coach focuses on time allocation, with the subsequently requested session-momentum overview below.
 
 **Why:** the coach found the number of charts excessive and explicitly requested only the two greater-than-three acceleration/braking charts in both Player and Team.
 
@@ -132,4 +132,12 @@ The coach calls distance per minute one of their favourite metrics and wants it 
 
 **Why:** the coach could not find it during review and specifically asked to add it everywhere.
 
-**How to apply:** retain a dedicated distance-per-minute option in Player and Team charts, relative standings and focused analysis. For combined session rates use distance divided by the player's summed recorded minutes, never an unweighted mean of part rates or the scheduled 90-minute window. Coach remains focused on coaching time allocation.
+**How to apply:** retain a dedicated distance-per-minute option in Player and Team charts, relative standings and focused analysis. For combined session rates use distance divided by the player's summed recorded minutes, never an unweighted mean of part rates or the scheduled 90-minute window. Coach focuses on coaching time allocation plus the subsequently requested session-momentum overview.
+
+## Coach session momentum
+
+Include a team-average metric chart across the session's named parts in Coach, alongside its time-allocation analysis.
+
+**Why:** the coach liked the earlier across-parts momentum chart and explicitly asked to restore that view, suggesting a team average per metric in each part.
+
+**How to apply:** show the selected session in fixed practice-part order, disclose contributor counts and changing participation, and distinguish accumulated output from per-minute intensity. Keep goalkeepers separate from outfield players, preserve missing-data gaps, and do not present the pattern as an effort or football-performance grade.

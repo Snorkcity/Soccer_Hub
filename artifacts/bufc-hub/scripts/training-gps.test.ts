@@ -3,11 +3,39 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { trainingInsights, trainingPlayerKey, trainingTotal, trainingValue } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
-import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, metricDef, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, TRAINING_REVIEW_METRICS, trainingChartContext } from "../src/components/training-gps/shared";
+import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, metricDef, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sessionPartMeans, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, TRAINING_REVIEW_METRICS, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
 import { metricDrillAnalysis } from "../src/components/training-gps/metricDrillAnalysis";
 import { seasonGrantModules, seasonGrantAllows } from "@workspace/api-zod";
+
+test("Coach momentum uses player means and individual rates in fixed part order", () => {
+  const base = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const template = base.rows[0];
+  const session = { ...base, rows: [
+    { ...template, part: "main" as const, playerName: "A", sourceName: "A", positionCode: "CM", durationSeconds: 600, metrics: { ...template.metrics, distanceM: 1000 } },
+    { ...template, part: "main" as const, playerName: "B", sourceName: "B", positionCode: "CB", durationSeconds: 1200, metrics: { ...template.metrics, distanceM: 1000 } },
+    { ...template, part: "main" as const, playerName: "Keeper", positionCode: "GK", durationSeconds: 600, metrics: { ...template.metrics, distanceM: 9000 } },
+    { ...template, part: "main" as const, playerName: "Unknown", positionCode: null, durationSeconds: 600, metrics: { ...template.metrics, distanceM: 8000 } },
+    { ...template, part: "end" as const, playerName: "A", positionCode: "CM", durationSeconds: 0, metrics: { ...template.metrics, distanceM: 300 } },
+    { ...template, part: "passing" as const, playerName: "A", positionCode: "CM", durationSeconds: 600, metrics: { ...template.metrics, distanceM: 0 } },
+    { ...template, part: "recording" as const, playerName: "A", positionCode: "CM", durationSeconds: 600, metrics: { ...template.metrics, distanceM: 99999 } },
+  ] };
+  const totals = sessionPartMeans(session, "distance");
+  assert.deepEqual(totals.map(d => d.id), ["warmup", "passing", "technical", "main", "end"]);
+  assert.equal(totals[3].mean, 1000, "per-player mean, never the squad sum");
+  assert.equal(totals[3].n, 2);
+  assert.equal(totals[0].mean, null);
+  assert.equal(totals[1].mean, 0, "a genuine zero remains zero");
+  const rates = sessionPartMeans(session, "distancePerMinute");
+  assert.equal(rates[3].mean, 75, "mean of 100 and 50 m/min, not pooled 66.7");
+  assert.equal(rates[4].mean, null, "invalid participation cannot create a rate");
+  assert.equal(rates[4].n, 0);
+  assert.deepEqual(sessionPartMeans(session, "distance", true).map(d => d.mean), rates.map(d => d.mean));
+  assert.equal(sessionPartMeans(session, "distance", false, "Goalkeepers")[3].mean, 9000);
+  assert.equal(sessionPartMeans(session, "distance", false, "Defenders")[3].mean, 1000);
+  assert.equal(sessionPartMeans(session, "distance", false, "Unassigned")[3].mean, 8000);
+});
 
 test("quoted training CSV, BOM, trimmed tag and a one-part training export are detected", () => {
   assert.equal(isTrainingGpsText(trainingCsvFixture()), true);

@@ -186,6 +186,21 @@ export function groupMean(rows: readonly TrainingGpsRow[], metric: string, pm: b
   const vals = rows.map(r => trainingValue(r, metric, pm));
   return { mean: trainingMean(vals), n: vals.filter(v => v != null).length, rows: rows.length };
 }
+
+/** Session-order profile; a missing measurement is a gap, not a zero. */
+export function sessionPartMeans(
+  session: TrainingGpsSession,
+  metric: string,
+  perMinute = false,
+  position = "outfield",
+) {
+  const rows = partRows(session).filter(r => matchesFilters(r, { squad: "all", position }));
+  const pm = perMinute && canRate(metric);
+  return TRAINING_PARTS.map(part => ({
+    ...part,
+    ...groupMean(rows.filter(r => r.part === part.id), metric, pm),
+  }));
+}
 export function groupWholeMean(s: TrainingGpsSession, metric: string, pm: boolean, filter: (r: TrainingGpsRow) => boolean) {
   const keys = new Set(partRows(s).filter(filter).map(trainingPlayerKey));
   const vals = [...keys].map(k => playerWhole(s, k, metric, pm)).filter(w => w && !w.partial).map(w => w!.value);
