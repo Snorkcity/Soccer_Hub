@@ -32,7 +32,7 @@ function account(s: TrainingGpsSession) {
 export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Props) {
   const a = useMemo(() => account(session), [session]);
   const origin = a.tt[0]?.startSeconds ?? 0;
-  const span = a.tt.length ? a.tt[a.tt.length - 1].endSeconds! - origin : 0;
+  const span = a.tt.length ? Math.max(...a.tt.map(t => t.endSeconds!)) - origin : 0;
   const scale = Math.max(span, 1);
   const label = selectedPartLabel(f.part);
   const context = `${fmtDate(session.date)} · Selected: ${label} · Duration (minutes)`;
@@ -56,21 +56,26 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
   const curDur = coachPeriod(session, f.part).durationSeconds;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5">
       <Panel testId="chart-coach-timeline" kicker="All five parts · recorded clocks" title="Marked-part timeline" context={context}>
         {a.tt.length === 0 ? <EmptyChart>No marked part clocks in this export.</EmptyChart> : <>
           <p className="mb-3 text-[11px] text-muted-foreground">Click a coloured part to select it and see its duration history below.</p>
-          <div className="relative h-16 w-full overflow-hidden rounded-lg bg-muted/40" role="img" aria-label="Session timeline">
+          <div className="relative h-16 w-full min-w-0 max-w-full overflow-hidden rounded-lg bg-muted/40" role="group" aria-label="Session timeline">
+            <div className="absolute inset-x-1 top-0 bottom-0" data-testid="coach-timeline-track">
             {a.tt.map((t, i) => {
               const left = ((t.startSeconds! - origin) / scale) * 100, width = ((t.endSeconds! - t.startSeconds!) / scale) * 100;
               return (
                 <button key={t.part} onClick={() => drill({ part: t.part })} data-testid={`timeline-part-${t.part}`}
-                  className={`absolute top-2 bottom-2 rounded-md text-left text-[10px] font-semibold text-background transition-opacity hover:opacity-90 ${f.part === "full" || f.part === t.part ? "ring-2 ring-foreground" : ""}`}
-                  style={{ left: `${left}%`, width: `${Math.max(width, 0.8)}%`, background: PART_COLORS[t.part] }} title={`${t.label}: ${fmtClock(t.startSeconds)}–${fmtClock(t.endSeconds)}`}>
-                  <span className="block truncate px-1.5 pt-1">{width > 8 ? t.label : i + 1}</span>
+                  className={`absolute top-2 bottom-2 min-w-0 overflow-hidden rounded-md text-left text-[10px] font-semibold text-background transition-opacity hover:opacity-90 ${f.part === "full" || f.part === t.part ? "ring-2 ring-foreground" : ""}`}
+                  style={{ left: `${left}%`, width: `${Math.min(Math.max(width, 0.8), 100 - left)}%`, background: PART_COLORS[t.part] }}
+                  aria-label={`${t.label}: ${fmtClock(t.startSeconds)}–${fmtClock(t.endSeconds)}`}
+                  title={`${t.label}: ${fmtClock(t.startSeconds)}–${fmtClock(t.endSeconds)}`}>
+                  <span className="hidden whitespace-normal break-words px-1.5 leading-tight sm:block">{width > 8 ? t.label : i + 1}</span>
+                  <span className="block text-center sm:hidden">{i + 1}</span>
                 </button>
               );
             })}
+            </div>
           </div>
           <ol className="mt-4 divide-y divide-border/60 text-sm">
             {a.tt.map((t, i) => {
@@ -108,7 +113,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
         {a.leading == null && <p className="mt-2 text-[11px] text-muted-foreground">Without a confirmed scheduled start, time outside the marked parts cannot be placed before, between or after them — beyond the internal gaps shown above.</p>}
       </Panel>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 [&>section]:min-w-0">
         <Panel testId="chart-part-durations" kicker="Selected period" title={`${label} duration over dates`} context={context}
           aside={<span className="font-mono text-xs text-muted-foreground">avg {avg == null ? "—" : `${avg.toFixed(1)} min`} · n={present.length}</span>}>
           {present.length === 0 ? <EmptyChart>{f.part === "full" ? "No complete five-part timetable recorded yet." : `${label} has not been marked yet.`}</EmptyChart> : (
