@@ -1,7 +1,8 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownAZ, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
-import { C, canRate, fmtMetric, fmtMin, fmtNum, metricDef, metricUnit, type TeamChartSort } from "./shared";
+import { C, canRate, fmtMetric, fmtMin, fmtNum, metricDef, type TeamChartSort } from "./shared";
 import { tooltipStyle } from "./ui";
+import { useMetricDisplay } from "./useMetricDisplay";
 
 export interface TeamMetricItem { key: string; name: string; value: number | null; duration: number | null; partial: boolean; pos: string | null; squad: string | null }
 
@@ -21,13 +22,14 @@ const COL = 42;
 /** One vertical column per player, Catapult-style: value on top, participant average line. */
 export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel, dateLabel, onPick, sort, onSort, onRate }: Props) {
   const def = metricDef(metric);
-  const unit = metricUnit(metric, pm);
+  const display = useMetricDisplay(metric, pm);
+  const unit = display.unit;
   const short = (v: number | null | undefined) => {
     if (v == null) return "—";
     if (metric === "speed") return v.toFixed(1);
     return fmtNum(v, Math.abs(v) >= 100 ? 0 : pm || Math.abs(v) < 10 ? 1 : 0);
   };
-  const data = items.map(i => ({ ...i, bar: i.value }));
+  const data = items.map(i => ({ ...i, bar: display.value(i.value) }));
   const recorded = items.filter(i => i.value != null).length;
   const hasPartial = items.some(i => i.partial);
   const slug = metric.toLowerCase();
@@ -47,7 +49,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
             {SORTS.map(o => <button key={o.id} type="button" aria-pressed={sort === o.id} title={o.label} aria-label={o.label}
               onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-sort-${slug}-${o.id}`}><o.Icon className="h-3.5 w-3.5" /></button>)}
           </div>
-          {metric === "speed" ? <span className="self-center px-2 text-xs text-muted-foreground" title="Maximum speed is a peak, not a distance-per-minute metric. Hover a column for km/h and m/s.">Peak speed · km/h</span> : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+          {metric === "speed" ? display.control : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
             title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
             <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-rate-${slug}-total`}>Total</button>
             <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-rate-${slug}-pm`}>/min</button>
@@ -57,7 +59,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
           <span className="inline-flex items-center gap-1.5" data-testid={`text-avg-${slug}`}>
             <span className="inline-block h-0.5 w-4" style={{ background: C.secondary }} />
-            Avg {fmtMetric(metric, mean, pm)} <span className="text-muted-foreground">(n={n})</span>
+            Avg {display.format(display.value(mean))} <span className="text-muted-foreground">(n={n})</span>
           </span>
           {total != null && <span data-testid={`text-total-${slug}`}>Total {fmtMetric(metric, total, pm)}</span>}
           <span className="text-muted-foreground">{recorded}/{items.length} recorded</span>
@@ -91,10 +93,10 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
                 <Tooltip {...tooltipStyle} cursor={{ fill: "rgba(97,169,189,0.08)" }}
                   formatter={(v: number, _n: string, item: { payload?: TeamMetricItem }) => {
                     const p = item.payload;
-                    return [fmtMetric(metric, v, pm), `${p?.pos ?? "No position"} · ${fmtMin(p?.duration)}${p?.partial ? " · incomplete total, not in average" : ""}`];
+                    return [display.format(v), `${p?.pos ?? "No position"} · ${fmtMin(p?.duration)}${p?.partial ? " · incomplete total, not in average" : ""}`];
                   }}
                   labelFormatter={(k: string) => items.find(i => i.key === k)?.name ?? k} />
-                {mean != null && <ReferenceLine y={mean} stroke={C.secondary} strokeWidth={1.5} />}
+                {mean != null && <ReferenceLine y={display.value(mean)!} stroke={C.secondary} strokeWidth={1.5} />}
                 <Bar dataKey="bar" radius={[3, 3, 0, 0]} maxBarSize={30} className="cursor-pointer" isAnimationActive={false}>
                   {data.map(d => <Cell key={d.key} fill={d.partial ? C.mutedDark : C.primary} />)}
                   <LabelList dataKey="bar" position="top" fontSize={10} fill="hsl(210 40% 92%)"
@@ -107,7 +109,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
       )}
       <p className="mt-1 text-[11px] text-muted-foreground">
         Average line = mean of complete player values only{hasPartial ? "; * darker columns are incomplete totals, shown but excluded from the average and total" : ""}.
-        {metric === "speed" ? " Each column is that player's highest recorded speed, not divided by minutes; hover for km/h and m/s." : metric === "maxAccel" || metric === "maxDecel" ? " Peak value, never summed." : ""} Missing values show as —. Click a column or name to open that player.
+        {metric === "speed" ? " Each column is that player's highest recorded speed, not divided by minutes. Switch km/h or m/s above." : metric === "maxAccel" || metric === "maxDecel" ? " Peak value, never summed." : ""} Missing values show as —. Click a column or name to open that player.
       </p>
     </section>
   );

@@ -1,7 +1,8 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CalendarArrowUp } from "lucide-react";
-import { C, canRate, fmtDate, fmtMetric, fmtMin, fmtNum, metricDef, metricUnit, type PlayerHistorySort, type PlayerMetricHistoryItem } from "./shared";
+import { C, canRate, fmtDate, fmtMin, fmtNum, metricDef, type PlayerHistorySort, type PlayerMetricHistoryItem } from "./shared";
 import { tooltipStyle } from "./ui";
+import { useMetricDisplay } from "./useMetricDisplay";
 
 interface Props {
   metric: string; items: PlayerMetricHistoryItem[]; pm: boolean;
@@ -22,11 +23,12 @@ const PEAK = ["speed", "maxAccel", "maxDecel"];
 /** One column per tracked session for one metric; value sorts reorder columns and are labelled as rankings, not trends. */
 export function PlayerMetricHistoryChart({ metric, items, pm, playerName, periodLabel, currentKey, sort, onSort, onRate, onPick, variant = "overview" }: Props) {
   const def = metricDef(metric);
-  const unit = metricUnit(metric, pm);
+  const display = useMetricDisplay(metric, pm);
+  const unit = display.unit;
   const slug = metric.toLowerCase();
   const rateable = canRate(metric);
   const short = (v: number | null | undefined) => v == null ? "—" : metric === "speed" ? v.toFixed(1) : fmtNum(v, Math.abs(v) >= 100 ? 0 : pm || Math.abs(v) < 10 ? 1 : 0);
-  const data = items.map(i => ({ ...i, bar: i.value }));
+  const data = items.map(i => ({ ...i, bar: display.value(i.value) }));
   const recorded = items.filter(i => i.value != null);
   const zeros = recorded.filter(i => i.value === 0).length;
   const hasPartial = items.some(i => i.partial);
@@ -48,7 +50,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
                 onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-player-sort-${slug}-${o.id}`}>
                 <o.Icon className="h-3.5 w-3.5" />{o.id === "date" && <span>Date</span>}</button>)}
             </div>
-            {metric === "speed" ? <span className="self-center px-2 text-xs text-muted-foreground" title="Maximum speed is a peak, not a distance-per-minute metric. Hover a column for km/h and m/s.">Peak speed · km/h</span> : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+            {metric === "speed" ? display.control : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
               title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
               <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-player-rate-${slug}-total`}>Total</button>
               <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-player-rate-${slug}-pm`}>/min</button>
@@ -57,7 +59,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
           <span data-testid={`text-player-recorded-${slug}`}>{recorded.length}/{items.length} sessions with a value</span>
-          {best != null && <span className="text-muted-foreground">Highest {fmtMetric(metric, best, pm)}</span>}
+          {best != null && <span className="text-muted-foreground">Highest {display.format(display.value(best))}</span>}
           <span className={sort === "date" ? "text-muted-foreground" : "text-secondary"}>{sort === "date" ? "Oldest left, newest right" : `Ranked ${sort === "highest" ? "highest" : "lowest"} first, not a time trend`}</span>
           {metric === "distancePerMinute" ? <span className="text-muted-foreground">Distance ÷ recorded participation minutes</span> : !rateable && <span className="text-muted-foreground">Not a rate metric</span>}
         </div>
@@ -77,7 +79,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
                     const cur = it?.key === currentKey;
                     return (
                       <g transform={`translate(${p.x},${p.y + 6})`} className="cursor-pointer outline-none [&:focus-visible>text]:underline" role="button" tabIndex={0}
-                        aria-label={`Open session ${it ? fmtDate(it.date) : ""}: ${def.label} ${fmtMetric(metric, it?.value, pm)}${it?.partial ? ", partial" : ""}`}
+                        aria-label={`Open session ${it ? fmtDate(it.date) : ""}: ${def.label} ${display.format(display.value(it?.value))}${it?.partial ? ", partial" : ""}`}
                         onClick={e => { e.stopPropagation(); onPick(p.payload.value); }}
                         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(p.payload.value); } }}>
                         <text transform="rotate(-35)" textAnchor="end" fontSize={11} fontWeight={cur ? 700 : 400}
@@ -91,7 +93,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
                 <Tooltip {...tooltipStyle} cursor={{ fill: "rgba(97,169,189,0.08)" }}
                   formatter={(v: number, _n: string, item: { payload?: PlayerMetricHistoryItem }) => {
                     const p = item.payload;
-                    return [fmtMetric(metric, v, pm), `${fmtMin(p?.duration)} · ${p?.parts ?? 0}/5 parts${p?.partial ? " · partial" : ""}`];
+                    return [display.format(v), `${fmtMin(p?.duration)} · ${p?.parts ?? 0}/5 parts${p?.partial ? " · partial" : ""}`];
                   }}
                   labelFormatter={(k: string) => { const it = byKey.get(k); return it ? `${fmtDate(it.date)} · ${it.title || "Training"}` : k; }} />
                 <Bar dataKey="bar" radius={[3, 3, 0, 0]} maxBarSize={34} className="cursor-pointer" isAnimationActive={false}>

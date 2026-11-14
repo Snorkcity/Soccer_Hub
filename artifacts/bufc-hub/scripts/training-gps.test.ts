@@ -8,6 +8,17 @@ import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
 import { metricDrillAnalysis } from "../src/components/training-gps/metricDrillAnalysis";
 import { seasonGrantModules, seasonGrantAllows } from "@workspace/api-zod";
+import { displaySpeed } from "../src/components/training-gps/speedDisplay";
+
+test("Top speed display converts units without changing analysis values", () => {
+  assert.equal(metricDef("speed").label, "Top speed");
+  assert.equal(displaySpeed(28.8, "m/s"), 8);
+  assert.equal(displaySpeed(28.8, "km/h"), 28.8);
+  assert.equal(displaySpeed(0, "m/s"), 0);
+  assert.equal(displaySpeed(null, "m/s"), null);
+  assert.equal(displaySpeed(undefined, "km/h"), null);
+  assert.equal(displaySpeed(NaN, "m/s"), null);
+});
 
 test("Coach momentum uses player means and individual rates in fixed part order", () => {
   const base = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;

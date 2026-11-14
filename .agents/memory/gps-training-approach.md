@@ -134,6 +134,10 @@ Player and Team must share a deliberately selected chart set, not automatically 
 
 ## Distance per minute must be easy to find
 
+Call the training chart **Top speed**, with km/h and m/s unit choices in Team and Player.
+**Why:** the coach expected a speed-unit switch, not a per-minute calculation, and explicitly requested this name.
+**How to apply:** switch display units only; top speed remains a peak, never divided by participation minutes.
+
 The coach calls distance per minute one of their favourite metrics and wants it available throughout training analysis as an explicit metric, not only hidden behind Total distance's per-minute switch.
 
 **Why:** the coach could not find it during review and specifically asked to add it everywhere.

@@ -16,7 +16,7 @@ export const OVERLAY_COLORS = ["#CED14E", "#DD83C9", "#E98E2E"];
 
 export const TRAINING_METRIC_GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
   { id: "running", label: "Running & load", blurb: "Distance, distance per minute, Player Load, Power Plays, time", metrics: ["distance", "distancePerMinute", "load", "power", "duration"] },
-  { id: "speed", label: "High-speed & sprint", blurb: "High-speed metres, very-high-speed metres, maximum speed", metrics: ["hsm", "vhsm", "speed"] },
+  { id: "speed", label: "High-speed & sprint", blurb: "High-speed metres, very-high-speed metres, top speed", metrics: ["hsm", "vhsm", "speed"] },
   { id: "accel", label: "Acceleration & braking", blurb: "Accelerations and decelerations above 3 m/s²", metrics: ["accels", "decels"] },
 ];
 
@@ -47,7 +47,7 @@ export function sortTeamMetricItems<T extends { name: string; value: number | nu
 export const sessionKey = (s: TrainingGpsSession) => String(s.id ?? `${s.date}-${s.version}`);
 export const metricDef = (id: string) => {
   const metric = TRAINING_METRICS.find(m => m.id === id) ?? TRAINING_METRICS[0];
-  return metric.id === "load" ? { ...metric, label: "Player Load" } : metric;
+  return metric.id === "load" ? { ...metric, label: "Player Load" } : metric.id === "speed" ? { ...metric, label: "Top speed" } : metric;
 };
 /** Deliberately curated review choices, not every metric retained from a CSV. */
 export const TRAINING_REVIEW_METRICS = TRAINING_METRIC_GROUPS.flatMap(g => g.metrics.map(metricDef));
