@@ -89,3 +89,9 @@ The coach finds repeated part and metric selection difficult. They want the Team
 **Why:** the coach explicitly said the first Team view lacked simplicity and required too much scrolling back to change selections.
 
 **How to apply:** favour scanning the session's metrics without repeated dropdown changes. Keep the all-in-one relative comparison available, retain component and positional analysis without making them prerequisites, and do not mistake the screenshot's game-value grading for a requested training benchmark.
+
+The coach refined the review flow: choose the session near Matches/Training, then Player/Team/Coach, then relevant period and view controls underneath. Group Team charts into about three expandable sections, with relative standings after the charts. Give each player-comparison chart its own sort and Totals/Per-minute controls rather than one distant control for every chart.
+
+**Why:** the coach found the top controls congested, including the horizontal scrollbar, and wanted less scrolling through charts and back to global controls.
+
+**How to apply:** keep session selection above view selection, show only meaningful controls for each view (Coach does not use player metric/rate controls), and keep chart sorting/rate settings independent.

@@ -250,6 +250,17 @@ export default function GpsInsights() {
 
   if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps")) return <NoAccess />;
 
+  const sourceToggle = (
+    <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
+      {(["matches", "training"] as const).map(v => (
+        <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`button-gps-view-${v}`}
+          className={`rounded-md px-5 py-1.5 text-sm font-medium transition-colors ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          {v === "matches" ? "Matches" : "Training"}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -263,16 +274,7 @@ export default function GpsInsights() {
         </Select>
       </div>
 
-      <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
-        {(["matches", "training"] as const).map(v => (
-          <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`button-gps-view-${v}`}
-            className={`rounded-md px-5 py-1.5 text-sm font-medium transition-colors ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            {v === "matches" ? "Matches" : "Training"}
-          </button>
-        ))}
-      </div>
-
-      {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} /> : <>
+      {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} sourceToggle={sourceToggle} /> : <>{sourceToggle}
       <OpponentMismatchWarning year={year} />
 
       <SeasonRosterPanel key={`${activeLeagueId}-${year}`} leagueId={activeLeagueId} year={year} />

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { trainingInsights } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
-import { coachPeriod, matchesFilters, relativeStandings, selectedPlayerValues, selectedPartLabel, sortStandings, STANDING_PARTS, teamMetricData, trainingChartContext } from "../src/components/training-gps/shared";
+import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, relativeStandings, selectedPlayerValues, selectedPartLabel, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
 
@@ -156,6 +156,39 @@ test("Team chart metrics use their own rate setting, apply filters and exclude p
   assert.equal(noPlayers.mean, null);
   assert.equal(noPlayers.total, null);
   assert.equal(noPlayers.n, 0);
+});
+test("Training defaults to Full session; chart sorting keeps missing last, handles zero and does not mutate input", () => {
+  assert.equal(DEFAULT_TRAINING_FILTERS.part, "full");
+  assert.equal(DEFAULT_TRAINING_FILTERS.perMinute, false);
+  const values = [
+    { name: "C.Player", value: null },
+    { name: "B.Player", value: 10 },
+    { name: "A.Player", value: 10 },
+    { name: "D.Player", value: 0 },
+    { name: "E.Player", value: 30 },
+  ];
+  assert.deepEqual(sortTeamMetricItems(values, "highest").map(p => p.name), ["E.Player", "A.Player", "B.Player", "D.Player", "C.Player"]);
+  assert.deepEqual(sortTeamMetricItems(values, "lowest").map(p => p.name), ["D.Player", "A.Player", "B.Player", "E.Player", "C.Player"]);
+  assert.deepEqual(sortTeamMetricItems(values, "name").map(p => p.name), ["A.Player", "B.Player", "C.Player", "D.Player", "E.Player"]);
+  assert.equal(values[0].name, "C.Player");
+  assert.equal(values[4].name, "E.Player");
+});
+test("Independent chart rate choices recalculate their own values without changing the session filters", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  session.rows = session.rows.map(r => ({ ...r, positionCode: "CB", squad: "1sts" }));
+  const filters = { ...DEFAULT_TRAINING_FILTERS };
+  const distanceTotals = teamMetricData(session, { ...filters, perMinute: false }, "distance");
+  const distanceRate = teamMetricData(session, { ...filters, perMinute: true }, "distance");
+  const powerTotals = teamMetricData(session, { ...filters, perMinute: false }, "power");
+  const powerRate = teamMetricData(session, { ...filters, perMinute: true }, "power");
+  assert.equal(distanceTotals.items[0].value, 5300);
+  assert.equal(distanceRate.items[0].value, 5300 / (4061 / 60));
+  assert.equal(distanceRate.total, null);
+  assert.equal(powerTotals.items[0].value, 15);
+  assert.equal(powerRate.items[0].value, 15 / (4061 / 60));
+  assert.equal(powerRate.total, null);
+  assert.equal(filters.perMinute, false);
+  assert.deepEqual(teamMetricData(session, filters, "distance"), distanceTotals);
 });
 test("optional private Catapult CSV is correctly detected", { skip: !existsSync(privateSample) }, () => {
   assert.equal(isTrainingGpsText(readFileSync(privateSample, "utf8")), true);

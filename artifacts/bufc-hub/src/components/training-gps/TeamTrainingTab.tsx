@@ -3,9 +3,11 @@ import type { TrainingGpsSession } from "@workspace/api-client-react";
 import { TRAINING_METRICS, TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDown, ArrowUp, ChevronDown, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, X } from "lucide-react";
 import {
-  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate,
+  OVERLAY_COLORS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate, sortTeamMetricItems,
+  type TeamChartSort,
   type TrainingFilters, type SelectedPart, type PartId, C } from "./shared";
 import { TeamMetricChart } from "./TeamMetricChart";
 import { PartComparisonChart } from "./PartComparisonChart";
@@ -17,8 +19,17 @@ interface Props {
 }
 const POSITIONS = ["outfield", "Defenders", "Midfielders", "Forwards", "Mixed / other", "Unassigned", "Goalkeepers"];
 
-const FIRST = ["distance", "power", "hsm", "vhsm", "load", "accels", "decels", "speed", "duration"];
-const ORDER: string[] = [...FIRST, ...TRAINING_METRICS.map(m => m.id as string).filter(id => !FIRST.includes(id))];
+const GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
+  { id: "running", label: "Running & load", blurb: "Distance, Player Load, Power Plays, time", metrics: ["distance", "load", "power", "duration"] },
+  { id: "speed", label: "High-speed & sprint", blurb: "HSR, VHSR, sprint distance, top speed", metrics: ["hsm", "vhsm", "sprint", "speed"] },
+  { id: "accel", label: "Acceleration & braking", blurb: "Efforts by band and peaks", metrics: ["accels", "decels", "accel01", "accel12", "accel23", "accel34", "accelOver4", "decel01", "decel12", "decel23", "decel34", "decelOver4", "maxAccel", "maxDecel"] },
+];
+const grouped = new Set(GROUPS.flatMap(g => g.metrics));
+// Any metric added later still appears exactly once.
+GROUPS[0].metrics.push(...TRAINING_METRICS.map(m => m.id as string).filter(id => !grouped.has(id)));
+const ORDER: string[] = GROUPS.flatMap(g => g.metrics);
+type ChartPref = { sort: TeamChartSort; perMinute: boolean };
+const DEFAULT_PREF: ChartPref = { sort: "name", perMinute: false };
 
 export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
   const pm = usePM(f);
@@ -27,7 +38,12 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
   const [sort, setSort] = useState<{ col: "name" | "value" | "duration"; desc: boolean }>({ col: "value", desc: true });
   const [standingSort, setStandingSort] = useState<{ col: "name" | SelectedPart; desc: boolean }>({ col: "full", desc: false });
   const [standingMetric, setStandingMetric] = useState("distance");
-  const standingPm = f.perMinute && canRate(standingMetric);
+  const [standingRate, setStandingRate] = useState(false);
+  const standingPm = standingRate && canRate(standingMetric);
+  const [open, setOpen] = useState<Record<string, boolean>>({ running: true });
+  const [prefs, setPrefs] = useState<Record<string, ChartPref>>({});
+  const prefOf = (m: string) => prefs[m] ?? DEFAULT_PREF;
+  const setPref = (m: string, p: Partial<ChartPref>) => setPrefs(s => ({ ...s, [m]: { ...(s[m] ?? DEFAULT_PREF), ...p } }));
   const context = trainingChartContext(f, session);
 
   const all = partRows(session);
@@ -66,7 +82,11 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
     return { id: sessionKey(s), date: fmtDate(s.date), whole: w.mean, wholeN: w.n, part: p.mean, partN: p.n };
   });
 
-  const charts = useMemo(() => ORDER.map(metric => ({ metric, ...teamMetricData(session, f, metric) })), [session, f]);
+  const chartFor = (metric: string) => {
+    const p = prefOf(metric);
+    const d = teamMetricData(session, { ...f, perMinute: p.perMinute }, metric);
+    return { metric, ...d, items: sortTeamMetricItems(d.items, p.sort), sort: p.sort };
+  };
   const insights = useMemo(() => {
     const scope = (s: TrainingGpsSession) => ({ ...s, rows: s.rows.filter(r => matchesFilters(r, { squad: f.squad, position: f.position })) });
     return trainingInsights(scope(session), null, sessions.map(scope));
@@ -89,14 +109,47 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
       </div>
 
 
-      <p className="text-xs text-muted-foreground" data-testid="text-team-period">{fmtDate(session.date)} · {session.title || "Training"} · <span className="text-foreground">{selectedPartLabel(f.part)}</span>{f.part === "full" ? " (five marked parts, uncut recording excluded)" : ""} · {f.perMinute ? "per-minute rates where available" : "totals"}. Players in the same alphabetical order on every chart.</p>
+      <p className="text-xs text-muted-foreground" data-testid="text-team-period">{fmtDate(session.date)} · {session.title || "Training"} · <span className="text-foreground">{selectedPartLabel(f.part)}</span>{f.part === "full" ? " (five marked parts, uncut recording excluded)" : ""}. Each chart has its own sort and Total or /min switch, top right.</p>
+
+
+      <div className="space-y-3" data-testid="team-metric-charts">
+        {GROUPS.map(g => {
+          const isOpen = !!open[g.id];
+          return (
+            <section key={g.id} className="rounded-xl border border-border bg-card/40" data-testid={`group-team-${g.id}`}>
+              <button type="button" aria-expanded={isOpen} onClick={() => setOpen(o => ({ ...o, [g.id]: !isOpen }))}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" data-testid={`button-toggle-group-${g.id}`}>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{g.label} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{g.metrics.length} charts</span></span>
+                  <span className="block truncate text-xs text-muted-foreground">{g.blurb}</span>
+                </span>
+                {isOpen ? <ChevronUp className="h-5 w-5 shrink-0 text-primary" /> : <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />}
+              </button>
+              {isOpen && <div className="space-y-4 border-t border-border p-2 sm:p-3">
+                {g.metrics.map(m => { const c = chartFor(m); return (
+                  <TeamMetricChart key={m} {...c} periodLabel={selectedPartLabel(f.part)} dateLabel={fmtDate(session.date)}
+                    onSort={s => setPref(m, { sort: s })} onRate={v => setPref(m, { perMinute: v })}
+                    onPick={k => drill({ playerKey: k, metric: m, perMinute: c.pm }, "player")} />); })}
+              </div>}
+            </section>
+          );
+        })}
+      </div>
 
         <Panel testId="table-relative-standing" kicker="Relative standing · five parts and full session" title={`${metricDef(standingMetric).label} rank within each part`}
         context={`${fmtDate(session.date)} · ${metricDef(standingMetric).label} (${metricUnit(standingMetric, standingPm)})`}
-        aside={<Select value={standingMetric} onValueChange={setStandingMetric}>
-          <SelectTrigger className="w-full sm:w-64" data-testid="select-standing-metric"><SelectValue /></SelectTrigger>
-          <SelectContent>{ORDER.map(m => <SelectItem key={m} value={m}>{metricDef(m).label}</SelectItem>)}</SelectContent>
-        </Select>}>
+        aside={<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <Select value={standingMetric} onValueChange={setStandingMetric}>
+            <SelectTrigger className="w-full sm:w-64" data-testid="select-standing-metric"><SelectValue /></SelectTrigger>
+            <SelectContent>{ORDER.map(m => <SelectItem key={m} value={m}>{metricDef(m).label}</SelectItem>)}</SelectContent>
+          </Select>
+          <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label="Standing totals or per minute" title={canRate(standingMetric) ? undefined : "Not a rate metric"}>
+            <button type="button" aria-pressed={!standingPm} onClick={() => setStandingRate(false)} data-testid="button-standing-total"
+              className={`min-h-8 rounded px-2 text-[11px] font-medium ${!standingPm ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>Total</button>
+            <button type="button" aria-pressed={standingPm} disabled={!canRate(standingMetric)} onClick={() => setStandingRate(true)} data-testid="button-standing-pm"
+              className={`min-h-8 rounded px-2 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50 ${standingPm ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>/min</button>
+          </div>
+        </div>}>
         {standing.length === 0 ? <EmptyChart>No players.</EmptyChart> : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full text-xs">
@@ -114,7 +167,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
               </thead>
               <tbody>{standing.map(s => (
                 <tr key={s.key} className="border-t border-border/60">
-                  <td className="py-1.5 pr-2"><button type="button" className="text-left hover:text-primary" onClick={() => drill({ playerKey: s.key, metric: standingMetric }, "player")} data-testid={`link-standing-player-${s.key}`}>{s.name}</button></td>
+                  <td className="py-1.5 pr-2"><button type="button" className="text-left hover:text-primary" onClick={() => drill({ playerKey: s.key, metric: standingMetric, perMinute: standingPm }, "player")} data-testid={`link-standing-player-${s.key}`}>{s.name}</button></td>
                   {s.cells.map((c, i) => {
                     const share = c ? 1 - (c.rank - 1) / Math.max(1, c.n - 1) : 0;
                     return <td key={i} className="px-1 py-1.5 text-center">
@@ -129,10 +182,6 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
         )}
       </Panel>
 
-      <div className="space-y-5" data-testid="team-metric-charts">
-        {charts.map(c => <TeamMetricChart key={c.metric} {...c} periodLabel={selectedPartLabel(f.part)} dateLabel={fmtDate(session.date)}
-          onPick={k => drill({ playerKey: k, metric: c.metric }, "player")} />)}
-      </div>
 
       <InsightList insights={insights} testId="insights-team" />
 
@@ -148,6 +197,10 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
               <SelectTrigger data-testid="select-deeper-metric"><SelectValue /></SelectTrigger>
               <SelectContent>{ORDER.map(m => <SelectItem key={m} value={m}>{metricDef(m).label}</SelectItem>)}</SelectContent>
             </Select>
+            <label className={`mt-3 flex items-center gap-2 text-xs ${canRate(f.metric) ? "" : "opacity-50"}`} title={canRate(f.metric) ? "" : "Not a rate metric"}>
+              <Switch checked={pm} disabled={!canRate(f.metric)} onCheckedChange={v => set({ perMinute: v })} data-testid="switch-deeper-per-minute" />
+              <span>{pm ? "Per minute" : "Totals"}</span>
+            </label>
           </div>
       <Panel testId="chart-group-profile" kicker="All five parts" title={`Group profile — ${metricDef(f.metric).label}`} context={context}
         aside={<Select value="" onValueChange={v => setOverlay(o => o.includes(v) || o.length >= 3 ? o : [...o, v])}>

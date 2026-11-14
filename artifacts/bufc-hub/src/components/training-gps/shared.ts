@@ -23,6 +23,20 @@ export interface TrainingFilters {
   squad: string; // "all" | squad
   position: string; // "outfield" | group label
 }
+export const DEFAULT_TRAINING_FILTERS: TrainingFilters = {
+  sessionId: null, metric: "distance", perMinute: false, part: "full",
+  playerKey: null, squad: "all", position: "outfield",
+};
+
+export type TeamChartSort = "name" | "highest" | "lowest";
+export function sortTeamMetricItems<T extends { name: string; value: number | null }>(items: readonly T[], sort: TeamChartSort): T[] {
+  return [...items].sort((a, b) => {
+    if (sort === "name") return a.name.localeCompare(b.name);
+    if (a.value == null) return b.value == null ? a.name.localeCompare(b.name) : 1;
+    if (b.value == null) return -1;
+    return (sort === "highest" ? b.value - a.value : a.value - b.value) || a.name.localeCompare(b.name);
+  });
+}
 
 export const sessionKey = (s: TrainingGpsSession) => String(s.id ?? `${s.date}-${s.version}`);
 export const metricDef = (id: string) => TRAINING_METRICS.find(m => m.id === id) ?? TRAINING_METRICS[0];

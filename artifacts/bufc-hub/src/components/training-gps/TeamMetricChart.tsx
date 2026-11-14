@@ -1,5 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { C, fmtMetric, fmtMin, fmtNum, metricDef, metricUnit } from "./shared";
+import { ArrowDownAZ, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
+import { C, canRate, fmtMetric, fmtMin, fmtNum, metricDef, metricUnit, type TeamChartSort } from "./shared";
 import { tooltipStyle } from "./ui";
 
 export interface TeamMetricItem { key: string; name: string; value: number | null; duration: number | null; partial: boolean; pos: string | null; squad: string | null }
@@ -7,12 +8,18 @@ export interface TeamMetricItem { key: string; name: string; value: number | nul
 interface Props {
   metric: string; items: TeamMetricItem[]; mean: number | null; total: number | null; n: number; pm: boolean;
   periodLabel: string; dateLabel: string; onPick: (key: string) => void;
+  sort: TeamChartSort; onSort: (s: TeamChartSort) => void; onRate: (perMinute: boolean) => void;
 }
+const SORTS: { id: TeamChartSort; label: string; Icon: typeof ArrowDownAZ }[] = [
+  { id: "name", label: "Alphabetical", Icon: ArrowDownAZ },
+  { id: "highest", label: "Highest first", Icon: ArrowDownWideNarrow },
+  { id: "lowest", label: "Lowest first", Icon: ArrowUpNarrowWide },
+];
 
 const COL = 42;
 
 /** One vertical column per player, Catapult-style: value on top, participant average line. */
-export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel, dateLabel, onPick }: Props) {
+export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel, dateLabel, onPick, sort, onSort, onRate }: Props) {
   const def = metricDef(metric);
   const unit = metricUnit(metric, pm);
   const short = (v: number | null | undefined) => {
@@ -24,13 +31,28 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
   const recorded = items.filter(i => i.value != null).length;
   const hasPartial = items.some(i => i.partial);
   const slug = metric.toLowerCase();
+  const rateable = canRate(metric);
+  const seg = (on: boolean) => `inline-flex min-h-8 items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${on ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`;
 
   return (
     <section data-testid={`chart-team-metric-${slug}`} className="rounded-xl border border-card-border bg-card/80 p-4 sm:p-5">
-      <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <header className="mb-3 flex flex-col gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary/80">{dateLabel} · {periodLabel}</p>
           <h3 className="text-lg font-semibold tracking-tight">{def.label} <span className="text-sm font-normal text-muted-foreground">({unit})</span></h3>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`Sort ${def.label}`}>
+            {SORTS.map(o => <button key={o.id} type="button" aria-pressed={sort === o.id} title={o.label} aria-label={o.label}
+              onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-sort-${slug}-${o.id}`}><o.Icon className="h-3.5 w-3.5" /></button>)}
+          </div>
+          <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+            title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
+            <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-rate-${slug}-total`}>Total</button>
+            <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-rate-${slug}-pm`}>/min</button>
+          </div>
+        </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
           <span className="inline-flex items-center gap-1.5" data-testid={`text-avg-${slug}`}>
@@ -39,6 +61,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
           </span>
           {total != null && <span data-testid={`text-total-${slug}`}>Total {fmtMetric(metric, total, pm)}</span>}
           <span className="text-muted-foreground">{recorded}/{items.length} recorded</span>
+          {!rateable && <span className="text-muted-foreground">Not a rate metric</span>}
         </div>
       </header>
       {items.length === 0 ? (
@@ -55,7 +78,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
                     const it = items.find(i => i.key === p.payload.value);
                     return (
                       <g transform={`translate(${p.x},${p.y + 6})`} className="cursor-pointer" role="button" tabIndex={0}
-                        aria-label={`Open ${it?.name ?? "player"}: ${def.label}`}
+                        aria-label={`Open ${it?.name ?? "player"}: ${def.label}${pm ? " per minute" : ""}`}
                         onClick={e => { e.stopPropagation(); onPick(p.payload.value); }}
                         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(p.payload.value); } }}>
                         <text transform="rotate(-40)" textAnchor="end" fontSize={11} fill={it?.partial ? "hsl(215 20% 65%)" : "hsl(210 40% 92%)"}>
