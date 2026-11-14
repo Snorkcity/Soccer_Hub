@@ -47,7 +47,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
             {SORTS.map(o => <button key={o.id} type="button" aria-pressed={sort === o.id} title={o.label} aria-label={o.label}
               onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-sort-${slug}-${o.id}`}><o.Icon className="h-3.5 w-3.5" /></button>)}
           </div>
-          {metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+          {metric === "speed" ? <span className="self-center px-2 text-xs text-muted-foreground" title="Maximum speed is a peak, not a distance-per-minute metric. Hover a column for km/h and m/s.">Peak speed · km/h</span> : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
             title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
             <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-rate-${slug}-total`}>Total</button>
             <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-rate-${slug}-pm`}>/min</button>
@@ -107,7 +107,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
       )}
       <p className="mt-1 text-[11px] text-muted-foreground">
         Average line = mean of complete player values only{hasPartial ? "; * darker columns are incomplete totals, shown but excluded from the average and total" : ""}.
-        {metric === "speed" || metric === "maxAccel" || metric === "maxDecel" ? " Peak value, never summed." : ""} Missing values show as —. Click a column or name to open that player.
+        {metric === "speed" ? " Each column is that player's highest recorded speed, not divided by minutes; hover for km/h and m/s." : metric === "maxAccel" || metric === "maxDecel" ? " Peak value, never summed." : ""} Missing values show as —. Click a column or name to open that player.
       </p>
     </section>
   );

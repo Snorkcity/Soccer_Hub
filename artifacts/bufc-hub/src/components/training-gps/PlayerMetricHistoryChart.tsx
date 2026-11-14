@@ -48,7 +48,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
                 onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-player-sort-${slug}-${o.id}`}>
                 <o.Icon className="h-3.5 w-3.5" />{o.id === "date" && <span>Date</span>}</button>)}
             </div>
-            {metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+            {metric === "speed" ? <span className="self-center px-2 text-xs text-muted-foreground" title="Maximum speed is a peak, not a distance-per-minute metric. Hover a column for km/h and m/s.">Peak speed · km/h</span> : metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
               title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
               <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-player-rate-${slug}-total`}>Total</button>
               <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-player-rate-${slug}-pm`}>/min</button>
