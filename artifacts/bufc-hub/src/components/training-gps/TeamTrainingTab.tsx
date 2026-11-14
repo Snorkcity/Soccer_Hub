@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
 import { TRAINING_METRICS, TRAINING_PARTS, trainingInsights, trainingPlayerKey, trainingValue } from "@workspace/api-zod";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -11,6 +11,7 @@ import {
   type TrainingFilters, type SelectedPart, type PartId, C } from "./shared";
 import { TeamMetricChart } from "./TeamMetricChart";
 import { PartComparisonChart } from "./PartComparisonChart";
+import { TrainingPlayerDrilldown } from "./TrainingPlayerDrilldown";
 import { EmptyChart, InsightList, Panel, axisProps, tooltipStyle } from "./ui";
 
 interface Props {
@@ -32,6 +33,13 @@ type ChartPref = { sort: TeamChartSort; perMinute: boolean };
 const DEFAULT_PREF: ChartPref = { sort: "name", perMinute: false };
 
 export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
+  const [playerDrill, setPlayerDrill] = useState<TrainingFilters | null>(null);
+  const playerOpener = useRef<HTMLElement | SVGElement | null>(null);
+  const openPlayer = (patch: Partial<TrainingFilters>) => {
+    const element = document.activeElement;
+    playerOpener.current = element instanceof HTMLElement || element instanceof SVGElement ? element : null;
+    setPlayerDrill({ ...f, ...patch, sessionId: sessionKey(session) });
+  };
   const pm = usePM(f);
   const fmt = (v: number | null | undefined) => fmtMetric(f.metric, v, pm);
   const [overlay, setOverlay] = useState<string[]>([]);
@@ -129,7 +137,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
                 {g.metrics.map(m => { const c = chartFor(m); return (
                   <TeamMetricChart key={m} {...c} periodLabel={selectedPartLabel(f.part)} dateLabel={fmtDate(session.date)}
                     onSort={s => setPref(m, { sort: s })} onRate={v => setPref(m, { perMinute: v })}
-                    onPick={k => drill({ playerKey: k, metric: m, perMinute: c.pm }, "player")} />); })}
+                    onPick={k => openPlayer({ playerKey: k, metric: m, perMinute: c.pm })} />); })}
               </div>}
             </section>
           );
@@ -167,7 +175,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
               </thead>
               <tbody>{standing.map(s => (
                 <tr key={s.key} className="border-t border-border/60">
-                  <td className="py-1.5 pr-2"><button type="button" className="text-left hover:text-primary" onClick={() => drill({ playerKey: s.key, metric: standingMetric, perMinute: standingPm }, "player")} data-testid={`link-standing-player-${s.key}`}>{s.name}</button></td>
+                  <td className="py-1.5 pr-2"><button type="button" className="text-left hover:text-primary" onClick={() => openPlayer({ playerKey: s.key, metric: standingMetric, perMinute: standingPm })} data-testid={`link-standing-player-${s.key}`}>{s.name}</button></td>
                   {s.cells.map((c, i) => {
                     const share = c ? 1 - (c.rank - 1) / Math.max(1, c.n - 1) : 0;
                     return <td key={i} className="px-1 py-1.5 text-center">
@@ -236,7 +244,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
           aside={<span className="font-mono text-xs text-muted-foreground">{contributors} contributors · {metricUnit(f.metric, pm)}</span>}>
           {sorted.length === 0 ? <EmptyChart>Nobody in this filter recorded {selectedPartLabel(f.part)}.</EmptyChart> : (
             <>
-            <PartComparisonChart fmt={fmt} onPick={k => drill({ playerKey: k }, "player")}
+            <PartComparisonChart fmt={fmt} onPick={k => openPlayer({ playerKey: k })}
               data={sorted.map(p => ({ key: p.key, name: p.name, value: p.value, meta: `${p.pos ?? "No position"} · ${p.squad ?? "No squad"} · ${fmtMin(p.duration)}${p.partial ? " · partial session" : ""}` }))} />
             <p className="mb-3 text-[11px] text-muted-foreground">Bars follow the table sort. Click a bar or name to open that player.</p>
             {f.part === "full" && <p className="mb-3 text-[11px] text-muted-foreground">Combined five marked parts only, excluding the uncut recording. Rates use each player's combined recorded time; peak metrics use their highest value. Incomplete sessions are labelled partial.</p>}
@@ -253,7 +261,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
                   {sorted.map(p => (
                     <tr key={p.key} className="border-t border-border/60 hover:bg-muted/30" data-testid={`row-team-player-${p.key}`}>
                       <td className="py-2 pr-2">
-                        <button className="text-left hover:text-primary" onClick={() => drill({ playerKey: p.key }, "player")} data-testid={`link-player-${p.key}`}>{p.name}</button>
+                        <button className="text-left hover:text-primary" onClick={() => openPlayer({ playerKey: p.key })} data-testid={`link-player-${p.key}`}>{p.name}</button>
                         <p className="text-[10px] text-muted-foreground">{p.pos ?? "No position"} · {p.squad ?? "No squad"}{p.partial ? " · Partial session" : ""}</p>
                       </td>
                       <td className="py-2 pr-2">
@@ -294,6 +302,8 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
 
         </div>
       </details>
+      {playerDrill && <TrainingPlayerDrilldown sessions={sessions} initialFilters={playerDrill}
+        onClose={() => setPlayerDrill(null)} onReturnFocus={() => playerOpener.current?.focus({ preventScroll: true })} />}
     </div>
   );
 }

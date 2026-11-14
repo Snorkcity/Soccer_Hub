@@ -95,3 +95,11 @@ The coach refined the review flow: choose the session near Matches/Training, the
 **Why:** the coach found the top controls congested, including the horizontal scrollbar, and wanted less scrolling through charts and back to global controls.
 
 **How to apply:** keep session selection above view selection, show only meaningful controls for each view (Coach does not use player metric/rate controls), and keep chart sorting/rate settings independent.
+
+## Team-to-player exploration
+
+The coach wants clicking a player or their metric in Team training analysis to open a closable pop-up, not leave them on the Player tab. The requested example is clicking a player's total distance to see their distance across everything tracked, then returning to the same Team analysis.
+
+**Why:** switching tabs for a brief player drill-down left the coach feeling stuck and interrupted team analysis.
+
+**How to apply:** retain Team position, filters, chart groups and sorting underneath the pop-up. Scope history to the selected league and campaign; keep any date, metric or period exploration inside the pop-up separate from Team settings.
