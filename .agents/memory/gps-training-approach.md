@@ -65,3 +65,11 @@ Include short coaching insights beneath both the Player and Team training tabs f
 **Why:** the coach explicitly requested useful summaries at the bottom of both views and delegated judgement about other helpful insights.
 
 **How to apply:** ground statements in valid selected-session measurements; add historical and positional comparisons only when comparable evidence exists. Distinguish duration, accumulated output and intensity; handle ties and missing recordings honestly. Use the existing weighted-insight policy and confidence-aware voice, including meaningful watch points when supported, without inventing concerns or equating GPS output with effort, football performance, injury risk or selection readiness.
+
+## Confirmed import location
+
+Training CSV ingestion belongs in the existing GPS ingestion section of Data Entry, alongside match GPS ingestion, not a separate upload area.
+
+**Why:** the coach explicitly directed that the existing GPS Data Entry workflow should support training CSVs too.
+
+**How to apply:** extend that workflow with training-aware identification, split mapping and review while preserving existing match uploads. Keep campaign season separate from the actual session date and training measurements out of match-only analysis and Gref.
