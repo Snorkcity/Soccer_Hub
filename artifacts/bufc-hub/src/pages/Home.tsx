@@ -128,10 +128,10 @@ export default function Home() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground" data-testid="hub-context-pickers">
+            <span className="text-[10px] uppercase tracking-widest">Year</span>
+            <SeasonPicker />
             <span className="text-[10px] uppercase tracking-widest">Competition</span>
             <CompetitionPicker />
-            <span className="text-[10px] uppercase tracking-widest">Season</span>
-            <SeasonPicker />
           </div>
         </div>
 

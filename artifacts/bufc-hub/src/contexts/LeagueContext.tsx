@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { competitionsForYear } from "./competitionSeasons";
+import { campaignYears, competitionsForYear, resolveCampaign } from "./competitionSeasons";
 import {
   useListSeasons,
   useGetAuthStatus,
@@ -17,6 +17,10 @@ type LeagueContextValue = {
   leagueOptions: LeagueOption[];
   /** Accessible competitions that actually have the currently selected year. */
   competitionOptions: LeagueOption[];
+  /** All accessible campaign years, independent of the selected competition. */
+  yearOptions: string[];
+  activeYear: string | null;
+  setActiveYear: (year: string) => void;
   /** The team the current page is showing (e.g. "1sts") — drives the header
       "viewing" badge so coaches with several squads always know where they are. */
   viewingTeamLabel: string | null;
@@ -35,6 +39,9 @@ const LeagueContext = createContext<LeagueContextValue>({
   setActiveLeagueId: () => {},
   leagueOptions: [],
   competitionOptions: [],
+  yearOptions: [],
+  activeYear: null,
+  setActiveYear: () => {},
   viewingTeamLabel: null,
   setViewingTeamLabel: () => {},
   seasonOptions: [],
@@ -45,6 +52,7 @@ const LeagueContext = createContext<LeagueContextValue>({
 
 const STORAGE_KEY = "bufc.activeLeagueId";
 const SEASON_STORAGE_KEY = "bufc.seasonByLeague";
+const YEAR_STORAGE_KEY = "bufc.activeCampaignYear";
 
 function readSeasonMap(): Record<string, number> {
   try {
@@ -76,79 +84,71 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     return [...seen.entries()].map(([id, name]) => ({ id, name }));
   }, [seasons, isSuperadmin, grantedIds]);
 
-  const [activeLeagueId, setActive] = useState<number | null>(() => {
+  const [preferredLeagueId, setActive] = useState<number | null>(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     const n = raw ? Number(raw) : NaN;
     return Number.isFinite(n) ? n : null;
   });
 
-  // Default / repair: prefer the league of an active season the user can see.
-  useEffect(() => {
-    if (!leagueOptions.length) return;
-    if (activeLeagueId == null || !leagueOptions.some(l => l.id === activeLeagueId)) {
-      const withActive = (seasons ?? []).find(
-        s => s.isActive && leagueOptions.some(l => l.id === s.leagueId),
-      );
-      const repaired = withActive ? withActive.leagueId : leagueOptions[0].id;
-      localStorage.setItem(STORAGE_KEY, String(repaired)); // don't re-repair every reload
-      setActive(repaired);
-    }
-  }, [leagueOptions, activeLeagueId, seasons]);
-
   const [viewingTeamLabel, setViewingTeamLabel] = useState<string | null>(null);
+  const [preferredYear, setPreferredYear] = useState<string | null>(
+    () => localStorage.getItem(YEAR_STORAGE_KEY),
+  );
+  const [legacySeasonByLeague] = useState(readSeasonMap);
+  const accessibleSeasons = useMemo(
+    () => (seasons ?? []).filter(s => leagueOptions.some(l => l.id === s.leagueId)),
+    [seasons, leagueOptions],
+  );
+  const yearOptions = useMemo(() => campaignYears(accessibleSeasons), [accessibleSeasons]);
 
-  // Only expose a league once it is confirmed accessible, so no consumer
-  // queries a stale/unauthorised league during repair.
-  const leagueValid = activeLeagueId != null && leagueOptions.some(l => l.id === activeLeagueId);
+  // Migrate the old per-competition remembered season on the first visit.
+  const legacyYear = accessibleSeasons.find(
+    s => s.leagueId === preferredLeagueId && s.id === legacySeasonByLeague[String(preferredLeagueId)],
+  )?.year;
+  const activeSeason = useMemo<SeasonOption | null>(
+    () => resolveCampaign(accessibleSeasons, preferredLeagueId, preferredYear ?? legacyYear ?? null),
+    [accessibleSeasons, preferredLeagueId, preferredYear, legacyYear],
+  );
+  const activeLeagueId = activeSeason?.leagueId ?? null;
+  const activeYear = activeSeason?.year ?? null;
+
+  // Persist only the resolved, authorised pair. Year is now the primary choice.
+  useEffect(() => {
+    if (activeLeagueId == null || activeYear == null) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, String(activeLeagueId));
+      localStorage.setItem(YEAR_STORAGE_KEY, activeYear);
+    } catch { /* A blocked browser store must not prevent navigation. */ }
+  }, [activeLeagueId, activeYear]);
 
   const seasonOptions = useMemo<SeasonOption[]>(() => {
-    if (!leagueValid) return [];
-    return (seasons ?? [])
+    if (activeLeagueId == null) return [];
+    return accessibleSeasons
       .filter(s => s.leagueId === activeLeagueId)
       .map(s => ({ id: s.id, leagueId: s.leagueId, year: s.year, label: s.label, isActive: s.isActive }))
       .sort((a, b) => b.year.localeCompare(a.year, undefined, { numeric: true }) || b.id - a.id);
-  }, [seasons, activeLeagueId, leagueValid]);
-
-  // Explicit picks, remembered per league. isActive is only the default.
-  const [seasonByLeague, setSeasonByLeague] = useState<Record<string, number>>(readSeasonMap);
-
-  // Derived synchronously: a league switch resolves its season in the same
-  // render, so an old league's season id can never reach a query.
-  const activeSeason = useMemo<SeasonOption | null>(() => {
-    if (!seasonOptions.length || activeLeagueId == null) return null;
-    const picked = seasonByLeague[String(activeLeagueId)];
-    return (
-      seasonOptions.find(s => s.id === picked) ??
-      seasonOptions.find(s => s.isActive) ??
-      seasonOptions[0]
-    );
-  }, [seasonOptions, seasonByLeague, activeLeagueId]);
+  }, [accessibleSeasons, activeLeagueId]);
 
   const competitionOptions = useMemo(
-    () => competitionsForYear(leagueOptions, seasons ?? [], activeSeason?.year),
-    [leagueOptions, seasons, activeSeason?.year],
+    () => competitionsForYear(leagueOptions, accessibleSeasons, activeYear ?? undefined),
+    [leagueOptions, accessibleSeasons, activeYear],
   );
 
   const value = useMemo<LeagueContextValue>(() => ({
     activeLeagueId,
     leagueOptions,
     competitionOptions,
+    yearOptions,
+    activeYear,
+    setActiveYear: (year: string) => {
+      if (!yearOptions.includes(year)) return;
+      setActive(activeLeagueId);
+      setPreferredYear(year);
+    },
     setActiveLeagueId: (id: number) => {
       if (!leagueOptions.some(l => l.id === id)) return;
-      // Keep the chosen campaign when switching competitions, even if this
-      // competition was previously viewed in another year.
-      const sameYear = (seasons ?? []).find(s =>
-        s.leagueId === id && s.year === activeSeason?.year,
-      );
-      if (sameYear) {
-        setSeasonByLeague(prev => {
-          if (prev[String(id)] === sameYear.id) return prev;
-          const next = { ...prev, [String(id)]: sameYear.id };
-          try { localStorage.setItem(SEASON_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-          return next;
-        });
-      }
-      localStorage.setItem(STORAGE_KEY, String(id));
+      // The year is never changed merely by choosing a competition.
+      setPreferredYear(prev => prev ?? activeYear);
       setActive(id);
     },
     viewingTeamLabel,
@@ -157,15 +157,12 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     activeSeason,
     activeSeasonId: activeSeason?.id ?? null,
     setActiveSeasonId: (id: number) => {
-      const season = (seasons ?? []).find(s => s.id === id);
-      if (!season || !leagueOptions.some(l => l.id === season.leagueId)) return;
-      setSeasonByLeague(prev => {
-        const next = { ...prev, [String(season.leagueId)]: id };
-        try { localStorage.setItem(SEASON_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-        return next;
-      });
+      const season = accessibleSeasons.find(s => s.id === id);
+      if (!season) return;
+      setActive(season.leagueId);
+      setPreferredYear(season.year);
     },
-  }), [activeLeagueId, leagueOptions, competitionOptions, viewingTeamLabel, seasonOptions, activeSeason, seasons, seasonByLeague]);
+  }), [activeLeagueId, leagueOptions, competitionOptions, yearOptions, activeYear, viewingTeamLabel, seasonOptions, activeSeason, accessibleSeasons]);
 
   return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>;
 }

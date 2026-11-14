@@ -100,30 +100,30 @@ export function CompetitionPicker({ className = "" }: { className?: string }) {
   );
 }
 
-/** Explicit season (campaign) picker for the active competition. */
+/** Primary campaign picker: years from every accessible competition. */
 export function SeasonPicker({ className = "" }: { className?: string }) {
-  const { seasonOptions, activeSeasonId, activeSeason, setActiveSeasonId } = useActiveLeague();
-  if (!seasonOptions.length) return null;
-  if (seasonOptions.length === 1) {
+  const { yearOptions, activeYear, setActiveYear } = useActiveLeague();
+  if (!yearOptions.length) return null;
+  if (yearOptions.length === 1) {
     return (
       <span className={`font-medium text-foreground ${className}`} data-testid="text-active-season">
-        {activeSeason?.year ?? seasonOptions[0].year} season
+        {activeYear ?? yearOptions[0]} season
       </span>
     );
   }
   return (
-    <Select value={activeSeasonId != null ? String(activeSeasonId) : ""} onValueChange={v => setActiveSeasonId(Number(v))}>
+    <Select value={activeYear ?? ""} onValueChange={setActiveYear}>
       <SelectTrigger
-        aria-label="Season"
+        aria-label="Season year"
         data-testid="select-season"
         className={`h-7 w-auto min-w-[110px] gap-1.5 px-2 text-xs font-medium ${className}`}
       >
         <SelectValue placeholder="Season" />
       </SelectTrigger>
       <SelectContent>
-        {seasonOptions.map(s => (
-          <SelectItem key={s.id} value={String(s.id)} className="text-xs">
-            {s.year} season{s.isActive ? " (current)" : ""}
+        {yearOptions.map(year => (
+          <SelectItem key={year} value={year} className="text-xs">
+            {year} season
           </SelectItem>
         ))}
       </SelectContent>

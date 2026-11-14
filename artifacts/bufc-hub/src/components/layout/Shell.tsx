@@ -213,9 +213,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             data-testid="strip-viewing-context"
           >
             <span className="uppercase tracking-wide text-[10px]">Viewing</span>
-            <CompetitionPicker />
-            <span className="text-muted-foreground/60">|</span>
             <SeasonPicker />
+            <span className="text-muted-foreground/60">|</span>
+            <CompetitionPicker />
             {viewingTeamLabel && (
               <>
                 <span className="text-muted-foreground/60">·</span>

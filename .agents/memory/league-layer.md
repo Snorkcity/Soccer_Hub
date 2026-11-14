@@ -23,11 +23,11 @@ description: Multi-league (competition) support — schema shape, invariants, an
 
 **How to apply:** do not infer the campaign solely from a session's calendar year. Keep chosen campaign context consistent across navigation, uploads, reports and roster views; absence of new-season measurements must not silently fall back to the prior year's data.
 
-The competition picker must show only competitions already created for the selected campaign year, and switching competitions must retain that year.
+Year drives the selection, not the team: show a year-first selector covering every accessible campaign year, then only competitions created for that year. Switching competitions must retain that year.
 
-**Why:** the coach found the full historical competition list confusing when viewing 2027.
+**Why:** the coach found the full historical competition list confusing when viewing 2027, then clarified that the year must drive selections so they do not have to scroll teams to reach another year.
 
-**How to apply:** use actual accessible season records, not fixture availability or the active-season flag. Keep the full authorised competition list separate from this navigation filter.
+**How to apply:** use actual accessible season records, not fixture availability or the active-season flag. Keep the full authorised competition list separate from this navigation filter. Preserve the competition if it exists in the chosen year; otherwise select one available in that year, resolving competition and season together.
 
 For the men's 2027 setup, first-grade and U23 GPS stay together under ACT NPLM. ACT NPLM U23 remains a separate competition for match data; do not automatically feed or link its GPS. U23 coaches should receive access to the ACT NPLM GPS area for their players.
 
