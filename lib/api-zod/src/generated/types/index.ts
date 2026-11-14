@@ -254,6 +254,7 @@ export * from './ladderFormEntryResult';
 export * from './lastMeetingFactsResponse';
 export * from './leagueAccess';
 export * from './leagueAccessRole';
+export * from './leagueAccessSeasonModules';
 export * from './leagueInfo';
 export * from './leagueInput';
 export * from './leagueMatchInfo';

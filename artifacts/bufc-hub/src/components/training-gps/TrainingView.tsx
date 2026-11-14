@@ -84,7 +84,7 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
         </TabsList>
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card/40 p-3" data-testid="training-controls">
           {partSelect}
-          {tab === "player" && <p className="pb-2 text-xs text-muted-foreground">Every metric is charted below; totals or per-minute and sort order are set on each chart.</p>}
+          {tab === "player" && <p className="pb-2 text-xs text-muted-foreground">Charts are grouped below; totals or per-minute and sort order are set on each chart.</p>}
           {tab === "team" && <p className="pb-2 text-xs text-muted-foreground">Totals or per-minute and sort order are set on each chart.</p>}
         </div>
         <TabsContent value="player" className="mt-5">

@@ -5,6 +5,7 @@ import {
   useListLeagues, getListLeaguesQueryKey,
   useGetClubs, getGetClubsQueryKey,
   useSetUserSharedOk,
+  useListSeasons, getListSeasonsQueryKey,
   type UserInfo, type LeagueAccess,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/core";
@@ -57,6 +58,12 @@ function deviceLabel(ua: string): string {
   return `${browser} · ${os}`;
 }
 
+// Null/omitted = legacy all seasons (including future); a map = explicit years only.
+type SeasonModules = Record<string, string[]>;
+type LeagueAccessWithSeasons = LeagueAccess;
+type LeagueMode = "all" | "specific";
+const shortModules = (mods: string[]) => mods.map((m) => MODULES.find((x) => x.key === m)?.short ?? m).join(", ");
+
 // Legacy `role` is derived from modules: data-entry ⇒ admin, otherwise viewer.
 function roleForModules(modules: string[]): "admin" | "viewer" {
   return modules.includes("data-entry") ? "admin" : "viewer";
@@ -72,6 +79,10 @@ interface EditorState {
   leagueModules: Record<number, string[]>;
   // leagueId → the person's own club ("" = league default)
   leagueClubs: Record<number, string>;
+  // leagueId → whether access covers all seasons (legacy) or explicit campaigns
+  leagueMode: Record<number, LeagueMode>;
+  // leagueId → year → ticked module keys (used when mode is "specific")
+  leagueSeasons: Record<number, SeasonModules>;
 }
 
 export default function Users() {
@@ -84,6 +95,20 @@ export default function Users() {
   const { data: leagues } = useListLeagues({ query: { queryKey: getListLeaguesQueryKey() } });
   const { data: clubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
 
+  const seasonsQuery = useListSeasons({ query: { queryKey: getListSeasonsQueryKey() } });
+  const seasons = seasonsQuery.data;
+  const seasonsBlocked = seasonsQuery.isLoading || seasonsQuery.isError;
+  const seasonsByLeague = useMemo(() => {
+    const m = new Map<number, { year: string; label: string; isActive: boolean }[]>();
+    for (const s of seasons ?? []) {
+      const list = m.get(s.leagueId) ?? [];
+      list.push({ year: String(s.year), label: `${s.leagueName} — ${s.year}`, isActive: !!s.isActive });
+      m.set(s.leagueId, list);
+    }
+    for (const list of m.values()) list.sort((a, b) => b.year.localeCompare(a.year));
+    return m;
+  }, [seasons]);
+  const [search, setSearch] = useState("");
   const leagueName = useMemo(() => new Map((leagues ?? []).map(l => [l.id, l.name])), [leagues]);
 
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -131,7 +156,8 @@ export default function Users() {
 
   function openCreate() {
     setEditorErr(null);
-    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {}, leagueClubs: {} });
+    setEditor({ id: null, name: "", email: "", password: "", isSuperadmin: false, leagueModules: {}, leagueClubs: {}, leagueMode: {}, leagueSeasons: {} });
+    setSearch("");
   }
   function formatLastLogin(iso: string): string {
     const d = new Date(iso);
@@ -144,11 +170,20 @@ export default function Users() {
     setEditorErr(null);
     const leagueModules: Record<number, string[]> = {};
     const leagueClubs: Record<number, string> = {};
-    for (const a of u.leagues) {
+    const leagueMode: Record<number, LeagueMode> = {};
+    const leagueSeasons: Record<number, SeasonModules> = {};
+    for (const a of u.leagues as LeagueAccessWithSeasons[]) {
       leagueModules[a.leagueId] = [...a.modules];
       leagueClubs[a.leagueId] = a.club ?? "";
+      if (a.seasonModules) {
+        leagueMode[a.leagueId] = "specific";
+        leagueSeasons[a.leagueId] = Object.fromEntries(Object.entries(a.seasonModules).map(([y, m]) => [y, [...m]]));
+      } else if (a.modules.length > 0) {
+        leagueMode[a.leagueId] = "all";
+      }
     }
-    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueModules, leagueClubs });
+    setSearch("");
+    setEditor({ id: u.id, name: u.name, email: u.email, password: "", isSuperadmin: u.isSuperadmin, leagueModules, leagueClubs, leagueMode, leagueSeasons });
   }
   function toggleModule(leagueId: number, module: string, on: boolean) {
     setEditor((prev) => {
@@ -158,18 +193,48 @@ export default function Users() {
       return { ...prev, leagueModules: { ...prev.leagueModules, [leagueId]: [...current] } };
     });
   }
+  function setMode(leagueId: number, mode: LeagueMode) {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      const leagueSeasons = { ...prev.leagueSeasons };
+      if (mode === "specific" && !leagueSeasons[leagueId]) {
+        // Keep existing pages for currently listed campaigns only; future years are never implied.
+        const old = prev.leagueModules[leagueId] ?? [];
+        leagueSeasons[leagueId] = Object.fromEntries((seasonsByLeague.get(leagueId) ?? []).map((s) => [s.year, [...old]]));
+      }
+      return { ...prev, leagueMode: { ...prev.leagueMode, [leagueId]: mode }, leagueSeasons };
+    });
+  }
+  function toggleSeasonModule(leagueId: number, year: string, module: string, on: boolean) {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      const map = { ...(prev.leagueSeasons[leagueId] ?? {}) };
+      const cur = new Set(map[year] ?? []);
+      if (on) cur.add(module); else cur.delete(module);
+      map[year] = [...cur];
+      return { ...prev, leagueSeasons: { ...prev.leagueSeasons, [leagueId]: map } };
+    });
+  }
   function saveEditor() {
     if (!editor) return;
     setEditorErr(null);
     // A league with zero ticked modules is omitted entirely. `role` stays required
     // in requests and is derived from the ticked modules.
-    const leagueAccess: LeagueAccess[] = Object.entries(editor.leagueModules)
-      .map(([leagueId, modules]) => ({ leagueId: Number(leagueId), modules }))
-      .filter(({ modules }) => modules.length > 0)
-      .map(({ leagueId, modules }) => ({
-        leagueId, role: roleForModules(modules), modules,
-        club: editor.leagueClubs[leagueId] || null,
-      }));
+    // Built from full editor state, never from the filtered view, so hidden grants survive.
+    if (seasonsBlocked && !editor.isSuperadmin) return;
+    const ids = new Set([...Object.keys(editor.leagueModules), ...Object.keys(editor.leagueSeasons)].map(Number));
+    const leagueAccess: LeagueAccessWithSeasons[] = [];
+    for (const leagueId of ids) {
+      const club = editor.leagueClubs[leagueId] || null;
+      if ((editor.leagueMode[leagueId] ?? "specific") === "all") {
+        const modules = editor.leagueModules[leagueId] ?? [];
+        if (modules.length) leagueAccess.push({ leagueId, role: roleForModules(modules), modules, club, seasonModules: null });
+      } else {
+        const seasonModules = Object.fromEntries(Object.entries(editor.leagueSeasons[leagueId] ?? {}).filter(([, m]) => m.length > 0));
+        const modules = [...new Set(Object.values(seasonModules).flat())];
+        if (modules.length) leagueAccess.push({ leagueId, role: roleForModules(modules), modules, club, seasonModules });
+      }
+    }
     if (editor.id === null) {
       createUser.mutate({ data: {
         name: editor.name.trim(), email: editor.email.trim(),
@@ -255,15 +320,20 @@ export default function Users() {
                           {u.leagues.filter((a) => a.modules.length > 0).length === 0 && (
                             <span className="text-xs text-muted-foreground italic">No league access</span>
                           )}
-                          {u.leagues.filter((a) => a.modules.length > 0).map((a) => (
-                            <Badge key={a.leagueId} variant="outline" className="text-xs">
-                              {leagueName.get(a.leagueId) ?? `League ${a.leagueId}`}
-                              {a.club ? ` · ${a.club}` : ""} ·{" "}
-                              {a.modules
-                                .map((m) => MODULES.find((x) => x.key === m)?.short ?? m)
-                                .join(", ")}
-                            </Badge>
-                          ))}
+                          {(u.leagues as LeagueAccessWithSeasons[]).filter((a) => a.modules.length > 0).map((a) => {
+                            const name = leagueName.get(a.leagueId) ?? `League ${a.leagueId}`;
+                            const club = a.club ? ` · ${a.club}` : "";
+                            if (!a.seasonModules) return (
+                              <Badge key={a.leagueId} variant="outline" className="text-xs" data-testid={`badge-access-${u.id}-${a.leagueId}-all`}>
+                                {name}{club} · All seasons · {shortModules(a.modules)}
+                              </Badge>
+                            );
+                            return Object.entries(a.seasonModules).filter(([, m]) => m.length > 0).sort(([x], [y]) => y.localeCompare(x)).map(([year, m]) => (
+                              <Badge key={`${a.leagueId}-${year}`} variant="outline" className="text-xs" data-testid={`badge-access-${u.id}-${a.leagueId}-${year}`}>
+                                {name} — {year}{club} · {shortModules(m)}
+                              </Badge>
+                            ));
+                          })}
                         </div>
                       )}
                       {(u.recentActivity?.length ?? 0) > 0 && (
@@ -302,7 +372,7 @@ export default function Users() {
                       disabled={inviteUser.isPending}
                       onClick={() => { if (window.confirm(`Email ${u.name} a link to set their password?`)) inviteUser.mutate({ id: u.id }); }}
                     ><MailPlus className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" aria-label={`Edit ${u.name}`} data-testid={`button-edit-user-${u.id}`} onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
                     {auth?.user?.id !== u.id && (
                       <Button
                         variant="ghost" size="sm" className="text-destructive"
@@ -319,7 +389,7 @@ export default function Users() {
 
 
       <Dialog open={editor !== null} onOpenChange={(open) => { if (!open) setEditor(null); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editor?.id === null ? "New user" : "Edit user"}</DialogTitle>
           </DialogHeader>
@@ -353,21 +423,57 @@ export default function Users() {
                 <div className="space-y-3">
                   <div className="text-xs font-medium text-muted-foreground">League access</div>
                   <p className="text-xs text-muted-foreground">
-                    Tick the pages this person can use in each team. Leaving all boxes clear removes their access to that team.
+                    Choose All seasons (includes future campaigns) or Specific seasons, then tick pages per campaign. No ticks removes access to that competition.
                   </p>
-                  {(leagues ?? []).map((l) => {
+                  <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground" data-testid="text-season-scope-caveat">
+                    Scope caveat: older reports and journals not tagged with a campaign cannot be shown to season-limited accounts. The server never guesses a campaign from a calendar date.
+                  </p>
+                  {seasonsQuery.isLoading && <p className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="status-seasons-loading"><Loader2 className="h-3 w-3 animate-spin" />Loading campaigns; saving is paused so no grants are lost.</p>}
+                  {seasonsQuery.isError && (
+                    <p className="text-xs text-chart-4" data-testid="status-seasons-error">
+                      Could not load campaigns; saving is disabled so existing grants are not wiped.{" "}
+                      <button type="button" className="underline" onClick={() => void seasonsQuery.refetch()} data-testid="button-retry-seasons">Retry</button>
+                    </p>
+                  )}
+                  <div className="space-y-1">
+                    <label htmlFor="input-league-search" className="text-xs text-muted-foreground">Find competition or year</label>
+                    <Input id="input-league-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. NPLM or 2027" data-testid="input-league-search" />
+                    {search && <p className="text-[11px] text-muted-foreground">Filtering the list only. Hidden grants are still saved unchanged.</p>}
+                  </div>
+                  {(leagues ?? []).filter((l) => {
+                    const q = search.trim().toLowerCase();
+                    if (!q) return true;
+                    return l.name.toLowerCase().includes(q) || (seasonsByLeague.get(l.id) ?? []).some((x) => x.label.toLowerCase().includes(q));
+                  }).map((l) => {
+                    const mode: LeagueMode = editor.leagueMode[l.id] ?? "specific";
                     const ticked = new Set(editor.leagueModules[l.id] ?? []);
+                    const map = editor.leagueSeasons[l.id] ?? {};
+                    const listed = seasonsByLeague.get(l.id) ?? [];
+                    const unlisted = Object.keys(map).filter((y) => (map[y]?.length ?? 0) > 0 && !listed.some((x) => x.year === y));
+                    const hasAny = mode === "all" ? ticked.size > 0 : Object.values(map).some((m) => m.length > 0);
                     const leagueClubs = (clubs ?? []).filter((c) => c.leagueId === l.id);
                     return (
-                      <div key={l.id} className="rounded-md border border-border p-3 space-y-2">
-                        <div className="text-sm font-medium">{l.name}</div>
-                        {ticked.size > 0 && leagueClubs.length > 0 && (
+                      <fieldset key={l.id} className="rounded-md border border-border p-3 space-y-2" data-testid={`fieldset-league-${l.id}`}>
+                        <legend className="px-1 text-sm font-medium">{l.name}</legend>
+                        <div className="flex flex-wrap gap-4 text-sm" role="radiogroup" aria-label={`${l.name} season scope`}>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name={`mode-${l.id}`} checked={mode === "all"} onChange={() => setMode(l.id, "all")} data-testid={`radio-league-${l.id}-all`} />
+                            All seasons <span className="text-xs text-muted-foreground">(includes future)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name={`mode-${l.id}`} checked={mode === "specific"} onChange={() => setMode(l.id, "specific")} data-testid={`radio-league-${l.id}-specific`} />
+                            Specific seasons
+                          </label>
+                        </div>
+                        {hasAny && leagueClubs.length > 0 && (
                           <div className="flex items-center gap-2">
-                            <label className="text-xs text-muted-foreground shrink-0">Their club</label>
+                            <label htmlFor={`club-${l.id}`} className="text-xs text-muted-foreground shrink-0">Their club</label>
                             <select
+                              id={`club-${l.id}`}
                               className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm"
                               value={editor.leagueClubs[l.id] ?? ""}
                               onChange={(e) => setEditor({ ...editor, leagueClubs: { ...editor.leagueClubs, [l.id]: e.target.value } })}
+                              data-testid={`select-league-club-${l.id}`}
                             >
                               <option value="">League default{l.focusClub ? ` (${l.focusClub})` : ""}</option>
                               {leagueClubs.map((c) => (
@@ -376,18 +482,41 @@ export default function Users() {
                             </select>
                           </div>
                         )}
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                          {MODULES.map((m) => (
-                            <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Checkbox
-                                checked={ticked.has(m.key)}
-                                onCheckedChange={(v) => toggleModule(l.id, m.key, v === true)}
-                              />
-                              <span>{m.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                        {mode === "all" ? (
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                            {MODULES.map((m) => (
+                              <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <Checkbox checked={ticked.has(m.key)} onCheckedChange={(v) => toggleModule(l.id, m.key, v === true)}
+                                  data-testid={`checkbox-league-${l.id}-all-${m.key}`} />
+                                <span>{m.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {listed.length === 0 && unlisted.length === 0 && <p className="text-xs italic text-muted-foreground">{seasonsBlocked ? "Campaigns unavailable." : "No campaigns set up for this competition yet."}</p>}
+                            {[...listed, ...unlisted.map((y) => ({ year: y, label: `${l.name} — ${y} (not in season list)`, isActive: false }))].map((season) => {
+                              const set = new Set(map[season.year] ?? []);
+                              return (
+                                <fieldset key={season.year} className="rounded border border-border/70 bg-muted/20 p-2" data-testid={`fieldset-season-${l.id}-${season.year}`}>
+                                  <legend className="px-1 text-xs font-semibold">{season.label}{season.isActive ? " · active" : ""}</legend>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                    {MODULES.map((m) => (
+                                      <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <Checkbox checked={set.has(m.key)} disabled={seasonsBlocked}
+                                          aria-label={`${season.label}: ${m.label}`}
+                                          onCheckedChange={(v) => toggleSeasonModule(l.id, season.year, m.key, v === true)}
+                                          data-testid={`checkbox-season-${l.id}-${season.year}-${m.key}`} />
+                                        <span>{m.label}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </fieldset>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </fieldset>
                     );
                   })}
                 </div>
@@ -399,7 +528,8 @@ export default function Users() {
             <Button variant="outline" onClick={() => setEditor(null)}>Cancel</Button>
             <Button
               onClick={saveEditor}
-              disabled={saving || !editor || editor.name.trim().length === 0 || editor.email.trim().length < 3 || (editor.password.length > 0 && editor.password.length < 8)}
+              data-testid="button-save-user"
+              disabled={saving || (!!editor && !editor.isSuperadmin && seasonsBlocked) || !editor || editor.name.trim().length === 0 || editor.email.trim().length < 3 || (editor.password.length > 0 && editor.password.length < 8)}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
             </Button>

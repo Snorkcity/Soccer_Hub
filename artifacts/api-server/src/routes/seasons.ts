@@ -12,7 +12,7 @@ import {
   UpdateLeagueResponse,
 } from "@workspace/api-zod";
 import { pgErrorCode } from "../lib/pgError";
-import { getSessionUser, canSeeLeague } from "../middlewares/entryAuth";
+import { getSessionUser, canSeeLeague, canSeeYear } from "../middlewares/entryAuth";
 
 const router: IRouter = Router();
 
@@ -102,7 +102,7 @@ router.get("/seasons", async (req, res): Promise<void> => {
     // the coach to switch between 2026 and the upcoming 2027 preseason.
     .where(or(eq(seasonsTable.isActive, true), gte(seasonsTable.year, "2026")))
     .orderBy(asc(seasonsTable.leagueId), desc(seasonsTable.year));
-  const visible = user ? rows.filter((s) => canSeeLeague(user, s.leagueId)) : [];
+  const visible = user ? rows.filter((s) => canSeeYear(user, s.leagueId, s.year)) : [];
   res.json(ListSeasonsResponse.parse(visible));
 });
 

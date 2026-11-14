@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
-import { db, usersTable, userLeagueAccessTable, userActivityTable, seasonsTable } from "@workspace/db";
+import { db, usersTable, userLeagueAccessTable, userActivityTable, seasonsTable, matchesTable, goalsTable, playerStatsTable } from "@workspace/db";
 import { eq, lt } from "drizzle-orm";
 import { maybeSendSharedLoginAlert, isInternalActivity } from "../lib/sharedLoginAlert";
 import { logger } from "../lib/logger";
+import { seasonGrantAllows, seasonGrantModules, type SeasonModuleAccess } from "@workspace/api-zod";
 
 // ── App auth ──────────────────────────────────────────────────────────────────
 // Stateless signed-cookie session: token = "<expiryMs>.<userId>.<hmac>", signed
@@ -27,6 +28,7 @@ export interface LeagueGrant {
   modules: Set<string>;
   /** The user's own club in this league; null = league default focus club. */
   club: string | null;
+  seasonModules?: SeasonModuleAccess;
 }
 
 export interface SessionUser {
@@ -168,8 +170,9 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
         isSuperadmin: rows[0].isSuperadmin,
         leagues: new Map(access.map((a) => [a.leagueId, {
           role: a.role as SessionRole,
-          modules: new Set(Array.isArray(a.modules) ? a.modules : []),
+          modules: new Set(seasonGrantModules(Array.isArray(a.modules) ? a.modules : [], a.seasonModules)),
           club: a.club ?? null,
+          seasonModules: a.seasonModules ?? null,
         }])),
       };
     }
@@ -191,9 +194,22 @@ export function canSeeLeague(user: SessionUser, leagueId: number): boolean {
   return !!g && g.modules.size > 0;
 }
 
-export function hasModule(user: SessionUser, leagueId: number, module: string): boolean {
+export function hasModule(user: SessionUser, leagueId: number, module: string, year?: string): boolean {
   if (user.isSuperadmin) return true;
-  return user.leagues.get(leagueId)?.modules.has(module) ?? false;
+  const grant = user.leagues.get(leagueId);
+  return !!grant && seasonGrantModules([...grant.modules], grant.seasonModules, year).includes(module);
+}
+
+export function canSeeYear(user: SessionUser, leagueId: number, year: string, module?: string): boolean {
+  if (user.isSuperadmin) return true;
+  const grant = user.leagues.get(leagueId);
+  return !!grant && canSeeLeague(user, leagueId) && seasonGrantAllows(grant.seasonModules, year)
+    && (!module || hasModule(user, leagueId, module, year));
+}
+
+export async function canSeeSeason(user: SessionUser, seasonId: number, module?: string): Promise<boolean> {
+  const season = await scopeForSeason(seasonId);
+  return !!season && canSeeYear(user, season.leagueId, season.year, module);
 }
 
 export function hasModuleAnywhere(user: SessionUser, module: string): boolean {
@@ -281,11 +297,23 @@ export async function mayTouchLeagueRow(req: Request, leagueId: number, module: 
   const user = await getSessionUser(req);
   if (!user) return false;
   if (user.isSuperadmin) return true;
-  return canSeeLeague(user, leagueId) && hasModule(user, leagueId, module);
+  // Old league-wide records have no reliable campaign ownership. Do not infer
+  // it from a match date or allow a caller-supplied year to relabel a record.
+  return user.leagues.get(leagueId)?.seasonModules == null
+    && canSeeLeague(user, leagueId) && hasModule(user, leagueId, module);
 }
 
 // seasonId → leagueId cache (seasons never change league; tiny table)
 const seasonLeague = new Map<number, number>();
+const seasonScopes = new Map<number, { leagueId: number; year: string }>();
+async function scopeForSeason(seasonId: number) {
+  const hit = seasonScopes.get(seasonId);
+  if (hit) return hit;
+  const [season] = await db.select({ leagueId: seasonsTable.leagueId, year: seasonsTable.year })
+    .from(seasonsTable).where(eq(seasonsTable.id, seasonId)).limit(1);
+  if (season) seasonScopes.set(seasonId, season);
+  return season ?? null;
+}
 export async function leagueIdForSeason(seasonId: number): Promise<number | null> {
   const hit = seasonLeague.get(seasonId);
   if (hit !== undefined) return hit;
@@ -325,23 +353,57 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
     const module = moduleForPath(req.path, isWrite);
     if (!user.isSuperadmin) {
       const leagueIds = new Set<number>();
+      const campaignScopes: { leagueId: number; year: string }[] = [];
+      const yearScopedLeagues = new Set<number>();
       const asId = (v: unknown): number | null => {
         if (typeof v === "number" && Number.isInteger(v)) return v;
         if (typeof v === "string" && /^\d+$/.test(v)) return Number(v);
         return null;
       };
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const restricted = [...user.leagues.values()].some(g => g.seasonModules != null);
+      const serverFilteredRead = req.method === "GET" && req.path === "/athletic-tests";
+      // These handlers authorise the persisted league row's season themselves.
+      const guardedEntryRow = /^\/entry\/(?:goal|player-stat)\/\d+$/.test(req.path);
       for (const source of [req.query as Record<string, unknown>, body]) {
         const l = asId(source.leagueId);
         if (l !== null) leagueIds.add(l);
+        if (l !== null && source.year != null) {
+          const year = String(source.year);
+          if (!/^\d{4}$/.test(year)) { res.status(400).json({ error: "Invalid campaign year" }); return; }
+          campaignScopes.push({ leagueId: l, year });
+          yearScopedLeagues.add(l);
+        }
         // Secondary league identifiers (e.g. /clubs/copy's sourceLeagueId) are
         // scoped too — reading another league's data needs access to it.
         const src = asId(source.sourceLeagueId);
         if (src !== null) leagueIds.add(src);
         const s = asId(source.seasonId);
         if (s !== null) {
-          const fromSeason = await leagueIdForSeason(s);
-          if (fromSeason !== null) leagueIds.add(fromSeason);
+          const season = await scopeForSeason(s);
+          if (!season) { res.status(400).json({ error: "Unknown season" }); return; }
+          leagueIds.add(season.leagueId);
+          yearScopedLeagues.add(season.leagueId);
+          campaignScopes.push(season);
+        }
+      }
+      if (restricted) {
+        // Row IDs, not extra query parameters supplied by a caller, determine
+        // which campaign owns a legacy football record.
+        const rowPath = req.path.match(/^\/(matches|goals|player-stats)\/(\d+)$/);
+        if (rowPath) {
+          const table = rowPath[1] === "matches" ? matchesTable : goalsTable;
+          const [row] = rowPath[1] === "player-stats"
+            ? await db.select({ seasonId: matchesTable.seasonId }).from(playerStatsTable)
+              .innerJoin(matchesTable, eq(playerStatsTable.matchId, matchesTable.id)).where(eq(playerStatsTable.id, Number(rowPath[2]))).limit(1)
+            : await db.select({ seasonId: table.seasonId }).from(table).where(eq(table.id, Number(rowPath[2]))).limit(1);
+          const season = row?.seasonId != null ? await scopeForSeason(row.seasonId) : null;
+          if (!season || !canSeeYear(user, season.leagueId, season.year, module ?? undefined)) {
+            res.status(403).json({ error: "No access to this record's campaign" }); return;
+          }
+          leagueIds.add(season.leagueId);
+          campaignScopes.push(season);
+          yearScopedLeagues.add(season.leagueId);
         }
       }
       for (const leagueId of leagueIds) {
@@ -349,11 +411,48 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
           res.status(403).json({ error: "No access to this league" });
           return;
         }
+        // These older stores are league-wide and have no trustworthy campaign
+        // key. A query-string year cannot turn them into season-owned records.
+        const legacyStore = /^\/(?:match-reports|gps-match-reports|match-prep\/reports|journal\/(?:cycles|reflections))(?:\/|$)/.test(req.path);
+        if (legacyStore && user.leagues.get(leagueId)?.seasonModules != null) {
+          res.status(403).json({ error: "These saved records are not assigned to campaigns. All-seasons access is required." });
+          return;
+        }
+        if (user.leagues.get(leagueId)?.seasonModules != null && module && !yearScopedLeagues.has(leagueId)
+          && req.path !== "/gps-player-positions" && !serverFilteredRead) {
+          res.status(403).json({ error: "This page or legacy record has no campaign scope. All-seasons access is required." });
+          return;
+        }
         // Module-owned routes need that module ticked for the scoped league
         if (module && !hasModule(user, leagueId, module)) {
           res.status(403).json({ error: "You don't have access to this page for this league" });
           return;
         }
+      }
+      for (const scope of campaignScopes) {
+        if (!canSeeYear(user, scope.leagueId, scope.year, module ?? undefined)) {
+          res.status(403).json({ error: "No access to this campaign or page" });
+          return;
+        }
+      }
+      const campaignData = /^\/(?:analytics|matches|goals|player-stats|players|veo|athletic-tests)(?:\/|$)/.test(req.path);
+      if (restricted && campaignData && campaignScopes.length === 0 && !serverFilteredRead) {
+        res.status(403).json({ error: "Choose an authorised campaign to read this data" });
+        return;
+      }
+      const footballList = /^\/(?:analytics|matches|goals|player-stats)(?:\/|$)/.test(req.path)
+        && !/^\/(?:matches|goals|player-stats)\/\d+$/.test(req.path);
+      if (restricted && footballList && asId(req.query.seasonId ?? body.seasonId) == null) {
+        res.status(403).json({ error: "Choose an authorised season; a year parameter alone does not scope football records" });
+        return;
+      }
+      if (restricted && /^\/players(?:\/|$)/.test(req.path)) {
+        res.status(403).json({ error: "This legacy player directory is not assigned to campaigns" }); return;
+      }
+      if (restricted && module && leagueIds.size === 0
+        && !["assistant", "session-planner"].includes(module) && !guardedEntryRow) {
+        res.status(403).json({ error: "Choose an authorised competition and campaign" });
+        return;
       }
       // Module-owned routes with no league scope: need the module somewhere
       if (module && leagueIds.size === 0 && !hasModuleAnywhere(user, module)) {

@@ -16,11 +16,9 @@ export const OVERLAY_COLORS = ["#CED14E", "#DD83C9", "#E98E2E"];
 
 export const TRAINING_METRIC_GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
   { id: "running", label: "Running & load", blurb: "Distance, Player Load, Power Plays, time", metrics: ["distance", "load", "power", "duration"] },
-  { id: "speed", label: "High-speed & sprint", blurb: "HSR, VHSR, sprint distance, top speed", metrics: ["hsm", "vhsm", "sprint", "speed"] },
-  { id: "accel", label: "Acceleration & braking", blurb: "Efforts by band and peaks", metrics: ["accels", "decels", "accel01", "accel12", "accel23", "accel34", "accelOver4", "decel01", "decel12", "decel23", "decel34", "decelOver4", "maxAccel", "maxDecel"] },
+  { id: "speed", label: "High-speed & sprint", blurb: "High-speed metres, very-high-speed metres, maximum speed", metrics: ["hsm", "vhsm", "speed"] },
+  { id: "accel", label: "Acceleration & braking", blurb: "Accelerations and decelerations above 3 m/s²", metrics: ["accels", "decels"] },
 ];
-const groupedMetrics = new Set(TRAINING_METRIC_GROUPS.flatMap(g => g.metrics));
-TRAINING_METRIC_GROUPS[0].metrics.push(...TRAINING_METRICS.map(m => m.id as string).filter(id => !groupedMetrics.has(id)));
 
 export interface TrainingFilters {
   sessionId: string | null;
@@ -47,7 +45,12 @@ export function sortTeamMetricItems<T extends { name: string; value: number | nu
 }
 
 export const sessionKey = (s: TrainingGpsSession) => String(s.id ?? `${s.date}-${s.version}`);
-export const metricDef = (id: string) => TRAINING_METRICS.find(m => m.id === id) ?? TRAINING_METRICS[0];
+export const metricDef = (id: string) => {
+  const metric = TRAINING_METRICS.find(m => m.id === id) ?? TRAINING_METRICS[0];
+  return metric.id === "load" ? { ...metric, label: "Player Load" } : metric;
+};
+/** Deliberately curated review choices, not every metric retained from a CSV. */
+export const TRAINING_REVIEW_METRICS = TRAINING_METRIC_GROUPS.flatMap(g => g.metrics.map(metricDef));
 export const canRate = (metric: string) => metricDef(metric).rate;
 export const usePM = (f: Pick<TrainingFilters, "metric" | "perMinute">) => f.perMinute && canRate(f.metric);
 export const partRows = (s: TrainingGpsSession) => s.rows.filter(r => r.part !== "recording");

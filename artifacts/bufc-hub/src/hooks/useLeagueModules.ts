@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useGetAuthStatus, getGetAuthStatusQueryKey } from "@workspace/api-client-react";
+import { seasonGrantModules } from "@workspace/api-zod";
 
 /**
  * Per-league module access, derived from the signed-in user's league grants.
@@ -10,7 +11,7 @@ import { useGetAuthStatus, getGetAuthStatusQueryKey } from "@workspace/api-clien
  */
 export function useLeagueModules(): {
   isSuperadmin: boolean;
-  hasModule(leagueId: number, module: string): boolean;
+  hasModule(leagueId: number, module: string, year?: string): boolean;
   hasModuleAnywhere(module: string): boolean;
   ready: boolean;
 } {
@@ -26,9 +27,10 @@ export function useLeagueModules(): {
     return {
       isSuperadmin,
       ready: isSuccess,
-      hasModule(leagueId: number, module: string) {
+      hasModule(leagueId: number, module: string, year?: string) {
         if (isSuperadmin) return true;
-        return moduleByLeague.get(leagueId)?.has(module) ?? false;
+        const grant = leagues.find(g => g.leagueId === leagueId);
+        return !!grant && seasonGrantModules(grant.modules, grant.seasonModules, year).includes(module);
       },
       hasModuleAnywhere(module: string) {
         if (isSuperadmin) return true;

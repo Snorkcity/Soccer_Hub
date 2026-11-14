@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
-import { TRAINING_METRICS, trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
+import { trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  TRAINING_METRIC_GROUPS, canRate, fmtDate, partRows, playerMetricHistory, selectedPartLabel, sessionKey, sessionPlayers, sortPlayerMetricHistory,
+  TRAINING_METRIC_GROUPS, TRAINING_REVIEW_METRICS, canRate, fmtDate, partRows, playerMetricHistory, selectedPartLabel, sessionKey, sessionPlayers, sortPlayerMetricHistory,
   type PlayerHistorySort, type TrainingFilters,
 } from "./shared";
 import { PlayerMetricHistoryChart } from "./PlayerMetricHistoryChart";
 import { PlayerTrainingTab } from "./PlayerTrainingTab";
+import { TrainingPlayerDrilldown } from "./TrainingPlayerDrilldown";
 import { EmptyChart, InsightList } from "./ui";
 
 interface Props {
@@ -34,10 +35,11 @@ export function PlayerTrainingOverview({ sessions, session, f, set, drill }: Pro
   const period = selectedPartLabel(f.part);
   const currentKey = sessionKey(session);
   const tracked = playerKey ? playerMetricHistory(sessions, playerKey, f.part, "duration", false).length : 0;
+  const [focus, setFocus] = useState<TrainingFilters | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const openSession = (key: string, metric: string, perMinute: boolean) => {
-    setDeep({ metric, perMinute });
-    drill({ sessionId: key, playerKey });
-    if (detailRef.current) detailRef.current.open = true;
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setFocus({ ...f, sessionId: key, playerKey, metric, perMinute });
   };
 
   return (
@@ -93,7 +95,7 @@ export function PlayerTrainingOverview({ sessions, session, f, set, drill }: Pro
                 <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Metric for deeper analysis</p>
                 <Select value={deep.metric} onValueChange={metric => setDeep(d => ({ ...d, metric }))}>
                   <SelectTrigger data-testid="select-player-deeper-metric"><SelectValue /></SelectTrigger>
-                  <SelectContent>{TRAINING_METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{TRAINING_REVIEW_METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <label className={`flex items-center gap-2 pb-2 text-xs ${canRate(deep.metric) ? "" : "opacity-50"}`} title={canRate(deep.metric) ? "" : "Not a rate metric"}>
@@ -107,6 +109,8 @@ export function PlayerTrainingOverview({ sessions, session, f, set, drill }: Pro
         </details>
         <InsightList insights={insights} testId="insights-player" />
       </>}
+      {focus && <TrainingPlayerDrilldown sessions={sessions} initialFilters={focus} returnTo="Player charts"
+        onClose={() => setFocus(null)} onReturnFocus={() => opener.current?.focus({ preventScroll: true })} />}
     </div>
   );
 }

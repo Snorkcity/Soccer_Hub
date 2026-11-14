@@ -102,12 +102,26 @@ The coach wants clicking a player or their metric in Team training analysis to o
 
 **Why:** switching tabs for a brief player drill-down left the coach feeling stuck and interrupted team analysis.
 
-**How to apply:** retain Team position, filters, chart groups and sorting underneath the pop-up. Scope history to the selected league and campaign; keep any date, metric or period exploration inside the pop-up separate from Team settings.
+**How to apply:** retain Team position, filters, chart groups and sorting underneath the pop-up. Scope history to the selected league and campaign; keep date, period and rate exploration inside the pop-up separate from the underlying view.
+
+The coach subsequently clarified that a metric click must open only that metric's historical chart and relevant personal/session/season comparisons, not the whole Player dashboard. This applies to clicks from Player as well as Team.
+
+**Why:** a short investigation of total distance should stay focused on total distance rather than expand into unrelated charts.
+
+**How to apply:** show personal mean/highest and current-session standing with comparable peers. Use each player's mean per comparable session for cross-session standing, not accumulated season volume that mainly reflects attendance; disclose sample counts and unequal participation. Exclude incomplete/unknown totals from rankings, separate goalkeepers, preserve ties, and avoid interpreting output ranks as effort or football performance.
 
 ## Player review simplicity
 
-Use the same grouped, all-metrics flow for the main Player training view: select the player and Full session or a practice part, then scan separate charts for all metrics across tracked dates. The default is chronological, with the newest session on the right; provide sorting controls too.
+Use the same grouped, curated-metrics flow for the main Player training view: select the player and Full session or a practice part, then scan separate charts across tracked dates. The default is chronological, with the newest session on the right; provide sorting controls too.
 
 **Why:** the coach confirmed the Team flow is becoming easier and explicitly directed that Player should follow that same flow, rather than requiring repeated metric selection.
 
 **How to apply:** retain historical totals and component analysis with clear period headings. Keep the focused Team-to-player pop-up useful rather than replacing it with the whole all-metrics screen. Do not discard previously tracked sessions when adding newer dates.
+
+## Keep the review chart set small
+
+Player and Team must share a deliberately selected chart set, not automatically chart every imported field. Label the movement-load metric simply “Player Load”. Acceleration & braking contains only accelerations and decelerations greater than 3 m/s², without lower bands or peak charts. Keep high-speed metres, very-high-speed metres and maximum speed; avoid a duplicate source sprint-distance chart. Coach remains a separate time-allocation view.
+
+**Why:** the coach found the number of charts excessive and explicitly requested only the two greater-than-three acceleration/braking charts in both Player and Team.
+
+**How to apply:** preserve source data when hiding charts; new imported metrics should not automatically appear in the review. Keep metric selectors aligned with the curated chart set.

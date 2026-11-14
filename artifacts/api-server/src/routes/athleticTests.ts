@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, athleticTestsTable } from "@workspace/db";
+import { getSessionUser, canSeeYear } from "../middlewares/entryAuth";
 
 const n2s = (v: number | null | undefined): string | null => (v == null ? null : String(v));
 import {
@@ -52,7 +53,9 @@ router.get("/athletic-tests", async (req, res): Promise<void> => {
     .where(and(...conditions))
     .orderBy(athleticTestsTable.playerName);
 
-  res.json(ListAthleticTestsResponse.parse(rows.map(mapRow)));
+  const user = await getSessionUser(req);
+  const visible = user ? rows.filter(r => canSeeYear(user, leagueId, r.year, "testing")) : [];
+  res.json(ListAthleticTestsResponse.parse(visible.map(mapRow)));
 });
 
 router.post("/athletic-tests", async (req, res): Promise<void> => {

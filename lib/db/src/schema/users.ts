@@ -46,6 +46,9 @@ export const userLeagueAccessTable = pgTable("user_league_access", {
   leagueId: integer("league_id").notNull().references(() => leaguesTable.id),
   role:     text("role").notNull(), // legacy "admin" | "viewer" — superseded by modules
   modules:  jsonb("modules").$type<string[]>().notNull().default([]),
+  // NULL preserves legacy access to every campaign. A map grants only the
+  // named campaign years, with independently chosen pages in each.
+  seasonModules: jsonb("season_modules").$type<Record<string, string[]> | null>(),
   // The user's own club in this league — Team/Player insights centre on it.
   // NULL = fall back to the league's default focus club (leagues.focus_club).
   club:     text("club"),

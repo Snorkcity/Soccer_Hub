@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
 import { z } from "zod/v4";
-import { db, usersTable, userLeagueAccessTable, userActivityTable, passwordResetTokensTable, clubsTable } from "@workspace/db";
+import { db, usersTable, userLeagueAccessTable, userActivityTable, passwordResetTokensTable, clubsTable, seasonsTable, leaguesTable } from "@workspace/db";
+import { seasonGrantModules } from "@workspace/api-zod";
 import { sendEmail, passwordResetEmailHtml, inviteEmailHtml } from "../lib/email";
 import { looksShared, isInternalActivity, type ActivityRow } from "../lib/sharedLoginAlert";
 import { eq, asc, desc, gte, and, isNull } from "drizzle-orm";
@@ -34,6 +35,7 @@ const LeagueAccessInput = z.object({
   modules: z.array(z.string()).optional().default([]),
   // The user's own club in this league; null/omitted = league default focus club.
   club: z.string().trim().min(1).nullable().optional(),
+  seasonModules: z.record(z.string().regex(/^\d{4}$/), z.array(z.string())).nullable().optional(),
 });
 
 const CreateUserBody = z.object({
@@ -67,7 +69,7 @@ async function authStatusPayload(user: SessionUser) {
       email: user.email,
       name: user.name,
       isSuperadmin: user.isSuperadmin,
-      leagues: [...user.leagues.entries()].map(([leagueId, g]) => ({ leagueId, role: g.role, modules: [...g.modules], club: g.club })),
+      leagues: [...user.leagues.entries()].map(([leagueId, g]) => ({ leagueId, role: g.role, modules: [...g.modules], club: g.club, seasonModules: g.seasonModules ?? null })),
     },
   };
 }
@@ -81,13 +83,20 @@ async function userInfo(userId: number) {
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
+    leagues: access.map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null, seasonModules: a.seasonModules ?? null })),
     createdAt: row.createdAt.toISOString(),
   };
 }
 
 /** A chosen club must actually be a club of that league; returns an error message or null. */
-async function validateLeagueClubs(leagues: { leagueId: number; club?: string | null }[]): Promise<string | null> {
+async function validateLeagueClubs(leagues: { leagueId: number; club?: string | null; seasonModules?: Record<string, string[]> | null }[]): Promise<string | null> {
+  if (new Set(leagues.map(l => l.leagueId)).size !== leagues.length) return "Duplicate competition access";
+  const known = await db.select({ id: leaguesTable.id }).from(leaguesTable);
+  if (leagues.some(l => !known.some(k => k.id === l.leagueId))) return "Unknown competition";
+  const seasons = await db.select({ leagueId: seasonsTable.leagueId, year: seasonsTable.year }).from(seasonsTable);
+  for (const league of leagues) for (const year of Object.keys(league.seasonModules ?? {})) {
+    if (!seasons.some(s => s.leagueId === league.leagueId && s.year === year)) return `Campaign ${year} does not belong to this competition`;
+  }
   const withClub = leagues.filter((l) => l.club);
   if (withClub.length === 0) return null;
   const rows = await db.select({ leagueId: clubsTable.leagueId, name: clubsTable.name }).from(clubsTable);
@@ -126,8 +135,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     id: row.id, email: row.email, name: row.name, isSuperadmin: row.isSuperadmin,
     leagues: new Map(access.map((a) => [a.leagueId, {
       role: a.role as "admin" | "viewer",
-      modules: new Set<string>(Array.isArray(a.modules) ? a.modules : []),
+      modules: new Set<string>(seasonGrantModules(Array.isArray(a.modules) ? a.modules : [], a.seasonModules)),
       club: a.club ?? null,
+      seasonModules: a.seasonModules ?? null,
     }])),
   };
   logger.info({ userId: row.id, email }, "User logged in");
@@ -370,7 +380,7 @@ function userSummary(row: typeof usersTable.$inferSelect, access: (typeof userLe
     email: row.email,
     name: row.name,
     isSuperadmin: row.isSuperadmin,
-    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null })),
+    leagues: access.filter((a) => a.userId === row.id).map((a) => ({ leagueId: a.leagueId, role: a.role, modules: Array.isArray(a.modules) ? a.modules : [], club: a.club ?? null, seasonModules: a.seasonModules ?? null })),
     createdAt: row.createdAt.toISOString(),
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
   });
@@ -398,17 +408,17 @@ router.post("/auth/users", async (req, res): Promise<void> => {
     return;
   }
   // No password given → unguessable placeholder; the person sets their own via the invite link.
-  const [created] = await db.insert(usersTable)
-    .values({ email, name, passwordHash: hashPassword(password ?? crypto.randomBytes(32).toString("base64url")), isSuperadmin })
-    .returning({ id: usersTable.id });
-  if (leagues.length > 0) {
-    await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({
-      userId: created.id, leagueId: l.leagueId,
-      role: l.modules.includes("data-entry") ? "admin" : "viewer",
-      modules: l.modules,
-      club: l.club ?? null,
-    })));
-  }
+  const created = await db.transaction(async tx => {
+    const [row] = await tx.insert(usersTable)
+      .values({ email, name, passwordHash: hashPassword(password ?? crypto.randomBytes(32).toString("base64url")), isSuperadmin })
+      .returning({ id: usersTable.id });
+    if (leagues.length) await tx.insert(userLeagueAccessTable).values(leagues.map(l => {
+      const modules = seasonGrantModules(l.modules, l.seasonModules);
+      return { userId: row.id, leagueId: l.leagueId, role: modules.includes("data-entry") ? "admin" : "viewer",
+        modules, seasonModules: l.seasonModules ?? null, club: l.club ?? null };
+    }));
+    return row;
+  });
   logger.info({ userId: created.id, email }, "User created");
   if (!password) {
     try {
@@ -508,7 +518,9 @@ router.patch("/auth/users/:id", async (req, res): Promise<void> => {
       return;
     }
   }
-  await db.update(usersTable).set({
+  await db.transaction(async tx => {
+  const previous = await tx.select().from(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, id));
+  await tx.update(usersTable).set({
     ...(email ? { email } : {}),
     ...(name ? { name } : {}),
     ...(password ? { passwordHash: hashPassword(password) } : {}),
@@ -516,16 +528,20 @@ router.patch("/auth/users/:id", async (req, res): Promise<void> => {
     updatedAt: new Date(),
   }).where(eq(usersTable.id, id));
   if (leagues) {
-    await db.delete(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, id));
+    await tx.delete(userLeagueAccessTable).where(eq(userLeagueAccessTable.userId, id));
     if (leagues.length > 0) {
-      await db.insert(userLeagueAccessTable).values(leagues.map((l) => ({
-        userId: id, leagueId: l.leagueId,
-        role: l.modules.includes("data-entry") ? "admin" : "viewer",
-        modules: l.modules,
-        club: l.club ?? null,
-      })));
+      await tx.insert(userLeagueAccessTable).values(leagues.map(l => {
+        // Older clients omit the new field; never widen an existing restricted
+        // grant simply because an unrelated account setting was edited.
+        const seasonModules = l.seasonModules === undefined
+          ? previous.find(a => a.leagueId === l.leagueId)?.seasonModules ?? null : l.seasonModules;
+        const modules = seasonGrantModules(l.modules, seasonModules);
+        return { userId: id, leagueId: l.leagueId, role: modules.includes("data-entry") ? "admin" : "viewer",
+          modules, seasonModules, club: l.club ?? null };
+      }));
     }
   }
+  });
   res.json(await userInfo(id));
 });
 

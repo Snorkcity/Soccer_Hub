@@ -1,16 +1,74 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { TRAINING_METRICS, trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
+import { trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
-import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, trainingChartContext } from "../src/components/training-gps/shared";
+import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, metricDef, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, TRAINING_REVIEW_METRICS, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
+import { metricDrillAnalysis } from "../src/components/training-gps/metricDrillAnalysis";
+import { seasonGrantModules, seasonGrantAllows } from "@workspace/api-zod";
 
 test("quoted training CSV, BOM, trimmed tag and a one-part training export are detected", () => {
   assert.equal(isTrainingGpsText(trainingCsvFixture()), true);
   assert.equal(isTrainingGpsText('\uFEFF"Tags","Split Name"\r\n" training","warmup"'), true);
   assert.equal(isTrainingGpsText('"Split Name","Tags"\n"Technical activation","training"'), true);
+});
+
+test("focused metric compares session values and means, not attendance totals", () => {
+  const base = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const names = [...new Set(base.rows.map(r => r.sourceName))].slice(0, 3);
+  const make = (id: number, distances: number[]) => ({ ...base, id, date: `2026-11-${String(id + 9).padStart(2, "0")}`,
+    rows: base.rows.filter(r => names.includes(r.sourceName) && distances[names.indexOf(r.sourceName)] >= 0)
+      .map(r => ({ ...r, positionCode: names.indexOf(r.sourceName) === 2 ? "GK" : "CM", squad: "1sts",
+        metrics: { ...r.metrics, distanceM: distances[names.indexOf(r.sourceName)] } })) });
+  const first = make(1, [100, 200, 10000]);
+  const second = make(2, [100, -1, 10000]);
+  const key = trainingPlayerKey(first.rows[0]);
+  const f = { ...DEFAULT_TRAINING_FILTERS, sessionId: "2", playerKey: key, metric: "distance", part: "main" as const };
+  const result = metricDrillAnalysis([second, first], f);
+  assert.equal(result.ownMean, 100);
+  assert.equal(result.highest, 100);
+  assert.deepEqual(result.personalRank, { rank: 1, n: 2 }, "ties share rank");
+  assert.deepEqual(result.sessionRank, { rank: 1, n: 1 });
+  assert.deepEqual(result.seasonRank, { rank: 2, n: 2, samples: 2, mean: 100 });
+  assert(!result.seasonMeans.some(x => x.name === names[2]), "GK must not rank against outfield players");
+  assert.deepEqual(result.history.map(x => x.key), ["1", "2"]);
+  const gk = metricDrillAnalysis([first, second], { ...f, playerKey: trainingPlayerKey(first.rows.find(r => r.positionCode === "GK")!) });
+  assert.deepEqual(gk.sessionRank, { rank: 1, n: 1 });
+  assert.match(gk.cohortLabel, /Goalkeepers/);
+});
+
+test("focused drill excludes incomplete and unknown totals from rankings", () => {
+  const base = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const key = trainingPlayerKey(base.rows[0]);
+  const complete = { ...base, id: 1, rows: base.rows.map(r => ({ ...r, positionCode: "CM", squad: "1sts" })) };
+  const partial = { ...complete, id: 2, date: "2026-11-12",
+    rows: complete.rows.filter(r => !(trainingPlayerKey(r) === key && r.part === "main")) };
+  const f = { ...DEFAULT_TRAINING_FILTERS, playerKey: key, sessionId: "2" };
+  const result = metricDrillAnalysis([complete, partial], f);
+  assert.equal(result.currentItem?.partial, true);
+  assert.equal(result.validCount, 1);
+  assert.equal(result.personalRank, null);
+  assert.equal(result.sessionRank, null);
+  assert.equal(result.seasonRank?.samples, 1);
+  const missing = metricDrillAnalysis([partial], { ...f, part: "main" });
+  assert.equal(missing.currentItem?.value, null);
+  assert.equal(missing.ownMean, null);
+  assert.equal(missing.seasonRank, null);
+  const rate = metricDrillAnalysis([complete], { ...f, sessionId: "1", perMinute: true });
+  assert.equal(rate.currentItem?.value, 5300 / (4061 / 60));
+});
+
+test("campaign permission maps distinguish years and never inherit future access", () => {
+  const access = { "2026": ["season-stats"], "2027": ["gps", "data-entry"] };
+  assert.deepEqual(seasonGrantModules(["gps"], null, "2028"), ["gps"], "legacy all-seasons stays compatible");
+  assert.deepEqual(seasonGrantModules([], access, "2026"), ["season-stats"]);
+  assert.deepEqual(seasonGrantModules([], access, "2027"), ["gps", "data-entry"]);
+  assert.deepEqual(seasonGrantModules(["gps"], access, "2028"), [], "explicit maps never fall back to a broad modules array");
+  assert.equal(seasonGrantAllows(access, "2028"), false);
+  assert.equal(seasonGrantAllows({}, "2027"), false);
+  assert.deepEqual(seasonGrantModules([], access), ["season-stats", "gps", "data-entry"]);
 });
 test("match exports with warm-up or other cuts remain match imports", () => {
   assert.equal(isTrainingGpsText('"Tags","Split Name"\n"game","warmup"\n"game","1st half"\n"game","2nd half"'), false);
@@ -194,11 +252,19 @@ test("optional private Catapult CSV is correctly detected", { skip: !existsSync(
   assert.equal(isTrainingGpsText(readFileSync(privateSample, "utf8")), true);
 });
 
-test("Shared Player and Team chart groups include all metrics exactly once", () => {
+test("Player and Team share the curated charts, with just two acceleration charts", () => {
   const ids = TRAINING_METRIC_GROUPS.flatMap(g => g.metrics);
   assert.equal(TRAINING_METRIC_GROUPS.length, 3);
   assert.equal(ids.length, new Set(ids).size);
-  assert.deepEqual([...ids].sort(), TRAINING_METRICS.map(m => m.id).sort());
+  assert.deepEqual(ids, ["distance", "load", "power", "duration", "hsm", "vhsm", "speed", "accels", "decels"]);
+  assert.deepEqual(TRAINING_METRIC_GROUPS.find(g => g.id === "accel")?.metrics, ["accels", "decels"]);
+  assert.deepEqual(TRAINING_REVIEW_METRICS.map(m => m.id), ids);
+  assert.equal(metricDef("load").label, "Player Load");
+  assert(!TRAINING_REVIEW_METRICS.some(m => m.label.includes("Catapult")));
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  assert.equal(selectedPlayerValues(session, "full", "hsm", false)[0].value,
+    selectedPlayerValues(session, "full", "sprint", false)[0].value,
+    "Removed source sprint chart was duplicating HSM; source measurements stay available");
 });
 
 test("Player metric history uses personal full-session totals, own durations, selected parts and peaks", () => {

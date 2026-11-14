@@ -245,10 +245,10 @@ export default function GpsInsights() {
   const metaParams = { leagueId: activeLeagueId ?? 0, year };
   const { data: metaRows, isLoading } = useListGpsSessions(
     metaParams,
-    { query: { enabled: activeLeagueId != null, queryKey: getListGpsSessionsQueryKey(metaParams) } },
+    { query: { enabled: activeLeagueId != null && ready && hasModule(activeLeagueId, "gps", year), queryKey: getListGpsSessionsQueryKey(metaParams) } },
   );
 
-  if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps")) return <NoAccess />;
+  if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps", year)) return <NoAccess />;
 
   const sourceToggle = (
     <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
@@ -270,7 +270,7 @@ export default function GpsInsights() {
         </div>
         <Select value={year} onValueChange={setYear}>
           <SelectTrigger className="w-[110px] max-w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>{(YEARS.includes(year) ? YEARS : [year, ...YEARS]).map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          <SelectContent>{(YEARS.includes(year) ? YEARS : [year, ...YEARS]).filter(y => activeLeagueId != null && hasModule(activeLeagueId, "gps", y)).map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 

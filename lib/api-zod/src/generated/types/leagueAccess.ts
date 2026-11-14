@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LeagueAccessRole } from './leagueAccessRole';
+import type { LeagueAccessSeasonModules } from './leagueAccessSeasonModules';
 
 export interface LeagueAccess {
   leagueId: number;
@@ -13,6 +14,11 @@ export interface LeagueAccess {
   role: LeagueAccessRole;
   /** Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry). */
   modules: string[];
+  /**
+     * Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.
+     * @nullable
+     */
+  seasonModules?: LeagueAccessSeasonModules;
   /**
      * The user's own club in this league — Team/Player insights centre on it. Null = league default focus club.
      * @nullable

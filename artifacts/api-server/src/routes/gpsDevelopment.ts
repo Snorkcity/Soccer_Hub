@@ -12,7 +12,7 @@ import {
   fixtureCode,
   type GpsDevelopmentExternal, type GpsDevelopmentProfile, type GpsDevelopmentPeer,
 } from "@workspace/api-zod";
-import { getSessionUser, hasModule } from "../middlewares/entryAuth";
+import { getSessionUser, hasModule, canSeeYear } from "../middlewares/entryAuth";
 import { focusClubForLeagueRequest } from "../lib/focusClub";
 import { fixtureOpponentMap, ownFixtureOpponentMap } from "./gpsSessions";
 
@@ -46,6 +46,7 @@ async function evidence(req: Request, leagueId: number, year: string, playerName
     feedSquad ? ownFixtureOpponentMap(leagueId) : Promise.resolve(new Map<string, string>()),
   ]);
   for (const r of raw) {
+    if (!canSeeYear(user, leagueId, r.year, "gps")) continue;
     const grade = developmentSquad(r.round);
     // Match the existing read-only feed: source firsts are accessible as the
     // explicit higher-grade comparison, never another unrelated squad.
@@ -92,7 +93,10 @@ async function evidence(req: Request, leagueId: number, year: string, playerName
     profile = developmentProfile(playerName, year, role, games, peers, external);
     if (feedSquad) profile.warnings.push("This is a read-only GPS feed. Edit match context and save feedback from the source league.");
   }
-  const feedback = playerName ? await db.select().from(gpsDevelopmentFeedbackTable)
+  // Immutable snapshots may include evidence from several historical
+  // campaigns. Withhold them for campaign-limited accounts rather than
+  // silently disclose years outside their grant.
+  const feedback = playerName && (user.isSuperadmin || user.leagues.get(leagueId)?.seasonModules == null) ? await db.select().from(gpsDevelopmentFeedbackTable)
     .where(and(eq(gpsDevelopmentFeedbackTable.leagueId, leagueId), eq(gpsDevelopmentFeedbackTable.club, club),
       eq(gpsDevelopmentFeedbackTable.playerName, playerName)))
     .orderBy(desc(gpsDevelopmentFeedbackTable.createdAt)) : [];
@@ -129,6 +133,9 @@ router.delete("/gps-development/feedback", async (req, res) => {
   const parsed = DeleteGpsDevelopmentFeedbackQueryParams.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
   const { leagueId, id } = parsed.data;
+  const user = await getSessionUser(req);
+  if (!user?.isSuperadmin && user?.leagues.get(leagueId)?.seasonModules != null)
+    return res.status(403).json({ error: "All-seasons access is required for historical feedback snapshots" });
   const data = await evidence(req, leagueId, String(new Date().getFullYear()));
   if (!data.canEdit) return res.status(403).json({ error: "Change feedback from the GPS source league" });
   const removed = await db.delete(gpsDevelopmentFeedbackTable)

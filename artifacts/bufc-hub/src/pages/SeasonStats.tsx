@@ -1199,7 +1199,7 @@ export default function SeasonStats() {
   const isSuperadmin = auth?.authenticated === true && auth.user?.isSuperadmin === true;
   // Only offer seasons of leagues where the user has the season-stats module.
   const seasons = useMemo(
-    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "season-stats")),
+    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "season-stats", String(s.year))),
     [allSeasons, hasModule],
   );
 

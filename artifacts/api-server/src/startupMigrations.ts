@@ -93,6 +93,7 @@ export async function runStartupMigrations(): Promise<void> {
 
   // ── User accounts (2026-07): real logins replace the shared club password ──
   await runUserAccountsMigration();
+  await db.execute(sql`ALTER TABLE user_league_access ADD COLUMN IF NOT EXISTS season_modules jsonb`);
 
   // Per-league module tick-boxes (2026-07): user_league_access.modules lists the
   // pages a user may use in that league. Backfill from the legacy role: admins

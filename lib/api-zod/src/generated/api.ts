@@ -3097,6 +3097,7 @@ export const LoginResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 }))
 }).optional()
@@ -3123,6 +3124,7 @@ export const UpdateProfileResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 }))
 }).optional()
@@ -3179,6 +3181,7 @@ export const ListUsersResponseItem = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
   "createdAt": zod.string(),
@@ -3208,6 +3211,7 @@ export const CreateUserBody = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })).optional()
 })
@@ -3221,6 +3225,7 @@ export const CreateUserResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
   "createdAt": zod.string(),
@@ -3281,6 +3286,7 @@ export const UpdateUserBody = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })).optional()
 })
@@ -3294,6 +3300,7 @@ export const UpdateUserResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 })),
   "createdAt": zod.string(),
@@ -3337,6 +3344,7 @@ export const LogoutResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 }))
 }).optional()
@@ -3358,6 +3366,7 @@ export const GetAuthStatusResponse = zod.object({
   "leagueId": zod.number(),
   "role": zod.enum(['admin', 'viewer']).describe('Legacy; derived from modules (data-entry ⇒ admin).'),
   "modules": zod.array(zod.string()).describe('Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).'),
+  "seasonModules": zod.record(zod.string(), zod.array(zod.string())).nullish().describe('Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.'),
   "club": zod.string().nullish().describe('The user\'s own club in this league — Team\/Player insights centre on it. Null = league default focus club.')
 }))
 }).optional()

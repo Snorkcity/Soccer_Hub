@@ -8,6 +8,8 @@ interface Props {
   playerName: string; periodLabel: string; currentKey: string | null;
   sort: PlayerHistorySort; onSort: (s: PlayerHistorySort) => void; onRate: (perMinute: boolean) => void;
   onPick: (sessionKey: string) => void;
+  /** "popup" = focused modal copy; default overview copy. */
+  variant?: "overview" | "popup";
 }
 const SORTS: { id: PlayerHistorySort; label: string; Icon: typeof CalendarArrowUp }[] = [
   { id: "date", label: "Date order, oldest first", Icon: CalendarArrowUp },
@@ -18,7 +20,7 @@ const COL = 52;
 const PEAK = ["speed", "maxAccel", "maxDecel"];
 
 /** One column per tracked session for one metric; value sorts reorder columns and are labelled as rankings, not trends. */
-export function PlayerMetricHistoryChart({ metric, items, pm, playerName, periodLabel, currentKey, sort, onSort, onRate, onPick }: Props) {
+export function PlayerMetricHistoryChart({ metric, items, pm, playerName, periodLabel, currentKey, sort, onSort, onRate, onPick, variant = "overview" }: Props) {
   const def = metricDef(metric);
   const unit = metricUnit(metric, pm);
   const slug = metric.toLowerCase();
@@ -105,7 +107,7 @@ export function PlayerMetricHistoryChart({ metric, items, pm, playerName, period
         {items.length === 1 ? "One tracked session only, no history to compare yet. " : ""}
         Missing values show as —, no column{zeros ? "; a recorded 0 is a real zero" : ""}.
         {hasPartial ? " * marks an incomplete total or missing metric reading; partial values use darker columns." : ""}
-        {PEAK.includes(metric) ? " Peak value, never summed." : ""} Yellow marks the session selected above. Click a column or press Enter on a date to open its details below the charts.
+        {PEAK.includes(metric) ? " Peak value, never summed." : ""} {variant === "popup" ? "Yellow marks the selected date. Click a column or press Enter on a date to update the stats and ranks above." : "Yellow marks the session selected above. Click a column or press Enter on a date to open a focused view of this metric."}
       </p>
     </section>
   );

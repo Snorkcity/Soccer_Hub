@@ -19,6 +19,14 @@ description: Real logins replaced the shared club password; per-league admin/vie
 - Frontend: useLeagueModules() hook; Shell nav via hasModuleAnywhere; pages filter season dropdowns by hasModule(season.leagueId, module); GPS/Testing whole-page gated (they pick team/year not league).
 - Startup migration ORDER matters: modules ALTER/backfill must run AFTER runUserAccountsMigration creates the table.
 
+## Competition and campaign permissions
+
+Competition membership must not implicitly grant every campaign when the administrator explicitly selects seasons. Existing all-seasons accounts retain their original scope, including future campaigns; newly restricted accounts receive only the selected campaigns and pages.
+
+**Why:** the coach needs to distinguish ACT NPLM 2026 from ACT NPLM 2027 when granting access, even though both share one competition. Campaign year is independent of the actual session date, so a November training session may belong to the following year's campaign.
+
+**How to apply:** preserve existing grants during unrelated account edits, validate campaign ownership before saving, and enforce the persisted record's real campaign on the server. Never treat a caller-added year parameter as ownership of an old report. Withhold legacy league-wide reports, journals and multi-season feedback snapshots from campaign-limited accounts until reliable campaign ownership exists; do not guess from calendar dates. Explain that limitation in the access editor.
+
 ## Per-user club (2026-07)
 - Access hierarchy is league → club → modules: `user_league_access.club` (nullable) is the person's OWN club in that league; Team/Player insights centre on it. NULL falls back to `leagues.focus_club`.
 - Server resolution: `focusClubForRequest(req, seasonId)` in api-server lib/focusClub — user grant club wins, else cached league default. ALL analytics + data-entry focus-club call sites use it; any NEW endpoint needing "our club" must too (never call focusClubForSeason directly from a route).

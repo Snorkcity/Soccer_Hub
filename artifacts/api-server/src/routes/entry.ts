@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { getSessionUser, hasModule, leagueIdForSeason } from "../middlewares/entryAuth";
+import { getSessionUser, hasModule, leagueIdForSeason, canSeeSeason } from "../middlewares/entryAuth";
 import { eq, and, desc, isNull, isNotNull, inArray, sql, type AnyColumn } from "drizzle-orm";
 import {
   db,
@@ -201,7 +201,7 @@ async function canEnterDataForSeason(req: Request, seasonId: number): Promise<bo
   if (!user) return false;
   const leagueId = await leagueIdForSeason(seasonId);
   if (leagueId == null) return false;
-  return hasModule(user, leagueId, "data-entry");
+  return canSeeSeason(user, seasonId, "data-entry");
 }
 
 router.delete("/entry/goal/:goalId", async (req, res): Promise<void> => {

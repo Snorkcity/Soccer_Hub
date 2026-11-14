@@ -35,7 +35,7 @@
 - [Session planning app](session-planning.md) — superseded by separate Football Session Library & Builder; old roadmap is historical, not an active Hub dependency.
 - [Old session-plan import](plan-import.md) — 328 docx → practice_variations + picture practices; colour-agnostic image matching, sha overrides, per-file idempotent; Drizzle subquery-count gotcha.
 - [Practice library](practice-library.md) — slice 1 DONE: pptx→JSON→practices table→SVG renderer; seed preserves needs_review; no tsx runner (esbuild-bundle seeds); SVG markers/word-wrap gotchas.
-- [User accounts & league access](user-accounts.md) — real logins (scrypt, userId cookie); per-league admin/viewer; central seasonId/leagueId scoping in middleware; new write routes with odd scope params must self-check.
+- [User access](user-accounts.md) — competition/campaign page permissions; preserve legacy all-seasons grants and fail closed for records without reliable campaign ownership.
 - [Test email accounts](test-email-accounts.md) — coach has catch-all *@gameinsights.com.au → hello@; unlimited instant test addresses for future auth work; roles hint: admin/coach/manager/parent/player.
 - [Reflection journal](reflection-journal.md) — cycles+entries jsonb content (field ids client-side only!), atomic upsert needs targetWhere; voice interviews stage 2 via gpt-audio (no Realtime in dev proxy).
 - [Match Prep saved reports](match-prep-reports.md) — monday/friday reports in match_prep_reports jsonb; copy-to-new keeps roles, clears match facts; shape remap is by-index (keep FORMATIONS ordered GK→def→mid→att).

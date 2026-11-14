@@ -14,10 +14,10 @@ import { focusClubForLeagueRequest } from "../lib/focusClub";
 import { parseTrainingCsv } from "../lib/gpsTrainingCsv";
 
 const router = Router();
-async function scope(req: Request, res: Response, leagueId: number, write = false) {
+async function scope(req: Request, res: Response, leagueId: number, year: string, write = false) {
   const user = await getSessionUser(req);
-  if (!user || !canSeeLeague(user, leagueId) || !hasModule(user, leagueId, "gps") ||
-      (write && !hasModule(user, leagueId, "data-entry"))) {
+  if (!user || !canSeeLeague(user, leagueId) || !hasModule(user, leagueId, "gps", year) ||
+      (write && !hasModule(user, leagueId, "data-entry", year))) {
     res.status(403).json({ error: write ? "GPS and Data Entry access are required." : "No GPS access to this competition." });
     return null;
   }
@@ -58,7 +58,7 @@ router.get("/gps-training", async (req, res): Promise<void> => {
   const query = ListGpsTrainingQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: "Choose a valid league and campaign year." }); return; }
   const { leagueId, year } = query.data;
-  const access = await scope(req, res, leagueId);
+  const access = await scope(req, res, leagueId, year);
   if (!access) return;
   // Shared GPS hubs are viewed from their source competition, keeping
   // private training ownership explicit rather than silently copying it.
@@ -71,7 +71,7 @@ router.get("/gps-training", async (req, res): Promise<void> => {
 router.post("/entry/gps-training/preview", async (req, res): Promise<void> => {
   const parsed = PreviewGpsTrainingBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "A valid campaign and training CSV are required." }); return; }
-  const input = parsed.data, access = await scope(req, res, input.leagueId, true);
+  const input = parsed.data, access = await scope(req, res, input.leagueId, input.year, true);
   if (!access) return;
   let prepared: ReturnType<typeof parseTrainingCsv>;
   try { prepared = await prepare(input, access.club, access.league.focusClub); }
@@ -87,7 +87,7 @@ router.post("/entry/gps-training/preview", async (req, res): Promise<void> => {
 router.post("/entry/gps-training", async (req, res): Promise<void> => {
   const parsed = SaveGpsTrainingBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "A valid campaign and training CSV are required." }); return; }
-  const input = parsed.data, access = await scope(req, res, input.leagueId, true);
+  const input = parsed.data, access = await scope(req, res, input.leagueId, input.year, true);
   if (!access) return;
   let prepared: ReturnType<typeof parseTrainingCsv>;
   try { prepared = await prepare(input, access.club, access.league.focusClub); }
@@ -125,7 +125,7 @@ router.post("/entry/gps-training", async (req, res): Promise<void> => {
 router.patch("/entry/gps-training/:id/plan", async (req, res): Promise<void> => {
   const params = UpdateGpsTrainingPlanParams.safeParse(req.params), body = UpdateGpsTrainingPlanBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid session plan." }); return; }
-  const input = body.data, access = await scope(req, res, input.leagueId, true);
+  const input = body.data, access = await scope(req, res, input.leagueId, input.year, true);
   if (!access) return;
   if (input.allowances.some(a => a.part === "recording" || a.minMinutes > a.maxMinutes) ||
       new Set(input.allowances.map(a => a.part)).size !== input.allowances.length) {

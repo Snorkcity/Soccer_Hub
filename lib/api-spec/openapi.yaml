@@ -6959,6 +6959,12 @@ components:
           type: array
           items: { type: string }
           description: Per-league pages this user may use (season-stats, gps, testing, match-prep, reflections, data-entry).
+        seasonModules:
+          type: ["object", "null"]
+          additionalProperties:
+            type: array
+            items: { type: string }
+          description: Null or omitted grants all seasons. Otherwise keys are explicit campaign years and each value lists pages permitted in that campaign only.
         club:
           type: ["string", "null"]
           description: The user's own club in this league — Team/Player insights centre on it. Null = league default focus club.
