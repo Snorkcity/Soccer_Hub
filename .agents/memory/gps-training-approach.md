@@ -49,3 +49,11 @@ Training should have Player and Team tabs, similar in organisation to the existi
 **Why:** the coach explicitly wants to understand how they allocate training time and whether each part receives the intended duration.
 
 **How to apply:** base coaching allocation on the marked part timetable, not the mean or sum of individual player participation. Keep shorter player recordings in individual analysis. Describe the remainder as time outside selected parts, not proven inactivity: breaks within the marked parts remain included. Exact placement of the scheduled window still needs an actual start time if drawing leading/trailing gaps.
+
+## Coach history and planned-versus-recorded duration
+
+The Coach view must support trends and drill-down across tracked sessions, not just a single-session time breakdown. Selecting a named component such as Technical activation should reveal its tracked occurrences, durations, patterns and comparisons over time, with access to individual session detail. The coach wants their observed average durations to inform realistic allocations in the separate session-planning app.
+
+**Why:** the coach wants to distinguish consistently meeting a planned time allowance from routinely overrunning it, then choose whether to shorten the activity or revise future plans.
+
+**How to apply:** count each session's marked component once when calculating coaching averages, not once per player. Show sample size, missing components and useful duration variability alongside the average. Support optional planned durations or ranges versus recorded durations without requiring extra upload work; the coach's examples of a 20–25-minute main part and nine-minute passing activation illustrate the comparison, not approved default targets. Preserve the applicable historical allowance if targets are introduced, so changing a future plan does not reinterpret older sessions. Do not automatically label longer or shorter components as good or bad, and do not assume integration with the retired Hub planner.
