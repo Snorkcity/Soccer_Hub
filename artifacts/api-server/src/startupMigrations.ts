@@ -554,6 +554,30 @@ export async function runStartupMigrations(): Promise<void> {
     await db.execute(sql`INSERT INTO seed_markers (key) VALUES ('addon-modules-grant-v1') ON CONFLICT DO NOTHING`);
   }
 
+  // Season Report used to share Season Stats access. Preserve precisely those
+  // existing campaigns once; future checkbox changes must never be re-granted.
+  await db.transaction(async tx => {
+    const marker = await tx.execute(sql`
+      INSERT INTO seed_markers (key) VALUES ('season-report-independent-access')
+      ON CONFLICT DO NOTHING RETURNING key
+    `);
+    if (marker.rows.length === 0) return;
+    await tx.execute(sql`
+      UPDATE user_league_access SET
+        modules = CASE
+          WHEN modules @> '["season-stats"]'::jsonb AND NOT modules @> '["season-report"]'::jsonb
+          THEN modules || '["season-report"]'::jsonb ELSE modules END,
+        season_modules = CASE WHEN season_modules IS NULL THEN NULL ELSE (
+          SELECT COALESCE(jsonb_object_agg(campaign.key,
+            CASE WHEN campaign.value @> '["season-stats"]'::jsonb
+                   AND NOT campaign.value @> '["season-report"]'::jsonb
+                 THEN campaign.value || '["season-report"]'::jsonb
+                 ELSE campaign.value END), '{}'::jsonb)
+          FROM jsonb_each(season_modules) AS campaign
+        ) END
+    `);
+  });
+
   // ── ACT NPLM 2026 (2026-07, per coach) ─────────────────────────────────────
   // Men's league starting fresh. Player naming convention differs from NPLW:
   // "S.Smith" (first-initial + surname) instead of surname-only — recorded per

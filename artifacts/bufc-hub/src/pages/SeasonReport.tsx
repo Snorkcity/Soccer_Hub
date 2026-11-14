@@ -81,7 +81,7 @@ export default function SeasonReport() {
   const { activeLeagueId, activeSeasonId, setActiveSeasonId } = useActiveLeague();
 
   const seasons = useMemo(
-    () => (allSeasons ?? []).filter(s => s.leagueId === activeLeagueId && hasModule(s.leagueId, 'season-stats')),
+    () => (allSeasons ?? []).filter(s => s.leagueId === activeLeagueId && hasModule(s.leagueId, 'season-report', String(s.year))),
     [allSeasons, activeLeagueId, hasModule],
   );
   const [teamId, setTeamId] = useState<number | ''>('');

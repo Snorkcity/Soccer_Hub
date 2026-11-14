@@ -27,12 +27,13 @@ function errMsg(e: unknown): string {
 // the compact access summary shown in the user list.
 const MODULES: { key: string; label: string; short: string }[] = [
   { key: "season-stats", label: "Season Stats", short: "Stats" },
+  { key: "veo", label: "Veo Insights", short: "Veo" },
+  { key: "season-report", label: "Season Report", short: "Report" },
   { key: "gps", label: "GPS Insights", short: "GPS" },
   { key: "testing", label: "Testing", short: "Testing" },
   { key: "match-prep", label: "Match Prep", short: "Prep" },
   { key: "reflections", label: "Reflections", short: "Reflect" },
   { key: "data-entry", label: "Data Entry", short: "Entry" },
-  { key: "session-planner", label: "Session Planner + Library", short: "Planner" },
   { key: "assistant", label: "Coach Assistant", short: "Assistant" },
 ];
 

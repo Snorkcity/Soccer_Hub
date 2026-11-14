@@ -34,7 +34,7 @@ const navSections: { heading: string | null; items: NavItem[] }[] = [
       { href: "/season-stats", label: "Season Stats", icon: BarChart3, module: "season-stats" },
       { href: "/veo", label: "Veo Insights", icon: Video, module: "veo" },
       { href: "/gps", label: "GPS Insights", icon: Navigation2, module: "gps" },
-      { href: "/season-report", label: "Season Report", icon: TrendingUp2, module: "season-stats" },
+      { href: "/season-report", label: "Season Report", icon: TrendingUp2, module: "season-report" },
       { href: "/testing", label: "Testing", icon: Activity, module: "testing" },
     ],
   },

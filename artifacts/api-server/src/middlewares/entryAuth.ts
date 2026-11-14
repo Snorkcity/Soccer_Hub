@@ -230,6 +230,7 @@ export function canWriteLeague(user: SessionUser, leagueId: number): boolean {
 // (analytics, teams, seasons, assistant, sessions, practices, …) stay open to
 // any league member — Match Prep and the shared tools read from them.
 const MODULE_ROUTES: Array<[prefix: string, module: string]> = [
+  ["/analytics/season-report", "season-report"],
   ["/entry/athletic-tests", "testing"], // trainer xlsx upload lives under /entry
   ["/entry/gps-sessions", "gps"],       // GPS import lives under /entry too
   ["/entry/gps-uploads", "gps"],        // GPS upload management (list/fix/delete)

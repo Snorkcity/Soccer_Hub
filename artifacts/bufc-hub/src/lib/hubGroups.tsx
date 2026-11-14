@@ -41,7 +41,7 @@ export const GROUPS: HubGroup[] = [
       { label: "Season Stats", href: "/season-stats", icon: BarChart3, module: "season-stats", description: "Goals, assists, the ladder and every team and player chart for the season." },
       { label: "Veo Insights", href: "/veo", icon: Video, module: "veo", description: "Match video stats from Veo — shots, possession and passing trends." },
       { label: "GPS Insights", href: "/gps", icon: Navigation2, module: "gps", description: "Distance, sprints and running loads from the GPS units, round by round." },
-      { label: "Season Report", href: "/season-report", icon: TrendingUp2, module: "season-stats", description: "The full-season story pulled together into one downloadable report." },
+      { label: "Season Report", href: "/season-report", icon: TrendingUp2, module: "season-report", description: "The full-season story pulled together into one downloadable report." },
       { label: "Testing", href: "/testing", icon: Activity, module: "testing", description: "Athletic testing results and how each player compares to the squad." },
     ],
   },

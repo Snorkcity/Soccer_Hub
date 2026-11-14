@@ -21,6 +21,10 @@ description: Real logins replaced the shared club password; per-league admin/vie
 
 ## Competition and campaign permissions
 
+Expose Veo Insights and Season Report as separate assignable pages; omit Session Planner + Library and Curriculum from the assignment checklist.
+**Why:** the coach uses a separate session-building app and explicitly requested these permission choices.
+**How to apply:** keep each page independently campaign-scoped; preserve historical Season Report access when separating it from Season Stats.
+
 Competition membership must not implicitly grant every campaign when the administrator explicitly selects seasons. Existing all-seasons accounts retain their original scope, including future campaigns; newly restricted accounts receive only the selected campaigns and pages.
 
 **Why:** the coach needs to distinguish ACT NPLM 2026 from ACT NPLM 2027 when granting access, even though both share one competition. Campaign year is independent of the actual session date, so a November training session may belong to the following year's campaign.
