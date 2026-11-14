@@ -10,6 +10,7 @@ export const TRAINING_PARTS = [
 
 export const TRAINING_METRICS = [
   { id: "distance", label: "Total distance", unit: "m", rate: true },
+  { id: "distancePerMinute", label: "Distance per minute", unit: "m/min", rate: false },
   { id: "hsm", label: "High-speed metres (>18 km/h)", unit: "m", rate: true },
   { id: "vhsm", label: "Very-high-speed metres (>25 km/h)", unit: "m", rate: true },
   { id: "load", label: "Catapult Player Load", unit: "AU", rate: true },
@@ -53,6 +54,7 @@ const valid = (v: number | null | undefined): v is number =>
   typeof v === "number" && Number.isFinite(v);
 
 export function trainingValue(r: TrainingGpsRow, metric: string, perMinute = false): number | null {
+  if (metric === "distancePerMinute") return trainingValue(r, "distance", true);
   let v: number | null | undefined;
   if (metric === "duration") v = r.durationSeconds == null ? null : r.durationSeconds / 60;
   else if (metric === "speed") v = r.metrics.topSpeedMs == null ? null : r.metrics.topSpeedMs * 3.6;
@@ -70,6 +72,7 @@ export function trainingValue(r: TrainingGpsRow, metric: string, perMinute = fal
 
 /** Whole-session data never includes the untrimmed source recording. */
 export function trainingTotal(rows: readonly TrainingGpsRow[], metric: string, perMinute = false): number | null {
+  if (metric === "distancePerMinute") return trainingTotal(rows, "distance", true);
   const parts = rows.filter(r => r.part !== "recording");
   if (!parts.length) return null;
   const values = parts.map(r => trainingValue(r, metric));

@@ -47,11 +47,11 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
             {SORTS.map(o => <button key={o.id} type="button" aria-pressed={sort === o.id} title={o.label} aria-label={o.label}
               onClick={() => onSort(o.id)} className={seg(sort === o.id)} data-testid={`button-sort-${slug}-${o.id}`}><o.Icon className="h-3.5 w-3.5" /></button>)}
           </div>
-          <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
+          {metric === "distancePerMinute" ? <span className="self-center px-2 text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label={`${def.label} totals or per minute`}
             title={rateable ? undefined : "Peak or participation value; a per-minute rate would not be meaningful"}>
             <button type="button" aria-pressed={!pm} onClick={() => onRate(false)} className={seg(!pm)} data-testid={`button-rate-${slug}-total`}>Total</button>
             <button type="button" aria-pressed={pm} disabled={!rateable} onClick={() => onRate(true)} className={seg(pm)} data-testid={`button-rate-${slug}-pm`}>/min</button>
-          </div>
+          </div>}
         </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
@@ -61,7 +61,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
           </span>
           {total != null && <span data-testid={`text-total-${slug}`}>Total {fmtMetric(metric, total, pm)}</span>}
           <span className="text-muted-foreground">{recorded}/{items.length} recorded</span>
-          {!rateable && <span className="text-muted-foreground">Not a rate metric</span>}
+          {metric === "distancePerMinute" ? <span className="text-muted-foreground">Distance ÷ recorded participation minutes</span> : !rateable && <span className="text-muted-foreground">Not a rate metric</span>}
         </div>
       </header>
       {items.length === 0 ? (

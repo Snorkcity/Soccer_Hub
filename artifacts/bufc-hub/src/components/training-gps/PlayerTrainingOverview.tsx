@@ -98,10 +98,10 @@ export function PlayerTrainingOverview({ sessions, session, f, set, drill }: Pro
                   <SelectContent>{TRAINING_REVIEW_METRICS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <label className={`flex items-center gap-2 pb-2 text-xs ${canRate(deep.metric) ? "" : "opacity-50"}`} title={canRate(deep.metric) ? "" : "Not a rate metric"}>
+              {deep.metric === "distancePerMinute" ? <span className="pb-2 text-xs text-muted-foreground">Always m/min</span> : <label className={`flex items-center gap-2 pb-2 text-xs ${canRate(deep.metric) ? "" : "opacity-50"}`} title={canRate(deep.metric) ? "" : "Not a rate metric"}>
                 <Switch checked={deep.perMinute && canRate(deep.metric)} disabled={!canRate(deep.metric)} onCheckedChange={perMinute => setDeep(d => ({ ...d, perMinute }))} data-testid="switch-player-deeper-per-minute" />
                 <span>{deep.perMinute && canRate(deep.metric) ? "Per minute" : "Totals"}</span>
-              </label>
+              </label>}
             </div>
             <PlayerTrainingTab sessions={sessions} session={session} f={{ ...f, playerKey: player.key, metric: deep.metric, perMinute: deep.perMinute }}
               set={set} drill={patch => drill({ ...patch, playerKey: player.key })} hidePlayerSelector hideInsights />

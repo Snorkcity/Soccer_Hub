@@ -125,3 +125,11 @@ Player and Team must share a deliberately selected chart set, not automatically 
 **Why:** the coach found the number of charts excessive and explicitly requested only the two greater-than-three acceleration/braking charts in both Player and Team.
 
 **How to apply:** preserve source data when hiding charts; new imported metrics should not automatically appear in the review. Keep metric selectors aligned with the curated chart set.
+
+## Distance per minute must be easy to find
+
+The coach calls distance per minute one of their favourite metrics and wants it available throughout training analysis as an explicit metric, not only hidden behind Total distance's per-minute switch.
+
+**Why:** the coach could not find it during review and specifically asked to add it everywhere.
+
+**How to apply:** retain a dedicated distance-per-minute option in Player and Team charts, relative standings and focused analysis. For combined session rates use distance divided by the player's summed recorded minutes, never an unweighted mean of part rates or the scheduled 90-minute window. Coach remains focused on coaching time allocation.

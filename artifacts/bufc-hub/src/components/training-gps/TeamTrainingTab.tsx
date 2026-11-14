@@ -144,12 +144,12 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
             <SelectTrigger className="w-full sm:w-64" data-testid="select-standing-metric"><SelectValue /></SelectTrigger>
             <SelectContent>{ORDER.map(m => <SelectItem key={m} value={m}>{metricDef(m).label}</SelectItem>)}</SelectContent>
           </Select>
-          <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label="Standing totals or per minute" title={canRate(standingMetric) ? undefined : "Not a rate metric"}>
+          {standingMetric === "distancePerMinute" ? <span className="text-xs text-muted-foreground">Always m/min</span> : <div className="inline-flex rounded-md border border-input p-0.5" role="group" aria-label="Standing totals or per minute" title={canRate(standingMetric) ? undefined : "Not a rate metric"}>
             <button type="button" aria-pressed={!standingPm} onClick={() => setStandingRate(false)} data-testid="button-standing-total"
               className={`min-h-8 rounded px-2 text-[11px] font-medium ${!standingPm ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>Total</button>
             <button type="button" aria-pressed={standingPm} disabled={!canRate(standingMetric)} onClick={() => setStandingRate(true)} data-testid="button-standing-pm"
               className={`min-h-8 rounded px-2 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50 ${standingPm ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>/min</button>
-          </div>
+          </div>}
         </div>}>
         {standing.length === 0 ? <EmptyChart>No players.</EmptyChart> : (
           <div className="max-h-[420px] overflow-auto">
@@ -198,10 +198,10 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
               <SelectTrigger data-testid="select-deeper-metric"><SelectValue /></SelectTrigger>
               <SelectContent>{ORDER.map(m => <SelectItem key={m} value={m}>{metricDef(m).label}</SelectItem>)}</SelectContent>
             </Select>
-            <label className={`mt-3 flex items-center gap-2 text-xs ${canRate(f.metric) ? "" : "opacity-50"}`} title={canRate(f.metric) ? "" : "Not a rate metric"}>
+            {f.metric === "distancePerMinute" ? <p className="mt-3 text-xs text-muted-foreground">Always m/min</p> : <label className={`mt-3 flex items-center gap-2 text-xs ${canRate(f.metric) ? "" : "opacity-50"}`} title={canRate(f.metric) ? "" : "Not a rate metric"}>
               <Switch checked={pm} disabled={!canRate(f.metric)} onCheckedChange={v => set({ perMinute: v })} data-testid="switch-deeper-per-minute" />
               <span>{pm ? "Per minute" : "Totals"}</span>
-            </label>
+            </label>}
           </div>
       <Panel testId="chart-group-profile" kicker="All five parts" title={`Group profile — ${metricDef(f.metric).label}`} context={context}
         aside={<Select value="" onValueChange={v => setOverlay(o => o.includes(v) || o.length >= 3 ? o : [...o, v])}>

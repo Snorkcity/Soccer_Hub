@@ -15,7 +15,7 @@ export const C = { primary: "#61A9BD", secondary: "#CED14E", tertiary: "#DD83C9"
 export const OVERLAY_COLORS = ["#CED14E", "#DD83C9", "#E98E2E"];
 
 export const TRAINING_METRIC_GROUPS: { id: string; label: string; blurb: string; metrics: string[] }[] = [
-  { id: "running", label: "Running & load", blurb: "Distance, Player Load, Power Plays, time", metrics: ["distance", "load", "power", "duration"] },
+  { id: "running", label: "Running & load", blurb: "Distance, distance per minute, Player Load, Power Plays, time", metrics: ["distance", "distancePerMinute", "load", "power", "duration"] },
   { id: "speed", label: "High-speed & sprint", blurb: "High-speed metres, very-high-speed metres, maximum speed", metrics: ["hsm", "vhsm", "speed"] },
   { id: "accel", label: "Acceleration & braking", blurb: "Accelerations and decelerations above 3 m/s²", metrics: ["accels", "decels"] },
 ];
@@ -133,7 +133,7 @@ export function fmtMetric(metric: string, v: number | null | undefined, perMinut
   if (v == null || !Number.isFinite(v)) return "—";
   if (metric === "speed") return `${v.toFixed(1)} km/h (${(v / 3.6).toFixed(2)} m/s)`;
   const pm = perMinute && canRate(metric);
-  const digits = pm ? (v >= 100 ? 0 : v >= 10 ? 1 : 2) : metric === "maxAccel" || metric === "maxDecel" || metric === "load" ? 1 : undefined;
+  const digits = pm || metric === "distancePerMinute" ? (v >= 100 ? 0 : v >= 10 ? 1 : 2) : metric === "maxAccel" || metric === "maxDecel" || metric === "load" ? 1 : undefined;
   return `${fmtNum(v, digits)} ${metricUnit(metric, pm)}`;
 }
 export const fmtMin = (sec: number | null | undefined) =>

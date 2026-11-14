@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { trainingInsights, trainingPlayerKey } from "@workspace/api-zod";
+import { trainingInsights, trainingPlayerKey, trainingTotal, trainingValue } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
 import { coachPeriod, DEFAULT_TRAINING_FILTERS, matchesFilters, metricDef, playerMetricHistory, relativeStandings, selectedPlayerValues, selectedPartLabel, sortPlayerMetricHistory, sortStandings, sortTeamMetricItems, STANDING_PARTS, teamMetricData, TRAINING_METRIC_GROUPS, TRAINING_REVIEW_METRICS, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
@@ -256,7 +256,7 @@ test("Player and Team share the curated charts, with just two acceleration chart
   const ids = TRAINING_METRIC_GROUPS.flatMap(g => g.metrics);
   assert.equal(TRAINING_METRIC_GROUPS.length, 3);
   assert.equal(ids.length, new Set(ids).size);
-  assert.deepEqual(ids, ["distance", "load", "power", "duration", "hsm", "vhsm", "speed", "accels", "decels"]);
+  assert.deepEqual(ids, ["distance", "distancePerMinute", "load", "power", "duration", "hsm", "vhsm", "speed", "accels", "decels"]);
   assert.deepEqual(TRAINING_METRIC_GROUPS.find(g => g.id === "accel")?.metrics, ["accels", "decels"]);
   assert.deepEqual(TRAINING_REVIEW_METRICS.map(m => m.id), ids);
   assert.equal(metricDef("load").label, "Player Load");
@@ -281,6 +281,42 @@ test("Player metric history uses personal full-session totals, own durations, se
   assert.equal(playerMetricHistory([session], key, "full", "distance", false)[0].partial, false);
   assert.deepEqual(playerMetricHistory([session], "source:untracked", "full", "distance", false), []);
   assert.deepEqual(playerMetricHistory([], key, "full", "distance", false), []);
+});
+
+test("Distance per minute is explicit throughout review and uses personal duration-weighted rates", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const key = trainingPlayerKey(session.rows[0]);
+  const rows = session.rows.filter(r => trainingPlayerKey(r) === key);
+  const part = rows.find(r => r.part === "main")!;
+  assert.equal(metricDef("distancePerMinute").unit, "m/min");
+  assert.equal(metricDef("distancePerMinute").rate, false, "An existing rate cannot be divided by minutes again");
+  assert.equal(trainingValue(part, "distancePerMinute"), 1800 / (1197 / 60));
+  assert.equal(trainingValue(part, "distancePerMinute", true), trainingValue(part, "distancePerMinute"));
+  assert.equal(trainingTotal(rows, "distancePerMinute"), 5300 / (4061 / 60));
+  assert.equal(trainingTotal(rows, "distancePerMinute", true), trainingTotal(rows, "distancePerMinute"));
+  assert.notEqual(trainingTotal(rows, "distancePerMinute"),
+    rows.filter(r => r.part !== "recording").reduce((sum, r) => sum + trainingValue(r, "distancePerMinute")!, 0) / 5);
+  for (const durationSeconds of [null, 0, -1]) {
+    assert.equal(trainingValue({ ...part, durationSeconds }, "distancePerMinute"), null);
+    assert.equal(trainingTotal([{ ...part, durationSeconds }], "distancePerMinute"), null);
+  }
+  assert.equal(trainingValue({ ...part, metrics: { ...part.metrics, distanceM: null } }, "distancePerMinute"), null);
+  assert.equal(trainingValue({ ...part, metrics: { ...part.metrics, distanceM: 0 } }, "distancePerMinute"), 0);
+  assert.deepEqual(selectedPlayerValues(session, "full", "distancePerMinute", false),
+    selectedPlayerValues(session, "full", "distance", true));
+  assert.deepEqual(relativeStandings(session.rows, "distancePerMinute", false), relativeStandings(session.rows, "distance", true));
+  assert.deepEqual(playerMetricHistory([session], key, "full", "distancePerMinute", false),
+    playerMetricHistory([session], key, "full", "distance", true));
+  const f = { ...DEFAULT_TRAINING_FILTERS, metric: "distancePerMinute", playerKey: key };
+  const chart = teamMetricData(session, f, f.metric);
+  assert.equal(chart.total, null, "Do not sum player rates into a squad total");
+  assert.deepEqual(chart.items, teamMetricData(session, { ...f, metric: "distance", perMinute: true }, "distance").items);
+  const drill = metricDrillAnalysis([session], f);
+  const priorDrill = metricDrillAnalysis([session], { ...f, metric: "distance", perMinute: true });
+  assert.equal(drill.ownMean, priorDrill.ownMean);
+  assert.deepEqual(drill.sessionRank, priorDrill.sessionRank);
+  assert.deepEqual(drill.seasonRank, priorDrill.seasonRank);
+  assert.match(trainingChartContext(f, session), /Distance per minute \(m\/min\)/);
 });
 
 test("Player history distinguishes zero, missing parts, unknown measurements and untracked sessions", () => {
