@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { trainingInsights } from "@workspace/api-zod";
 import { isTrainingGpsText } from "../src/components/training-gps/detect";
-import { coachPeriod, matchesFilters, relativeStandings, selectedPlayerValues, selectedPartLabel, sortStandings, trainingChartContext } from "../src/components/training-gps/shared";
+import { coachPeriod, matchesFilters, relativeStandings, selectedPlayerValues, selectedPartLabel, sortStandings, STANDING_PARTS, teamMetricData, trainingChartContext } from "../src/components/training-gps/shared";
 import { parseTrainingCsv } from "../../api-server/src/lib/gpsTrainingCsv";
 import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture";
 
@@ -105,6 +105,57 @@ test("Chart context names the selected period, metric and rate units", () => {
   assert.match(trainingChartContext(filters, session), /Selected: Technical activation/);
   assert.match(trainingChartContext(filters, session), /m\/min/);
   assert.match(trainingChartContext({ ...filters, part: "full" }, session), /Selected: Full session/);
+});
+test("Relative standings include sortable full-session totals and omit incomplete totals", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const first = session.rows[0].playerName;
+  const last = session.rows.at(-1)!.playerName;
+  const fullIndex = STANDING_PARTS.findIndex(p => p.id === "full");
+  assert.equal(fullIndex, 5);
+  const standings = relativeStandings(session.rows, "distance", false);
+  assert.equal(standings.length, 20); // Uncut rows do not add participants.
+  assert(standings.every(s => s.cells.length === 6));
+  assert.deepEqual(standings.find(s => s.name === first)?.cells[fullIndex], { rank: 20, n: 20 });
+  assert.equal(sortStandings(standings, "full", false)[0].name, last);
+  assert.equal(sortStandings(standings, "full", true)[0].name, first);
+  assert(relativeStandings(session.rows, "speed", false).every(s => s.cells[fullIndex]?.rank === 1));
+  const missing = relativeStandings(session.rows.filter(r => !(r.playerName === first && r.part === "main")), "distance", false);
+  assert.equal(missing.find(s => s.name === first)?.cells[fullIndex], null);
+  assert.equal(missing.find(s => s.name === last)?.cells[fullIndex]?.n, 19);
+  for (const descending of [false, true]) assert.equal(sortStandings(missing, "full", descending).at(-1)?.name, first);
+});
+test("Team chart metrics use their own rate setting, apply filters and exclude partial totals from references", () => {
+  const session = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const first = session.rows[0].playerName;
+  const last = session.rows.at(-1)!.playerName;
+  session.rows = session.rows.map(r => ({ ...r, positionCode: r.playerName === last ? "GK" : "CB", squad: "1sts" }));
+  const f = { sessionId: null, metric: "speed", perMinute: true, part: "full" as const, playerKey: null, squad: "all", position: "outfield" };
+  const distance = teamMetricData(session, f, "distance");
+  assert.equal(distance.items.length, 19);
+  assert.equal(distance.n, 19);
+  assert.equal(distance.pm, true); // Global selected metric is a peak, but this distance chart still uses rates.
+  assert.equal(distance.items[0].value, 5300 / (4061 / 60));
+  assert.equal(distance.total, null); // Never add individual rates.
+  const speed = teamMetricData(session, f, "speed");
+  assert.equal(speed.pm, false);
+  assert.equal(speed.total, null); // Never sum peaks.
+  assert(Math.abs(speed.mean! - 9 * 3.6) < 1e-9);
+  const totals = teamMetricData(session, { ...f, perMinute: false }, "distance");
+  assert.equal(totals.total, 19 * 5300 + 50 * (18 * 19 / 2));
+  assert.equal(totals.mean, totals.total! / 19);
+  const partial = { ...session, rows: session.rows.filter(r => !(r.playerName === first && r.part === "main")) };
+  const chart = teamMetricData(partial, { ...f, perMinute: false }, "distance");
+  assert.equal(chart.items[0].partial, true);
+  assert.equal(chart.items[0].value, 3500);
+  assert.equal(chart.n, 18);
+  assert.equal(chart.total, totals.total! - 5300);
+  const goalkeeper = teamMetricData(session, { ...f, position: "Goalkeepers" }, "distance");
+  assert.equal(goalkeeper.items.length, 1);
+  assert.equal(goalkeeper.items[0].name, last);
+  const noPlayers = teamMetricData(session, { ...f, squad: "U23" }, "distance");
+  assert.equal(noPlayers.mean, null);
+  assert.equal(noPlayers.total, null);
+  assert.equal(noPlayers.n, 0);
 });
 test("optional private Catapult CSV is correctly detected", { skip: !existsSync(privateSample) }, () => {
   assert.equal(isTrainingGpsText(readFileSync(privateSample, "utf8")), true);

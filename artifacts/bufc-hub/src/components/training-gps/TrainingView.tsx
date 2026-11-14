@@ -54,7 +54,7 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
 
   const rateOk = canRate(f.metric);
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <div className="sticky top-0 z-20 -mx-1 grid grid-cols-2 gap-2 rounded-xl border border-border bg-background/90 p-3 backdrop-blur md:grid-cols-[1.3fr_1.4fr_1fr_auto]" data-testid="training-controls">
         <div className="col-span-2 md:col-span-1">
           <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Session</p>
@@ -63,6 +63,19 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
             <SelectContent>{[...sessions].reverse().map(s => <SelectItem key={sessionKey(s)} value={sessionKey(s)}>{fmtDate(s.date)} · {s.title || "Training"}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {tab === "team" ? (
+        <div className="col-span-2 min-w-0 md:col-span-2">
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Period · every metric shown below</p>
+          <div className="flex gap-1 overflow-x-auto rounded-md border border-input p-0.5" role="group" aria-label="Period">
+            {[{ id: "full", label: "Full session" }, ...TRAINING_PARTS].map(p => (
+              <button key={p.id} type="button" aria-pressed={f.part === p.id} onClick={() => set({ part: p.id as SelectedPart })}
+                data-testid={`button-team-part-${p.id}`}
+                className={`shrink-0 rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${f.part === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+                {p.label}
+              </button>))}
+          </div>
+        </div>
+        ) : (<>
         <div className="col-span-2 md:col-span-1">
           <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Metric</p>
           <Select value={f.metric} onValueChange={v => set({ metric: v })}>
@@ -80,9 +93,10 @@ export function TrainingView({ leagueId, year }: { leagueId: number | null; year
             </SelectContent>
           </Select>
         </div>
-        <label className={`flex items-end gap-2 pb-2 text-sm ${rateOk ? "" : "opacity-50"}`} title={rateOk ? "" : "Not a rate metric"}>
-          <Switch checked={f.perMinute && rateOk} disabled={!rateOk} onCheckedChange={v => set({ perMinute: v })} data-testid="switch-per-minute" />
-          <span>{f.perMinute && rateOk ? "Per minute" : "Totals"}</span>
+        </>)}
+        <label className={`flex items-end gap-2 pb-2 text-sm ${rateOk || tab === "team" ? "" : "opacity-50"}`} title={rateOk || tab === "team" ? "" : "Not a rate metric"}>
+          <Switch checked={f.perMinute && (rateOk || tab === "team")} disabled={!rateOk && tab !== "team"} onCheckedChange={v => set({ perMinute: v })} data-testid="switch-per-minute" />
+          <span>{f.perMinute && (rateOk || tab === "team") ? (tab === "team" ? "Per minute (rate metrics)" : "Per minute") : "Totals"}</span>
         </label>
       </div>
 

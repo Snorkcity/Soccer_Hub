@@ -5,6 +5,7 @@ import {
 
 export type PartId = (typeof TRAINING_PARTS)[number]["id"];
 export type SelectedPart = PartId | "full";
+export const STANDING_PARTS = [...TRAINING_PARTS, { id: "full", label: "Full session" }] as const;
 export const selectedPartLabel = (part: SelectedPart) => part === "full" ? "Full session" : TRAINING_PARTS.find(p => p.id === part)!.label;
 export const PART_IDS = TRAINING_PARTS.map(p => p.id) as PartId[];
 export const PART_COLORS: Record<string, string> = {
@@ -50,10 +51,18 @@ export interface StandingRow {
   key: string; name: string; cells: ({ rank: number; n: number } | null)[];
 }
 export function relativeStandings(rows: TrainingGpsRow[], metric: string, pm: boolean): StandingRow[] {
-  const players = new Map(rows.map(r => [trainingPlayerKey(r), r.playerName]));
+  const marked = rows.filter(r => r.part !== "recording");
+  const players = new Map(marked.map(r => [trainingPlayerKey(r), r.playerName]));
   const columns = TRAINING_PARTS.map(p => rows.filter(r => r.part === p.id)
     .map(r => ({ key: trainingPlayerKey(r), value: trainingValue(r, metric, pm) }))
     .filter((r): r is { key: string; value: number } => r.value != null));
+  // Compare complete five-part totals only; a short/missing split must not masquerade as a low full session.
+  columns.push([...players.keys()].flatMap(key => {
+    const playerRows = marked.filter(r => trainingPlayerKey(r) === key);
+    if (new Set(playerRows.map(r => r.part)).size !== TRAINING_PARTS.length) return [];
+    const value = trainingTotal(playerRows, metric, pm);
+    return value == null ? [] : [{ key, value }];
+  }));
   return [...players].map(([key, name]) => ({
     key, name, cells: columns.map(values => {
       const mine = values.find(v => v.key === key);
@@ -61,15 +70,28 @@ export function relativeStandings(rows: TrainingGpsRow[], metric: string, pm: bo
     }),
   }));
 }
-export function sortStandings(rows: StandingRow[], column: "name" | PartId, descending: boolean) {
+export function sortStandings(rows: StandingRow[], column: "name" | SelectedPart, descending: boolean) {
   return [...rows].sort((a, b) => {
     const direction = descending ? -1 : 1;
     if (column === "name") return direction * a.name.localeCompare(b.name);
-    const i = PART_IDS.indexOf(column), av = a.cells[i]?.rank, bv = b.cells[i]?.rank;
+    const i = STANDING_PARTS.findIndex(p => p.id === column), av = a.cells[i]?.rank, bv = b.cells[i]?.rank;
     if (av == null) return bv == null ? a.name.localeCompare(b.name) : 1;
     if (bv == null) return -1;
     return direction * (av - bv) || a.name.localeCompare(b.name);
   });
+}
+
+/** One metric for a Team chart; the reference is a participant mean, never a benchmark. */
+export function teamMetricData(session: TrainingGpsSession, f: TrainingFilters, metric: string) {
+  const pm = f.perMinute && canRate(metric);
+  const rows = session.rows.filter(r => matchesFilters(r, f));
+  const items = selectedPlayerValues({ ...session, rows }, f.part, metric, pm)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const complete = items.filter(p => !p.partial && p.value != null);
+  const mean = trainingMean(complete.map(p => p.value));
+  const total = !pm && canRate(metric) && complete.length
+    ? complete.reduce((sum, p) => sum + p.value!, 0) : null;
+  return { items, mean, total, n: complete.length, pm };
 }
 
 export function metricUnit(metric: string, perMinute: boolean): string {

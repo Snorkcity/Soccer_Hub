@@ -81,3 +81,11 @@ The Player tab must include a prominent overall session chart across tracked dat
 **Why:** when approving implementation, the coach specifically emphasised “for sure an overall chart, not just the individual element charts.”
 
 **How to apply:** retain the overall view alongside the five-part comparisons and component drill-downs. Compute overall output from the selected parts, disclose incomplete totals, and do not substitute the untrimmed source recording.
+
+## Team review simplicity
+
+The coach finds repeated part and metric selection difficult. They want the Team view to show a separate player chart for each metric down the page, using their Catapult screenshot as the reference: total distance, Power Plays, HSM, VHSM and other categories. They especially like the relative-standing table as an all-in-one view and want Full session included alongside the individual parts.
+
+**Why:** the coach explicitly said the first Team view lacked simplicity and required too much scrolling back to change selections.
+
+**How to apply:** favour scanning the session's metrics without repeated dropdown changes. Keep the all-in-one relative comparison available, retain component and positional analysis without making them prerequisites, and do not mistake the screenshot's game-value grading for a requested training benchmark.
