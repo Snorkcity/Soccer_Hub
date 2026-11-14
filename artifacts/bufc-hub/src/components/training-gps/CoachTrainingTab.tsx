@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import type { TrainingGpsSession } from "@workspace/api-client-react";
 import { TRAINING_PARTS, trainingMean, trainingPartLabel, trainingTimetable } from "@workspace/api-zod";
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { C, PART_COLORS, coachPeriod, fmtClock, fmtDate, selectedPartLabel, sessionKey, type TrainingFilters } from "./shared";
+import { C, PART_COLORS, coachPeriod, fmtClock, fmtDate, selectedPartLabel, sessionKey, type SelectedPart, type TrainingFilters } from "./shared";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyChart, Note, Panel, Stat, axisProps, tooltipStyle } from "./ui";
 import { PlanEditor } from "./PlanEditor";
 import { CoachSessionMomentum } from "./CoachSessionMomentum";
@@ -36,6 +37,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
   const span = a.tt.length ? Math.max(...a.tt.map(t => t.endSeconds!)) - origin : 0;
   const scale = Math.max(span, 1);
   const label = selectedPartLabel(f.part);
+  const sessionContext = `${fmtDate(session.date)} · ${session.title || "Training"}`;
   const context = `${fmtDate(session.date)} · Selected: ${label} · Duration (minutes)`;
 
   const durations = sessions.map(s => {
@@ -58,7 +60,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
 
   return (
     <div className="min-w-0 max-w-full space-y-5">
-      <Panel testId="chart-coach-timeline" kicker="All five parts · recorded clocks" title="Marked-part timeline" context={context}>
+      <Panel testId="chart-coach-timeline" kicker="All five parts · recorded clocks" title="Marked-part timeline" context={`${sessionContext} · All five parts`}>
         {a.tt.length === 0 ? <EmptyChart>No marked part clocks in this export.</EmptyChart> : <>
           <p className="mb-3 text-[11px] text-muted-foreground">Click a coloured part to select it and see its duration history below.</p>
           <div className="relative h-16 w-full min-w-0 max-w-full overflow-hidden rounded-lg bg-muted/40" role="group" aria-label="Session timeline">
@@ -97,7 +99,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
         </>}
       </Panel>
 
-      <Panel testId="panel-ninety-accounting" kicker="Full session · planned and marked time" title={`${session.plannedMinutes}-minute accounting`} context={context}>
+      <Panel testId="panel-ninety-accounting" kicker="Full session · planned and marked time" title={`${session.plannedMinutes}-minute accounting`} context={`${sessionContext} · Full session`}>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Stat label="Inside marked parts" value={m1(a.included)} sub={`${a.all.length} of 5 parts marked`} testId="stat-included" />
           <Stat label="Gaps between parts" value={m1(a.gaps)} sub={a.overlap ? `Overlap ${m1(a.overlap)}` : "Between recorded clocks"} testId="stat-gaps" />
@@ -118,7 +120,17 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
 
       <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 [&>section]:min-w-0">
         <Panel testId="chart-part-durations" kicker="Selected period" title={`${label} duration over dates`} context={context}
-          aside={<span className="font-mono text-xs text-muted-foreground">avg {avg == null ? "—" : `${avg.toFixed(1)} min`} · n={present.length}</span>}>
+          aside={<div className="flex w-full flex-col gap-2 sm:w-56 sm:shrink-0">
+            <label htmlFor="coach-history-period" className="text-[10px] uppercase tracking-wider text-muted-foreground">Period for duration history</label>
+            <Select value={f.part} onValueChange={v => drill({ part: v as SelectedPart })}>
+              <SelectTrigger id="coach-history-period" data-testid="select-coach-history-part"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">Full session</SelectItem>
+                {TRAINING_PARTS.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="font-mono text-xs text-muted-foreground">avg {avg == null ? "—" : `${avg.toFixed(1)} min`} · n={present.length}</span>
+          </div>}>
           {present.length === 0 ? <EmptyChart>{f.part === "full" ? "No complete five-part timetable recorded yet." : `${label} has not been marked yet.`}</EmptyChart> : (
             <div className="h-72">
               <ResponsiveContainer>
@@ -145,7 +157,7 @@ export function CoachTrainingTab({ sessions, session, f, drill, canWrite }: Prop
           ) : <p className="mt-2 text-[11px] text-muted-foreground">No planned range saved for this part on this date.</p>}
         </Panel>
 
-        <Panel testId="chart-stacked-allocation" kicker="Allocation · all five parts and outside time" title="Minutes per part across sessions" context={context}
+        <Panel testId="chart-stacked-allocation" kicker="Allocation · all five parts and outside time" title="Minutes per part across sessions" context="All tracked sessions · All five parts · Duration (minutes)"
           aside={<span className="text-[11px] text-muted-foreground">Click a bar to open that date</span>}>
           <div className="h-72">
             <ResponsiveContainer>

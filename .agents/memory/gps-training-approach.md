@@ -58,6 +58,12 @@ The Coach view must support trends and drill-down across tracked sessions, not j
 
 **How to apply:** count each session's marked component once when calculating coaching averages, not once per player. Show sample size, missing components and useful duration variability alongside the average. Support optional planned durations or ranges versus recorded durations without requiring extra upload work; the coach's examples of a 20–25-minute main part and nine-minute passing activation illustrate the comparison, not approved default targets. Preserve the applicable historical allowance if targets are introduced, so changing a future plan does not reinterpret older sessions. Do not automatically label longer or shorter components as good or bad, and do not assume integration with the retired Hub planner.
 
+Keep Coach's period selector inside the selected-period duration-history chart, not above the whole Coach page.
+
+**Why:** the coach pointed out that it controls that chart rather than the session-wide views.
+
+**How to apply:** retain Full session and each named part, keep timeline/momentum clicks connected to duration history, and label the other charts with their actual full-session or all-parts scope.
+
 ## Player and Team session summaries
 
 Include short coaching insights beneath both the Player and Team training tabs for each selected session. Requested examples include identifying the part where a player recorded their highest metres per minute and the part containing their highest recorded speed. Insights should help the coach understand player responses and session design, not merely repeat every chart.
