@@ -252,12 +252,15 @@ import type {
   SaveGpsCoachEmails200,
   SaveGpsDevelopmentMatchContext200,
   SaveMatchReportCoachEmails200,
+  SaveSeasonRosterPlayer200,
   SavedMatchReport,
   SavedMatchReportCreateRequest,
   Season,
   SeasonInput,
   SeasonReportResponse,
+  SeasonRosterInput,
   SeasonRosterPlayer,
+  SeasonRosterRemoval,
   SeasonSummary,
   SendGpsReportEmail200,
   SendMatchReportEmail200,
@@ -2146,6 +2149,142 @@ export function useGetSeasonRoster<TData = Awaited<ReturnType<typeof getSeasonRo
 
 
 
+
+export const getSaveSeasonRosterPlayerUrl = () => {
+
+
+
+
+  return `/api/entry/season-roster`
+}
+
+/**
+ * @summary Add or edit a player in the selected campaign squad
+ */
+export const saveSeasonRosterPlayer = async (seasonRosterInput: SeasonRosterInput, options?: RequestInit): Promise<SaveSeasonRosterPlayer200> => {
+
+  return customFetch<SaveSeasonRosterPlayer200>(getSaveSeasonRosterPlayerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(seasonRosterInput)
+  }
+);}
+
+
+
+
+
+export const getSaveSeasonRosterPlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterInput>}, TContext> => {
+
+const mutationKey = ['saveSeasonRosterPlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveSeasonRosterPlayer>>, {data: BodyType<SeasonRosterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveSeasonRosterPlayer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveSeasonRosterPlayerMutationResult = NonNullable<Awaited<ReturnType<typeof saveSeasonRosterPlayer>>>
+    export type SaveSeasonRosterPlayerMutationBody = BodyType<SeasonRosterInput>
+    export type SaveSeasonRosterPlayerMutationError = ErrorType<void>
+
+    /**
+ * @summary Add or edit a player in the selected campaign squad
+ */
+export const useSaveSeasonRosterPlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveSeasonRosterPlayer>>,
+        TError,
+        {data: BodyType<SeasonRosterInput>},
+        TContext
+      > => {
+      return useMutation(getSaveSeasonRosterPlayerMutationOptions(options));
+    }
+
+export const getDeleteSeasonRosterPlayerUrl = () => {
+
+
+
+
+  return `/api/entry/season-roster`
+}
+
+export const deleteSeasonRosterPlayer = async (seasonRosterRemoval: SeasonRosterRemoval, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteSeasonRosterPlayerUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(seasonRosterRemoval)
+  }
+);}
+
+
+
+
+
+export const getDeleteSeasonRosterPlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterRemoval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterRemoval>}, TContext> => {
+
+const mutationKey = ['deleteSeasonRosterPlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>, {data: BodyType<SeasonRosterRemoval>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  deleteSeasonRosterPlayer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSeasonRosterPlayerMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>>
+    export type DeleteSeasonRosterPlayerMutationBody = BodyType<SeasonRosterRemoval>
+    export type DeleteSeasonRosterPlayerMutationError = ErrorType<void>
+
+    export const useDeleteSeasonRosterPlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>, TError,{data: BodyType<SeasonRosterRemoval>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSeasonRosterPlayer>>,
+        TError,
+        {data: BodyType<SeasonRosterRemoval>},
+        TContext
+      > => {
+      return useMutation(getDeleteSeasonRosterPlayerMutationOptions(options));
+    }
 
 export const getListGpsTrainingUrl = (params: ListGpsTrainingParams,) => {
   const normalizedParams = new URLSearchParams();

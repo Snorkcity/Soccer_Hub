@@ -80,6 +80,14 @@ Training CSV ingestion belongs in the existing GPS ingestion section of Data Ent
 
 **How to apply:** extend that workflow with training-aware identification, split mapping and review while preserving existing match uploads. Keep campaign season separate from the actual session date and training measurements out of match-only analysis and Gref.
 
+## Squad management belongs in Data Entry
+
+Manage squad membership, names and positions in Data Entry, using year-first campaign selection there too. Do not show the standalone squad list on GPS Insights; retain player selectors and player comparisons needed for analysis.
+
+**Why:** the coach wants a single administrative home for squad editing, not a roster displayed to everyone analysing GPS. They plan to invite 2027 U23 coaches with selected access to both NPLM and NPLM U23.
+
+**How to apply:** keep first-grade and U23 football rosters separately editable under their own campaigns while retaining their combined first-grade GPS hub. Editing a roster must not silently rewrite recorded match/GPS history or merge distinct players.
+
 ## Whole-session Player chart
 
 The Player tab must include a prominent overall session chart across tracked dates, not just charts for individual practice components.

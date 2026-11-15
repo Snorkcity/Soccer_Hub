@@ -32,7 +32,6 @@ import {
 } from "recharts";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { NoAccess } from "@/components/NoAccess";
-import { SeasonRosterPanel } from "@/components/SeasonRosterPanel";
 import { useActiveLeague, useViewingTeam } from "@/contexts/LeagueContext";
 import { GpsMatchReportTab } from "@/components/GpsMatchReportTab";
 import { PlayerDevelopmentTab } from "@/components/gps-development/PlayerDevelopmentTab";
@@ -276,8 +275,6 @@ export default function GpsInsights() {
 
       {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} sourceToggle={sourceToggle} /> : <>{sourceToggle}
       <OpponentMismatchWarning year={year} />
-
-      <SeasonRosterPanel key={`${activeLeagueId}-${year}`} leagueId={activeLeagueId} year={year} />
 
       {isLoading ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>

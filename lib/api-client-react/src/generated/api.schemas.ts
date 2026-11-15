@@ -1797,6 +1797,49 @@ export interface GpsReportEmailRequest {
   leagueId: number;
 }
 
+export interface SeasonRosterRemoval {
+  /** @minimum 1 */
+  id: number;
+  /** @minimum 1 */
+  seasonId: number;
+}
+
+export type SeasonRosterInputPositionCode = typeof SeasonRosterInputPositionCode[keyof typeof SeasonRosterInputPositionCode];
+
+
+export const SeasonRosterInputPositionCode = {
+  GK: 'GK',
+  CB: 'CB',
+  FB: 'FB',
+  WB: 'WB',
+  D: 'D',
+  DM: 'DM',
+  CM: 'CM',
+  AM: 'AM',
+  'AM/F': 'AM/F',
+  W: 'W',
+  F: 'F',
+  ST: 'ST',
+} as const;
+
+export interface SeasonRosterInput {
+  /** @minimum 1 */
+  id?: number;
+  /** @minimum 1 */
+  seasonId: number;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  playerName: string;
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  squad: string;
+  positionCode: SeasonRosterInputPositionCode;
+}
+
 export interface SeasonRosterPlayer {
   id: number;
   seasonId: number;
@@ -5128,6 +5171,10 @@ leagueId: number;
  * @pattern ^\d{4}$
  */
 year: string;
+};
+
+export type SaveSeasonRosterPlayer200 = {
+  id: number;
 };
 
 export type ListGpsTrainingParams = {

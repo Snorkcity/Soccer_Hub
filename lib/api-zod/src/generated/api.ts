@@ -668,6 +668,42 @@ export const GetSeasonRosterResponse = zod.array(GetSeasonRosterResponseItem)
 
 
 /**
+ * @summary Add or edit a player in the selected campaign squad
+ */
+
+
+export const saveSeasonRosterPlayerBodyPlayerNameMax = 100;
+
+export const saveSeasonRosterPlayerBodySquadMax = 60;
+
+
+
+export const SaveSeasonRosterPlayerBody = zod.object({
+  "id": zod.number().min(1).optional(),
+  "seasonId": zod.number().min(1),
+  "playerName": zod.string().min(1).max(saveSeasonRosterPlayerBodyPlayerNameMax),
+  "squad": zod.string().min(1).max(saveSeasonRosterPlayerBodySquadMax),
+  "positionCode": zod.enum(['GK', 'CB', 'FB', 'WB', 'D', 'DM', 'CM', 'AM', 'AM/F', 'W', 'F', 'ST'])
+})
+
+export const SaveSeasonRosterPlayerResponse = zod.object({
+  "id": zod.number()
+})
+
+
+
+
+
+
+export const DeleteSeasonRosterPlayerBody = zod.object({
+  "id": zod.number().min(1),
+  "seasonId": zod.number().min(1)
+})
+
+export const DeleteSeasonRosterPlayerResponse = zod.void()
+
+
+/**
  * @summary Training sessions and recorded parts for the authenticated club
  */
 

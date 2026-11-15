@@ -520,6 +520,46 @@ paths:
         "403":
           description: No access to this competition
 
+  /entry/season-roster:
+    post:
+      operationId: saveSeasonRosterPlayer
+      tags: [entry]
+      summary: Add or edit a player in the selected campaign squad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeasonRosterInput"
+      responses:
+        "200":
+          description: Saved roster entry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: integer }
+        "403":
+          description: Data entry access required
+        "409":
+          description: Player name already exists in this squad
+    delete:
+      operationId: deleteSeasonRosterPlayer
+      tags: [entry]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeasonRosterRemoval"
+      responses:
+        "204":
+          description: Roster entry removed; recorded measurements and match data retained
+        "404":
+          description: Roster entry not found in this campaign
+
   /gps-training:
     get:
       operationId: listGpsTraining
@@ -5492,6 +5532,21 @@ components:
         leagueId:   { type: integer }
       required: [to, subject, body, from, fileName, pptxBase64, leagueId]
 
+    SeasonRosterRemoval:
+      type: object
+      required: [id, seasonId]
+      properties:
+        id: { type: integer, minimum: 1 }
+        seasonId: { type: integer, minimum: 1 }
+    SeasonRosterInput:
+      type: object
+      required: [seasonId, playerName, squad, positionCode]
+      properties:
+        id: { type: integer, minimum: 1 }
+        seasonId: { type: integer, minimum: 1 }
+        playerName: { type: string, minLength: 1, maxLength: 100 }
+        squad: { type: string, minLength: 1, maxLength: 60 }
+        positionCode: { type: string, enum: [GK, CB, FB, WB, D, DM, CM, AM, AM/F, W, F, ST] }
     SeasonRosterPlayer:
       type: object
       required: [id, seasonId, leagueId, leagueName, year, gpsLeagueId, playerName, squad, positionCode, ambiguousName]

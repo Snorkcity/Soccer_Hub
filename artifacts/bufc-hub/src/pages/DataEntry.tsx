@@ -1,5 +1,6 @@
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { useActiveLeague } from "@/contexts/LeagueContext";
+import { SquadEditor } from "@/components/SquadEditor";
 import { isNorthernNswLeague, GPS_POSITIONS, GPS_POSITION_ROLES, type GpsPosition, type GpsRole } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -3644,6 +3645,7 @@ function DriblNameMapCard({ seasonId, clubs, defaultClub }: {
 function EntryWorkspace() {
   const searchParams = new URLSearchParams(useSearch());
   const initialTab = searchParams.get("tab") ?? "match";
+  const [entryTab, setEntryTab] = useState(initialTab);
   const queryClient = useQueryClient();
   const { data: teams } = useListTeams();
   const { data: allSeasons } = useListSeasons();
@@ -3651,7 +3653,7 @@ function EntryWorkspace() {
   const { hasModule } = useLeagueModules();
   // Only offer seasons of leagues where the user has the data-entry module.
   const seasons = useMemo(
-    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "data-entry")),
+    () => (allSeasons ?? []).filter(s => hasModule(s.leagueId, "data-entry", s.year)),
     [allSeasons, hasModule],
   );
 
@@ -3699,6 +3701,8 @@ function EntryWorkspace() {
   }});
 
   const season = seasons?.find(s => s.id === seasonId);
+  const entryYears = [...new Set(seasons.map(s => s.year))].sort((a, b) => b.localeCompare(a));
+  const yearSeasons = seasons.filter(s => s.year === season?.year).sort((a, b) => a.leagueName.localeCompare(b.leagueName));
   // Dribl sync is wired up for the mapped senior and boys NPL competitions.
   const squadiLeague = isNorthernNswLeague(season?.leagueName ?? "");
   const driblAvailable = !squadiLeague && /NPLM|NPLW|NPLB/i.test(season?.leagueName ?? "");
@@ -3720,19 +3724,27 @@ function EntryWorkspace() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Data Entry</h1>
-          <p className="text-muted-foreground">Record fixtures, goals and player minutes — everything flows straight into the charts.</p>
+          <p className="text-muted-foreground">Manage squads, fixtures, goals and GPS uploads — everything flows straight into the charts.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {seasons.length > 1 ? (
+        <div className="flex w-full flex-wrap items-end gap-3">
+          <Field label="Year">
+            <Select value={season?.year ?? ""} onValueChange={year => {
+              const next = seasons.find(s => s.year === year && s.leagueId === season?.leagueId)
+                ?? seasons.find(s => s.year === year);
+              if (next) setSeasonId(next.id);
+            }}>
+              <SelectTrigger className="w-[110px]" aria-label="Data entry year" data-testid="select-entry-year"><SelectValue /></SelectTrigger>
+              <SelectContent>{entryYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Team / competition">
             <Select value={seasonId != null ? String(seasonId) : ""} onValueChange={v => setSeasonId(Number(v))}>
-              <SelectTrigger className="w-[240px] max-w-full"><SelectValue placeholder="Select League · Season" /></SelectTrigger>
+              <SelectTrigger className="w-[240px] max-w-[calc(100vw-4rem)]" aria-label="Data entry team" data-testid="select-entry-team"><SelectValue placeholder="Select team" /></SelectTrigger>
               <SelectContent>
-                {seasons.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.leagueName} · {s.label}</SelectItem>)}
+                {yearSeasons.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.leagueName}</SelectItem>)}
               </SelectContent>
             </Select>
-          ) : (
-            season && <Badge variant="secondary">{season.leagueName} · {season.label}</Badge>
-          )}
+          </Field>
           <Button variant="ghost" size="sm" onClick={() => logout.mutate()} className="text-muted-foreground">
             <LogOut className="h-4 w-4 mr-1.5" />Log out
           </Button>
@@ -3745,7 +3757,7 @@ function EntryWorkspace() {
         </p>
       )}
 
-      <Tabs defaultValue={initialTab} className="w-full">
+      <Tabs key={seasonId} value={entryTab === "dribl" && !driblAvailable ? "match" : entryTab} onValueChange={setEntryTab} className="w-full">
         <TabsList className="flex w-full flex-wrap h-auto gap-1">
           {driblAvailable && <TabsTrigger value="dribl">Dribl Sync</TabsTrigger>}
           <TabsTrigger value="match">1 · Match</TabsTrigger>
@@ -3756,6 +3768,7 @@ function EntryWorkspace() {
           <TabsTrigger value="gps">6 · GPS</TabsTrigger>
           <TabsTrigger value="positions">7 · Positions</TabsTrigger>
           <TabsTrigger value="emails">8 · Emails</TabsTrigger>
+          <TabsTrigger value="squad">9 · Squad</TabsTrigger>
         </TabsList>
 
         {driblAvailable && (
@@ -3801,6 +3814,9 @@ function EntryWorkspace() {
         </TabsContent>
         <TabsContent value="emails" className="mt-6">
           <EmailsForm leagueId={season?.leagueId ?? 0} />
+        </TabsContent>
+        <TabsContent value="squad" className="mt-6">
+          {season && <SquadEditor key={season.id} seasonId={season.id} leagueId={season.leagueId} year={season.year} leagueName={season.leagueName} />}
         </TabsContent>
       </Tabs>
     </div>
