@@ -5,6 +5,14 @@ description: How duplicate GPS names (U17-/U18- eras, nicknames) pool into one c
 
 # GPS player identity merging
 
+## Distinct Moir players in the men's squad
+
+Use **Cohen.Moir** for Cohen, the U23 goalkeeper; **C.Moir** remains Conor in first grade. The coach said they will make Cohen's roster change themselves.
+
+**Why:** both players share the same first initial and surname but are different people. The coach also confirmed similar-name clashes occur at both Belconnen and Croatia.
+
+**How to apply:** do not merge these players based on initial and surname. Resolve ambiguous Dribl match-sheet identities with the coach when ingestion begins rather than guessing.
+
 **Rule:** never rewrite raw `gps_sessions.player_name`. Duplicate identities are merged at **read time**: `gps_player_aliases` (alias → canonical) is LEFT JOINed in GET /gps-sessions (COALESCE serves + filters by canonical) and applied as a map in /analytics/gps-load-summary. `player_identity_links` (canonical → season_stats_name) records the cross-app link where names differ (Danijela↔Dani, Sam↔Sammy, Emily.H↔Emily).
 
 **Why:** future GPS imports arrive with raw/old names; read-time canonicalisation keeps pooling correct without touching the import path. Coach confirmed the who-is-who mapping (July 2026).
