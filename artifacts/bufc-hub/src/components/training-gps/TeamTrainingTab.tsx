@@ -6,10 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, X } from "lucide-react";
 import {
-  OVERLAY_COLORS, TRAINING_METRIC_GROUPS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, groupWholeMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate, sortTeamMetricItems,
+  OVERLAY_COLORS, TRAINING_METRIC_GROUPS, partIdFromLabel, fmtDate, fmtMetric, fmtMin, groupMean, matchesFilters, metricDef, metricUnit, partRows, sessionKey, usePM, selectedPlayerValues, selectedPartLabel, trainingChartContext, relativeStandings, sortStandings, teamMetricData, STANDING_PARTS, canRate, sortTeamMetricItems,
   type TeamChartSort,
   type TrainingFilters, type SelectedPart, type PartId, C } from "./shared";
 import { TeamMetricChart } from "./TeamMetricChart";
+import { TeamSessionHistory } from "./TeamSessionHistory";
 import { PartComparisonChart } from "./PartComparisonChart";
 import { TrainingPlayerDrilldown } from "./TrainingPlayerDrilldown";
 import { EmptyChart, InsightList, Panel, axisProps, tooltipStyle } from "./ui";
@@ -75,13 +76,6 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
   const toggleStanding = (col: "name" | SelectedPart) => setStandingSort(s => ({ col, desc: s.col === col ? !s.desc : false }));
   const StandingIcon = ({ col }: { col: "name" | SelectedPart }) => standingSort.col !== col ? null : standingSort.desc
     ? <ArrowDown className="inline h-3 w-3" /> : <ArrowUp className="inline h-3 w-3" />;
-
-  const history = sessions.map(s => {
-    const filt = (r: Parameters<typeof matchesFilters>[0]) => matchesFilters(r, f);
-    const w = groupWholeMean(s, f.metric, pm, filt);
-    const p = groupMean(partRows(s).filter(r => r.part === f.part && filt(r)), f.metric, pm);
-    return { id: sessionKey(s), date: fmtDate(s.date), whole: w.mean, wholeN: w.n, part: p.mean, partN: p.n };
-  });
 
   const chartFor = (metric: string) => {
     const p = prefOf(metric);
@@ -274,24 +268,7 @@ export function TeamTrainingTab({ sessions, session, f, set, drill }: Props) {
         </Panel>
 
 
-      <Panel testId="chart-team-history" kicker="Historical comparison" title={`${f.part === "full" ? "Full session" : `Full session and ${selectedPartLabel(f.part)}`} — group means over dates`} context={context} aside={<span className="text-[11px] text-muted-foreground">Click a date to open it</span>}>
-        <div className="h-72">
-          <ResponsiveContainer>
-            <LineChart data={history} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
-              onClick={(e: { activePayload?: { payload: { id: string } }[] } | null) => { const id = e?.activePayload?.[0]?.payload.id; if (id) drill({ sessionId: id }); }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(206 59% 25%)" vertical={false} />
-              <XAxis dataKey="date" {...axisProps} />
-              <YAxis {...axisProps} width={48} />
-              <Tooltip {...tooltipStyle} formatter={(v: number, name: string, item: { payload?: { wholeN: number; partN: number } }) =>
-                [fmt(v), name === "whole" ? `Whole session, mean of complete player totals (n=${item.payload?.wholeN})` : `${selectedPartLabel(f.part)} mean (n=${item.payload?.partN})`]} />
-              <Legend formatter={(v: string) => v === "whole" ? "Whole session (complete players)" : selectedPartLabel(f.part)} wrapperStyle={{ fontSize: 11 }} />
-              <Line dataKey="whole" stroke={C.primary} strokeWidth={3} dot={{ r: 5 }} />
-              {f.part !== "full" && <Line dataKey="part" stroke={C.tertiary} strokeWidth={2} dot={{ r: 4 }} />}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        {sessions.length === 1 && <p className="mt-2 text-[11px] text-muted-foreground">One session recorded — observed values only, no historical baseline.</p>}
-      </Panel>
+      <TeamSessionHistory sessions={sessions} session={session} filters={f} onPick={id => drill({ sessionId: id })} />
 
         </div>
       </details>
