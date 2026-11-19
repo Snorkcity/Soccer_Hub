@@ -5,11 +5,11 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayerMetricHistoryChart } from "./PlayerMetricHistoryChart";
+import { PlayerSessionPartsChart } from "./PlayerSessionPartsChart";
 import { metricDrillAnalysis } from "./metricDrillAnalysis";
 import {
-  fmtDate, fmtMetric, metricDef, selectedPartLabel, sessionPlayers, sortPlayerMetricHistory,
-  type PlayerHistorySort, type SelectedPart, type TrainingFilters,
+  fmtDate, fmtMetric, metricDef, selectedPartLabel, sessionPlayers,
+  type SelectedPart, type TrainingFilters,
 } from "./shared";
 import { Note, Stat } from "./ui";
 
@@ -28,12 +28,10 @@ const rankText = (r: { rank: number; n: number } | null) => r ? `${r.rank} of ${
 export function TrainingPlayerDrilldown({ sessions, initialFilters, onClose, onReturnFocus, returnTo = "Team" }: Props) {
   const [f, setF] = useState(() => ({ ...initialFilters }));
   const set = (patch: Partial<TrainingFilters>) => setF(previous => ({ ...previous, ...patch }));
-  const [sort, setSort] = useState<PlayerHistorySort>("date");
   const player = useMemo(() => sessionPlayers(sessions).find(p => p.key === f.playerKey), [sessions, f.playerKey]);
   const a = useMemo(() => metricDrillAnalysis(sessions, f), [sessions, f]);
   const def = metricDef(f.metric);
   const name = player?.name ?? "Player";
-  const items = sortPlayerMetricHistory(a.history, sort);
   const currentKey = a.currentItem?.key ?? null;
   const period = selectedPartLabel(f.part);
   const sampleLabel = f.part === "full" ? "full-session" : period.toLowerCase();
@@ -52,7 +50,7 @@ export function TrainingPlayerDrilldown({ sessions, initialFilters, onClose, onR
           </Button>
           <DialogTitle>{name} — {def.label}</DialogTitle>
           <DialogDescription>
-            Focused evidence for this one metric across tracked training dates. Your {returnTo} view and settings stay unchanged.
+            See where this metric came from across the selected session's five parts. Your {returnTo} view and settings stay unchanged.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
@@ -93,9 +91,9 @@ export function TrainingPlayerDrilldown({ sessions, initialFilters, onClose, onR
             <Note>Ranks order recorded {period.toLowerCase()} values against {a.cohortLabel.toLowerCase()} ({a.seasonMeans.length} players in season ranking, each by their own mean per comparable session, sample sizes vary). Goalkeepers are ranked separately. Ranks describe measured values only; they are not effort or performance grades.</Note>
           </div>
 
-          <PlayerMetricHistoryChart metric={f.metric} items={items} pm={a.pm} playerName={name} periodLabel={period}
-            currentKey={currentKey} sort={sort} onSort={setSort} onRate={perMinute => set({ perMinute })}
-            onPick={sessionId => set({ sessionId })} variant="popup" />
+          <PlayerSessionPartsChart session={a.current} playerKey={f.playerKey ?? ""} metric={f.metric} pm={a.pm}
+            playerName={name} selectedPart={f.part} onPart={part => set({ part })}
+            onRate={perMinute => set({ perMinute })} />
         </div>
       </DialogContent>
     </Dialog>

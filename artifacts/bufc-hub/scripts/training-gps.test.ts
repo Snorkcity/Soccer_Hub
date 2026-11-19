@@ -9,6 +9,44 @@ import { trainingCsvFixture } from "../../api-server/src/lib/gpsTrainingFixture"
 import { metricDrillAnalysis } from "../src/components/training-gps/metricDrillAnalysis";
 import { seasonGrantModules, seasonGrantAllows } from "@workspace/api-zod";
 import { displaySpeed } from "../src/components/training-gps/speedDisplay";
+import { playerPartBreakdown } from "../src/components/training-gps/playerPartBreakdown";
+
+test("player drill-down explains all 80 accelerations by practice part, never repeats the session history", () => {
+  const base = parseTrainingCsv(trainingCsvFixture(), { leagueId: 1, year: "2027" }).session;
+  const row = base.rows[0];
+  const counts = [5, 10, 15, 30, 20];
+  const parts = ["warmup", "passing", "technical", "main", "end"] as const;
+  const session = { ...base, rows: parts.map((part, i) => ({
+    ...row, part, sourceName: "Player", rosterId: null, durationSeconds: (i + 1) * 60,
+    metrics: { ...row.metrics, accel34: counts[i], accelOver4: 0, topSpeedMs: 5 + i },
+  })) };
+  const key = trainingPlayerKey(session.rows[0]);
+  const result = playerPartBreakdown(session, key, "accels", false);
+  assert.deepEqual(result.parts.map(p => p.value), counts);
+  assert.equal(result.total, 80);
+  assert.equal(result.parts[3].share, 37.5);
+  assert.equal(result.highestParts[0].id, "main");
+  assert.deepEqual(result.parts.map(p => p.id), parts);
+  const rate = playerPartBreakdown(session, key, "accels", true);
+  assert.equal(rate.parts[3].value, 7.5);
+  assert.equal(rate.total, null, "rates must not be summed");
+  assert.ok(rate.parts.every(p => p.share == null));
+  assert.equal(playerPartBreakdown(session, key, "speed", false).total, null, "peaks are not additive");
+  const missing = playerPartBreakdown({ ...session, rows: session.rows.slice(1) }, key, "accels", false);
+  assert.equal(missing.parts[0].value, null);
+  assert.equal(missing.total, null);
+  assert.equal(missing.complete, false);
+  const zero = playerPartBreakdown({ ...session, rows: session.rows.map(r => ({
+    ...r, metrics: { ...r.metrics, accel34: 0 },
+  })) }, key, "accels", false);
+  assert.equal(zero.total, 0);
+  assert.equal(zero.highestParts.length, 5, "preserve ties");
+  assert.ok(zero.parts.every(p => p.share == null), "no division by zero");
+  assert.ok(playerPartBreakdown(session, "source:Other", "accels", false).parts.every(p => p.value == null));
+  const raw = { ...session, rows: [...session.rows, { ...session.rows[0], part: "recording" as const,
+    metrics: { ...session.rows[0].metrics, accel34: 9999 } }] };
+  assert.equal(playerPartBreakdown(raw, key, "accels", false).total, 80, "ignore uncut recording");
+});
 
 test("Top speed display converts units without changing analysis values", () => {
   assert.equal(metricDef("speed").label, "Top speed");

@@ -112,6 +112,12 @@ The coach refined the review flow: choose the session near Matches/Training, the
 
 ## Team-to-player exploration
 
+The focused metric pop-up should show the selected player's five practice parts for the chosen date, rather than repeat the across-session history already visible behind it. Apply this to all metric charts. Keep the date selector and historical/ranking summary badges; the coach explicitly finds those insightful.
+
+**Why:** the coach wants to explain where a full-session number came from—for example, which practice parts contributed most of 80 accelerations—not see the same history chart twice.
+
+**How to apply:** keep the underlying Player history unchanged. Use part totals and shares for additive metrics, but do not sum peaks or per-minute rates. Preserve missing parts as missing, and keep pop-up exploration local to the pop-up.
+
 The coach wants clicking a player or their metric in Team training analysis to open a closable pop-up, not leave them on the Player tab. The requested example is clicking a player's total distance to see their distance across everything tracked, then returning to the same Team analysis.
 
 **Why:** switching tabs for a brief player drill-down left the coach feeling stuck and interrupted team analysis.
