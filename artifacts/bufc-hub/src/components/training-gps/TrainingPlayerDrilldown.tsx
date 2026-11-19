@@ -74,7 +74,7 @@ export function TrainingPlayerDrilldown({ sessions, initialFilters, onClose, onR
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="drilldown-stats">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 [&>div]:min-w-0 [&>div]:px-2.5 [&>div]:py-2 [&>div>p:first-child]:text-[10px] [&>div>p:first-child]:tracking-normal" data-testid="drilldown-stats">
             <Stat label={cur ? `Value · ${fmtDate(cur.date)}` : "Selected session"} value={fmtMetric(f.metric, cur?.value, a.pm)}
               sub={!cur ? "Player not tracked in this session" : cur.partial ? "Partial, excluded from stats and ranks" : diff == null ? undefined : `${diff >= 0 ? "+" : ""}${fmtMetric(f.metric, diff, a.pm)} vs own mean`} testId="stat-drill-current" />
             <Stat label="Own mean" value={fmtMetric(f.metric, a.ownMean, a.pm)} sub={`${a.validCount} valid ${sampleLabel} recording${a.validCount === 1 ? "" : "s"}`} testId="stat-drill-mean" />
