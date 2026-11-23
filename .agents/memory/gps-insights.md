@@ -24,6 +24,14 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 - `player_id` is null in gps_sessions; everything keys off `player_name` (first names). GET /gps-sessions supports `playerName` and `split` query params for this.
 
 ## Split rows
+### Agreed future direction: period-derived match totals
+
+The coach wants future match totals calculated from the trimmed first and second halves, rather than requiring a separate Catapult whole-game cut. Training games should likewise support First third, Second third and Third third, with an overall value. Keep occasional GPS-only training games in the existing Matches area, not a new tab.
+
+**Why:** this should simplify the coach's manual trimming workflow. The coach will supply a three-period training-game export and explain the trimming details before the match overhaul is scoped.
+
+**How to apply:** this is an agreed direction, not implemented behaviour or permission to recalculate historical records. Inspect the supplied export first; preserve the existing authoritative whole-game convention below until a deliberate transition is built. Sum additive metrics and actual minutes, take maxima for peaks, and recompute rates from combined output and time.
+
 - Each game has rows per split: `game` (whole match), `1st.half`, `2nd.half`, and for knockout matches a combined `Extra-time`. Filter `tags === 'game'`.
 - Chart/report convention: whole-game values are authoritative. Regulation halves and ET remain visible as period detail; period sums/max are fallback totals only when the game value is absent. Never let a split stack visually replace a present game value.
 - Dates are `DD/MM/YYYY` text; parse manually, treat unparseable as unknown and sort last.
