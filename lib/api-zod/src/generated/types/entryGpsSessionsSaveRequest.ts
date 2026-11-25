@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EntryGpsSessionRow } from './entryGpsSessionRow';
+import type { EntryGpsSessionsSaveRequestGameType } from './entryGpsSessionsSaveRequestGameType';
 
 export interface EntryGpsSessionsSaveRequest {
+  /** Training games derive all match values from each player's trimmed first half. */
+  gameType?: EntryGpsSessionsSaveRequestGameType;
   leagueId: number;
   year: string;
   teamId: number;

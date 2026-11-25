@@ -4232,6 +4232,7 @@ export const ListEntryGpsFixturesResponse = zod.array(ListEntryGpsFixturesRespon
 
 
 export const SaveEntryGpsSessionsBody = zod.object({
+  "gameType": zod.enum(['match', 'training-game']).optional().describe('Training games derive all match values from each player\'s trimmed first half.'),
   "leagueId": zod.number(),
   "year": zod.string(),
   "teamId": zod.number(),

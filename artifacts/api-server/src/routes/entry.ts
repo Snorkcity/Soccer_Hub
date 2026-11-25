@@ -69,6 +69,8 @@ import {
   ListEntryGpsFixturesResponse,
   isActNplbLeague,
   canonicalGpsSplit,
+  trainingGameRows,
+  isTrainingGameRound,
   fixtureCode,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
@@ -1797,7 +1799,7 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  const cleanRows = rows
+  let cleanRows = rows
     .map(r => {
       const rawSplit = r.splitName?.trim();
       // Blank/null is legacy whole-game data and remains valid.
@@ -1807,6 +1809,22 @@ router.post("/entry/gps-sessions", async (req, res): Promise<void> => {
     .filter(r => r.playerName.length > 0);
   if (cleanRows.length === 0) {
     res.status(400).json({ error: "No player rows to save" });
+    return;
+  }
+
+  if (parsed.data.gameType === "training-game") {
+    if (!isTrainingGameRound(round)) {
+      res.status(400).json({ error: "Training games require a TGYYYYMMDD-squad round code" });
+      return;
+    }
+    try {
+      cleanRows = trainingGameRows(cleanRows);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid training game rows" });
+      return;
+    }
+  } else if (isTrainingGameRound(round)) {
+    res.status(400).json({ error: "Choose Training game to save a TG round" });
     return;
   }
 

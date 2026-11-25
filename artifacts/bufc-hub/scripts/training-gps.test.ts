@@ -148,6 +148,7 @@ test("campaign permission maps distinguish years and never inherit future access
   assert.deepEqual(seasonGrantModules([], access), ["season-stats", "gps", "data-entry"]);
 });
 test("match exports with warm-up or other cuts remain match imports", () => {
+  assert.equal(isTrainingGpsText('"Tags","Split Name"\n"training","all"\n"training","1st.half"'), false);
   assert.equal(isTrainingGpsText('"Tags","Split Name"\n"game","warmup"\n"game","1st half"\n"game","2nd half"'), false);
   assert.equal(isTrainingGpsText('"Tags","Split Name"\n"game","Technical activation"'), false);
   assert.equal(isTrainingGpsText('"Split Name"\n"warmup"\n"1st half"\n"2nd half"\n"Main part"'), false);

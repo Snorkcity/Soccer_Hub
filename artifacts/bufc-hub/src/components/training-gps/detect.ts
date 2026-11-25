@@ -51,6 +51,8 @@ export function isTrainingGpsText(raw: string): boolean {
     if (TRAINING_SPECIFIC.has(k)) specific = true;
   }
   if (matchTag) return false;
+  // GPS-only training games use trimmed halves, despite Catapult's training tag.
+  if (halves && !specific) return false;
   if (trainingTag) return true;
   if (halves) return false;
   return specific;

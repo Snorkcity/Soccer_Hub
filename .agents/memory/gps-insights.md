@@ -30,7 +30,7 @@ The coach wants future match totals calculated from the trimmed first and second
 
 **Why:** this should simplify the coach's manual trimming workflow. The coach confirmed that future training games will always use `1st half`, trimmed as needed, and will supply an export before any changes are scoped.
 
-**How to apply:** this is an agreed direction, not implemented behaviour or permission to recalculate historical records. Inspect the supplied export first; preserve the existing authoritative whole-game convention below until a deliberate transition is built. Sum additive metrics and actual minutes, take maxima for peaks, and recompute rates from combined output and time.
+**How to apply:** use first-half-derived totals only for explicitly identified training-game imports; source all/game rows must not override them. This is not permission to recalculate historical records or change ordinary match imports. The broader first-half + second-half match overhaul remains a future change. For that future work, sum additive metrics and actual minutes, take maxima for peaks, and recompute rates from combined output and time.
 
 - Each game has rows per split: `game` (whole match), `1st.half`, `2nd.half`, and for knockout matches a combined `Extra-time`. Filter `tags === 'game'`.
 - Chart/report convention: whole-game values are authoritative. Regulation halves and ET remain visible as period detail; period sums/max are fallback totals only when the game value is absent. Never let a split stack visually replace a present game value.

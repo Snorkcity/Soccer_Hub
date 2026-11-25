@@ -4284,7 +4284,20 @@ export interface EntryGpsSessionRow {
   decelCountOver4?: number | null;
 }
 
+/**
+ * Training games derive all match values from each player's trimmed first half.
+ */
+export type EntryGpsSessionsSaveRequestGameType = typeof EntryGpsSessionsSaveRequestGameType[keyof typeof EntryGpsSessionsSaveRequestGameType];
+
+
+export const EntryGpsSessionsSaveRequestGameType = {
+  match: 'match',
+  'training-game': 'training-game',
+} as const;
+
 export interface EntryGpsSessionsSaveRequest {
+  /** Training games derive all match values from each player's trimmed first half. */
+  gameType?: EntryGpsSessionsSaveRequestGameType;
   leagueId: number;
   year: string;
   teamId: number;

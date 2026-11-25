@@ -75,6 +75,7 @@ export * from './entryGoalListResponse';
 export * from './entryGoalResponse';
 export * from './entryGpsSessionRow';
 export * from './entryGpsSessionsSaveRequest';
+export * from './entryGpsSessionsSaveRequestGameType';
 export * from './entryGpsSessionsSaveResponse';
 export * from './entryGpsUploadDeleteResult';
 export * from './entryGpsUploadInfo';

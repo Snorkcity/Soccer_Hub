@@ -6,6 +6,7 @@ export * from "./positionUnits";
 export * from "./clubCodes";
 export * from "./nplb";
 export * from "./gps";
+export * from "./gpsTrainingGame";
 export * from "./gpsPeriods";
 export * from "./competitionMatches";
 export * from "./competitionSources";

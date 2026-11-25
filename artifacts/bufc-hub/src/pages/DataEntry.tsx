@@ -3,6 +3,7 @@ import { useActiveLeague } from "@/contexts/LeagueContext";
 import { SquadEditor } from "@/components/SquadEditor";
 import { isNorthernNswLeague, GPS_POSITIONS, GPS_POSITION_ROLES, type GpsPosition, type GpsRole } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { trainingGameRows, trainingGameRound } from "@workspace/api-zod";
 import {
   useListTeams,
   getListTeamsQueryKey,
@@ -2436,7 +2437,10 @@ function excelDateToDmy(v: unknown): string | null {
   return null;
 }
 
-function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: number; leagueId: number; onTrainingDetected?: () => void }) {
+function GpsUploadForm({ teamId, leagueId, campaignYear, onTrainingDetected }: { teamId: number; leagueId: number; campaignYear: string | null; onTrainingDetected?: () => void }) {
+  const [gameType, setGameType] = useState<"match" | "training-game">("match");
+  const isTrainingGame = gameType === "training-game";
+  const queryClient = useQueryClient();
   const [matchDate, setMatchDate] = useState("");
   const [roundCode, setRoundCode] = useState("");
   const [squad, setSquad] = useState<string>("1sts");
@@ -2454,10 +2458,12 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const formRound = roundCode.trim() ? `${roundCode.trim()}-${squad}` : "";
+  const formRound = isTrainingGame
+    ? (matchDate ? trainingGameRound(matchDate, squad) : "")
+    : roundCode.trim() ? `${roundCode.trim()}-${squad}` : "";
   // Coach's weekly sheet carries Round/Opponent/Date columns — when present the
   // file drives the match details (and can hold several matches at once).
-  const fileMode = entries.length > 0 && entries[0].fileRound != null;
+  const fileMode = !isTrainingGame && entries.length > 0 && entries[0].fileRound != null;
 
   const save = useSaveEntryGpsSessions();
 
@@ -2538,6 +2544,11 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
       }
 
       const parsed: GpsEntry[] = [];
+      // A title explicitly saying Training Game is safe to recognise; ordinary
+      // five-part training still goes through the separate Training GPS importer.
+      const trainingGame = isTrainingGame || raw.some(r =>
+        titleHeader != null && /\btraining[\s-]*game\b/i.test(String(r[titleHeader] ?? "")));
+      if (trainingGame) setGameType("training-game");
       let ignored = 0;
       let unknownRows = 0;
       const unknown = new Set<string>();
@@ -2553,7 +2564,7 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
         // Skip non-game rows (e.g. training sessions mixed into an export)
         if (tagsHeader != null) {
           const tag = r[tagsHeader] == null ? "" : String(r[tagsHeader]).trim().toLowerCase();
-          if (tag !== "" && tag !== "game") { ignored++; continue; }
+          if (tag !== "" && tag !== "game" && !(trainingGame && tag === "training")) { ignored++; continue; }
         }
         // Store the shared canonical literal so imports and GPS insights agree.
         // Raw Catapult exports call the whole-match split "all".
@@ -2569,7 +2580,9 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
         // Pre-fill minutes from the Duration column (secs) when the sheet has no Mins column
         if (row.minsPlayed == null && durationHeader != null) {
           const dur = toNum(r[durationHeader]);
-          if (dur != null && dur > 0) row.minsPlayed = Math.round((dur / 60) * 100) / 100;
+          if (dur != null && dur > 0) row.minsPlayed = trainingGame
+            ? dur / 60
+            : Math.round((dur / 60) * 100) / 100;
         }
         const fileRound = roundHeader != null && r[roundHeader] != null && String(r[roundHeader]).trim() !== ""
           ? String(r[roundHeader]).trim() : null;
@@ -2585,10 +2598,16 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
         });
       }
       if (parsed.length === 0) throw new Error("No usable game rows found in the file");
+      if (trainingGame && unknownRows > 0) throw new Error("Training games need only 1st.half and optional all/game rows. Remove unsupported periods before importing.");
       parsed.sort((a, b) =>
         (a.fileRound ?? "").localeCompare(b.fileRound ?? "") ||
         a.row.playerName.localeCompare(b.row.playerName) ||
         (SPLIT_ORDER[a.row.splitName ?? "game"] ?? 9) - (SPLIT_ORDER[b.row.splitName ?? "game"] ?? 9));
+      if (trainingGame) {
+        trainingGameRows(parsed.map(e => e.row)); // fail before presenting a saveable preview
+        const dmy = parsed.find(e => e.fileDateDmy)?.fileDateDmy;
+        if (dmy) setMatchDate(dmy.split("/").reverse().join("-"));
+      }
       setEntries(parsed);
       setIgnoredSplits(ignored);
       setUnknownSplits([...unknown].sort((a, b) => a.localeCompare(b)));
@@ -2604,19 +2623,29 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
   const groups = useMemo(() => {
     const m = new Map<string, GpsEntry[]>();
     for (const e of entries) {
-      const key = e.fileRound ?? formRound;
+      const key = isTrainingGame ? formRound : e.fileRound ?? formRound;
       const arr = m.get(key);
       if (arr) arr.push(e); else m.set(key, [e]);
     }
     return m;
-  }, [entries, formRound]);
+  }, [entries, formRound, isTrainingGame]);
+
+  const trainingPreview = useMemo(() => {
+    if (!isTrainingGame || !entries.length) return { rows: [] as GpsRow[], error: null };
+    try { return { rows: trainingGameRows(entries.map(e => e.row)), error: null }; }
+    catch (error) { return { rows: [] as GpsRow[], error: error instanceof Error ? error.message : "Invalid training game" }; }
+  }, [entries, isTrainingGame]);
+  const previewEntries = isTrainingGame
+    ? trainingPreview.rows.map(row => ({ row, fileRound: null }))
+    : entries;
 
   const playerCount = useMemo(() => new Set(entries.map(e => e.row.playerName)).size, [entries]);
   const needsFormDate = !fileMode || entries.some(e => e.fileDateDmy == null);
   const formDateOk = /^\d{4}-\d{2}-\d{2}$/.test(matchDate);
   const readyToSave = entries.length > 0
     && (fileMode || formRound !== "")
-    && (!needsFormDate || formDateOk);
+    && (!needsFormDate || formDateOk)
+    && (!isTrainingGame || (!!campaignYear && !trainingPreview.error));
 
   const setMins = (i: number, v: string) => {
     setEntries(prev => prev.map((e, j) => j === i ? { ...e, row: { ...e.row, minsPlayed: v.trim() === "" ? null : toNum(v) } } : e));
@@ -2630,24 +2659,26 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
       const formDmy = formDateOk ? `${d}/${m}/${y}` : null;
       let totalSaved = 0, totalReplaced = 0;
       for (const [round, group] of groups) {
-        const dmy = group.find(g => g.fileDateDmy)?.fileDateDmy ?? formDmy;
+        const dmy = isTrainingGame ? formDmy : group.find(g => g.fileDateDmy)?.fileDateDmy ?? formDmy;
         if (!dmy) throw new Error(`No match date for ${round} — fill in the date above`);
         const opp = fileMode
           ? group.find(g => g.fileOpponent)?.fileOpponent ?? null
-          : opponent.trim() || null;
+          : opponent.trim() || (isTrainingGame ? "Training game" : null);
         const squadLabel = SQUAD_OPTIONS.find(s => s.value === squad)?.label ?? squad;
-        const sessionTitle = group.find(g => g.fileTitle)?.fileTitle
+        const sessionTitle = isTrainingGame ? `Training game — ${dmy}` : group.find(g => g.fileTitle)?.fileTitle
           ?? (fileMode
             ? `${dmy.split("/").reverse().join("")}-${round}-${opp ?? "match"}`
             : `${y}${m}${d}-${roundCode.trim()}-${squadLabel}-${opp ?? "match"}`);
         const res = await save.mutateAsync({ data: {
-          leagueId, year: dmy.slice(6), teamId, round, opponent: opp,
+          leagueId, year: isTrainingGame ? campaignYear! : dmy.slice(6), teamId, round, opponent: opp,
+          gameType,
           sessionDate: dmy, sessionTitle,
           rows: group.map(g => g.row),
         }});
         totalSaved += res.saved; totalReplaced += res.replaced;
         roundsSaved.push(round);
       }
+      await queryClient.invalidateQueries();
       setOk(`Saved ${totalSaved} rows for ${roundsSaved.join(" and ")}`
         + (totalReplaced > 0 ? ` (replaced ${totalReplaced} rows previously saved for ${roundsSaved.length > 1 ? "those rounds" : "that round"})` : "")
         + ". New player names? Set their position in the Positions tab.");
@@ -2679,6 +2710,23 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Field label="Game type">
+            <Select value={gameType} onValueChange={v => {
+              setGameType(v as "match" | "training-game");
+              setEntries([]); setOk(null); setErr(null); setFixtureKey("");
+            }} disabled={saving || parsing}>
+              <SelectTrigger data-testid="select-gps-game-type"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="match">Match — existing whole-game totals</SelectItem>
+                <SelectItem value="training-game">Training game — totals from 1st half</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          {isTrainingGame && <p className="text-sm text-muted-foreground" data-testid="training-game-import-help">
+            Campaign: {campaignYear ?? "select a season"}. Each player's trimmed 1st.half supplies their match totals and actual minutes.
+            Source all/game rows are ignored, not added. No second half or fixture is required.
+            Training games stay outside official-match Gref references. Changing game type clears the preview; read the file again.
+          </p>}
           <Field label="GPS file (weekly sheet or raw Catapult export)">
             <Input
               ref={fileRef} type="file" accept=".csv,.xlsx,.xls"
@@ -2715,7 +2763,7 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
               {needsFormDate && " — the file has no date, so set the match date below."}
             </div>
           ) : null}
-          {!fileMode && (gpsFixtures?.length ?? 0) > 0 && (
+          {!isTrainingGame && !fileMode && (gpsFixtures?.length ?? 0) > 0 && (
             <Field label="Link to a game (fills the four fields below — or fill them in by hand)">
               <Select value={fixtureKey} onValueChange={pickFixture}>
                 <SelectTrigger><SelectValue placeholder="Pick the game this GPS data is from…" /></SelectTrigger>
@@ -2736,7 +2784,7 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
               <Input type="date" value={matchDate} onChange={e => { setMatchDate(e.target.value); setFixtureKey(""); }} disabled={fileMode && !needsFormDate} />
             </Field>
             <Field label="Round (e.g. R13, GF)">
-              <Input value={roundCode} onChange={e => { setRoundCode(e.target.value); setFixtureKey(""); }} placeholder="R13" disabled={fileMode} />
+              <Input value={isTrainingGame ? formRound : roundCode} onChange={e => { setRoundCode(e.target.value); setFixtureKey(""); }} placeholder="R13" disabled={fileMode || isTrainingGame} />
             </Field>
             <Field label="Squad">
               <Select value={squad} onValueChange={v => { setSquad(v); setFixtureKey(""); }} disabled={fileMode}>
@@ -2752,6 +2800,7 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
           </div>
           {parsing && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading {fileName}…</div>}
           <StatusLine ok={ok} err={err} />
+          {trainingPreview.error && <p className="text-sm text-destructive">{trainingPreview.error}</p>}
           {unknownSplits.length > 0 && (
             <p className="text-sm text-amber-700 dark:text-amber-400">
               Warning: {unknownSplitRows} row{unknownSplitRows === 1 ? " was" : "s were"} not imported because the match period
@@ -2767,12 +2816,14 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div className="space-y-1.5">
-              <CardTitle>Check what was read — {playerCount} players, {entries.length} rows</CardTitle>
+              <CardTitle>Check what will be saved — {playerCount} players, {previewEntries.length} rows</CardTitle>
               <CardDescription>
                 {fileName}
                 {unknownSplitRows > 0 && ` · warned about ${unknownSplitRows} unknown-period row${unknownSplitRows === 1 ? "" : "s"}`}
                 {ignoredSplits > unknownSplitRows && ` · skipped ${ignoredSplits - unknownSplitRows} non-game row${ignoredSplits - unknownSplitRows === 1 ? "" : "s"}`}
-                {" · minutes are pre-filled from the file — adjust any you track differently"}
+                {isTrainingGame
+                  ? " · match totals below are copied from the trimmed first half; minutes come from the export"
+                  : " · minutes are pre-filled from the file — adjust any you track differently"}
               </CardDescription>
             </div>
             <Button disabled={saving || !readyToSave} onClick={() => void onSave()}>
@@ -2806,14 +2857,15 @@ function GpsUploadForm({ teamId, leagueId, onTrainingDetected }: { teamId: numbe
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map(({ row: r, fileRound }, i) => (
+                  {previewEntries.map(({ row: r, fileRound }, i) => (
                     <tr key={i} className={`border-b last:border-0 ${r.splitName === "game" ? "" : "text-muted-foreground"}`}>
                       {fileMode && <td className="px-2 py-1.5 whitespace-nowrap">{r.splitName === "game" ? fileRound : ""}</td>}
                       <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.splitName === "game" ? r.playerName : ""}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.splitName}</td>
                       <td className="px-2 py-1">
                         <Input
-                          value={r.minsPlayed ?? ""} type="number" step="1" min="0"
+                          value={isTrainingGame && r.minsPlayed != null ? Number(r.minsPlayed.toFixed(2)) : r.minsPlayed ?? ""} type="number" step="1" min="0"
+                          disabled={isTrainingGame}
                           onChange={e => setMins(i, e.target.value)}
                           className="h-7 w-16 text-right text-xs ml-auto"
                         />
@@ -3807,7 +3859,7 @@ function EntryWorkspace() {
           <TestingUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} />
         </TabsContent>
         <TabsContent value="gps" className="mt-6">
-          <GpsImportChooser leagueId={season?.leagueId ?? 0} year={season?.year ?? null} renderMatch={toTraining => <GpsUploadForm teamId={teamId} leagueId={season?.leagueId ?? 0} onTrainingDetected={toTraining} />} />
+          <GpsImportChooser leagueId={season?.leagueId ?? 0} year={season?.year ?? null} renderMatch={toTraining => <GpsUploadForm key={season?.id} teamId={teamId} leagueId={season?.leagueId ?? 0} campaignYear={season?.year ?? null} onTrainingDetected={toTraining} />} />
         </TabsContent>
         <TabsContent value="positions" className="mt-6">
           <PositionsForm key={season?.leagueId ?? 0} leagueId={season?.leagueId ?? 0} />

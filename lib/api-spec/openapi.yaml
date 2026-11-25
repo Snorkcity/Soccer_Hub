@@ -7853,6 +7853,10 @@ components:
     EntryGpsSessionsSaveRequest:
       type: object
       properties:
+        gameType:
+          type: string
+          enum: [match, training-game]
+          description: Training games derive all match values from each player's trimmed first half.
         leagueId:     { type: integer }
         year:         { type: string }
         teamId:       { type: integer }

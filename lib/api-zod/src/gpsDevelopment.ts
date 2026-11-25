@@ -92,7 +92,8 @@ export function developmentGames(rows: DevelopmentRawRow[], defaultRole: string 
     }, true);
     // Round-coded competition appearances are the pragmatic initial default;
     // coach context can explicitly classify friendlies or uncertain records.
-    const matchType = context?.matchType ?? (/^(R\d+|GF|SF|PF|QF|FC)/i.test(row.round!) ? "official" : "unknown");
+    const matchType = /^TG\d{8}-/i.test(row.round ?? "") ? "other"
+      : context?.matchType ?? (/^(R\d+|GF|SF|PF|QF|FC)/i.test(row.round!) ? "official" : "unknown");
     const role = context ? context.role : defaultRole;
     const comparable = context?.comparable ?? true;
     const values = {
