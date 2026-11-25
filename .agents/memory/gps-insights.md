@@ -26,9 +26,9 @@ description: GPS page (Player GPS + Team Overview tabs), metric definitions from
 ## Split rows
 ### Agreed future direction: period-derived match totals
 
-The coach wants future match totals calculated from the trimmed first and second halves, rather than requiring a separate Catapult whole-game cut. Training games should likewise support First third, Second third and Third third, with an overall value. Keep occasional GPS-only training games in the existing Matches area, not a new tab.
+The coach wants future match totals calculated from the trimmed first and second halves, rather than requiring a separate Catapult whole-game cut. For the upcoming training game, the coach has instead decided to combine all three thirds into one trimmed `1st half`, removing the breaks and each player's time off the pitch. The overall match values should equal that single period, with individual actual minutes preserved and no invented second half. Keep occasional GPS-only training games in the existing Matches area, not a new tab.
 
-**Why:** this should simplify the coach's manual trimming workflow. The coach will supply a three-period training-game export and explain the trimming details before the match overhaul is scoped.
+**Why:** this should simplify the coach's manual trimming workflow. The coach chose the single-period approach for this training game and will supply its export before any changes are scoped.
 
 **How to apply:** this is an agreed direction, not implemented behaviour or permission to recalculate historical records. Inspect the supplied export first; preserve the existing authoritative whole-game convention below until a deliberate transition is built. Sum additive metrics and actual minutes, take maxima for peaks, and recompute rates from combined output and time.
 
