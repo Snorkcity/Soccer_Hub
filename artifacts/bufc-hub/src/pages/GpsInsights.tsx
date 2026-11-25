@@ -250,13 +250,16 @@ export default function GpsInsights() {
   if (ready && activeLeagueId != null && !hasModule(activeLeagueId, "gps", year)) return <NoAccess />;
 
   const sourceToggle = (
-    <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
+    <div className="shrink-0">
+      <p className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
+      <div className="inline-flex h-10 shrink-0 items-center rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
       {(["matches", "training"] as const).map(v => (
         <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`button-gps-view-${v}`}
           className={`rounded-md px-5 py-1.5 text-sm font-medium transition-colors ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           {v === "matches" ? "Matches" : "Training"}
         </button>
       ))}
+      </div>
     </div>
   );
 
@@ -280,7 +283,7 @@ export default function GpsInsights() {
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
+          <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto min-h-10">
             <TabsTrigger value="player">Player GPS</TabsTrigger>
             <TabsTrigger value="team">Team Overview</TabsTrigger>
             <TabsTrigger value="matchReport">Match Report</TabsTrigger>

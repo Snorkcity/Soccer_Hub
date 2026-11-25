@@ -28,7 +28,7 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
   const current = sessions.find(s => sessionKey(s) === f.sessionId) ?? sessions[sessions.length - 1];
   const drill = (patch: Partial<TrainingFilters>, toTab?: string) => { set(patch); if (toTab) setTab(toTab); };
 
-  const wrap = (body: ReactNode) => <div className="min-w-0 space-y-5">{sourceToggle}{body}</div>;
+  const wrap = (body: ReactNode) => <div className="min-w-0 space-y-6">{sourceToggle}{body}</div>;
   if (q.isLoading) return wrap(
     <div className="space-y-4" data-testid="training-loading">
       <Skeleton className="h-16 w-full" /><Skeleton className="h-80 w-full" /><Skeleton className="h-48 w-full" />
@@ -64,7 +64,7 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
     </div>
   );
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end" data-testid="training-header">
         {sourceToggle}
         <div className="min-w-0 flex-1 sm:max-w-md">
@@ -77,7 +77,7 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="h-auto w-full justify-start gap-1">
+        <TabsList className="flex h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="player" data-testid="tab-training-player">Player</TabsTrigger>
           <TabsTrigger value="team" data-testid="tab-training-team">Team</TabsTrigger>
           <TabsTrigger value="coach" data-testid="tab-training-coach">Coach</TabsTrigger>
