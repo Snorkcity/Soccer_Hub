@@ -1372,17 +1372,19 @@ function TeamGpsTab({ year, metaRows }: { year: string; metaRows: GpsSession[] }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={squad} onValueChange={setSquad}>
-          <SelectTrigger className="w-[140px] max-w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>{availableSquads.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={round} onValueChange={setRound}>
-          <SelectTrigger className="w-[200px] max-w-full"><SelectValue placeholder="Round" /></SelectTrigger>
-          <SelectContent>
-            {rounds.map(r => <SelectItem key={r.round} value={r.round}>{r.round}{r.opponent ? ` — ${r.opponent}` : ""}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={squad} onValueChange={setSquad}>
+            <SelectTrigger className="w-[140px] max-w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>{availableSquads.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={round} onValueChange={setRound}>
+            <SelectTrigger className="w-full sm:w-[420px] max-w-full"><SelectValue placeholder="Round" /></SelectTrigger>
+            <SelectContent>
+              {rounds.map(r => <SelectItem key={r.round} value={r.round}>{r.round}{r.opponent ? ` — ${r.opponent}` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         {roundInfo && (
           <p className="text-sm text-muted-foreground">
             {bundles.length} players tracked{roundInfo.opponent ? ` vs ${roundInfo.opponent}` : ""}
@@ -1585,17 +1587,17 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
         </div>
         <Per10Toggle per10={per10} setPer10={setPer10} />
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="h-[350px]">
         {data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No accel/decel counts recorded for this round.</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 5 }} barGap={1}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+              <XAxis dataKey="label" {...AXIS} angle={-45} textAnchor="end" interval={0} height={90} />
               <YAxis {...AXIS} fontSize={11} />
               <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 20 }} />
               <Bar dataKey="accShow" name="Accelerations" fill={C_ACC} radius={[3, 3, 0, 0]} />
               <Bar dataKey="decShow" name="Decelerations" fill={C_DEC} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -1627,11 +1629,11 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
           A different lens: not how often, but how hard — each player's single hardest burst and hardest stop.
         </CardDescription>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="h-[350px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 5 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} height={90} />
             <YAxis {...AXIS} fontSize={11} />
             <Tooltip cursor={{ fill: "hsl(var(--muted)/0.3)" }} content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
@@ -1645,7 +1647,7 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
                 </div>
               );
             }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 20 }} />
             <Bar dataKey="acc" name="Max acceleration" fill={C_ACC} radius={[3, 3, 0, 0]} />
             <Bar dataKey="dec" name="Max deceleration" fill={C_DEC} radius={[3, 3, 0, 0]} />
           </BarChart>
