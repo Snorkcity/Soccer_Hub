@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useListTeams,
   useListSeasons,
+  useListLeagues,
+  useGetAuthStatus,
+  useGetSeasonRoster,
+  getGetSeasonRosterQueryKey,
   useGetOpponentClubs,
   getGetOpponentClubsQueryKey,
   useGetOpponentProfile,
@@ -237,9 +241,9 @@ function MatchDatePicker({ value, onChange }: { value: string; onChange: (v: str
   );
 }
 
-function loadDraft(): Draft {
+function loadDraft(key: string): Draft {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const d: Draft = { ...blankDraft(), ...JSON.parse(raw) };
       // Older saved drafts may lack (or have null) the newer string fields.
@@ -257,6 +261,23 @@ function loadDraft(): Draft {
 }
 
 export default function MatchPrep() {
+  const { activeLeagueId, activeSeasonId } = useActiveLeague();
+  const { data: auth } = useGetAuthStatus();
+  const { data: leagues } = useListLeagues();
+  const { hasModule } = useLeagueModules();
+  const club = auth?.user?.leagues.find(l => l.leagueId === activeLeagueId)?.club
+    ?? leagues?.find(l => l.id === activeLeagueId)?.focusClub;
+  if (!auth?.user || activeLeagueId == null || activeSeasonId == null) return null;
+  if (!hasModule(activeLeagueId, "match-prep")) return <NoAccess />;
+  if (!club) return null;
+  // Remount the entire editor before any draft autosave or async result can
+  // cross an account, competition or campaign boundary. Never adopt v1's
+  // unowned draft: it may contain another team's private selections.
+  const draftKey = `${DRAFT_KEY}:scoped:${auth.user.id}:${activeLeagueId}:${activeSeasonId}:${encodeURIComponent(club)}`;
+  return <MatchPrepEditor key={draftKey} draftKey={draftKey} />;
+}
+
+function MatchPrepEditor({ draftKey }: { draftKey: string }) {
   const { toast } = useToast();
 
   // Preload the deck-builder chunk while this page's bundle version still
@@ -265,7 +286,7 @@ export default function MatchPrep() {
   useEffect(() => {
     void import("@/lib/prematchPptx").catch(() => {});
   }, []);
-  const [d, setD] = useState<Draft>(loadDraft);
+  const [d, setD] = useState<Draft>(() => loadDraft(draftKey));
   const [drafting, setDrafting] = useState(false);
   const [draftingTalk, setDraftingTalk] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -362,12 +383,14 @@ export default function MatchPrep() {
   }
 
   useEffect(() => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-  }, [d]);
+    localStorage.setItem(draftKey, JSON.stringify(d));
+  }, [d, draftKey]);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   const { data: teams } = useListTeams({ query: { queryKey: ["listTeams"] } });
+  const { data: leagues } = useListLeagues();
+  const { data: auth } = useGetAuthStatus();
   const { data: allSeasons } = useListSeasons({ query: { queryKey: ["listSeasons"] } });
   const { hasModule } = useLeagueModules();
   // Only consider seasons of leagues where the user has the match-prep module.
@@ -375,22 +398,46 @@ export default function MatchPrep() {
     () => (allSeasons ?? []).filter((s) => hasModule(s.leagueId, "match-prep")),
     [allSeasons, hasModule],
   );
-  const matchPrepTeam = teams?.find((t) => t.analyticsEnabled && t.gender === "female") ?? teams?.[0];
+  const league = leagues?.find(l => l.id === activeLeagueId);
+  const focusClub = auth?.user?.leagues.find(l => l.leagueId === activeLeagueId)?.club
+    ?? league?.focusClub;
+  // Legacy analytics endpoints still require a team ID alongside seasonId.
+  // Use a team of this program, never the previous hardcoded women's default.
+  const gender = /\bNPLW\b/i.test(league?.name ?? "") ? "female" : "male";
+  const programTeams = teams?.filter(t => t.clubName.toLowerCase().startsWith((focusClub ?? "\0").toLowerCase()) &&
+    (gender === "female" ? /female|women/i.test(t.gender) : /^(male|men)$/i.test(t.gender)));
+  const matchPrepTeam = programTeams?.find(t => t.analyticsEnabled)
+    ?? programTeams?.find(t => /1sts|first|senior/i.test(t.name));
   const teamId = matchPrepTeam?.id;
-  useViewingTeam(matchPrepTeam?.name);
+  useViewingTeam(focusClub);
   const { activeSeasonId } = useActiveLeague();
   const seasonId = activeSeasonId != null && seasons.some((s) => s.id === activeSeasonId) ? activeSeasonId : undefined;
   const clubsParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0 };
   const { data: oppClubs } = useGetOpponentClubs(clubsParams, {
     query: { queryKey: getGetOpponentClubsQueryKey(clubsParams), enabled: teamId != null && seasonId != null },
   });
-  const belcoParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0, club: "Belconnen" };
+  const belcoParams = { teamId: teamId ?? 0, seasonId: seasonId ?? 0, club: focusClub ?? "" };
   const { data: belco } = useGetOpponentProfile(belcoParams, {
-    query: { queryKey: getGetOpponentProfileQueryKey(belcoParams), enabled: teamId != null && seasonId != null },
+    query: { queryKey: getGetOpponentProfileQueryKey(belcoParams), enabled: teamId != null && seasonId != null && !!focusClub },
+  });
+  const campaignYear = seasons.find(s => s.id === seasonId)?.year ?? "";
+  const rosterParams = { leagueId: activeLeagueId ?? 0, year: campaignYear };
+  const { data: seasonRoster, isError: rosterError } = useGetSeasonRoster(rosterParams, {
+    query: {
+      queryKey: getGetSeasonRosterQueryKey(rosterParams),
+      enabled: activeLeagueId != null && !!campaignYear,
+    },
   });
   const roster = useMemo(
-    () => (belco?.players ?? []).map((p) => p.playerName).sort((a, b) => a.localeCompare(b)),
-    [belco],
+    () => {
+      const registered = (seasonRoster ?? []).filter(r => r.year === campaignYear &&
+        (r.leagueId === activeLeagueId || r.gpsLeagueId === activeLeagueId));
+      // A registered campaign squad is authoritative, including players yet to
+      // play. Historical seasons without squads retain their own stats roster.
+      return [...new Set(registered.length ? registered.map(r => r.playerName) :
+        (belco?.players ?? []).map(p => p.playerName))].sort((a, b) => a.localeCompare(b));
+    },
+    [seasonRoster, campaignYear, activeLeagueId, belco],
   );
 
   const slots = FORMATIONS[d.formation] ?? FORMATIONS["433"];
@@ -842,7 +889,12 @@ export default function MatchPrep() {
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <FileDown className="h-5 w-5 text-primary" /> Week Ahead / Last Week Review report
         </h2>
-        <WeekAheadCard />
+        <WeekAheadCard teamId={teamId} focusClub={focusClub ?? ""} />
+        {rosterError && (
+          <p role="alert" className="text-sm text-destructive">
+            The season squad couldn't be loaded. Refresh before selecting players.
+          </p>
+        )}
       </div>
 
       {/* Deck actions live with the deck heading so they can't be mistaken for the report above. */}
@@ -908,15 +960,17 @@ export default function MatchPrep() {
         <CardHeader className="pb-3"><CardTitle className="text-base">1 · Match</CardTitle></CardHeader>
         <CardContent className="grid md:grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <Label>Opponent</Label>
-            <Select value={d.opponent} onValueChange={(v) => set("opponent", v)}>
-              <SelectTrigger><SelectValue placeholder="Pick opponent" /></SelectTrigger>
-              <SelectContent>
-                {(oppClubs ?? []).filter((c) => c !== "Belconnen").map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="prep-opponent">Opponent</Label>
+            <Input
+              id="prep-opponent"
+              list="prep-opponents"
+              value={d.opponent}
+              onChange={(e) => set("opponent", e.target.value)}
+              placeholder="Choose or type opponent"
+            />
+            <datalist id="prep-opponents">
+              {(oppClubs ?? []).filter(c => c !== focusClub).map(c => <option key={c} value={c} />)}
+            </datalist>
           </div>
           <div className="space-y-1.5">
             <Label>Round</Label>

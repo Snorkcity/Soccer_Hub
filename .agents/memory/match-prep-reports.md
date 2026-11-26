@@ -7,6 +7,12 @@ description: How Monday briefings and Friday decks persist, and the our-shape re
 - "Copy to new" continuity rule: keep shapes/roles/set pieces, clear opponent/round/date.
 - **Why:** coach wants week-to-week continuity; most roles don't change.
 - Editor keeps a localStorage draft too; a baseline-JSON compare guards open/start-fresh with a confirm() so a saved deck can't silently wipe unsaved work.
+- Match Prep for the NPLM program must offer both the firsts and U23 campaign squads before their first match.
+  **Why:** the coach selects players across those squads for preseason friendlies; match appearances are not a complete selection list.
+  **How to apply:** use the explicitly shared season rosters, not players inferred solely from recorded games. Never include unrelated competitions.
+- Browser drafts with no reliable owner must not be automatically assigned to the currently viewed team.
+  **Why:** a legacy shared draft showed 2026 NPLW set-piece selections while the coach was preparing the 2027 men's team.
+  **How to apply:** isolate all draft state by account, club, competition and campaign; retain unowned legacy drafts without importing them into another context.
 - Our BP/BPO shape pickers remap the XI across formations BY INDEX — every FORMATIONS array must stay 11 slots ordered GK→def→mid→att or the remap silently mis-assigns.
 
 **Week Ahead flow decision (Jul 2026):** no in-app editing of the AI-drafted briefing — "Draft with AI" saves straight to the list; downloads happen from saved rows. **Why:** coach wants AI to own the wording; coaches tweak in PowerPoint if needed. Streamlining for coaches beats in-app editing. Don't re-add textareas without being asked.
