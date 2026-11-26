@@ -278,10 +278,10 @@ export default function GpsInsights() {
       </div>
 
       {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} sourceToggle={sourceToggle} /> : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <StickyNav testId="nav-gps-matches" summary={[`GPS ${year}`, "Matches incl. training games", isLoading ? "" : ({ player: "Player GPS", team: "Team Overview", matchReport: "Match Report", development: "Player Development" } as Record<string, string>)[activeTab]]}>
+      <StickyNav testId="nav-gps-matches" summary={[`GPS ${year}`, "Matches incl. training games", isLoading ? "" : ({ player: "Player", team: "Team Overview", matchReport: "Match Report", development: "Player Development" } as Record<string, string>)[activeTab]]}>
       {sourceToggle}
       {!isLoading && <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto min-h-10">
-            <TabsTrigger value="player">Player GPS</TabsTrigger>
+            <TabsTrigger value="player">Player</TabsTrigger>
             <TabsTrigger value="team">Team Overview</TabsTrigger>
             <TabsTrigger value="matchReport">Match Report</TabsTrigger>
             <TabsTrigger value="development">Player Development</TabsTrigger>
