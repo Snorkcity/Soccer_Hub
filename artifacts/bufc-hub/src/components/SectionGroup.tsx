@@ -120,7 +120,7 @@ export function SectionGroup({
 
   return (
     <div className={cn("space-y-6", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-4 sticky top-14 z-20 bg-background/95 backdrop-blur py-2 -mx-2 px-2 border-b border-border/50">
+      <div style={{ top: "var(--analysis-nav-top, 3.5rem)" }} className="flex flex-wrap items-center justify-between gap-4 sticky z-20 bg-background/95 backdrop-blur py-2 -mx-2 px-2 border-b border-border/50">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground mr-2 font-medium">Jump to:</span>
           {sections.map((s) => (
@@ -168,7 +168,7 @@ export function SectionGroup({
               ref={(el) => {
                 sectionRefs.current[section.id] = el;
               }}
-              className="scroll-mt-28"
+              style={{ scrollMarginTop: "calc(var(--analysis-nav-height, 2rem) + 5rem)" }}
             >
               <Collapsible
                 open={isOpen}

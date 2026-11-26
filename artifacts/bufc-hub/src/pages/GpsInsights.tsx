@@ -1,3 +1,4 @@
+import { StickyNav } from "@/components/layout/StickyNav";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   useListGpsSessions,
@@ -251,7 +252,7 @@ export default function GpsInsights() {
 
   const sourceToggle = (
     <div className="shrink-0">
-      <p className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
+      <p className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Activity <span className="normal-case tracking-normal">(matches incl. training games)</span></p>
       <div className="inline-flex h-10 shrink-0 items-center rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="GPS source">
       {(["matches", "training"] as const).map(v => (
         <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} data-testid={`button-gps-view-${v}`}
@@ -276,19 +277,20 @@ export default function GpsInsights() {
         </Select>
       </div>
 
-      {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} sourceToggle={sourceToggle} /> : <>{sourceToggle}
-      <OpponentMismatchWarning year={year} />
-
-      {isLoading ? (
-        <Card><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>
-      ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto min-h-10">
+      {view === "training" ? <TrainingView leagueId={activeLeagueId} year={year} sourceToggle={sourceToggle} /> : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <StickyNav testId="nav-gps-matches" summary={[`GPS ${year}`, "Matches incl. training games", isLoading ? "" : ({ player: "Player GPS", team: "Team Overview", matchReport: "Match Report", development: "Player Development" } as Record<string, string>)[activeTab]]}>
+      {sourceToggle}
+      {!isLoading && <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto min-h-10">
             <TabsTrigger value="player">Player GPS</TabsTrigger>
             <TabsTrigger value="team">Team Overview</TabsTrigger>
             <TabsTrigger value="matchReport">Match Report</TabsTrigger>
             <TabsTrigger value="development">Player Development</TabsTrigger>
-          </TabsList>
+          </TabsList>}
+      </StickyNav>
+      <div className="mt-6"><OpponentMismatchWarning year={year} /></div>
+      {isLoading ? (
+        <Card className="mt-6"><CardContent className="py-16 text-center text-muted-foreground">Loading GPS data…</CardContent></Card>
+      ) : (<>
           <TabsContent value="player" className="mt-6">
             {metaRows?.length ? <PlayerGpsTab year={year} metaRows={metaRows} /> : <Card><CardContent className="py-16 text-center text-muted-foreground">No GPS data for {year}.</CardContent></Card>}
           </TabsContent>
@@ -301,9 +303,8 @@ export default function GpsInsights() {
           <TabsContent value="development" className="mt-6">
             <PlayerDevelopmentTab year={year} />
           </TabsContent>
-        </Tabs>
-      )}
-      </>}
+      </>)}
+      </Tabs>}
     </div>
   );
 }

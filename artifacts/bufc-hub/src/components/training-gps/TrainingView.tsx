@@ -5,6 +5,7 @@ import { TRAINING_PARTS } from "@workspace/api-zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StickyNav } from "@/components/layout/StickyNav";
 import { Button } from "@/components/ui/button";
 import { useLeagueModules } from "@/hooks/useLeagueModules";
 import { RefreshCw, Upload } from "lucide-react";
@@ -65,7 +66,10 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
   );
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end" data-testid="training-header">
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <StickyNav testId="nav-gps-training" summary={[`GPS ${year}`, "Training", `${fmtDate(current.date)} ${current.title || "Training"}`, ({ player: "Player", team: "Team", coach: "Coach" } as Record<string, string>)[tab] + (tab !== "coach" ? ` · ${f.part === "full" ? "Full session" : TRAINING_PARTS.find(p => p.id === f.part)?.label ?? f.part}` : "")]}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end" data-testid="training-header">
         {sourceToggle}
         <div className="min-w-0 flex-1 sm:max-w-md">
           <p className={label}>Training session</p>
@@ -75,13 +79,12 @@ export function TrainingView({ leagueId, year, sourceToggle }: { leagueId: numbe
           </Select>
         </div>
       </div>
-
-      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto min-h-10 w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="player" data-testid="tab-training-player">Player</TabsTrigger>
           <TabsTrigger value="team" data-testid="tab-training-team">Team</TabsTrigger>
           <TabsTrigger value="coach" data-testid="tab-training-coach">Coach</TabsTrigger>
         </TabsList>
+        </StickyNav>
         {tab !== "coach" && <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card/40 p-3" data-testid="training-controls">
           {partSelect}
           {tab === "player" && <p className="pb-2 text-xs text-muted-foreground">Charts are grouped below; totals or per-minute and sort order are set on each chart.</p>}

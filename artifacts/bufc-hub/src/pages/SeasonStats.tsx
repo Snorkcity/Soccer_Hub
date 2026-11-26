@@ -84,6 +84,7 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   LineChart, Line,
 } from "recharts";
+import { StickyNav } from "@/components/layout/StickyNav";
 import { Info, ArrowLeft, MousePointerClick, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { NplbBorrowingReport } from "@/components/NplbBorrowingReport";
@@ -1291,6 +1292,7 @@ export default function SeasonStats() {
   const [dnaLastN, setDnaLastN]           = useState(false); // team: scoring-DNA window
   const [oppDnaLastN, setOppDnaLastN]     = useState(false); // opponent: scoring-DNA window
   const [oppDnaPlayer, setOppDnaPlayer]   = useState("");    // opponent: scoring-DNA focus player
+  const [mainTab, setMainTab] = useState("team");
   const [oppView, setOppView]             = useState<"team" | "player" | "report">("team"); // opponent: Team / Players / Match report sub-view
 
   React.useEffect(() => {
@@ -1955,13 +1957,15 @@ export default function SeasonStats() {
       </div>
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
-      <Tabs defaultValue="team" className="w-full">
+      <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+        <StickyNav testId="nav-season-stats" summary={["Season Stats", ({ team: "Team Insights", player: "Player Insights", opponent: "Opponent Insights", matchreport: "Match Report" } as Record<string, string>)[mainTab], mainTab === "opponent" && selectedClub ? (isAll ? "All (league-wide)" : selectedClub) : "", mainTab === "opponent" ? ({ team: "Team Charts", player: "Player Charts", report: "Scouting Report" } as Record<string, string>)[oppView] : ""]}>
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 max-w-xl">
           <TabsTrigger value="team">Team Insights</TabsTrigger>
           <TabsTrigger value="player">Player Insights</TabsTrigger>
           <TabsTrigger value="opponent">Opponent Insights</TabsTrigger>
           <TabsTrigger value="matchreport">Match Report</TabsTrigger>
         </TabsList>
+        </StickyNav>
 
         {/* ════════════════ MATCH REPORT ════════════════ */}
         <TabsContent value="matchreport" className="mt-4">
@@ -2870,7 +2874,7 @@ export default function SeasonStats() {
 
           {/* Team / Players sub-view — mirrors the main Team/Player split for easier navigation */}
           <Tabs value={oppView} onValueChange={v => setOppView(v as "team" | "player" | "report")}>
-            <TabsList className="h-auto flex-wrap justify-start gap-1">
+            <TabsList className="h-auto flex-wrap justify-start gap-1 border border-border bg-transparent" aria-label="Opponent view">
               <TabsTrigger value="team">Team Charts</TabsTrigger>
               <TabsTrigger value="player">Player Charts</TabsTrigger>
               <TabsTrigger value="report" disabled={isAll}>Scouting Report</TabsTrigger>

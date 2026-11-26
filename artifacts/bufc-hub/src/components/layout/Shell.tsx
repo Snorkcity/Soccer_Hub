@@ -88,7 +88,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background md:flex-row">
+    <div className={`flex flex-col bg-background md:flex-row ${location === "/gps" || location === "/season-stats" ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       {/* Sidebar */}
       <aside
         className={`w-full shrink-0 border-b border-border bg-card bg-gradient-to-b from-primary/[0.08] via-primary/[0.03] to-transparent md:border-b-0 md:border-r flex flex-col z-20 transition-[width] duration-200 ease-in-out ${
@@ -201,7 +201,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <main className="min-h-0 flex-1 flex flex-col overflow-hidden relative">
         {/* Top decoration line */}
         <div className="h-1 w-full bg-gradient-to-r from-primary/80 to-transparent absolute top-0 left-0 z-10" />
         {/* "Where am I?" strip — league (and team when the page is team-scoped).
@@ -224,7 +224,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         )}
-        <div className="flex-1 overflow-auto p-4 md:p-8 flex flex-col">
+        <div className="flex-1 overflow-auto p-4 md:p-8 flex flex-col [--analysis-scroll-padding:1rem] md:[--analysis-scroll-padding:2rem]">
           {/* Hub pages go full-bleed (edge-to-edge hex canvas); everything
               else stays in the usual centred column. */}
           {location === "/" || location.startsWith("/hub/") ? (
