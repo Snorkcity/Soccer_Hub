@@ -115,7 +115,7 @@ export function parseTrainingCsv(
     "HSM uses the Hub's existing Catapult >18 km/h sprint-distance definition; VHSM uses zone5 (>25 km/h). CSV zone boundaries are not declared; confirm the device profile if settings change. HSM includes VHSM—do not add them.",
     "Time in parts includes their breaks and coaching stoppages; it is not continuous moving time.",
   ]);
-  const rows: TrainingGpsRow[] = records.map(r => {
+  const sourceRows: TrainingGpsRow[] = records.map(r => {
     const sourceName = r["Player Name"].trim();
     if (!sourceName || sourceName.length > 120) throw new Error("Every row needs a valid player name.");
     const part = partMap[key(r["Split Name"])];
@@ -123,8 +123,8 @@ export function parseTrainingCsv(
     const tags = r.Tags?.trim().toLowerCase();
     if (tags && !tags.split(/[,; ]+/).includes("training")) throw new Error("This CSV is not tagged as training. Use match GPS ingestion for match files.");
     const durationSeconds = numeric(r.Duration, "Duration");
-    if (durationSeconds != null && (durationSeconds <= 0 || durationSeconds > 43200)) {
-      throw new Error("Recorded participation must be positive and under12hours.");
+    if (durationSeconds != null && (durationSeconds < 0 || durationSeconds > 43200)) {
+      throw new Error(`Invalid recorded participation for ${sourceName}, ${r["Split Name"]}: duration must be between 0 and 12 hours.`);
     }
     const startSeconds = clock(r["Split Start Time"], sessionDate);
     const endSeconds = clock(r["Split End Time"], sessionDate);
@@ -167,15 +167,27 @@ export function parseTrainingCsv(
     };
   });
   const seen = new Set<string>();
-  for (const row of rows) {
+  for (const row of sourceRows) {
     const pair = `${trainingPlayerKey(row)}:${row.part}`;
     if (seen.has(pair)) throw new Error(`Duplicate player/part after mapping: ${row.playerName}, ${row.sourceSplit}.`);
     seen.add(pair);
   }
+  // Catapult exports zero-duration placeholders when a player misses a part.
+  // Validate them above (including duplicate identities and malformed metrics),
+  // but never use their residual sensor values as measured participation.
+  const rows = sourceRows.filter(row => row.durationSeconds !== 0);
+  for (const row of sourceRows.filter(row => row.durationSeconds === 0)) {
+    warnings.add(`${row.playerName} — ${row.sourceSplit}: no recorded participation (0 seconds). Excluded from player totals, averages and rankings; other recorded parts are kept.`);
+  }
+  if (!rows.some(row => row.part !== "recording")) {
+    throw new Error("No recorded participation in the selected training parts. Check the Catapult export.");
+  }
   const people = [...new Set(rows.map(trainingPlayerKey))];
   for (const person of people) {
     const selected = rows.filter(r => trainingPlayerKey(r) === person && r.part !== "recording");
-    if (!selected.length) throw new Error("Every player needs at least one selected training part.");
+    const hadZeroParts = sourceRows.some(r => trainingPlayerKey(r) === person &&
+      r.part !== "recording" && r.durationSeconds === 0);
+    if (!selected.length && !hadZeroParts) throw new Error("Every player needs at least one selected training part.");
     const sorted = selected.filter(r => r.startSeconds != null && r.endSeconds != null)
       .sort((a, b) => a.startSeconds! - b.startSeconds!);
     if (sorted.some((r, i) => i > 0 && r.startSeconds! < sorted[i - 1].endSeconds! - .01)) {

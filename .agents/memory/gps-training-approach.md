@@ -74,6 +74,12 @@ Include short coaching insights beneath both the Player and Team training tabs f
 
 ## Confirmed import location
 
+Zero-duration Catapult sections can legitimately mean a late arrival or missed part; shorter positive durations represent actual recorded participation.
+
+**Why:** the coach confirmed that players with missing warm-ups arrived late and approved accepting these exports without inventing participation.
+
+**How to apply:** disclose missing sections, retain valid recorded portions, and keep partial totals out of complete-session comparisons. Do not infer a medical explanation from a recording ending early.
+
 Training CSV ingestion belongs in the existing GPS ingestion section of Data Entry, alongside match GPS ingestion, not a separate upload area.
 
 **Why:** the coach explicitly directed that the existing GPS Data Entry workflow should support training CSVs too.

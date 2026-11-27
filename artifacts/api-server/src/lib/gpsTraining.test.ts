@@ -107,6 +107,64 @@ test("heart-rate issues disclosed; no fake historical claims from one session", 
   assert(insights.some(i => i.evidence.includes("End game")));
 });
 
+test("missed parts are excluded with a warning; real short participation is retained", () => {
+  const input = mutate(rows => {
+    const headers = rows[0];
+    const duration = headers.indexOf("Duration");
+    // Late player: source metrics may still contain small sensor artefacts.
+    rows[2][duration] = "0";
+    // Early finish: keep a genuine 18-second part but not the final placeholder.
+    rows[11][duration] = "18";
+    rows[12][duration] = "0";
+  });
+  const { session } = parseTrainingCsv(input, scope);
+  const first = session.rows.filter(r => r.playerName === "P01.Sample");
+  const second = session.rows.filter(r => r.playerName === "P02.Sample");
+  assert.equal(session.rows.length, 118);
+  assert(!first.some(r => r.part === "warmup"));
+  assert(!second.some(r => r.part === "end"));
+  assert.equal(second.find(r => r.part === "main")?.durationSeconds, 18);
+  assert.equal(trainingTotal(first, "duration"), (799 + 1063 + 1197 + 779) / 60);
+  assert.equal(trainingTotal(first, "distance"),
+    trainingTotal(parsed().session.rows.filter(r => r.playerName === "P01.Sample" && r.part !== "warmup"), "distance"));
+  assert.equal(trainingTotal(first, "distance", true),
+    trainingTotal(first, "distance")! / trainingTotal(first, "duration")!);
+  assert(session.warnings.some(w => w.includes("P01.Sample") && w.includes("0 seconds")));
+  assert(session.warnings.some(w => w.includes("partial")));
+  assert(trainingInsights(session).every(i => !i.evidence.includes("NaN")));
+  assert.equal(trainingTimetable(session)[0].playerCount, 19);
+  assert.equal(trainingTimetable(session)[0].durationSeconds, 322);
+});
+
+test("zero-only players do not block others, but an entirely zero session is rejected", () => {
+  const { session } = parseTrainingCsv(mutate(rows => {
+    const duration = rows[0].indexOf("Duration");
+    rows.slice(2, 7).forEach(row => { row[duration] = "0"; });
+  }), scope);
+  assert.equal(trainingTotal(session.rows.filter(r => r.playerName === "P01.Sample"), "distance"), null);
+  assert.equal(session.rows.filter(r => r.part === "warmup").length, 19);
+  assert.throws(() => parseTrainingCsv(mutate(rows => {
+    const duration = rows[0].indexOf("Duration");
+    rows.slice(1).forEach(row => { row[duration] = "0"; });
+  }), scope), /No recorded participation/);
+});
+
+test("negative, excessive, malformed and duplicate zero-duration rows still fail validation", () => {
+  for (const value of ["-1", "43201", "bad"]) {
+    assert.throws(() => parseTrainingCsv(mutate(rows => {
+      rows[2][rows[0].indexOf("Duration")] = value;
+    }), scope), /Invalid recorded participation|Invalid numeric/);
+  }
+  assert.throws(() => parseTrainingCsv(mutate(rows => {
+    rows[2][rows[0].indexOf("Duration")] = "0";
+    rows.push([...rows[2]]);
+  }), scope), /Duplicate player\/part/);
+  assert.throws(() => parseTrainingCsv(mutate(rows => {
+    rows[2][rows[0].indexOf("Duration")] = "0";
+    rows[2][rows[0].indexOf("Distance (km)")] = "invalid";
+  }), scope), /Invalid numeric/);
+});
+
 const privateSample = process.env.TRAINING_GPS_CSV ?? "attached_assets/20261109-T-N_1794634643570.csv";
 test("optional private sample parses without bundling player measurements in the repository", { skip: !existsSync(privateSample) }, () => {
   const { session } = parseTrainingCsv(readFileSync(privateSample, "utf8"), scope);
