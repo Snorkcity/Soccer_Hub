@@ -3,6 +3,7 @@ import { ArrowDownAZ, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-reac
 import { C, canRate, fmtMetric, fmtMin, fmtNum, metricDef, type TeamChartSort } from "./shared";
 import { tooltipStyle } from "./ui";
 import { useMetricDisplay } from "./useMetricDisplay";
+import { useTabletChart } from "@/hooks/use-tablet-chart";
 
 export interface TeamMetricItem { key: string; name: string; value: number | null; duration: number | null; partial: boolean; pos: string | null; squad: string | null }
 
@@ -21,6 +22,7 @@ const COL = 42;
 
 /** One vertical column per player, Catapult-style: value on top, participant average line. */
 export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel, dateLabel, onPick, sort, onSort, onRate }: Props) {
+  const tablet = useTabletChart();
   const def = metricDef(metric);
   const display = useMetricDisplay(metric, pm);
   const unit = display.unit;
@@ -70,12 +72,12 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
         <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No players in this filter for {periodLabel}.</p>
       ) : (
         <div className="overflow-x-auto overscroll-x-contain">
-          <div style={{ minWidth: items.length * COL + 56, height: 300 }}>
+          <div style={{ minWidth: items.length * (tablet ? 48 : COL) + 56, height: tablet ? 340 : 300 }}>
             <ResponsiveContainer>
               <BarChart data={data} margin={{ top: 22, right: 8, left: 0, bottom: 4 }}
                 onClick={(e: { activePayload?: { payload: TeamMetricItem }[] } | null) => { const k = e?.activePayload?.[0]?.payload.key; if (k) onPick(k); }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(206 59% 25%)" vertical={false} />
-                <XAxis dataKey="key" interval={0} height={92} tickLine={false} stroke="hsl(215 20% 65%)"
+                <XAxis dataKey="key" interval={0} height={tablet ? 112 : 92} tickLine={false} stroke="hsl(215 20% 65%)"
                   tick={(p: { x: number; y: number; payload: { value: string } }) => {
                     const it = items.find(i => i.key === p.payload.value);
                     return (
@@ -83,7 +85,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
                         aria-label={`Open ${it?.name ?? "player"}: ${def.label}${pm ? " per minute" : ""}`}
                         onClick={e => { e.stopPropagation(); onPick(p.payload.value); }}
                         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(p.payload.value); } }}>
-                        <text transform="rotate(-40)" textAnchor="end" fontSize={11} fill={it?.partial ? "hsl(215 20% 65%)" : "hsl(210 40% 92%)"}>
+                        <text transform="rotate(-40)" textAnchor="end" fontSize={tablet ? 14 : 11} fontWeight={tablet ? 500 : undefined} fill={it?.partial ? "hsl(215 20% 65%)" : "hsl(210 40% 92%)"}>
                           {it?.name}{it?.partial ? " *" : ""}{it?.value == null ? " (—)" : ""}
                         </text>
                       </g>

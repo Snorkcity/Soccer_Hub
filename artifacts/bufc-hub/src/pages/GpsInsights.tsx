@@ -1,4 +1,5 @@
 import { StickyNav } from "@/components/layout/StickyNav";
+import { useTabletChart } from "@/hooks/use-tablet-chart";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   useListGpsSessions,
@@ -1459,6 +1460,7 @@ function TeamViewToggle({ view, setView, additive }: { view: TeamView; setView: 
 }
 
 function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundles: Bundle[] }) {
+  const tablet = useTabletChart();
   const [view, setView] = useState<TeamView>("total");
   const [ms, setMs] = useState(false);
   const isSpeed = metricIn.id === "topSpeed";
@@ -1507,11 +1509,12 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
           <TeamViewToggle view={view} setView={setView} additive={metric.additive} />
         </div>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="h-[300px] overflow-x-auto" style={tablet ? { height: 350 } : undefined}>
+        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} />
+            <XAxis dataKey="name" {...AXIS} fontSize={tablet ? 14 : AXIS.fontSize} fontWeight={tablet ? 500 : undefined} height={tablet ? 100 : undefined} angle={-45} textAnchor="end" interval={0} />
             <YAxis {...AXIS} fontSize={11} tick={isSpeed && !ms ? <SpeedAxisTick /> : undefined} />
             <Tooltip content={<TeamTooltip metric={metric} view={view} avg={squadAvg} />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
             {view !== "halves" && squadAvg != null && <ReferenceLine y={squadAvg} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
@@ -1521,6 +1524,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
             <Bar dataKey="et" stackId={halvesStacked ? "h" : undefined} name="Extra time" fill={C_ET} radius={[3, 3, 0, 0]} hide={view !== "halves" || !data.some(d => d.et != null)} />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );
@@ -1561,6 +1565,7 @@ function TeamTooltip({ active, payload, metric, view, avg }: {
 }
 
 function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
+  const tablet = useTabletChart();
   const [per10, setPer10] = useState(false);
 
   const data = useMemo(() =>
@@ -1591,14 +1596,15 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
         </div>
         <Per10Toggle per10={per10} setPer10={setPer10} />
       </CardHeader>
-      <CardContent className="h-[350px]">
+      <CardContent className="h-[350px] overflow-x-auto" style={tablet ? { height: 390 } : undefined}>
+        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
         {data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No accel/decel counts recorded for this round.</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 5 }} barGap={1}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" {...AXIS} angle={-45} textAnchor="end" interval={0} height={90} />
+              <XAxis dataKey="label" {...AXIS} fontSize={tablet ? 14 : AXIS.fontSize} fontWeight={tablet ? 500 : undefined} angle={-45} textAnchor="end" interval={0} height={tablet ? 110 : 90} />
               <YAxis {...AXIS} fontSize={11} />
               <Tooltip content={<AccelCountTooltip />} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
               <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 20 }} />
@@ -1607,12 +1613,14 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
             </BarChart>
           </ResponsiveContainer>
         )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
 function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
+  const tablet = useTabletChart();
   const data = useMemo(() =>
     bundles
       .map(b => ({
@@ -1633,11 +1641,12 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
           A different lens: not how often, but how hard — each player's single hardest burst and hardest stop.
         </CardDescription>
       </CardHeader>
-      <CardContent className="h-[350px]">
+      <CardContent className="h-[350px] overflow-x-auto" style={tablet ? { height: 390 } : undefined}>
+        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 5 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="name" {...AXIS} angle={-45} textAnchor="end" interval={0} height={90} />
+            <XAxis dataKey="name" {...AXIS} fontSize={tablet ? 14 : AXIS.fontSize} fontWeight={tablet ? 500 : undefined} angle={-45} textAnchor="end" interval={0} height={tablet ? 110 : 90} />
             <YAxis {...AXIS} fontSize={11} />
             <Tooltip cursor={{ fill: "hsl(var(--muted)/0.3)" }} content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
@@ -1656,6 +1665,7 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
             <Bar dataKey="dec" name="Max deceleration" fill={C_DEC} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

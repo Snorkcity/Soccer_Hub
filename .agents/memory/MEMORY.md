@@ -67,3 +67,4 @@
 - [Match-stat provenance](match-stat-provenance.md) — possession, shots and passes retain a per-value official/Veo/unknown source; legacy values are unknown and official values always win.
 - [NPLB rolling-sub player evidence](nplb-player-evidence.md) — U14/U15/U16/U18 may use appearances/contributions/borrowing, never minute/start/sub-derived metrics.
 - [Squadi source caveats](squadi-ingestion.md) — public fixtures can include completed byes; endpoint access differs, and shell HTTP 403 does not prove the data is private.
+- [Tablet readability](tablet-readability.md) — coach approved general tablet text size; improve chart names independently without increasing the whole page again.
