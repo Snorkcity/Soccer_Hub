@@ -128,6 +128,12 @@ from June 2026. Always probe the endpoint; do not discard old matches by date.
 
 ## Shared Veo source changes
 
+For the 2027 NPLM campaign, the coach expects recordings from any of the three shared Veo accounts, not a single camera/source.
+
+**Why:** the coach said recordings will come from any of the three accounts and identified Moir as one recording source.
+
+**How to apply:** any future multi-source design must support these shared sources while preserving team/campaign isolation; do not assume one camera consistently records Firsts or U23.
+
 **Rule:** a league has one active Veo source. When its mapped team changes, soft-archive active rows from the previous team before linking replacements. For shared/noisy teams, opt into exact Sydney-date filtering against tracked Hub fixtures.
 
 **Why:** the NPLM U23 analytics share lives under Moir's/Conor, while its older BUFC U23 share lacks the full analytics feeds. Conor also contains historical and preseason recordings; importing the whole team would mix unrelated games and duplicate linked fixtures. The coach confirmed the exact-date filtered source switch worked in the live manual-sync workflow.
