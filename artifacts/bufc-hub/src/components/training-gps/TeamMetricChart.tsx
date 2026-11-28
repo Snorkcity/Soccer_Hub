@@ -72,7 +72,7 @@ export function TeamMetricChart({ metric, items, mean, total, n, pm, periodLabel
         <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No players in this filter for {periodLabel}.</p>
       ) : (
         <div className="overflow-x-auto overscroll-x-contain">
-          <div style={{ minWidth: items.length * (tablet ? 48 : COL) + 56, height: tablet ? 340 : 300 }}>
+          <div style={{ minWidth: tablet ? undefined : items.length * COL + 56, height: tablet ? 340 : 300 }}>
             <ResponsiveContainer>
               <BarChart data={data} margin={{ top: 22, right: 8, left: 0, bottom: 4 }}
                 onClick={(e: { activePayload?: { payload: TeamMetricItem }[] } | null) => { const k = e?.activePayload?.[0]?.payload.key; if (k) onPick(k); }}>

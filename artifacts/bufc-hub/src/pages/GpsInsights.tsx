@@ -1510,7 +1510,7 @@ function TeamChartCard({ metric: metricIn, bundles }: { metric: GpsMetric; bundl
         </div>
       </CardHeader>
       <CardContent className="h-[300px] overflow-x-auto" style={tablet ? { height: 350 } : undefined}>
-        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
+        <div className="h-full min-w-0" data-testid="gps-team-chart-fit">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 35 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -1597,7 +1597,7 @@ function TeamAccelCountCard({ bundles }: { bundles: Bundle[] }) {
         <Per10Toggle per10={per10} setPer10={setPer10} />
       </CardHeader>
       <CardContent className="h-[350px] overflow-x-auto" style={tablet ? { height: 390 } : undefined}>
-        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
+        <div className="h-full min-w-0" data-testid="gps-team-chart-fit">
         {data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No accel/decel counts recorded for this round.</div>
         ) : (
@@ -1642,7 +1642,7 @@ function TeamAccelCard({ bundles }: { bundles: Bundle[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="h-[350px] overflow-x-auto" style={tablet ? { height: 390 } : undefined}>
-        <div className="h-full" style={tablet ? { minWidth: data.length * 40 + 80 } : undefined}>
+        <div className="h-full min-w-0" data-testid="gps-team-chart-fit">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 5 }} barGap={1}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
