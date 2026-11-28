@@ -495,7 +495,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH,
           .onConflictDoUpdate({
             target: [veoAnalytics2Table.leagueId, veoAnalytics2Table.veoMatchId],
             set: {
-              teamId: veoTeamId!,
+              teamId: sourceTeamId,
               status: effectiveStatus,
               sourceVersion: effectiveVersion,
               terminalSources,
