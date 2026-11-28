@@ -147,8 +147,63 @@ export interface AssistantMatchesResponse {
   matches: AssistantMatchOption[];
 }
 
+export interface VeoDiscoveryInput {
+  /** @minimum 1 */
+  leagueId: number;
+  /** @minimum 1 */
+  seasonId: number;
+}
+
+export interface VeoRecordingImportInput {
+  /** @minimum 1 */
+  leagueId: number;
+  /** @minimum 1 */
+  seasonId: number;
+  /** @minLength 1 */
+  token: string;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  matchId?: number | null;
+}
+
+export interface VeoRecordingImportResult {
+  ok: boolean;
+  veoId: number;
+}
+
+export interface VeoDiscoveredRecording {
+  token: string;
+  recordingId: string;
+  title: string;
+  /** @nullable */
+  startsAt: string | null;
+  source: string;
+  team: string;
+  imported: boolean;
+  removed: boolean;
+}
+
+export interface VeoDiscoveryFixture {
+  id: number;
+  opponent: string;
+  /** @nullable */
+  matchDate: string | null;
+}
+
+export interface VeoDiscoveryResult {
+  recordings: VeoDiscoveredRecording[];
+  sourcesChecked: string[];
+  warnings: string[];
+  fixtures: VeoDiscoveryFixture[];
+  campaignYear: string;
+}
+
 export interface VeoSyncInput {
   leagueId: number;
+  /** @minimum 1 */
+  seasonId?: number;
   batch?: number;
 }
 
@@ -425,6 +480,8 @@ export interface VeoMatchSummary {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  /** @nullable */
+  campaignYear?: string | null;
   matchCode?: string | null;
   hubOpponent?: string | null;
   hasAnalytics?: boolean;
@@ -5639,6 +5696,10 @@ veoId: number;
 
 export type GetVeoPlayerSeasonParams = {
 leagueId: number;
+/**
+ * @pattern ^\d{4}$
+ */
+year?: string;
 };
 
 export type GetVeoReportStatsParams = {

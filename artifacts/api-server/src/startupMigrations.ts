@@ -1353,6 +1353,7 @@ async function runUserAccountsMigration(): Promise<void> {
   // Maps each league to a Veo club + team slug and stores synced matches (raw
   // events/stats/periods/roster as jsonb). See .agents/memory/veo-integration.md.
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_club_slug text`);
+  await db.execute(sql`ALTER TABLE IF EXISTS veo_matches ADD COLUMN IF NOT EXISTS confirmed_source jsonb`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_team_slug text`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_analytics_enabled boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS veo_match_dates_only boolean NOT NULL DEFAULT false`);
@@ -1391,6 +1392,16 @@ async function runUserAccountsMigration(): Promise<void> {
       AND league.veo_team_slug IS NULL
   `);
   // NPLM U23's original BUFC team share lacks the full analytics subscription.
+  // Legacy U23 rows predate focus_club. Resolve the shared club from the Firsts
+  // competition rather than treating an unknown owner as a wildcard.
+  await db.execute(sql`
+    UPDATE leagues AS u23
+    SET focus_club = firsts.focus_club
+    FROM leagues AS firsts
+    WHERE u23.name = 'ACT NPLM U23' AND u23.focus_club IS NULL
+      AND firsts.name = 'ACT NPLM' AND firsts.focus_club IS NOT NULL
+  `);
+  // NPLM U23's original BUFC team share lacks the full analytics subscription.
   // The separately shared Moir's/Conor team has the same 2026 league matches
   // with complete analytics. It also contains historical/preseason recordings,
   // so this league opts into exact tracked-date filtering.
@@ -1408,6 +1419,7 @@ async function runUserAccountsMigration(): Promise<void> {
       league_id integer NOT NULL REFERENCES leagues(id),
       veo_match_id text NOT NULL,
       veo_team_slug text,
+      confirmed_source jsonb,
       title text,
       opponent text,
       starts_at text,

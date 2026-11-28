@@ -289,6 +289,8 @@ import type {
   VeoAutoLinkInput,
   VeoAutoLinkResult,
   VeoDirectionInput,
+  VeoDiscoveryInput,
+  VeoDiscoveryResult,
   VeoGoalSequenceReviewInput,
   VeoGoalSequenceReviewResponse,
   VeoGoalSequenceReviewsResponse,
@@ -297,6 +299,8 @@ import type {
   VeoMatchDetail,
   VeoPlayerMatchResponse,
   VeoPlayerSeasonResponse,
+  VeoRecordingImportInput,
+  VeoRecordingImportResult,
   VeoRefetchInput,
   VeoRemoveInput,
   VeoReportStats,
@@ -13186,6 +13190,136 @@ export const useJournalInterviewWriteup = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getJournalInterviewWriteupMutationOptions(options));
+    }
+
+export const getDiscoverVeoRecordingsUrl = () => {
+
+
+
+
+  return `/api/entry/veo-discover`
+}
+
+export const discoverVeoRecordings = async (veoDiscoveryInput: VeoDiscoveryInput, options?: RequestInit): Promise<VeoDiscoveryResult> => {
+
+  return customFetch<VeoDiscoveryResult>(getDiscoverVeoRecordingsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoDiscoveryInput)
+  }
+);}
+
+
+
+
+
+export const getDiscoverVeoRecordingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discoverVeoRecordings>>, TError,{data: BodyType<VeoDiscoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discoverVeoRecordings>>, TError,{data: BodyType<VeoDiscoveryInput>}, TContext> => {
+
+const mutationKey = ['discoverVeoRecordings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discoverVeoRecordings>>, {data: BodyType<VeoDiscoveryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  discoverVeoRecordings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscoverVeoRecordingsMutationResult = NonNullable<Awaited<ReturnType<typeof discoverVeoRecordings>>>
+    export type DiscoverVeoRecordingsMutationBody = BodyType<VeoDiscoveryInput>
+    export type DiscoverVeoRecordingsMutationError = ErrorType<unknown>
+
+    export const useDiscoverVeoRecordings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discoverVeoRecordings>>, TError,{data: BodyType<VeoDiscoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof discoverVeoRecordings>>,
+        TError,
+        {data: BodyType<VeoDiscoveryInput>},
+        TContext
+      > => {
+      return useMutation(getDiscoverVeoRecordingsMutationOptions(options));
+    }
+
+export const getImportVeoRecordingUrl = () => {
+
+
+
+
+  return `/api/entry/veo-import`
+}
+
+export const importVeoRecording = async (veoRecordingImportInput: VeoRecordingImportInput, options?: RequestInit): Promise<VeoRecordingImportResult> => {
+
+  return customFetch<VeoRecordingImportResult>(getImportVeoRecordingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(veoRecordingImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportVeoRecordingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importVeoRecording>>, TError,{data: BodyType<VeoRecordingImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importVeoRecording>>, TError,{data: BodyType<VeoRecordingImportInput>}, TContext> => {
+
+const mutationKey = ['importVeoRecording'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importVeoRecording>>, {data: BodyType<VeoRecordingImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importVeoRecording(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportVeoRecordingMutationResult = NonNullable<Awaited<ReturnType<typeof importVeoRecording>>>
+    export type ImportVeoRecordingMutationBody = BodyType<VeoRecordingImportInput>
+    export type ImportVeoRecordingMutationError = ErrorType<unknown>
+
+    export const useImportVeoRecording = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importVeoRecording>>, TError,{data: BodyType<VeoRecordingImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importVeoRecording>>,
+        TError,
+        {data: BodyType<VeoRecordingImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportVeoRecordingMutationOptions(options));
     }
 
 export const getVeoSyncUrl = () => {

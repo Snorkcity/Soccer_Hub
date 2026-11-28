@@ -80,7 +80,7 @@ function IdentityBadge({ identity, team }: { identity: VeoPlayerIdentity; team: 
   );
 }
 
-export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
+export function VeoSeasonPlayers({ leagueId, year }: { leagueId: number; year?: string }) {
   const [metricGroup, setMetricGroup] = useState<MetricGroup>("Summary");
   const [mode, setMode] = useState<"totals" | "per90">("totals");
   const [search, setSearch] = useState("");
@@ -93,7 +93,7 @@ export function VeoSeasonPlayers({ leagueId }: { leagueId: number }) {
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
 
-  const seasonParams = { leagueId };
+  const seasonParams = { leagueId, ...(year ? { year } : {}) };
   const { data, isLoading, isError, error } = useGetVeoPlayerSeason(seasonParams, {
     query: {
       enabled: leagueId > 0,

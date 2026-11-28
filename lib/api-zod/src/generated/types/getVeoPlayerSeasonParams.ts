@@ -8,4 +8,8 @@
 
 export type GetVeoPlayerSeasonParams = {
 leagueId: number;
+/**
+ * @pattern ^\d{4}$
+ */
+year?: string;
 };

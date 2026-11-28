@@ -13,6 +13,8 @@ export interface VeoMatchSummary {
   title?: string | null;
   opponent?: string | null;
   startsAt?: string | null;
+  /** @nullable */
+  campaignYear?: string | null;
   matchCode?: string | null;
   hubOpponent?: string | null;
   hasAnalytics?: boolean;

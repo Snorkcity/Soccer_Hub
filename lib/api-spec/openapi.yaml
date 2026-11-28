@@ -3516,6 +3516,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/InterviewWriteupResponse"
 
+  /entry/veo-discover:
+    post:
+      operationId: discoverVeoRecordings
+      tags: [veo]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoDiscoveryInput" }
+      responses:
+        "200":
+          description: Recordings awaiting explicit team and campaign confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoDiscoveryResult" }
+  /entry/veo-import:
+    post:
+      operationId: importVeoRecording
+      tags: [veo]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VeoRecordingImportInput" }
+      responses:
+        "200":
+          description: Recording confirmed for this campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VeoRecordingImportResult" }
   /entry/veo-sync:
     post:
       operationId: veoSync
@@ -3862,6 +3892,10 @@ paths:
           in: query
           required: true
           schema: { type: integer }
+        - name: year
+          in: query
+          required: false
+          schema: { type: string, pattern: '^\d{4}$' }
       responses:
         "200":
           description: Season-aggregated Analytics 2 player data
@@ -4158,11 +4192,68 @@ components:
           type: array
           items: { $ref: "#/components/schemas/AssistantMatchOption" }
 
+    VeoDiscoveryInput:
+      type: object
+      required: [leagueId, seasonId]
+      properties:
+        leagueId: { type: integer, minimum: 1 }
+        seasonId: { type: integer, minimum: 1 }
+    VeoRecordingImportInput:
+      type: object
+      required: [leagueId, seasonId, token]
+      properties:
+        leagueId: { type: integer, minimum: 1 }
+        seasonId: { type: integer, minimum: 1 }
+        token: { type: string, minLength: 1 }
+        matchId: { type: ["integer", "null"], minimum: 1 }
+    VeoRecordingImportResult:
+      type: object
+      required: [ok, veoId]
+      properties:
+        ok: { type: boolean }
+        veoId: { type: integer }
+    VeoDiscoveredRecording:
+      type: object
+      required: [token, recordingId, title, startsAt, source, team, imported, removed]
+      properties:
+        token: { type: string }
+        recordingId: { type: string }
+        title: { type: string }
+        startsAt: { type: ["string", "null"] }
+        source: { type: string }
+        team: { type: string }
+        imported: { type: boolean }
+        removed: { type: boolean }
+    VeoDiscoveryFixture:
+      type: object
+      required: [id, opponent, matchDate]
+      properties:
+        id: { type: integer }
+        opponent: { type: string }
+        matchDate: { type: ["string", "null"] }
+    VeoDiscoveryResult:
+      type: object
+      required: [recordings, sourcesChecked, warnings, fixtures, campaignYear]
+      properties:
+        recordings:
+          type: array
+          items: { $ref: "#/components/schemas/VeoDiscoveredRecording" }
+        sourcesChecked:
+          type: array
+          items: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+        fixtures:
+          type: array
+          items: { $ref: "#/components/schemas/VeoDiscoveryFixture" }
+        campaignYear: { type: string }
     VeoSyncInput:
       type: object
       required: [leagueId]
       properties:
         leagueId: { type: integer }
+        seasonId: { type: integer, minimum: 1 }
         batch: { type: integer }
     VeoSyncResult:
       type: object
@@ -4372,6 +4463,7 @@ components:
         title: { type: string, nullable: true }
         opponent: { type: string, nullable: true }
         startsAt: { type: string, nullable: true }
+        campaignYear: { type: ["string", "null"] }
         matchCode: { type: string, nullable: true }
         hubOpponent: { type: string, nullable: true }
         hasAnalytics: { type: boolean }

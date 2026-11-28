@@ -8,5 +8,7 @@
 
 export interface VeoSyncInput {
   leagueId: number;
+  /** @minimum 1 */
+  seasonId?: number;
   batch?: number;
 }

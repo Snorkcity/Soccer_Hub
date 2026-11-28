@@ -5659,11 +5659,65 @@ export const JournalInterviewWriteupResponse = zod.object({
 })
 
 
+
+
+
+
+export const DiscoverVeoRecordingsBody = zod.object({
+  "leagueId": zod.number().min(1),
+  "seasonId": zod.number().min(1)
+})
+
+export const DiscoverVeoRecordingsResponse = zod.object({
+  "recordings": zod.array(zod.object({
+  "token": zod.string(),
+  "recordingId": zod.string(),
+  "title": zod.string(),
+  "startsAt": zod.string().nullable(),
+  "source": zod.string(),
+  "team": zod.string(),
+  "imported": zod.boolean(),
+  "removed": zod.boolean()
+})),
+  "sourcesChecked": zod.array(zod.string()),
+  "warnings": zod.array(zod.string()),
+  "fixtures": zod.array(zod.object({
+  "id": zod.number(),
+  "opponent": zod.string(),
+  "matchDate": zod.string().nullable()
+})),
+  "campaignYear": zod.string()
+})
+
+
+
+
+
+
+
+
+export const ImportVeoRecordingBody = zod.object({
+  "leagueId": zod.number().min(1),
+  "seasonId": zod.number().min(1),
+  "token": zod.string().min(1),
+  "matchId": zod.number().min(1).nullish()
+})
+
+export const ImportVeoRecordingResponse = zod.object({
+  "ok": zod.boolean(),
+  "veoId": zod.number()
+})
+
+
 /**
  * @summary Pull a squad's match data from Veo (incremental, batch-capped)
  */
+
+
+
 export const VeoSyncBody = zod.object({
   "leagueId": zod.number(),
+  "seasonId": zod.number().min(1).optional(),
   "batch": zod.number().optional()
 })
 
@@ -5707,6 +5761,7 @@ export const ListVeoMatchesResponse = zod.object({
   "title": zod.string().nullish(),
   "opponent": zod.string().nullish(),
   "startsAt": zod.string().nullish(),
+  "campaignYear": zod.string().nullish(),
   "matchCode": zod.string().nullish(),
   "hubOpponent": zod.string().nullish(),
   "hasAnalytics": zod.boolean().optional(),
@@ -6390,8 +6445,12 @@ export const GetVeoPlayerMatchResponse = zod.object({
 /**
  * @summary Analytics 2 season aggregates across all synced recordings (camera-derived, not GPS)
  */
+export const getVeoPlayerSeasonQueryYearRegExp = new RegExp('^\\d{4}$');
+
+
 export const GetVeoPlayerSeasonQueryParams = zod.object({
-  "leagueId": zod.coerce.number()
+  "leagueId": zod.coerce.number(),
+  "year": zod.coerce.string().regex(getVeoPlayerSeasonQueryYearRegExp).optional()
 })
 
 export const GetVeoPlayerSeasonResponse = zod.object({

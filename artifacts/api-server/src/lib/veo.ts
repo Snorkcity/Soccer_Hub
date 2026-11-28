@@ -142,7 +142,7 @@ async function login(creds: VeoCredentials): Promise<string> {
     accessToken: tok.access_token,
     expiresAt: Date.now() + (tok.expires_in ?? 3600) * 1000,
   });
-  logger.info({ email: creds.email }, "veo: authenticated");
+  logger.info("veo: authenticated");
   return tok.access_token;
 }
 
@@ -297,6 +297,28 @@ export async function listRecordings(
     `/clubs/${clubSlug}/recordings/?filter=own&team=${encodeURIComponent(teamSlug)}&page_size=500&${fields}`,
   );
   return Array.isArray(data) ? data : data.results ?? [];
+}
+
+// Read all recordings for a shared clubhouse, irrespective of its team labels.
+// Follow numbered pages rather than trusting an arbitrary remote "next" URL.
+export async function listClubRecordings(creds: VeoCredentials, clubSlug: string): Promise<VeoRecording[]> {
+  const result: VeoRecording[] = [];
+  for (let page = 1; page <= 100; page++) {
+    const response = await veoFetchAbsolute(
+      creds, `${APP_BASE}/clubs/${encodeURIComponent(clubSlug)}/recordings/?filter=own&page_size=100&page=${page}`,
+    );
+    if (!response.ok) throw new Error(`Veo recording list failed (${response.status})`);
+    const data = await response.json() as VeoRecording[] | { results?: VeoRecording[]; next?: string | null };
+    const rows = Array.isArray(data) ? data : data.results ?? [];
+    result.push(...rows);
+    // The current API returns a bare array, with pagination in HTTP headers.
+    const total = Number(response.headers.get("x-veo-total-count"));
+    const hasNext = response.headers.get("link")?.includes('rel="next"')
+      || (!Array.isArray(data) && !!data.next);
+    if (!hasNext && (!Number.isFinite(total) || total <= result.length)) return result;
+    if (rows.length === 0) throw new Error("Veo returned an incomplete recording list.");
+  }
+  throw new Error("Veo recording list exceeded the page limit; please try again.");
 }
 
 export function getMatchDetail(creds: VeoCredentials, matchId: string) {

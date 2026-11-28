@@ -132,13 +132,21 @@ For the 2027 NPLM campaign, the coach expects recordings from any of the three s
 
 **Why:** the coach said recordings will come from any of the three accounts and identified Moir as one recording source.
 
-**How to apply:** any future multi-source design must support these shared sources while preserving team/campaign isolation; do not assume one camera consistently records Firsts or U23.
+**How to apply:** shared-source discovery must support these sources while preserving team/campaign isolation; do not assume one camera consistently records Firsts or U23. New men's recordings require explicit coach confirmation before import. Preserve the original source team UUID for player analytics and the confirmed campaign year for preseason recordings.
 
-**Rule:** a league has one active Veo source. When its mapped team changes, soft-archive active rows from the previous team before linking replacements. For shared/noisy teams, opt into exact Sydney-date filtering against tracked Hub fixtures.
+**Rule:** the old single-source mapping applies to legacy sync only. Coach-confirmed multi-source men's recordings are exempt from source-switch archiving and automatic match linking. For legacy shared/noisy teams, retain exact Sydney-date filtering against tracked Hub fixtures.
 
 **Why:** the NPLM U23 analytics share lives under Moir's/Conor, while its older BUFC U23 share lacks the full analytics feeds. Conor also contains historical and preseason recordings; importing the whole team would mix unrelated games and duplicate linked fixtures. The coach confirmed the exact-date filtered source switch worked in the live manual-sync workflow.
 
-**How to apply:** confirm the replacement source covers tracked fixture dates uniquely and exposes real events/RAS/Analytics 2 payloads before changing the mapping. Keep unmatched dates out of opted-in leagues and preserve old-source rows only as an inactive archive.
+**How to apply:** confirm a legacy replacement source covers tracked fixture dates uniquely and exposes real events/RAS/Analytics 2 payloads before changing its mapping. Keep unmatched dates out of opted-in legacy imports. For confirmed imports, a missing Hub fixture is allowed for friendlies; camera/team labels must never decide Hub ownership.
+
+## Clubhouse recording pagination
+
+**Rule:** a bare recordings array is not necessarily the entire clubhouse library; follow Veo's pagination headers and total count. Resolve the recording's source team by exact unique UUID/slug/name, not a guessed camera owner.
+
+**Why:** the clubhouse endpoint returned plain arrays with further pages in `Link` and `x-veo-total-count`; `page_size=500` was capped at 100. The recording's `team` was a display name, not the slug used in team-specific requests.
+
+**How to apply:** preserve warnings for inaccessible sources or unresolved source teams rather than claiming a complete successful fetch. Do not import recordings with an ambiguous team UUID into player analytics.
 
 - **Physical metrics:** `GET /api/mes/v2/{matchId}/physical-metrics`. Rows are split by `drill`
   (period/segment) and carry `teamId`, `jerseyNumber`, `distance` (metres), `secondsPlayed`,

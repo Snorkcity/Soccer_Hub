@@ -150,9 +150,13 @@ type VeoSyncResult = {
   done: boolean;
 };
 
-export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH): Promise<VeoSyncError | VeoSyncResult> {
+export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH, campaignYear?: string): Promise<VeoSyncError | VeoSyncResult> {
   const mapping = await leagueVeoMapping(leagueId);
   if (!mapping) return { error: "This league has no Veo team mapping.", status: 400 };
+  if (campaignYear && !/^ACT NPLM(?: U23)?$/.test(mapping.name))
+    return { error: "Campaign-specific refresh is supported for the shared men's sources.", status: 400 };
+  const campaignFilter = campaignYear
+    ? sql`${veoMatchesTable.confirmedSource}->>'campaignYear' = ${campaignYear}` : undefined;
 
   const creds: VeoCredentials | null = defaultVeoCreds();
   if (!creds) return { error: "Veo credentials are not configured on the server.", status: 503 };
@@ -161,7 +165,9 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
 
   let recordings;
   try {
-    recordings = await listRecordings(creds, mapping.veoClubSlug, mapping.veoTeamSlug);
+    // Shared men's cameras do not establish team/campaign ownership.
+    recordings = /^ACT NPLM(?: U23)?$/.test(mapping.name)
+      ? [] : await listRecordings(creds, mapping.veoClubSlug, mapping.veoTeamSlug);
   } catch (e) {
     logger.error({ err: e, leagueId }, "veo: listRecordings failed");
     return { error: "Could not reach Veo. Try again shortly.", status: 502 };
@@ -181,6 +187,8 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
       and(
         eq(veoMatchesTable.leagueId, leagueId),
         isNull(veoMatchesTable.removedAt),
+        isNull(veoMatchesTable.confirmedSource),
+        sql`${!/^ACT NPLM(?: U23)?$/.test(mapping.name)}`,
         sql`${veoMatchesTable.veoTeamSlug} IS NOT NULL`,
         sql`${veoMatchesTable.veoTeamSlug} <> ${mapping.veoTeamSlug}`,
       ),
@@ -235,7 +243,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
   const pending = await db
     .select({ veoMatchId: veoMatchesTable.veoMatchId })
     .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.events} IS NULL`, sql`${veoMatchesTable.removedAt} IS NULL`));
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), campaignFilter, sql`${veoMatchesTable.events} IS NULL`, sql`${veoMatchesTable.removedAt} IS NULL`));
 
   const toFetch = pending.slice(0, batch);
   let fetched = 0;
@@ -291,6 +299,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
     .where(
       and(
         eq(veoMatchesTable.leagueId, leagueId),
+        campaignFilter,
         sql`${veoMatchesTable.events} IS NOT NULL`,
         // COALESCE: rows written before the pending flag existed count as pending.
         // Third branch: rows synced before 5-min heat windows existed — refetch
@@ -321,6 +330,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
     .where(
       and(
         eq(veoMatchesTable.leagueId, leagueId),
+        campaignFilter,
         sql`${veoMatchesTable.events} IS NOT NULL`,
         sql`(${veoMatchesTable.passDetails} IS NULL OR (${veoMatchesTable.passDetails}->>'available' = 'false' AND COALESCE(${veoMatchesTable.passDetails}->>'pending', 'true') = 'true'))`,
         sql`${veoMatchesTable.removedAt} IS NULL`,
@@ -368,11 +378,11 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
 
   // Gather all non-removed veo match ids for this league.
   const allMatchRows = await db
-    .select({ veoMatchId: veoMatchesTable.veoMatchId })
+    .select({ veoMatchId: veoMatchesTable.veoMatchId, confirmedSource: veoMatchesTable.confirmedSource })
     .from(veoMatchesTable)
-    .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`));
+    .where(and(eq(veoMatchesTable.leagueId, leagueId), campaignFilter, sql`${veoMatchesTable.removedAt} IS NULL`));
 
-  if (veoTeamId && allMatchRows.length > 0) {
+  if (allMatchRows.some(row => row.confirmedSource?.teamId || veoTeamId)) {
     // Load existing analytics2 rows to determine which need work.
     const existingA2 = await db
       .select({
@@ -408,9 +418,11 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
     const toFetchA2 = needsWork.slice(0, batch);
     const nowTs = new Date();
 
-    await mapPool(toFetchA2, 3, async ({ veoMatchId }) => {
+    await mapPool(toFetchA2, 3, async ({ veoMatchId, confirmedSource }) => {
+      const sourceTeamId = confirmedSource?.teamId ?? veoTeamId;
+      if (!sourceTeamId) return;
       try {
-        const result = await getAnalytics2Bundle(creds, veoMatchId, veoTeamId!);
+        const result = await getAnalytics2Bundle(creds, veoMatchId, sourceTeamId);
         const hasNewData = Object.keys(result.bundle).length > 0;
         const existing = a2ByMatchId.get(veoMatchId);
         const hasExistingRaw = Boolean(existing?.raw && Object.keys(existing.raw).length > 0);
@@ -457,7 +469,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
         const upsertValues = {
           leagueId,
           veoMatchId,
-          teamId: veoTeamId!,
+          teamId: sourceTeamId,
           status: effectiveStatus,
           sourceVersion: effectiveVersion,
           terminalSources,
@@ -546,7 +558,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
 
   // When team UUID resolution fails we have no A2 data at all; treat all
   // non-removed matches as remaining so done never returns true prematurely.
-  if (!veoTeamId) {
+  if (!veoTeamId && !allMatchRows.some(row => row.confirmedSource?.teamId)) {
     playerRemaining = totalNonRemoved;
     playerPending = totalNonRemoved;
   }
@@ -554,7 +566,7 @@ export async function syncVeoLeagueOnce(leagueId: number, batch = DEFAULT_BATCH)
   const remaining = Math.max(0, pending.length - fetched);
   return {
     league: mapping.name,
-    totalMatches: recordings.length,
+    totalMatches: totalNonRemoved,
     fetched,
     remaining,
     analyticsPending,
@@ -574,8 +586,15 @@ router.post("/entry/veo-sync", async (req, res) => {
   const leagueId = Number(req.body?.leagueId);
   const batch = Number.isFinite(Number(req.body?.batch)) ? Number(req.body?.batch) : DEFAULT_BATCH;
   if (!Number.isFinite(leagueId)) return res.status(400).json({ error: "leagueId required" });
+  let campaignYear: string | undefined;
+  if (req.body?.seasonId != null) {
+    const [season] = await db.select({ year: seasonsTable.year }).from(seasonsTable)
+      .where(and(eq(seasonsTable.id, Number(req.body.seasonId)), eq(seasonsTable.leagueId, leagueId))).limit(1);
+    if (!season) return res.status(400).json({ error: "That campaign does not belong to this team." });
+    campaignYear = season.year;
+  }
   try {
-    const result = await syncVeoLeagueOnce(leagueId, batch);
+    const result = await syncVeoLeagueOnce(leagueId, batch, campaignYear);
     if ("error" in result) return res.status(result.status).json({ error: result.error });
     return res.json(result);
   } catch (e) {
@@ -620,6 +639,7 @@ router.get("/veo/matches", async (req, res) => {
       synced: sql<boolean>`${veoMatchesTable.events} IS NOT NULL`,
       syncedAt: veoMatchesTable.syncedAt,
       processingStatus: veoMatchesTable.processingStatus,
+      campaignYear: sql<string | null>`${veoMatchesTable.confirmedSource}->>'campaignYear'`,
       matchCode: matchesTable.matchId,
       hubOpponent: matchesTable.opponent,
       // True when events are present but the RAS pass-analytics pipeline hasn't
@@ -1213,7 +1233,7 @@ router.get("/veo/links", async (req, res) => {
       .where(
         and(
           eq(veoMatchesTable.leagueId, leagueId),
-          sql`(${veoMatchesTable.removedAt} IS NULL OR ${veoMatchesTable.veoTeamSlug} = ${leaguesTable.veoTeamSlug})`,
+          sql`(${veoMatchesTable.removedAt} IS NULL OR ${veoMatchesTable.veoTeamSlug} = ${leaguesTable.veoTeamSlug} OR ${veoMatchesTable.confirmedSource} IS NOT NULL)`,
         ),
       )
       .orderBy(sql`${veoMatchesTable.startsAt} DESC NULLS LAST`),
@@ -1342,7 +1362,7 @@ export async function autoLinkVeoLeague(leagueId: number) {
         matchId: veoMatchesTable.matchId,
       })
       .from(veoMatchesTable)
-      .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`)),
+      .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`, isNull(veoMatchesTable.confirmedSource))),
     hubMatchesForLeague(leagueId),
   ]);
 
@@ -1414,7 +1434,7 @@ router.post("/entry/veo-link", async (req, res) => {
     return res.status(400).json({ error: "matchId must be a number or null" });
 
   const veoRow = await db
-    .select({ id: veoMatchesTable.id, removedAt: veoMatchesTable.removedAt })
+    .select({ id: veoMatchesTable.id, removedAt: veoMatchesTable.removedAt, confirmedSource: veoMatchesTable.confirmedSource })
     .from(veoMatchesTable)
     .where(and(eq(veoMatchesTable.id, veoId), eq(veoMatchesTable.leagueId, leagueId)))
     .limit(1);
@@ -1428,7 +1448,8 @@ router.post("/entry/veo-link", async (req, res) => {
       .select({ id: matchesTable.id })
       .from(matchesTable)
       .innerJoin(seasonsTable, eq(matchesTable.seasonId, seasonsTable.id))
-      .where(and(eq(matchesTable.id, matchId), eq(seasonsTable.leagueId, leagueId)))
+      .where(and(eq(matchesTable.id, matchId), eq(seasonsTable.leagueId, leagueId),
+        ...(veoRow[0].confirmedSource ? [eq(seasonsTable.year, veoRow[0].confirmedSource.campaignYear)] : [])))
       .limit(1);
     if (ok.length === 0) return res.status(400).json({ error: "That match doesn't belong to this league" });
   }
@@ -2038,7 +2059,7 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParse.error.message });
     return;
   }
-  const { leagueId } = queryParse.data;
+  const { leagueId, year } = queryParse.data;
 
   const user = await getSessionUser(req);
   if (!user) { res.status(401).json({ error: "Not signed in" }); return; }
@@ -2059,6 +2080,7 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
       title: veoMatchesTable.title,
       opponent: veoMatchesTable.opponent,
       startsAt: veoMatchesTable.startsAt,
+      confirmedSource: veoMatchesTable.confirmedSource,
     })
     .from(veoMatchesTable)
     .where(and(eq(veoMatchesTable.leagueId, leagueId), sql`${veoMatchesTable.removedAt} IS NULL`))
@@ -2081,7 +2103,13 @@ router.get("/veo/player-season", async (req, res): Promise<void> => {
   // aggregation. This is critical: aggregation grouping key uses resolved Hub
   // identity, so enrichment must happen per-match, not per aggregated row.
   const matchRecords = await Promise.all(
-    matchRows.map(async (m) => {
+    matchRows.filter(m => {
+      if (!year) return true;
+      if (m.confirmedSource) return m.confirmedSource.campaignYear === year;
+      const date = m.startsAt ? new Date(m.startsAt) : null;
+      return date && Number.isFinite(date.getTime())
+        && date.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney", year: "numeric" }) === year;
+    }).map(async (m) => {
       const a2 = a2ByMatch.get(m.veoMatchId);
       const available = a2?.status === "complete" || a2?.status === "partial";
 

@@ -27,6 +27,7 @@ import journalInterviewRouter from "./journalInterview";
 import assistantRouter from "./assistant";
 import driblRouter from "./dribl";
 import veoRouter from "./veo";
+import veoDiscoveryRouter from "./veoDiscovery";
 import curriculumDocumentsRouter from "./curriculumDocuments";
 
 const router: IRouter = Router();
@@ -59,6 +60,7 @@ router.use(journalInterviewRouter);
 router.use(assistantRouter);
 router.use(driblRouter);
 router.use(veoRouter);
+router.use(veoDiscoveryRouter);
 router.use(curriculumDocumentsRouter);
 
 export default router;

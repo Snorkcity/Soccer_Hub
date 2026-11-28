@@ -17,7 +17,6 @@ import {
   getGetVeoGoalSequenceReviewsQueryKey,
   useSaveVeoGoalSequenceReview,
   getGetVeoPlayerSeasonQueryKey,
-  getGetVeoPlayerMatchQueryKey,
   getListAssistantMatchesQueryKey,
   type VeoSeasonPassingMatch,
   useListVeoLinks,
@@ -59,6 +58,7 @@ import { SectionGroup } from "@/components/SectionGroup";
 import { useActiveLeague } from "@/contexts/LeagueContext";
 import { VeoSeasonPlayers } from "@/components/veo/VeoSeasonPlayers";
 import { VeoMatchPlayers } from "@/components/veo/VeoMatchPlayers";
+import { VeoRecordingDiscovery } from "@/components/veo/VeoRecordingDiscovery";
 import { useAssistant } from "@/contexts/AssistantContext";
 import {
   goalIntervalIndex,
@@ -313,6 +313,25 @@ function PassingDataState({ pending, unavailable, analyticsEnabled = true, compa
   );
 }
 
+// Calendar year of a kickoff as seen in Sydney (a late-Dec UTC timestamp can
+// already be next year locally). Null when the date is missing/invalid.
+function sydneyYear(iso?: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const y = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", year: "numeric" }).format(d));
+  return Number.isFinite(y) ? y : null;
+}
+
+// Confirmed campaign year from the summary (until codegen lands the field is
+// read defensively). Null = legacy / unconfirmed row.
+function summaryCampaignYear(s: VeoMatchSummary | undefined | null): number | null {
+  const raw = (s as (VeoMatchSummary & { campaignYear?: string | null }) | undefined | null)?.campaignYear;
+  if (raw == null || raw === "") return null;
+  const y = Number(raw);
+  return Number.isFinite(y) ? y : null;
+}
+
 function fmtDate(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -361,9 +380,12 @@ function scoreMismatchText(mismatch: VeoScoreMismatch): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VeoInsights() {
   const { hasModule, ready, isSuperadmin } = useLeagueModules();
-  const { activeLeagueId, leagueOptions } = useActiveLeague();
+  const { activeLeagueId, leagueOptions, activeSeason } = useActiveLeague();
   const activeLeagueName = leagueOptions.find((league) => league.id === activeLeagueId)?.name;
   const matchTiming = matchTimingForLeague(activeLeagueName);
+  const isNplm = activeLeagueName === "ACT NPLM" || activeLeagueName === "ACT NPLM U23";
+  const canEdit = activeLeagueId != null && (isSuperadmin || hasModule(activeLeagueId, "data-entry"));
+  const discoveryReady = isNplm && canEdit && activeSeason != null && activeSeason.leagueId === activeLeagueId;
   const { setPageMatchContext, setPageContextOverride } = useAssistant();
   const qc = useQueryClient();
 
@@ -378,7 +400,14 @@ export default function VeoInsights() {
     query: { enabled: activeLeagueId != null, queryKey: getListVeoMatchesQueryKey(listParams) },
   });
   const matches: VeoMatchSummary[] = listData?.matches ?? [];
-  const synced = matches.filter((m) => m.synced);
+  const activeCampaignYear = activeSeason ? Number(activeSeason.year) : null;
+  // Rows with a confirmed campaign only show in that campaign; legacy rows
+  // without one keep the previous behaviour.
+  const synced = matches.filter((m) => {
+    if (!m.synced) return false;
+    const cy = summaryCampaignYear(m);
+    return cy == null || activeCampaignYear == null || !Number.isFinite(activeCampaignYear) || cy === activeCampaignYear;
+  });
 
   // Fall back to the newest match if the selected one disappears from the list
   // (e.g. the coach just removed it in Match links).
@@ -462,7 +491,10 @@ export default function VeoInsights() {
     setSyncMsg("Starting sync…");
     try {
       for (let i = 0; i < 25; i++) {
-        const r = await syncMut.mutateAsync({ data: { leagueId: activeLeagueId, batch: 20 } });
+        const r = await syncMut.mutateAsync({ data: {
+          leagueId: activeLeagueId, batch: 20,
+          ...(isNplm && activeSeason && Number(activeSeason.year) >= 2027 ? { seasonId: activeSeason.id } : {}),
+        } });
         const playerReady = Math.max(0, r.totalMatches - r.playerRemaining - r.playerUnavailable);
         setSyncMsg(
           `Team data ${r.totalMatches - r.remaining}/${r.totalMatches} · player data ${playerReady}/${r.totalMatches}${r.playerUnavailable > 0 ? ` · ${r.playerUnavailable} unavailable` : ""}…`,
@@ -479,20 +511,17 @@ export default function VeoInsights() {
           break;
         }
       }
-      qc.invalidateQueries({ queryKey: getListVeoMatchesQueryKey(listParams) });
-      qc.invalidateQueries({ queryKey: getGetVeoSeasonQueryKey(seasonParams) });
-      qc.invalidateQueries({ queryKey: getGetVeoSeasonShotsQueryKey(seasonParams) });
-      qc.invalidateQueries({ queryKey: getGetVeoSeasonPassingQueryKey(seasonParams) });
-      qc.invalidateQueries({ queryKey: getGetVeoPlayerSeasonQueryKey(seasonParams) });
-      if (currentId != null) {
-        const playerMatchParams = { leagueId: activeLeagueId, veoId: currentId };
-        qc.invalidateQueries({ queryKey: getGetVeoPlayerMatchQueryKey(playerMatchParams) });
-      }
+      // Broad refresh: every Veo list, link table and chart across views/leagues.
+      await qc.invalidateQueries({
+        predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/veo"),
+      });
+      qc.invalidateQueries({ queryKey: getListAssistantMatchesQueryKey() });
     } catch (e) {
       // Show the server's actual reason (e.g. Veo login failure) so repeated
       // failures are diagnosable instead of a generic "try again".
       const detail = e instanceof Error && e.message ? ` — ${e.message}` : " — please try again.";
       setSyncMsg(`Sync failed${detail}`);
+      throw e instanceof Error ? e : new Error("Sync failed");
     }
   }
 
@@ -502,8 +531,8 @@ export default function VeoInsights() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Video className="h-7 w-7" /> Veo Insights
           </h1>
@@ -511,20 +540,35 @@ export default function VeoInsights() {
             Match stats pulled from Veo — event breakdowns, attacking momentum and shot maps for every recorded game.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <Button onClick={runSync} disabled={syncMut.isPending} className="gap-2">
+        <div className="flex flex-col items-start lg:items-end gap-1">
+          <Button onClick={() => { runSync().catch(() => { /* shown in header */ }); }} disabled={syncMut.isPending} variant={isNplm ? "outline" : "default"} className="gap-2" data-testid="button-veo-sync">
             {syncMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Sync from Veo
+            {isNplm ? "Refresh saved stats" : "Sync from Veo"}
           </Button>
           {syncMsg && <span className="text-xs text-muted-foreground">{syncMsg}</span>}
         </div>
       </div>
 
+      {discoveryReady && activeSeason && activeLeagueId != null && (
+        <VeoRecordingDiscovery
+          key={`${activeLeagueId}-${activeSeason.id}`}
+          leagueId={activeLeagueId}
+          seasonId={activeSeason.id}
+          teamName={activeLeagueName === "ACT NPLM U23" ? "NPLM U23" : "NPLM Firsts"}
+          campaignYear={activeSeason.year}
+          onImported={runSync}
+        />
+      )}
+
       {listLoading ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">Loading Veo matches…</CardContent></Card>
       ) : synced.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">
-          No Veo matches synced yet for this squad. Hit <span className="font-medium">Sync from Veo</span> to pull them in.
+          {discoveryReady
+            ? <>No Veo recordings in this campaign yet. Use <span className="font-medium">Fetch new videos</span> above to find and import them.</>
+            : isNplm
+              ? <>No Veo recordings in this campaign yet. Someone with data-entry access can import them with Fetch new videos.</>
+              : <>No Veo matches synced yet for this squad. Hit <span className="font-medium">Sync from Veo</span> to pull them in.</>}
         </CardContent></Card>
       ) : (
         <>
@@ -618,7 +662,7 @@ export default function VeoInsights() {
                   matches={seasonData.matches}
                   shotMatches={seasonShotsData?.matches ?? []}
                   passingMatches={seasonPassingData?.matches ?? []}
-                  matchSummaries={synced}
+                  matchSummaries={matches.filter((m) => m.synced)}
                   passingLoading={seasonPassingLoading}
                   analyticsEnabled={analyticsEnabled}
                    goalSequences={goalSequencesData}
@@ -629,7 +673,7 @@ export default function VeoInsights() {
                 />
               )
             ) : (
-              <VeoSeasonPlayers leagueId={activeLeagueId!} />
+              <VeoSeasonPlayers key={`${activeLeagueId}-${activeSeason?.year}`} leagueId={activeLeagueId!} year={activeSeason?.year} />
             )
           ) : matchLoading || !match ? (
             <Card><CardContent className="py-16 text-center text-muted-foreground">Loading match…</CardContent></Card>
@@ -1028,14 +1072,21 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
 }) {
   // A "season" is one calendar year here; the Veo library spans several years,
   // so charts default to the latest year with a year picker to look back.
+  // Confirmed campaign year beats kickoff date (Nov 2026 preseason confirmed
+  // for 2027 belongs to 2027); otherwise the Sydney calendar year.
+  const campaignYearFor = useMemo(() => {
+    const byId = new Map(matchSummaries.map((s) => [s.id, s]));
+    return (m: { id: number; startsAt?: string | null }): number | null =>
+      summaryCampaignYear(byId.get(m.id)) ?? sydneyYear(m.startsAt);
+  }, [matchSummaries]);
   const years = useMemo(() => {
     const ys = new Set<number>();
     for (const m of matches) {
-      const d = m.startsAt ? new Date(m.startsAt) : null;
-      if (d && !isNaN(d.getTime())) ys.add(d.getFullYear());
+      const y = campaignYearFor(m);
+      if (y != null) ys.add(y);
     }
     return Array.from(ys).sort((a, b) => b - a);
-  }, [matches]);
+  }, [matches, campaignYearFor]);
   const [pickedYear, setPickedYear] = useState<number | "all" | null>(null);
   // Follow the shared campaign year when it changes; own picker keeps history.
   const { activeSeason: ctxSeason } = useActiveLeague();
@@ -1055,11 +1106,8 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
 
   const yearFiltered = useMemo(() => {
     if (year === "all") return matches;
-    return matches.filter((m) => {
-      const d = m.startsAt ? new Date(m.startsAt) : null;
-      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
-    });
-  }, [matches, year]);
+    return matches.filter((m) => campaignYearFor(m) === year);
+  }, [matches, year, campaignYearFor]);
 
   // Club brand colours so the opponent legend dots match the other tabs.
   const { data: clubs } = useGetClubs({ query: { queryKey: getGetClubsQueryKey() } });
@@ -1137,10 +1185,9 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
     return shotMatches.filter((m) => {
       if (hiddenOpps.has(opponentOf(m))) return false;
       if (year === "all") return true;
-      const d = m.startsAt ? new Date(m.startsAt) : null;
-      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
+      return campaignYearFor(m) === year;
     });
-  }, [shotMatches, year, hiddenOpps]);
+  }, [shotMatches, year, hiddenOpps, campaignYearFor]);
 
   // Per-chart club legends for the busy season charts — the shot map and the
   // two threat-timing charts each get their own toggle, on top of the page-wide
@@ -1234,8 +1281,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
     const filteredPassing = passingMatches.filter((m) => {
       if (hiddenOpps.has(opponentOf(m))) return false;
       if (year === "all") return true;
-      const d = m.startsAt ? new Date(m.startsAt) : null;
-      return d != null && !isNaN(d.getTime()) && d.getFullYear() === year;
+      return campaignYearFor(m) === year;
     });
     return filteredPassing.map((m) => {
       const totalSec = m.possessionSecUs + m.possessionSecThem;
@@ -1278,7 +1324,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
         thirdAtt: thirdsTotal > 0 ? Number(((m.thirdsUs.attacking / thirdsTotal) * 100).toFixed(1)) : null,
       };
     });
-  }, [passingMatches, year, hiddenOpps]);
+  }, [passingMatches, year, hiddenOpps, campaignYearFor]);
 
   // Rolling 3-game averages — the "momentum" read: is the trend line climbing?
   const passRowsWithRolling = useMemo(() => {
@@ -1317,8 +1363,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
     for (const m of passingMatches) {
       if (hiddenOpps.has(opponentOf(m))) continue;
       if (year !== "all") {
-        const d = m.startsAt ? new Date(m.startsAt) : null;
-        if (d == null || isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+        if (campaignYearFor(m) !== year) continue;
       }
       add("Belconnen", m.passLenUs);
       add(opponentOf(m), m.passLenThem);
@@ -1332,7 +1377,7 @@ function SeasonView({ matches, shotMatches, passingMatches, matchSummaries, pass
       }))
       .filter((r) => r.n >= 50) // too few passes = noise, not style
       .sort((a, b) => b.longPct - a.longPct);
-  }, [passingMatches, year, hiddenOpps]);
+  }, [passingMatches, year, hiddenOpps, campaignYearFor]);
 
   const passTotals = useMemo(() => {
     const withPct = passRows.filter((r) => r.possPct != null);

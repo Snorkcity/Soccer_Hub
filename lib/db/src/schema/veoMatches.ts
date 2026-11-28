@@ -19,6 +19,10 @@ export const veoMatchesTable = pgTable(
     // Veo's match identifier (uuid). Stable key we upsert on, per league.
     veoMatchId: text("veo_match_id").notNull(),
     veoTeamSlug: text("veo_team_slug"),
+    // Coach-confirmed source and campaign; never infer team from the camera.
+    confirmedSource: jsonb("confirmed_source").$type<{
+      clubSlug: string; teamSlug: string; teamId: string; campaignYear: string;
+    }>(),
     title: text("title"),
     opponent: text("opponent"),
     // ISO datetime string of kick-off (Veo recording `start`).
