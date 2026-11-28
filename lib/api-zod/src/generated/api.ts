@@ -6578,6 +6578,7 @@ export const GetVeoReportStatsResponse = zod.object({
   "veoId": zod.number().nullish(),
   "startsAt": zod.string().nullish(),
   "matchMinutes": zod.number().optional(),
+  "periodMinutes": zod.array(zod.number()).optional(),
   "shots": zod.object({
   "us": zod.number(),
   "them": zod.number()

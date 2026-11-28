@@ -16,6 +16,9 @@ import {
   clampMatchMinute,
   matchTimelineTicks,
   matchTimingForLeague,
+  veoPeriodBreaks,
+  formatVeoDuration,
+  formatVeoTimelineTick,
 } from "@workspace/api-zod";
 
 const C_US = "hsl(var(--chart-1))";
@@ -42,19 +45,23 @@ const TONE_STYLE: Record<string, { border: string; icon: React.ReactNode }> = {
 };
 
 /** Unified moment timeline: goals (filled), shots (rings), corners (ticks). */
-function MomentTimeline({ moments, maxMin, halfAt, ticks, opponent }: {
+function MomentTimeline({ moments, maxMin, breaks, ticks, opponent }: {
   moments: NonNullable<VeoReportStats["timeline"]>;
-  maxMin: number; halfAt: number; ticks: number[]; opponent: string;
+  maxMin: number; breaks: { minute: number; label: string }[]; ticks: number[]; opponent: string;
 }) {
   const W = 900, H = 130, padX = 14, midY = H / 2;
   const px = (m: number) => padX + (m / Math.max(maxMin, 1)) * (W - 2 * padX);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 120 }}>
       <line x1={padX} y1={midY} x2={W - padX} y2={midY} stroke="hsl(var(--border))" />
-      <line x1={px(halfAt)} y1={14} x2={px(halfAt)} y2={H - 14} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
-      <text x={px(halfAt) + 5} y={20} fontSize={11} fill="hsl(var(--muted-foreground))">HT</text>
+      {breaks.map(b => (
+        <g key={b.label}>
+          <line x1={px(b.minute)} y1={14} x2={px(b.minute)} y2={H - 14} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
+          <text x={px(b.minute) + 5} y={20} fontSize={11} fill="hsl(var(--muted-foreground))">{b.label}</text>
+        </g>
+      ))}
       {ticks.map((m) => (
-        <text key={m} x={px(m)} y={H - 2} fontSize={10} fill="hsl(var(--muted-foreground))" textAnchor="middle">{m}'</text>
+        <text key={m} x={px(m)} y={H - 2} fontSize={10} fill="hsl(var(--muted-foreground))" textAnchor="middle">{formatVeoTimelineTick(m)}</text>
       ))}
       {moments.map((p, i) => {
         const cy = p.us ? midY - 22 : midY + 22;
@@ -105,6 +112,9 @@ export function VeoReportPanel({ leagueId, matchRowId, opponent, preloaded }: Pr
   const total = shots.us + shots.them;
   const usPct = total > 0 ? Math.round((shots.us / total) * 100) : 50;
   const halfAt = Math.min(data.tiltHalfAt ?? maxMin / 2, maxMin);
+  const breaks = data.periodMinutes
+    ? veoPeriodBreaks(data.periodMinutes, timing)
+    : [{ minute: halfAt, label: "HT" }];
 
   return (
     <Card>
@@ -117,6 +127,12 @@ export function VeoReportPanel({ leagueId, matchRowId, opponent, preloaded }: Pr
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {data.periodMinutes?.length === 3 && (
+          <p className="text-xs text-muted-foreground">
+            Three-period match · {data.periodMinutes.map(formatVeoDuration).join(" / ")} · {formatVeoDuration(maxMin)} played.
+            {" "}Breaks excluded; original thirds retained.
+          </p>
+        )}
         {/* ── Key findings ── */}
         {findings.length > 0 && (
           <div className="space-y-1.5">
@@ -179,7 +195,7 @@ export function VeoReportPanel({ leagueId, matchRowId, opponent, preloaded }: Pr
         {timeline.length > 0 && (
           <div>
             <p className="text-xs font-medium mb-1">The match on one line — us above, {opponent} below. Filled dots are goals, rings are shots, small ticks are corners.</p>
-            <MomentTimeline moments={timeline} maxMin={maxMin} halfAt={halfAt} ticks={ticks} opponent={opponent} />
+            <MomentTimeline moments={timeline} maxMin={maxMin} breaks={breaks} ticks={ticks} opponent={opponent} />
           </div>
         )}
 
@@ -210,13 +226,13 @@ export function VeoReportPanel({ leagueId, matchRowId, opponent, preloaded }: Pr
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={tilt} margin={{ left: -18, right: 6, top: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="min" type="number" domain={[0, maxMin]} ticks={ticks} {...AXIS} tickFormatter={(m) => `${m}'`} />
+                <XAxis dataKey="min" type="number" domain={[0, maxMin]} ticks={ticks} {...AXIS} tickFormatter={formatVeoTimelineTick} />
                 <YAxis {...AXIS} domain={[-50, 50]} tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`} />
                 <Tooltip contentStyle={TOOLTIP_BOX}
                   formatter={(v: number, n) => [`${v > 0 ? "us +" : v < 0 ? `${opponent} +` : ""}${Math.abs(v).toFixed(0)}`, n]}
                   labelFormatter={(m) => `around ${m}'`} />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
-                {data.tiltHalfAt != null && <ReferenceLine x={Math.round(data.tiltHalfAt / 5) * 5} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />}
+                {breaks.map(b => <ReferenceLine key={b.label} x={b.minute} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: b.label, fontSize: 9 }} />)}
                 <Line type="monotone" dataKey="tiltDiff" name="Threat tilt" stroke={C_US} strokeWidth={2} dot={false} connectNulls />
                 {tilt.some((t) => t.passDiff != null) && (
                   <Line type="stepAfter" dataKey="passDiff" name="Territory" stroke={C_THEM} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls />

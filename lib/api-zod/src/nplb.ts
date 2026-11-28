@@ -98,14 +98,17 @@ export function clampMatchMinute(minute: number, timing: MatchTimingPolicy): num
   return Math.min(timing.regulationMinutes, Math.max(0, minute));
 }
 
-/** Fifteen-minute chart ticks plus the exact regulation endpoint. */
+/** Fifteen-minute chart ticks plus the exact supplied match endpoint. */
 export function matchTimelineTicks(
   timing: MatchTimingPolicy,
   matchMinutes = timing.regulationMinutes,
+  interval = 15,
 ): number[] {
-  const endpoint = Math.max(timing.regulationMinutes, matchMinutes);
+  const endpoint = Number.isFinite(matchMinutes) && matchMinutes > 0
+    ? matchMinutes : timing.regulationMinutes;
   const ticks: number[] = [];
-  for (let minute = 0; minute <= endpoint; minute += 15) ticks.push(minute);
+  const step = Number.isFinite(interval) && interval > 0 ? interval : 15;
+  for (let minute = 0; minute <= endpoint; minute += step) ticks.push(minute);
   if (ticks[ticks.length - 1] !== endpoint) ticks.push(endpoint);
   return ticks;
 }
@@ -132,16 +135,44 @@ export function veoPeriodDurationsMinutes(
 }
 
 /**
- * Regulation stays authoritative for ordinary two-period matches (including
- * NPLB stoppage time). Four-period knockout matches use the canonical
- * competition clock, so Veo stoppage/video overruns do not lengthen the match.
+ * Three-period friendlies use actual playing time, excluding both breaks.
+ * Ordinary two-period matches and four-period knockout clocks stay unchanged.
  */
 export function veoMatchDurationMinutes(
   periodDurationsMinutes: readonly number[],
   timing: MatchTimingPolicy,
 ): number {
+  if (periodDurationsMinutes.length === 3) {
+    // Sum in Veo's native seconds to avoid exposing a 79.85000000000001 clock.
+    return periodDurationsMinutes.reduce((total, minutes) => total + Math.max(0, minutes) * 60, 0) / 60;
+  }
   if (periodDurationsMinutes.length < 4) return timing.regulationMinutes;
   return timing.regulationMinutes + 30;
+}
+
+/** Labels describe the recorded format; thirds must never be called halves. */
+export function veoPeriodLabel(periodIndex: number, periodCount: number): string {
+  if (periodCount === 3) return ["1st third", "2nd third", "3rd third"][periodIndex] ?? `Period ${periodIndex + 1}`;
+  return periodIndex === 0 ? "1st half" : periodIndex === 1 ? "2nd half" : `Period ${periodIndex + 1}`;
+}
+
+export function formatVeoDuration(minutes: number): string {
+  const seconds = Math.max(0, Math.round(minutes * 60));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+export function formatVeoTimelineTick(minutes: number): string {
+  return Number.isInteger(minutes) ? `${minutes}'` : formatVeoDuration(minutes);
+}
+
+/** A three-third match has two breaks, not an invented half-time. */
+export function veoPeriodBreaks(
+  durations: readonly number[],
+  timing: MatchTimingPolicy,
+): { minute: number; label: string }[] {
+  return durations.length === 3
+    ? [1, 2].map(index => ({ minute: veoPeriodStartMinute(index, durations, timing), label: `Break ${index}` }))
+    : [{ minute: veoPeriodStartMinute(1, durations, timing), label: "HT" }];
 }
 
 /**
@@ -174,6 +205,9 @@ export function veoPeriodEndMinute(
   timing: MatchTimingPolicy,
 ): number {
   const index = Math.max(0, Math.floor(periodIndex));
+  if (periodDurationsMinutes.length === 3 && index === 2) {
+    return veoMatchDurationMinutes(periodDurationsMinutes, timing);
+  }
   if (periodDurationsMinutes.length >= 4) {
     return veoPeriodStartMinute(index, periodDurationsMinutes, timing)
       + (index < 2 ? timing.halfMinutes : 15);

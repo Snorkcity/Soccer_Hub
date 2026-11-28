@@ -48,6 +48,8 @@ Design generalisable: future clubs supply their own Veo login → same flow, per
 - **`/matches/{id}/periods/`** → `[{public_identifier, timeframe:[startSec,endSec], own_side:"left"|"right",
   duration, is_confirmed}]`. Needed to map period_time → overall match minute and to know which goal end is ours.
 - Distinguish ordinary two-half games, four-period extra time and three-period friendlies. Preserve actual friendly periods and verify their durations; neither a regulation 90-minute clock nor an extra-time rule proves how long a friendly was played.
+  **Why:** A short final third was confirmed to have ended early because of a storm, rather than missing footage.
+  **How to apply:** Confirm unusual period lengths with the coach before changing boundaries or treating an early ending as an ingestion fault.
 - **`/matches/{id}/roster/`** → `{items:[{player:{user_id,name,initials,avatar}, jersey_number, field_position,
   position_name, is_captain}]}`. jersey_number was null on test match — player_id/name mapping may be sparse.
 - Also present: `/videos/`, `/highlights/`, `/lineup/players/` (empty on test), `/feature-processing-status/`,

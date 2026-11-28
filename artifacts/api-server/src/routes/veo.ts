@@ -48,6 +48,7 @@ import {
   GetVeoPlayerMatchQueryParams,
   GetVeoPlayerSeasonQueryParams,
   matchTimingForLeague,
+  matchTimelineTicks,
   veoEventMatchMinute,
   veoMatchDurationMinutes,
   veoPeriodEndMinute,
@@ -1755,7 +1756,7 @@ function computeMatchIntel(
   const HALF_WINDOW = 7.5;
   const tilt: { min: number; tiltDiff: number | null; passDiff: number | null }[] = [];
   if (wEvts.length > 0) {
-    for (let t = 0; t <= Math.ceil(maxMin / 5) * 5; t += 5) {
+    for (const t of matchTimelineTicks(timing, maxMin, 5)) {
       let us = 0, them = 0;
       for (const e of wEvts) {
         if (e.min < t - HALF_WINDOW || e.min >= t + HALF_WINDOW) continue;
@@ -1846,8 +1847,8 @@ function computeMatchIntel(
   // In an extra-time recording, compare only period 1 with period 2. A broad
   // "after half-time" minute range would silently fold periods 3/4 into the
   // second regulation half.
-  const h1 = durMin.length >= 4 ? periodShare(1) : share(0, halfAt);
-  const h2 = durMin.length >= 4
+  const h1 = durMin.length === 3 ? null : durMin.length >= 4 ? periodShare(1) : share(0, halfAt);
+  const h2 = durMin.length === 3 ? null : durMin.length >= 4
     ? periodShare(2)
     : share(halfAt, timing.regulationMinutes + 0.001);
   if (h1 != null && h2 != null) {
@@ -1911,7 +1912,9 @@ function computeMatchIntel(
     findings: top,
     timeline,
     tilt,
-    tiltHalfAt: tilt.length > 0 ? halfAt : null,
+    // Three-third games have two real breaks, not a half-time comparison.
+    periodMinutes: durMin,
+    tiltHalfAt: tilt.length > 0 && durMin.length !== 3 ? halfAt : null,
     tiltMaxMin: tilt.length > 0 ? tilt[tilt.length - 1].min : null,
     radar,
     possession,

@@ -64,6 +64,10 @@ import {
   goalIntervalIndex,
   matchTimelineTicks,
   matchTimingForLeague,
+  formatVeoDuration,
+  formatVeoTimelineTick,
+  veoPeriodLabel,
+  veoPeriodBreaks,
   veoEventMatchMinute,
   veoMatchDurationMinutes,
   veoPeriodEndMinute,
@@ -983,7 +987,7 @@ function MatchLinksCard({
                         <div key={review.periodId} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-[11px]">
                           <div className="flex items-center gap-1.5 min-w-0 sm:flex-1">
                             <span className="font-semibold shrink-0">
-                              {review.periodId === 1 ? "1st half" : review.periodId === 2 ? "2nd half" : `Period ${review.periodId}`}
+                              {veoPeriodLabel(review.periodId - 1, l.directionReview.length)}
                             </span>
                             <span className={`rounded px-1.5 py-0.5 font-medium ${directionReviewTone(review)}`}>
                               {directionReviewLabel(review)}
@@ -2115,6 +2119,8 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
   const periodDurations = veoPeriodDurationsMinutes(match.periods, timing);
   const matchMinutes = veoMatchDurationMinutes(periodDurations, timing);
   const timelineTicks = matchTimelineTicks(timing, matchMinutes);
+  const isThreeThirds = periodDurations.length === 3;
+  const periodBreaks = veoPeriodBreaks(periodDurations, timing);
 
   // Possession heat map from the RAS 18-zone grid. Veo's raw "passLocations"
   // points turned out NOT to be pitch positions (they form the same centred
@@ -2412,7 +2418,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
 
     const HALF_WINDOW = 7.5;
     const rows: { min: number; tiltDiff: number | null; evUs: number; evThem: number; passDiff: number | null }[] = [];
-    for (let t = 0; t <= Math.ceil(maxMin / 5) * 5; t += 5) {
+    for (const t of matchTimelineTicks(timing, maxMin, 5)) {
       let us = 0, them = 0, evUs = 0, evThem = 0;
       for (const e of evs) {
         if (e.min < t - HALF_WINDOW || e.min >= t + HALF_WINDOW) continue;
@@ -2430,7 +2436,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
       });
     }
     const halfAt = veoPeriodStartMinute(1, durMin, timing);
-    return { rows, maxMin: rows[rows.length - 1].min, halfAt, hasPass: halfTilt.length > 0 };
+    return { rows, maxMin, halfAt, hasPass: halfTilt.length > 0 };
   }, [events, match.periods, match.passDetails, matchMinutes, timing]);
 
   // Shot map: normalise so we always attack to the right, them to the left.
@@ -2509,7 +2515,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
   const setPieces = useMemo(() => {
     const nHalves = Math.max(2, Array.isArray(match.periods) ? (match.periods as unknown[]).length : 2);
     const rows = Array.from({ length: nHalves }, (_, i) => ({
-      half: i === 0 ? "1st half" : i === 1 ? "2nd half" : `Period ${i + 1}`,
+      half: veoPeriodLabel(i, nHalves),
       usCorners: 0, usFreeKicks: 0, themCorners: 0, themFreeKicks: 0,
     }));
     let any = false;
@@ -2548,6 +2554,12 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
 
   return (
     <div className="space-y-6">
+      {isThreeThirds && (
+        <p className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="veo-three-period-note">
+          Three-period match · {periodDurations.map(formatVeoDuration).join(" / ")} · <strong>{formatVeoDuration(matchMinutes)} played</strong>.
+          {" "}Breaks excluded; original thirds retained.
+        </p>
+      )}
       <Card>
         <CardContent className="py-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
           <div className="text-right">
@@ -2746,7 +2758,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
                 )}
                 {heatSel && heatSel.usTot === 0 && heatSel.themTot === 0 ? (
                   <p className="text-sm text-muted-foreground py-6 text-center">
-                    No possession recorded in this window — likely half-time. Widen the selection.
+                    No possession recorded in this window — it may overlap a break. Widen the selection.
                   </p>
                 ) : (
                   <>
@@ -2898,14 +2910,14 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
             <CardDescription>
               Our share of the threat (shots, corners, frees — same weights as the momentum chart) sampled every 5 minutes over a rolling 15-minute window.
               Midline is an even game; above it we were on top, below it {opp} were.
-              {tiltLine.hasPass && <> The dashed line adds territory — our share of the time either side spent with the ball in their attacking third, per half (Veo buckets that by half, not by minute).</>}
+              {tiltLine.hasPass && <> The dashed line adds territory — our share of the time either side spent with the ball in their attacking third, per recorded period rather than per minute.</>}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={tiltLine.rows} margin={{ left: -10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="min" type="number" domain={[0, tiltLine.maxMin]} ticks={timelineTicks} {...AXIS} tickFormatter={(m) => `${m}'`} />
+                <XAxis dataKey="min" type="number" domain={[0, tiltLine.maxMin]} ticks={timelineTicks} {...AXIS} tickFormatter={formatVeoTimelineTick} />
                 <YAxis {...AXIS} domain={[-50, 50]} ticks={[-50, -25, 0, 25, 50]} tickFormatter={(v: number) => `${v + 50}%`} />
                 <Tooltip
                   content={({ active, payload, label }) => {
@@ -2920,14 +2932,16 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
                         )}
                         <div className="flex justify-between gap-6"><span className="text-muted-foreground">Threat events</span><span>{row.evUs} us · {row.evThem} them</span></div>
                         {row.passDiff != null && (
-                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Territory (half)</span><span>{(row.passDiff + 50).toFixed(0)}% us</span></div>
+                          <div className="flex justify-between gap-6"><span className="text-muted-foreground">Territory (period)</span><span>{(row.passDiff + 50).toFixed(0)}% us</span></div>
                         )}
                       </div>
                     );
                   }}
                 />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
-                <ReferenceLine x={tiltLine.halfAt} stroke="hsl(var(--border))" strokeDasharray="4 4" label={{ value: "HT", fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "top" }} />
+                {periodBreaks.map(b => (
+                  <ReferenceLine key={b.label} x={b.minute} stroke="hsl(var(--border))" strokeDasharray="4 4" label={{ value: b.label, fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "top" }} />
+                ))}
                 <Line dataKey="tiltDiff" name="Field tilt" stroke={C_US} strokeWidth={2.5} dot={{ r: 2.5, fill: C_US, strokeWidth: 0 }} connectNulls />
                 {tiltLine.hasPass && (
                   <Line type="stepAfter" dataKey="passDiff" name="Territory" stroke="hsl(var(--foreground))" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls={false} />
@@ -2948,7 +2962,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} halfAt={timeline.halfAt} ticks={timelineTicks} opp={opp} />
+          <ShotTimeline pts={timeline.pts} maxMin={timeline.maxMin} breaks={periodBreaks} ticks={timelineTicks} opp={opp} />
         </CardContent>
       </Card>
               </div>
@@ -2967,7 +2981,7 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
             <CardTitle>Set-piece pressure</CardTitle>
             <CardDescription>
               {setPieces.any
-                ? <>Corners and free kicks by half — us vs {opp}.</>
+                ? <>Corners and free kicks by {isThreeThirds ? "third" : "period"} — us vs {opp}.</>
                 : "No corners or free kicks recorded for this match."}
             </CardDescription>
           </CardHeader>
@@ -3039,10 +3053,10 @@ function MatchView({ match, events, passing, passingLoading, analyticsEnabled, t
   );
 }
 
-function ShotTimeline({ pts, maxMin, halfAt, ticks, opp }: {
+function ShotTimeline({ pts, maxMin, breaks, ticks, opp }: {
   pts: { min: number; own: boolean; goal: boolean }[];
   maxMin: number;
-  halfAt: number;
+  breaks: { minute: number; label: string }[];
   ticks: number[];
   opp: string;
 }) {
@@ -3056,12 +3070,16 @@ function ShotTimeline({ pts, maxMin, halfAt, ticks, opp }: {
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 170 }}>
         <line x1={padX} y1={midY} x2={W - padX} y2={midY} stroke={line} />
-        <line x1={px(halfAt)} y1={padY} x2={px(halfAt)} y2={H - padY} stroke={muted} strokeDasharray="4 4" opacity={0.6} />
-        <text x={px(halfAt)} y={padY - 5} textAnchor="middle" fontSize={10} fill={muted}>HT</text>
+        {breaks.map(b => (
+          <g key={b.label}>
+            <line x1={px(b.minute)} y1={padY} x2={px(b.minute)} y2={H - padY} stroke={muted} strokeDasharray="4 4" opacity={0.6} />
+            <text x={px(b.minute)} y={padY - 5} textAnchor="middle" fontSize={10} fill={muted}>{b.label}</text>
+          </g>
+        ))}
         {ticks.map((m) => (
           <g key={m}>
             <line x1={px(m)} y1={midY - 3} x2={px(m)} y2={midY + 3} stroke={muted} />
-            <text x={px(m)} y={H - 2} textAnchor="middle" fontSize={10} fill={muted}>{m}'</text>
+            <text x={px(m)} y={H - 2} textAnchor="middle" fontSize={10} fill={muted}>{formatVeoTimelineTick(m)}</text>
           </g>
         ))}
         <text x={padX} y={padY + 2} fontSize={10} fill={C_US}>Belconnen</text>
