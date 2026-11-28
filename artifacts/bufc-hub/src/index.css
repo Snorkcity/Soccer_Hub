@@ -148,7 +148,7 @@
      computers unchanged; rem-based text, controls and spacing grow together. */
   @media screen and (min-width: 600px) and (min-height: 600px) and (max-width: 1399px) and (hover: none) and (pointer: coarse) {
     html {
-      font-size: 112.5%;
+      font-size: 125%;
     }
   }
   * {
